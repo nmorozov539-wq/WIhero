@@ -529,3 +529,103 @@ test('malformed masks are reported and skipped; the entry still works', () => {
     assert.equal(activeMask(model.nodes.get('t'), selectMask(initialState(), 't', 'ghost')), null);
     assert.deepEqual(messages(buildModel([entry({ id: 'x', masks: {} })])), ['x: masks must be a list']);
 });
+
+// ── Labels ────────────────────────────────────────────────────────────
+
+test('a #label gate opens when any entry with the label has fired', () => {
+    const inn = entry({ id: 'inn', labels: ['town'] });
+    const smithy = entry({ id: 'smithy', labels: ['town'] });
+    const road = entry({ id: 'road' });
+    const rumor = entry({ id: 'rumor', gates: ['#town', 'road'] });
+    const entries = [inn, smithy, road, rumor];
+    let { model, state } = play(entries, [['road']]);
+    assert.equal(eligibility(rumor, model, state).reason, 'waiting for #town');
+    ({ model, state } = play(entries, [['road'], ['smithy']]));
+    assert.equal(eligibility(rumor, model, state).reason, 'gate open');
+    ({ state } = play(entries, [['road'], ['smithy'], ['rumor']]));
+    assert.deepEqual(state.closed, { road: true }, 'closeGates closes id gates, not the label');
+});
+
+test('gatesFor adds a requirement on top of the target\'s own gates, whatever its gateMode', () => {
+    const gatehouse = entry({ id: 'gatehouse', gatesFor: ['#town'] });
+    const a = entry({ id: 'a' });
+    const b = entry({ id: 'b' });
+    const inn = entry({ id: 'inn', labels: ['town'], gates: ['a', 'b'], gateMode: 'any' });
+    const market = entry({ id: 'market', labels: ['town'] });
+    const entries = [gatehouse, a, b, inn, market];
+    let { model, state } = play(entries, [['a']]);
+    assert.equal(eligibility(inn, model, state).reason, 'waiting for gatehouse (via #town)');
+    assert.equal(eligibility(market, model, state).reason, 'waiting for gatehouse (via #town)', 'an entry with only a gatesFor rule is gated');
+    ({ model, state } = play(entries, [['gatehouse']]));
+    assert.equal(eligibility(inn, model, state).reason, 'waiting for a or b');
+    assert.equal(eligibility(market, model, state).reason, 'gate open');
+    ({ model, state } = play(entries, [['gatehouse'], ['b']]));
+    assert.equal(eligibility(inn, model, state).reason, 'gate open');
+    const direct = buildModel([entry({ id: 'key', gatesFor: ['door'] }), entry({ id: 'door' })]);
+    assert.equal(eligibility([...direct.byKey.values()][1], direct, initialState()).reason, 'waiting for key');
+});
+
+test('closes retires every target when the source fires, except glued ones', () => {
+    const fire = entry({ id: 'fire', closes: ['#town', 'road'] });
+    const inn = entry({ id: 'inn', labels: ['town'] });
+    const well = entry({ id: 'well', labels: ['town'], glue: true });
+    const road = entry({ id: 'road' });
+    const { state } = play([fire, inn, well, road], [['well'], ['fire']]);
+    assert.deepEqual(state.closed, { inn: true, road: true });
+    assert.ok(state.glued.well);
+});
+
+test('glue close lists and mask gates accept #labels', () => {
+    const storm = entry({ id: 'storm', glue: { closeWhenFired: ['#calm'], closeWhenAllFired: [] } });
+    const sun = entry({ id: 'sun', labels: ['calm'] });
+    let { state } = play([storm, sun], [['storm'], ['sun']]);
+    assert.ok(state.closed.storm);
+    const all = entry({ id: 'all', glue: { closeWhenAllFired: ['#calm', 'x'] } });
+    const x = entry({ id: 'x' });
+    ({ state } = play([all, sun, x], [['all'], ['sun'], ['x']]));
+    assert.ok(state.closed.all, '#calm and x both seen');
+    const tower = entry({ id: 'tower', masks: [{ name: 'lit', content: 'light', gates: ['#calm'] }] });
+    const { model, state: s2 } = play([tower, sun], [['sun']]);
+    assert.equal(activeMask(model.nodes.get('tower'), s2).name, 'lit');
+});
+
+test('bad label configs are reported', () => {
+    const model = buildModel([
+        entry({ id: 'l1', labels: ['bad name'] }),
+        entry({ id: 'l2', gates: ['#nobody'] }),
+        entry({ id: 'l3', gatesFor: ['l3'] }),
+        entry({ id: 'l4', labels: ['x'], gatesFor: ['#x'] }),
+        entry({ id: 'l5', closes: ['#nobody', 'ghost'] }),
+        entry({ id: 'l6', switch: ['#x', 'l1'] }),
+        entry({ id: 'l7', glue: { closeWhenFired: ['#nobody'] } }),
+        entry({ id: 'l8', masks: [{ name: 'm', content: 'c', gates: ['#nobody'] }] }),
+    ]);
+    assert.deepEqual(messages(model), [
+        'l1: labels must be a list of names',
+        'l2: gates on "#nobody", which no entry carries',
+        'l3: gatesFor targets itself',
+        'l4: gatesFor #x includes this entry itself',
+        'l5: closes targets "#nobody", which no entry carries',
+        'l5: closes targets "ghost", which no entry has',
+        'l7: glue closes on "#nobody", which no entry carries',
+        'l8: mask "m" gates on "#nobody", which no entry carries',
+        'l6: switch can\'t list a label (#x)',
+        'l6: switch path "l1" doesn\'t gate on l6, so it can be taken before the fork (warning)',
+    ].map(m => m.replace(' (warning)', '')));
+});
+
+test('requirements that loop through labels or gatesFor are reported', () => {
+    const a = entry({ id: 'a', gates: ['#b-side'] });
+    const b = entry({ id: 'b', labels: ['b-side'], gates: ['a'] });
+    const c = entry({ id: 'c', gatesFor: ['d'], gates: ['d'] });
+    const d = entry({ id: 'd' });
+    const model = buildModel([a, b, c, d]);
+    assert.deepEqual(messages(model), [
+        'a: can never open: its requirements loop back to it through labels or gatesFor',
+        'b: can never open: its requirements loop back to it through labels or gatesFor',
+        'c: can never open: its requirements loop back to it through labels or gatesFor',
+        'd: can never open: its requirements loop back to it through labels or gatesFor',
+    ]);
+    const open = buildModel([a, b, entry({ id: 'e', labels: ['b-side'] })]);
+    assert.deepEqual(messages(open), [], 'another entry with the label breaks the loop');
+});

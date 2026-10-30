@@ -53,5 +53,25 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** a gate-driven mask and a selected mask change the injected text, deleting or swiping rewinds them, and the book on disk never changes.
 
+## M8 — Labels ✓
+- `wihero.labels: ['town-x']` on entries; `#town-x` in gates, glue close lists and mask gates counts as fired when any entry with the label has fired.
+- Label as target, as rules on the source entry: `gatesFor` (the targets also need this entry to have fired) and `closes` (firing this entry closes the targets).
+- Validation (unknown label, self-targeting, loops through labels); panel label column and filter; editor fields.
+
+**Done when:** a label opens a gate, `gatesFor` adds a requirement to an entry with its own gate, `closes` retires a whole label, and rewinding undoes it.
+
+## M9 — Grouping
+- `wihero.folder` (`'Town X/Inn'`) and `wihero.color`: UI only, never gating.
+- A folder filter in ST's World Info editor, and bulk actions on the filtered folder through ST's save path.
+- Folder and color in the editor block.
+
+**Done when:** entries can be filed into folders, the editor list filters by folder, bulk actions change the book on disk, and gating doesn't change.
+
+## M10 — Visuals
+- Color stripe and a status badge on each entry row in ST's World Info editor.
+- Panel grouped by folder, readable on narrow screens, ST theme colors.
+
+**Done when:** the badges show each entry's status for the open chat before and after a turn, and the panel works on desktop and narrow layouts.
+
 ## Later
-Labels; then grouping, visuals, node editor.
+Node editor.

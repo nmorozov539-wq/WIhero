@@ -4,6 +4,10 @@ let handlers = {};
 let summary;
 let table;
 let issueList;
+let labelFilter;
+/** Label the table is filtered to, '' for all. Kept across renders. */
+let shownLabel = '';
+let lastView = null;
 
 export function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
@@ -21,6 +25,8 @@ export function mountPanel({ settings, handlers: h }) {
     summary = el('div', { id: 'wihero_summary' });
     table = el('table', { id: 'wihero_entries', class: 'wihero-table' });
     issueList = el('ul', { id: 'wihero_issues', class: 'wihero-issues' });
+    labelFilter = el('select', { id: 'wihero_label_filter', class: 'text_pole', title: 'Show only the entries with this label' });
+    labelFilter.addEventListener('change', () => { shownLabel = labelFilter.value; render(lastView); });
 
     const root = el('div', { class: 'wihero-settings' },
         el('div', { class: 'inline-drawer' },
@@ -32,6 +38,7 @@ export function mountPanel({ settings, handlers: h }) {
                 el('label', { class: 'checkbox_label', for: 'wihero_enabled' }, enabled, el('span', {}, 'Enabled')),
                 summary,
                 issueList,
+                labelFilter,
                 table,
             ),
         ),
@@ -55,6 +62,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
  */
 export function render(view) {
     if (!summary) return;
+    lastView = view;
     if (!view) {
         summary.textContent = 'No lorebooks loaded yet. Open a chat to load them.';
         table.replaceChildren();
@@ -73,10 +81,17 @@ export function render(view) {
     issueList.replaceChildren(...view.issues.map(i =>
         el('li', { title: i.key, class: i.warning ? 'wihero-warning' : '' }, el('b', {}, i.id ?? i.label), ` ${i.message}`)));
 
+    const labels = view.labels ?? [];
+    if (shownLabel && !labels.includes(shownLabel)) shownLabel = '';
+    labelFilter.replaceChildren(el('option', { value: '' }, 'All labels'), ...labels.map(l => el('option', { value: l }, `#${l}`)));
+    labelFilter.value = shownLabel;
+    labelFilter.style.display = labels.length ? '' : 'none';
+    const rows = shownLabel ? view.rows.filter(r => r.labels?.includes(shownLabel)) : view.rows;
+
     table.replaceChildren(
         el('tr', {}, el('th', {}, 'Entry'), el('th', {}, 'Next turn'), el('th', { title: 'Times fired in this chat' }, 'Fired')),
-        ...view.rows.map(r => el('tr', { class: r.lastRound ? 'wihero-last-round' : '', title: r.key },
-            el('td', {}, r.id),
+        ...rows.map(r => el('tr', { class: r.lastRound ? 'wihero-last-round' : '', title: r.key },
+            el('td', {}, r.id, ...(r.labels?.length ? [el('small', { class: 'wihero-labels' }, r.labels.map(l => `#${l}`).join(' '))] : [])),
             el('td', { class: `wihero-status-${r.status.split(' ')[0]}` }, r.status, ...reopenButton(r)),
             el('td', {}, String(r.fired)))),
     );

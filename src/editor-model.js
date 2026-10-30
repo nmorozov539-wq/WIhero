@@ -13,6 +13,9 @@ export const EMPTY_FORM = Object.freeze({
     closeWhenFired: '',
     closeWhenAllFired: '',
     switch: '',
+    labels: '',
+    gatesFor: '',
+    closes: '',
     masks: [],
 });
 
@@ -46,6 +49,9 @@ export function configToForm(config) {
         closeWhenFired: list(glue?.closeWhenFired),
         closeWhenAllFired: list(glue?.closeWhenAllFired),
         switch: list(config.switch),
+        labels: list(config.labels),
+        gatesFor: list(config.gatesFor),
+        closes: list(config.closes),
         masks: Array.isArray(config.masks) ? config.masks.map(m => ({
             name: typeof m?.name === 'string' ? m.name : '',
             content: typeof m?.content === 'string' ? m.content : '',
@@ -79,6 +85,10 @@ export function formToConfig(form) {
     }
     const paths = parseIds(form.switch);
     if (paths.length) config.switch = paths;
+    for (const field of ['labels', 'gatesFor', 'closes']) {
+        const list = parseIds(form[field]).map(x => field === 'labels' ? x.replace(/^#/, '') : x);
+        if (list.length) config[field] = list;
+    }
     // A row counts once it has a name, content or gates. Content is kept as typed.
     const masks = (form.masks ?? []).filter(m => m.name.trim() || m.content.trim() || m.gates.trim()).map(m => {
         const mask = { name: m.name.trim(), content: m.content };
@@ -117,4 +127,9 @@ export function knownIds(entries, entry) {
     const key = entryKey(entry);
     const ids = entries.filter(e => entryKey(e) !== key).map(e => e?.[FIELD]?.id).filter(id => typeof id === 'string' && id);
     return [...new Set(ids)].sort();
+}
+
+/** Labels carried by any loaded entry (the edited one included), sorted. */
+export function knownLabels(entries) {
+    return [...new Set(entries.flatMap(e => Array.isArray(e?.[FIELD]?.labels) ? e[FIELD].labels : []).filter(l => typeof l === 'string' && l))].sort();
 }

@@ -31,6 +31,8 @@ The editor stores a `wihero` field on the entry in the lorebook JSON (`data/defa
 - `gates`: ids that must have fired before this entry may fire. Leave out for an entry that's open from the start.
 - `gateMode`: `"all"` (default) or `"any"`.
 - `closeGates`: when this entry fires, the gates it opened from close for good (a chain advancing). Default `true`.
+- `labels`: names (`["town"]`). `#town` in any gate or close list means "any entry with this label has fired".
+- `gatesFor`, `closes`: ids or `#labels` this entry acts on. `gatesFor` makes every target also wait for this entry (on top of its own gates); `closes` retires every target when this entry fires. The panel shows labels on each row and can filter by label.
 - `switch`: ids of two or more paths (on the fork entry). When one fires, the others close for this branch of the story. If two fire in the same turn, only the first listed is injected.
 - `masks`: `[{ name, content, gates?, gateMode? }]`, alternate content for the entry. A mask is active once its gates have fired (the last such mask wins), or when selected with `/wihero-mask entry=<id> <name>`; `/wihero-mask entry=<id>` clears the selection. A mask without gates is only active when selected. The selection is part of the chat state, so deleting or swiping back undoes it. The panel shows the active mask.
 - `glue`: `true`, or `{ closeKeywords, closeWhenFired, closeWhenAllFired }`. Keeps the entry injected every turn from its first firing until a condition is met, then closes it. Close keywords are checked against the turn's new messages (the user message(s) and the reply). A glued chain link isn't closed when the chain advances.

@@ -26,7 +26,7 @@ export const lastPrompt = () => JSON.parse(fs.readFileSync(LOG + prompts().pop()
 export const injected = tags => tags.filter(tag => lastPrompt().includes(`[${tag} `));
 export const state = () => ev(() => wihero.state);
 export const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
-    .map(tr => [tr.children[0].textContent, tr.children[1].firstChild?.textContent ?? ''])));
+    .map(tr => [tr.children[0].firstChild?.textContent ?? '', tr.children[1].firstChild?.textContent ?? ''])));
 export const book = () => JSON.parse(fs.readFileSync(BOOK_FILE, 'utf8'));
 
 async function waitGenerated(before) {

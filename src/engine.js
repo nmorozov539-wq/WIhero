@@ -18,6 +18,11 @@
 // Masks are alternate content for an entry, active by their own gates or when selected (state.masks):
 //   masks: [{ name: 'ruined', content: '...', gates: ['storm'], gateMode: 'all' }]
 // A malformed mask is reported and skipped; the entry itself still works with its base content.
+//
+// Labels tag entries: labels: ['town-x']. '#town-x' in a gate or close list is one requirement that any
+// entry with the label meets by firing. Rules can also target a label (or ids), set on the source entry:
+//   gatesFor: ['#town-x']  every target also needs this entry to have fired (ANDed on its own gates)
+//   closes: ['#town-x']    when this entry fires, every target closes (glued ones excepted)
 // Entries without `wihero` are never touched.
 
 export const FIELD = 'wihero';
@@ -36,6 +41,8 @@ const label = entry => entry.comment || (Array.isArray(entry.key) && entry.key[0
  * @returns {{ nodes: Map<string, object>, byKey: Map<string, object>, issues: object[], switches: object[], switchOf: Map<string, object> }}
  *   `nodes` by id, `byKey` by world.uid for every entry with config.
  *   `switches` are { fork, paths } for every working switch, `switchOf` maps a path id to its switch.
+ *   `labels` maps a label to the ids carrying it, `required` a target id to the { source, via } rules gating it,
+ *   `closesOf` a source id to the ids it closes.
  *   A node is { id, key, world, uid, label, gates, gateMode, closeGates, broken }.
  *   A broken node can never fire: its config is wrong, so letting it through could leak a spoiler.
  */
@@ -60,6 +67,10 @@ export function buildModel(entries) {
             glue: null,
             switch: [],
             masks: [],
+            labels: [],
+            gatesFor: [],
+            closes: [],
+            requires: [],
             broken: false,
         };
         byKey.set(node.key, node);
@@ -117,6 +128,15 @@ export function buildModel(entries) {
             }
         }
 
+        if (config.labels !== undefined) {
+            if (!Array.isArray(config.labels) || config.labels.some(l => typeof l !== 'string' || !ID_PATTERN.test(l))) problem('labels must be a list of names');
+            else node.labels = [...new Set(config.labels)];
+        }
+        for (const field of ['gatesFor', 'closes']) {
+            if (config[field] === undefined) continue;
+            if (!Array.isArray(config[field]) || config[field].some(x => typeof x !== 'string' || !x)) problem(`${field} must be a list of ids or #labels`);
+            else node[field] = [...new Set(config[field])];
+        }
         if (config.masks !== undefined) {
             const note = message => issues.push({ key: node.key, id: node.id, label: node.label, message });
             if (!Array.isArray(config.masks)) note('masks must be a list');
@@ -137,31 +157,61 @@ export function buildModel(entries) {
         }
     }
 
+    const labels = new Map();
+    for (const node of nodes.values()) {
+        for (const name of node.labels) {
+            if (!labels.has(name)) labels.set(name, []);
+            labels.get(name).push(node.id);
+        }
+    }
+    /** Ids a reference stands for: itself, or every entry carrying a #label. */
+    const resolve = ref => ref.startsWith('#') ? labels.get(ref.slice(1)) ?? [] : [ref];
+    const known = ref => ref.startsWith('#') ? labels.has(ref.slice(1)) : nodes.has(ref);
+    const unknownText = ref => ref.startsWith('#') ? `"${ref}", which no entry carries` : `"${ref}", which no entry has`;
+
     for (const node of byKey.values()) {
         if (node.id === null || duplicates.has(node.id) && nodes.get(node.id) !== node) continue;
+        const problem = message => {
+            node.broken = true;
+            issues.push({ key: node.key, id: node.id, label: node.label, message });
+        };
         for (const gate of node.gates) {
-            if (gate === node.id) {
-                node.broken = true;
-                issues.push({ key: node.key, id: node.id, label: node.label, message: 'gates on itself' });
-            } else if (!nodes.has(gate)) {
-                node.broken = true;
-                issues.push({ key: node.key, id: node.id, label: node.label, message: `gates on "${gate}", which no entry has` });
-            }
+            if (gate === node.id) problem('gates on itself');
+            else if (!known(gate)) problem(`gates on ${unknownText(gate)}`);
         }
         for (const id of node.glue ? [...node.glue.closeWhenFired, ...node.glue.closeWhenAllFired] : []) {
-            if (!nodes.has(id)) {
-                node.broken = true;
-                issues.push({ key: node.key, id: node.id, label: node.label, message: `glue closes on "${id}", which no entry has` });
+            if (!known(id)) problem(`glue closes on ${unknownText(id)}`);
+        }
+        for (const field of ['gatesFor', 'closes']) {
+            for (const target of node[field]) {
+                if (target === node.id) problem(`${field} targets itself`);
+                else if (!known(target)) problem(`${field} targets ${unknownText(target)}`);
+                else if (field === 'gatesFor' && resolve(target).includes(node.id)) problem(`gatesFor ${target} includes this entry itself`);
             }
         }
+        node.requires = node.gates.map(resolve);
     }
 
     for (const node of byKey.values()) {
         node.masks = node.masks.filter(mask => {
-            const unknown = mask.gates.find(gate => !nodes.has(gate));
-            if (unknown) issues.push({ key: node.key, id: node.id, label: node.label, message: `mask "${mask.name}" gates on "${unknown}", which no entry has` });
+            const unknown = mask.gates.find(gate => !known(gate));
+            if (unknown) issues.push({ key: node.key, id: node.id, label: node.label, message: `mask "${mask.name}" gates on ${unknownText(unknown)}` });
+            mask.requires = mask.gates.map(resolve);
             return !unknown;
         });
+    }
+
+    /** Rules set on other entries: target id → [{ source, via }] for gatesFor, source id → target ids for closes. */
+    const required = new Map();
+    const closesOf = new Map();
+    for (const node of nodes.values()) {
+        for (const target of node.gatesFor) {
+            for (const id of resolve(target)) {
+                if (!required.has(id)) required.set(id, []);
+                required.get(id).push({ source: node.id, via: target.startsWith('#') ? target.slice(1) : null });
+            }
+        }
+        if (node.closes.length) closesOf.set(node.id, [...new Set(node.closes.flatMap(resolve))]);
     }
 
     const pathOwners = new Map();
@@ -177,7 +227,8 @@ export function buildModel(entries) {
                 if (!warning) node.broken = true;
                 issues.push({ key: node.key, id: node.id, label: node.label, message, ...(warning && { warning }) });
             };
-            if (path === node.id) issue('switch lists itself');
+            if (path.startsWith('#')) issue(`switch can't list a label (${path})`);
+            else if (path === node.id) issue('switch lists itself');
             else if (!nodes.has(path)) issue(`switch lists "${path}", which no entry has`);
             else if (pathOwners.get(path).length > 1) issue(`switch path "${path}" is also in the switch of ${pathOwners.get(path).filter(n => n !== node).map(n => n.id).join(', ')}`);
             else if (!nodes.get(path).gates.includes(node.id)) issue(`switch path "${path}" doesn't gate on ${node.id}, so it can be taken before the fork`, true);
@@ -192,9 +243,30 @@ export function buildModel(entries) {
         }
     }
 
+    // Requirements that can never be met, through labels or gatesFor (plain gate loops are reported above).
+    // Broken entries count as able to open here, so only new problems are reported.
+    const canOpen = new Set([...nodes.values()].filter(n => n.broken).map(n => n.id));
+    for (let changed = true; changed;) {
+        changed = false;
+        for (const node of nodes.values()) {
+            if (canOpen.has(node.id)) continue;
+            const met = ids => ids.some(id => canOpen.has(id));
+            const own = !node.requires.length || (node.gateMode === 'any' ? node.requires.some(met) : node.requires.every(met));
+            if (own && (required.get(node.id) ?? []).every(r => canOpen.has(r.source))) {
+                canOpen.add(node.id);
+                changed = true;
+            }
+        }
+    }
+    for (const node of nodes.values()) {
+        if (canOpen.has(node.id)) continue;
+        node.broken = true;
+        issues.push({ key: node.key, id: node.id, label: node.label, message: 'can never open: its requirements loop back to it through labels or gatesFor' });
+    }
+
     const switches = [...nodes.values()].filter(n => n.switch.length && !n.broken).map(fork => ({ fork: fork.id, paths: fork.switch }));
     const switchOf = new Map(switches.flatMap(sw => sw.paths.map(path => [path, sw])));
-    return { nodes, byKey, issues, switches, switchOf };
+    return { nodes, byKey, issues, switches, switchOf, labels, required, closesOf };
 }
 
 /** Parses a glue config, or returns what's wrong with it. */
@@ -308,15 +380,23 @@ export function eligibility(entry, model, state) {
     if (node.broken) return { eligible: false, reason: 'config problem' };
     if (state.closed[node.id]) return { eligible: false, reason: closedReason(node, model, state) };
     if (state.glued[node.id]) return { eligible: true, reason: 'glued' };
-    if (!node.gates.length) return { eligible: true, reason: 'open' };
-    if (gatesPassed(node, state)) return { eligible: true, reason: 'gate open' };
-    const waiting = node.gates.filter(g => !(state.fired[g] > 0));
-    return { eligible: false, reason: `waiting for ${waiting.join(node.gateMode === 'any' ? ' or ' : ' and ')}` };
+    const rules = model.required?.get(node.id) ?? [];
+    if (!node.gates.length && !rules.length) return { eligible: true, reason: 'open' };
+    const own = !node.gates.length || gatesPassed(node, state);
+    const missing = rules.filter(r => !(state.fired[r.source] > 0));
+    if (own && !missing.length) return { eligible: true, reason: 'gate open' };
+    const waiting = [];
+    if (!own) waiting.push(node.gates.filter((_, i) => !met(node.requires[i], state)).join(node.gateMode === 'any' ? ' or ' : ' and '));
+    waiting.push(...missing.map(r => r.via ? `${r.source} (via #${r.via})` : r.source));
+    return { eligible: false, reason: `waiting for ${waiting.join(' and ')}` };
 }
 
+/** Whether one requirement (an id, or the ids of a #label) has fired. */
+const met = (ids, state) => (ids ?? []).some(id => state.fired[id] > 0);
+
 /** Whether the gates of an entry or a mask have fired (all of them, or any for gateMode "any"). */
-function gatesPassed({ gates, gateMode }, state) {
-    const passed = gates.filter(g => state.fired[g] > 0).length;
+function gatesPassed({ gates, requires, gateMode }, state) {
+    const passed = gates.filter((_, i) => met(requires?.[i] ?? [gates[i]], state)).length;
     return gateMode === 'any' ? passed > 0 : passed === gates.length;
 }
 
@@ -425,6 +505,7 @@ export function advance(state, activated, model, text = '') {
         firedNodes.push(node);
     }
     const firedNow = new Set(firedNodes.map(n => n.id));
+    const firedRef = ref => ref.startsWith('#') ? (model.labels?.get(ref.slice(1)) ?? []).some(id => firedNow.has(id)) : firedNow.has(ref);
 
     // Glue that was already holding: check its close conditions against this turn.
     for (const [id, glued] of Object.entries(next.glued)) {
@@ -434,10 +515,10 @@ export function advance(state, activated, model, text = '') {
             continue;
         }
         for (const other of glue.closeWhenAllFired) {
-            if (firedNow.has(other) && !glued.seen.includes(other)) glued.seen.push(other);
+            if (firedRef(other) && !glued.seen.includes(other)) glued.seen.push(other);
         }
         const release = glue.closeKeywords.some(k => keywordMatcher(k)?.(text))
-            || glue.closeWhenFired.some(other => firedNow.has(other))
+            || glue.closeWhenFired.some(firedRef)
             || glue.closeWhenAllFired.length > 0 && glue.closeWhenAllFired.every(other => glued.seen.includes(other));
         if (release) {
             delete next.glued[id];
@@ -458,7 +539,14 @@ export function advance(state, activated, model, text = '') {
             delete next.glued[path];
         }
     }
+    // `closes` rules retire their targets; glued targets stay, as with closeGates.
+    for (const node of firedNodes) {
+        for (const target of model.closesOf?.get(node.id) ?? []) {
+            if (!next.glued[target]) next.closed[target] = true;
+        }
+    }
     // Closing happens after counting, so an entry and its child firing together both count.
+    // A #label gate isn't closed by closeGates: retiring a label's entries is what `closes` is for.
     // Only gates that actually fired close: with gateMode "any", the other paths stay as they are.
     // Glued gates stay open: glue is the override for a chain advancing.
     for (const node of firedNodes) {

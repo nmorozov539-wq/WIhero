@@ -3,7 +3,7 @@
 // MutationObserver on the entry list adds the block to every edit area that appears.
 // See docs/TECHNICAL_NOTES.md section 9.
 import { el } from './panel.js';
-import { EMPTY_MASK, slugify, configToForm, formToConfig, applyConfig, issuesFor, knownIds } from './editor-model.js';
+import { EMPTY_MASK, slugify, configToForm, formToConfig, applyConfig, issuesFor, knownIds, knownLabels } from './editor-model.js';
 
 let deps;
 /** Uid whose block opens expanded after the editor re-renders on save. */
@@ -112,6 +112,9 @@ async function fillBlock(block, name, uid) {
     const target = { ...entry, world: name };
     const entries = entriesFor(name, data);
     const ids = knownIds(entries, target);
+    const labelNames = knownLabels(entries);
+    // Gate-like lists take ids and #labels; switch paths take ids only.
+    const refs = [...ids, ...labelNames.map(l => `#${l}`)];
     const form = configToForm(entry.wihero);
     // The title can change while the block is open, so the suggestion is read from ST's field.
     const title = block.closest('.world_entry')?.querySelector('textarea[name="comment"]');
@@ -131,6 +134,9 @@ async function fillBlock(block, name, uid) {
     const closeWhenFired = textInput('wihero_close_when_fired', form.closeWhenFired, 'ids, comma separated');
     const closeWhenAllFired = textInput('wihero_close_when_all_fired', form.closeWhenAllFired, 'ids, comma separated');
     const switchPaths = textInput('wihero_switch', form.switch, 'ids, comma separated');
+    const labels = textInput('wihero_labels', form.labels, 'names, comma separated');
+    const gatesFor = textInput('wihero_gates_for', form.gatesFor, 'ids or #labels');
+    const closes = textInput('wihero_closes', form.closes, 'ids or #labels');
     const issues = el('ul', { class: 'wihero-issues wihero-entry-issues' });
     const summary = el('small', { class: 'wihero-entry-summary' });
     const status = el('small', { class: 'wihero-entry-status' });
@@ -138,7 +144,7 @@ async function fillBlock(block, name, uid) {
     const maskList = el('div', { class: 'wihero-masks' });
     let masks = [];
     const addMask = mask => {
-        const row = maskRow(mask, ids, () => update(), () => { masks = masks.filter(m => m !== row); update(); });
+        const row = maskRow(mask, refs, () => update(), () => { masks = masks.filter(m => m !== row); update(); });
         masks.push(row);
         maskList.append(row.row);
     };
@@ -150,15 +156,19 @@ async function fillBlock(block, name, uid) {
         id: id.value, gates: gates.value, gateMode: gateMode.value, closeGates: closeGates.checked, glue: glue.checked,
         closeKeywords: closeKeywords.value, closeWhenFired: closeWhenFired.value, closeWhenAllFired: closeWhenAllFired.value,
         switch: switchPaths.value, masks: masks.map(m => m.read()),
+        labels: labels.value, gatesFor: gatesFor.value, closes: closes.value,
     });
     const glueFields = el('div', { class: 'wihero-glue-fields' },
         field('Close when the turn contains', closeKeywords),
         field('Close when any of these fires', closeWhenFired),
         field('Close when all of these have fired', closeWhenAllFired));
-    const [gateChips, updateGateChips] = suggestions(gates, ids, () => update());
-    const [firedChips, updateFiredChips] = suggestions(closeWhenFired, ids, () => update());
-    const [allChips, updateAllChips] = suggestions(closeWhenAllFired, ids, () => update());
+    const [gateChips, updateGateChips] = suggestions(gates, refs, () => update());
+    const [firedChips, updateFiredChips] = suggestions(closeWhenFired, refs, () => update());
+    const [allChips, updateAllChips] = suggestions(closeWhenAllFired, refs, () => update());
     const [switchChips, updateSwitchChips] = suggestions(switchPaths, ids, () => update());
+    const [labelChips, updateLabelChips] = suggestions(labels, labelNames, () => update());
+    const [gatesForChips, updateGatesForChips] = suggestions(gatesFor, refs, () => update());
+    const [closesChips, updateClosesChips] = suggestions(closes, refs, () => update());
 
     function update() {
         const config = formToConfig(read());
@@ -170,6 +180,7 @@ async function fillBlock(block, name, uid) {
         useSuggested.textContent = suggested;
         useSuggested.style.display = !id.value.trim() && suggested ? '' : 'none';
         updateGateChips(); updateFiredChips(); updateAllChips(); updateSwitchChips();
+        updateLabelChips(); updateGatesForChips(); updateClosesChips();
         masks.forEach(m => m.updateChips());
         status.textContent = '';
     }
@@ -181,6 +192,8 @@ async function fillBlock(block, name, uid) {
 
     const content = el('div', { class: 'inline-drawer-content' },
         el('div', { class: 'wihero-row' }, field('Id', id), useSuggested),
+        field('Labels', labels),
+        labelChips,
         el('div', { class: 'wihero-row' }, field('Gates: fires only after', gates), field('Needs', gateMode)),
         gateChips,
         closeGatesLabel,
@@ -188,6 +201,10 @@ async function fillBlock(block, name, uid) {
         glueFields,
         field('Switch: when one of these paths fires, the others close', switchPaths),
         switchChips,
+        field('Gates for: these also need this entry to have fired', gatesFor),
+        gatesForChips,
+        field('Closes: when this fires, these close', closes),
+        closesChips,
         el('small', {}, 'Masks: content injected instead, by its own gates or /wihero-mask'),
         maskList,
         el('div', { class: 'wihero-row' }, addMaskButton),
@@ -210,7 +227,7 @@ async function fillBlock(block, name, uid) {
         content);
     // ST's drawer toggle bubbles; the entry's own drawer listens for it.
     $(drawer).on('inline-drawer-toggle', e => { e.stopPropagation(); update(); });
-    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths]) {
+    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths, labels, gatesFor, closes]) {
         input.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
     }
     content.addEventListener('input', update);

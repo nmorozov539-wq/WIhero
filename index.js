@@ -129,8 +129,9 @@ function refresh() {
         status: status(node),
         fired: node.id ? state.fired[node.id] ?? 0 : 0,
         lastRound: state.round.includes(node.key),
+        labels: node.labels,
     }));
-    render({ rows, issues: model.issues, enabled: settings.enabled, from: index, roundSize: state.round.length });
+    render({ rows, issues: model.issues, enabled: settings.enabled, from: index, roundSize: state.round.length, labels: [...model.labels.keys()].sort() });
 }
 
 mountPanel({

@@ -30,7 +30,7 @@ function lastPrompt() {
 const injected = () => ['WIH-0', 'WIH-1', 'WIH-2', 'WIH-3', 'WIH-4', 'WIH-5', 'WIH-6', 'WIH-7', 'WIH-8'].filter(tag => lastPrompt().includes(`[${tag} `));
 const state = () => ev(() => wihero.state);
 const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
-    .map(tr => [tr.children[0].textContent, tr.children[1].firstChild?.textContent ?? ''])));
+    .map(tr => [tr.children[0].firstChild?.textContent ?? '', tr.children[1].firstChild?.textContent ?? ''])));
 
 async function waitGenerated(before) {
     await page.waitForFunction(() => !document.querySelector('#send_but.displayNone')
@@ -107,7 +107,9 @@ try {
 
     assert.deepEqual(await status(), { road: 'open', mill: 'waiting for road', tunnel: 'waiting for mill', storm: 'open',
         lantern: 'open', bell: 'open', ferry: 'open', crossing: 'waiting for ferry',
-        fork: 'open', left: 'waiting for fork', right: 'waiting for fork', tower: 'open' });
+        fork: 'open', left: 'waiting for fork', right: 'waiting for fork', tower: 'open',
+        tavern: 'waiting for gatehouse (via #town)', market: 'waiting for tavern and gatehouse (via #town)', rumor: 'waiting for #town',
+        gatehouse: 'open', blaze: 'open' });
     ok('story start: road open, mill and tunnel waiting');
 
     // ── Turn 1: "mill" is mentioned but its gate is closed ──
@@ -116,7 +118,9 @@ try {
     assert.deepEqual((await state()).fired, { road: 1 });
     assert.deepEqual(await status(), { road: 'open', mill: 'gate open', tunnel: 'waiting for mill', storm: 'open',
         lantern: 'open', bell: 'open', ferry: 'open', crossing: 'waiting for ferry',
-        fork: 'open', left: 'waiting for fork', right: 'waiting for fork', tower: 'open' });
+        fork: 'open', left: 'waiting for fork', right: 'waiting for fork', tower: 'open',
+        tavern: 'waiting for gatehouse (via #town)', market: 'waiting for tavern and gatehouse (via #town)', rumor: 'waiting for #town',
+        gatehouse: 'open', blaze: 'open' });
     ok('turn 1: road fires, mill is held back, mill opens for next turn');
 
     // ── Turn 2: mill fires and closes road ──

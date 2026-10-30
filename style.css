@@ -107,3 +107,9 @@
 .wihero-entry .menu_button {
     white-space: nowrap;
 }
+
+.wihero-labels {
+    display: block;
+    opacity: 0.6;
+    font-weight: normal;
+}

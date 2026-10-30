@@ -27,7 +27,7 @@ const prompts = () => fs.readdirSync(LOG).filter(f => f.endsWith('.json')).sort(
 const lastPrompt = () => JSON.parse(fs.readFileSync(LOG + prompts().pop(), 'utf8')).body.messages.map(m => m.content).join('\n');
 const onDisk = uid => JSON.parse(fs.readFileSync(BOOK_FILE, 'utf8')).entries[uid];
 const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
-    .map(tr => [tr.children[0].textContent, tr.children[1].firstChild?.textContent ?? ''])));
+    .map(tr => [tr.children[0].firstChild?.textContent ?? '', tr.children[1].firstChild?.textContent ?? ''])));
 
 async function send(text) {
     const before = prompts().length;

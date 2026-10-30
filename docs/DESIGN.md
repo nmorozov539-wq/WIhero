@@ -105,6 +105,12 @@ Every mechanism above (gate, glue, mask trigger) is really one underlying primit
 - A label can also act as a **source**: "any entry under this label has fired" can itself satisfy a downstream gate, collapsing a whole label into one OR-gate signal.
 - When an entry has both its own gate(s) and a label-level gate that applies to it, the label condition is **ANDed** on top — it adds a requirement, never overrides or replaces the entry's own gating.
 - In the node editor, the label wrapper exists only as a UI/UX grouping for drawing links cleanly — mechanically it is nothing more than a shared tag on the entries it touches.
+- Config: `wihero.labels: ['town-x']` (names follow the id rules). `'#town-x'` can stand anywhere an id list is read: `gates`, glue's `closeWhenFired` and `closeWhenAllFired`, mask `gates`, `gatesFor` and `closes`. It is always one OR requirement: met once any entry with the label has fired. In `gateMode: "all"` it's one requirement among the others; in `closeWhenAllFired` it's one item. Switch paths can't be labels.
+- Label (or id) as target, written on the source entry since a label has no object of its own:
+  - `gatesFor: ['#town-x']`: every target also needs this entry to have fired, ANDed on its own gates whatever its `gateMode`. A target with only this rule is still gated.
+  - `closes: ['#town-x']`: when this entry fires, every target closes. Glued targets stay open, as with `closeGates`, and a running vanilla sticky still finishes.
+- `closeGates` closes the id gates that fired, not a `#label` gate: retiring a whole label is what `closes` is for.
+- Problems: a label no entry carries; an entry targeting itself (`gatesFor` or `closes` naming its own id, or `gatesFor` a label it carries); requirements that can never be met because they loop back through labels or `gatesFor` (a label loop only counts when no other entry with the label could break it).
 
 ---
 
