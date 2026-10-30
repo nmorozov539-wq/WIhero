@@ -1,0 +1,11 @@
+{
+    "display_name": "WI Hero",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Ebanit5000",
+    "version": "0.1.0",
+    "homePage": ""
+}
