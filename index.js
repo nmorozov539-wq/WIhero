@@ -2,6 +2,7 @@
 // and retire once it moves past. See docs/DESIGN.md.
 import { MODULE, getSettings } from './src/settings.js';
 import { mountPanel, render } from './src/panel.js';
+import { mountEditor } from './src/editor.js';
 import { buildModel, eligibility, entryKey, gluedKeys, removeIneligible } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
@@ -110,6 +111,13 @@ mountPanel({
             refresh();
         },
     },
+});
+
+mountEditor({
+    ctx,
+    loadedEntries: () => loaded,
+    // Rebuilds the model from the saved books: getSortedEntries() emits WORLDINFO_ENTRIES_LOADED.
+    onSaved: () => getSortedEntries(),
 });
 
 eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);

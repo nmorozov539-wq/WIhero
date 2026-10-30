@@ -80,6 +80,16 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 - Duplicating an entry (`duplicateWorldInfoEntry`, 4019) copies every field, including our stable id. The duplicate check in the design is needed.
 - Embedding a book in a character card (`convertCharacterBook`, 5617) probably drops unknown fields. Not a v1 concern for a personal tool, but worth knowing.
 
+## 9. Entry editor
+
+- ST renders an entry's edit area (`WI_ENTRY_EDIT_TEMPLATE`, world-info.js 63) only when its drawer opens (`addEditorDrawerContent`, 3553), into the entry's `.inline-drawer-outlet`, and destroys it a moment after it closes (3532–3550). Pagination and every re-render rebuild the list. No event fires for any of this.
+- So `src/editor.js` watches `#world_popup_entries_list` with a `MutationObserver` and adds the WI Hero block to each `.world_entry_edit` that lacks one. That's idempotent and needs no patching.
+- The editor holds its own copy of the book in a closure (`displayWorldEntries(name, data)`, 2310) and saves that whole object on each field edit (`saveWorldInfo(name, data)` → debounced `_save`, 4163–4190). It isn't reachable from outside. Writing `wihero` anywhere else and leaving the editor alone would be undone by the next vanilla edit.
+- Saving therefore goes: `loadWorldInfo(name)` (a clone of ST's cache, which `saveWorldInfo` updates before its debounce, so it already has every editor edit) → set or delete `entries[uid].wihero` → `saveWorldInfo(name, data, true)` (cancels any pending debounced save, then writes) → `reloadWorldInfoEditor(name)` so the editor reloads its copy from the cache → reopen the entry, as ST does after its own re-renders (3570–3573). All of these are on `getContext()`.
+- A new entry (`createWorldInfoEntry`, 4137) lives only in the editor's copy until its first edit, so the block waits for one.
+- After a save, `getSortedEntries()` re-emits `WORLDINFO_ENTRIES_LOADED`, which rebuilds the model and the panel.
+- ST's drawer toggle handler (script.js 12193) triggers `inline-drawer-toggle` with jQuery, which bubbles to the entry's own drawer handler, so the block stops it.
+
 ## Design changes this implies
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.

@@ -33,3 +33,52 @@
     color: inherit;
     opacity: 0.8;
 }
+
+.wihero-entry {
+    width: 100%;
+    margin-top: 4px;
+}
+
+.wihero-entry .inline-drawer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wihero-entry-summary,
+.wihero-hint,
+.wihero-entry-status {
+    opacity: 0.7;
+}
+
+.wihero-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: flex-end;
+}
+
+.wihero-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 10em;
+}
+
+.wihero-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.wihero-chip {
+    cursor: pointer;
+    padding: 0 6px;
+    border: 1px solid var(--SmartThemeBorderColor, #666);
+    border-radius: 8px;
+    font-size: 0.85em;
+}
+
+.wihero-chip:hover {
+    background: var(--SmartThemeBorderColor, #666);
+}

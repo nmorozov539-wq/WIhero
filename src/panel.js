@@ -5,7 +5,7 @@ let summary;
 let table;
 let issueList;
 
-function el(tag, attrs = {}, ...children) {
+export function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
     for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
     node.append(...children);

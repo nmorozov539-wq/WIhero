@@ -39,6 +39,7 @@ Both conditions share one underlying engine; sticky, permanent, glue, and condit
 - **Vanilla timers are never violated.** The extension only decides eligibility. ST's own sticky, cooldown, delay, probability and inclusion groups still apply on top, unchanged.
   - A running sticky finishes even if the entry closes (or is otherwise not eligible); normal gating applies again once it ends.
   - Cooldown and delay can hold back a glued entry: glue doesn't override them. The panel warns when a glued entry has a cooldown.
+  - An entry that fires only because sticky held it in still counts as fired and moves gates, like any other trigger. That includes the rewind case: ST doesn't roll back its timers when messages are deleted, so a sticky can outlive the state it started in.
 
 ### 2.1 Basic gates
 
