@@ -48,6 +48,12 @@ export async function swipeRight() {
     await waitGenerated(before);
 }
 
+/** Fresh data shows a first-run welcome popup on every load; it sits above everything, so close it. */
+export async function dismissWelcome() {
+    const welcome = page.locator('.popup:has-text("Welcome to SillyTavern") .popup-button-ok');
+    await welcome.waitFor({ timeout: 15000 }).then(() => welcome.click(), () => {});
+}
+
 /** Loads ST, connects to the mock, turns WI Hero on, selects the sample book, opens a new chat and the panel. */
 export async function start() {
     await page.goto(ST_URL);

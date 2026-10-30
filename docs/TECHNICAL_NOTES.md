@@ -119,6 +119,14 @@ How the folder filter hooks in:
 - The Story logic tab is the same form as the block (`logicForm` in `src/editor.js`).
 - The panel is rebuilt only when the entry, the tab or the book changes, so ST's frequent refreshes don't wipe what's being typed.
 
+### 11b. Canvas
+
+- Positions, label boxes, areas and notes live in `extension_settings.wihero.canvas[book]` (`src/canvas-model.js`), keyed by entry id (`id:mill`), by uid for an entry without one (`uid:6`), and by `#label` for a box. Nothing is written on entries, so arranging never changes a hash or a timer.
+- Every card and box is pinned the first time the canvas shows it: a new link changes the automatic layout, and cards the user never moved must not wander. Tidy unpins them all (and re-pins at once from a fresh layout).
+- Drawing a link applies it to a copy of the book and builds the engine model from it; any new problem on the touched entries (a loop, a switch on a label…) refuses the link with the engine's own message, before anything is saved.
+- The workspace holds off its batched refreshes while a pointer drag is in progress, so a refresh can't pull a card out from under the pointer.
+- Known limit: Tidy's label boxes are fitted around wherever the automatic layout puts a label's entries, which can be far apart; resize the box or move the cards together.
+
 ## Design changes this implies
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.

@@ -86,7 +86,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** an entry's text, keys and story logic can be edited in the workspace and land on disk, and an unlinked mention becomes a gate in one click.
 
-## M13 — Canvas mode and drawing links
+## M13 — Canvas mode and drawing links ✓
 - Canvas/Graph toggle; canvas positions in extension settings (book + id), never on entries.
 - Drag to move, group areas, note cards, Tidy, undo.
 - Drag from a card's handle to link; a menu asks what the link means; invalid links are refused with the reason.

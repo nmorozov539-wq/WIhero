@@ -717,3 +717,132 @@
     border: 1px solid var(--ws-line);
     border-radius: 6px;
 }
+
+.wihero-ws-modes {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.wihero-ws-modes [aria-pressed="true"] {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.wihero-ws-canvas-tools {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.wihero-handle {
+    position: absolute;
+    right: -7px;
+    top: calc(50% - 7px);
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    border: 2px solid var(--SmartThemeQuoteColor);
+    border-radius: 50%;
+    background: var(--SmartThemeBlurTintColor);
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.wihero-ws-canvas .wihero-card {
+    overflow: visible;
+    cursor: move;
+}
+
+.wihero-box {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px dashed var(--ws-line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 3%, transparent);
+}
+
+.wihero-box-label {
+    border-color: var(--SmartThemeQuoteColor);
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor) 6%, transparent);
+}
+
+.wihero-box-note {
+    border-style: solid;
+    background: var(--ws-soft);
+    display: flex;
+    flex-direction: column;
+}
+
+.wihero-box-head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 2px 8px;
+    cursor: move;
+    touch-action: none;
+}
+
+.wihero-box-head .wihero-handle {
+    right: -7px;
+}
+
+.wihero-box-name {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+}
+
+.wihero-box-remove {
+    margin-left: auto;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.wihero-box-text {
+    flex: 1;
+    margin: 0 8px 8px;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    resize: none;
+}
+
+.wihero-box-corner {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(135deg, transparent 50%, var(--ws-line) 50%);
+    border-bottom-right-radius: 12px;
+}
+
+.wihero-link-drawing {
+    stroke: var(--SmartThemeQuoteColor);
+    stroke-dasharray: 6 6;
+    opacity: 1;
+}
+
+.wihero-link-menu {
+    position: fixed;
+    z-index: 10002;
+    width: 320px;
+    box-sizing: border-box;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--ws-line);
+    border-radius: 10px;
+    background: var(--ws-soft);
+    box-shadow: 0 8px 24px var(--SmartThemeShadowColor);
+}

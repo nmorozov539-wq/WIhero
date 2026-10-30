@@ -22,7 +22,11 @@ export const LINK_NAMES = {
 
 /**
  * @param {HTMLElement} stage The element the graph fills.
- * @param {{ onSelect: (key: string|null) => void, onOpen: (key: string) => void, onHover: (key: string|null, card: HTMLElement) => void }} on
+ * @param {{ onSelect: (key: string|null) => void, onOpen: (key: string) => void, onHover: (key: string|null, card: HTMLElement) => void,
+ *   onMove?: (key: string, x: number, y: number) => void, onBox?: (kind: string, id: string, rect: object) => void,
+ *   onLink?: (from: string, to: string|null, x: number, y: number) => void, onNote?: (id: string, text: string) => void,
+ *   onArea?: (id: string, name: string) => void, onRemove?: (kind: string, id: string) => void }} on
+ *   The canvas callbacks are only used in canvas mode.
  */
 export function createGraphView(stage, on) {
     const world = el('div', { class: 'wihero-world' });
@@ -40,12 +44,22 @@ export function createGraphView(stage, on) {
     let view = { x: 40, y: 40, k: 1 };
     let size = { width: 0, height: 0 };
     const cards = new Map();
+    const boxes = [];
+    /** Pointer drags in progress: the workspace holds off re-rendering until they end. */
+    let dragging = 0;
+    /** What's drawn now, so a drag can re-route the links. */
+    let current = { graph: null, placed: null, canvas: false };
+    /** A point of the stage (client coordinates) in world coordinates. */
+    const toWorld = (cx, cy) => {
+        const r = stage.getBoundingClientRect();
+        return { x: (cx - r.left - view.x) / view.k, y: (cy - r.top - view.y) / view.k };
+    };
     const apply = () => { world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`; };
 
     // Pan by dragging the background, zoom with the wheel around the pointer.
     let drag = null;
     stage.addEventListener('pointerdown', e => {
-        if (e.target.closest('.wihero-card') || e.button !== 0) return;
+        if (e.target.closest('.wihero-card, .wihero-box') || e.button !== 0) return;
         drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
         stage.setPointerCapture(e.pointerId);
     });
@@ -103,12 +117,113 @@ export function createGraphView(stage, on) {
         Object.assign(card.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${p.h}px` });
         if (node.color && COLORS[node.color]) card.style.setProperty('--wihero-color', COLORS[node.color]);
         card.append(...look.content);
-        card.addEventListener('click', e => { e.stopPropagation(); on.onSelect(node.key); });
+        if (current.canvas && (node.kind === 'entry' || node.kind === 'group')) {
+            if (node.kind === 'entry') card.append(handle(node.key));
+            draggable(card, card, p, () => drawLinks(), () => on.onMove?.(node.key, p.x, p.y));
+        }
+        card.addEventListener('click', e => { e.stopPropagation(); if (!card._dragged) on.onSelect(node.key); card._dragged = false; });
         card.addEventListener('dblclick', e => { e.stopPropagation(); on.onOpen(node.key); });
         card.addEventListener('keydown', e => { if (e.key === 'Enter') on.onSelect(node.key); });
         card.addEventListener('pointerenter', () => on.onHover(node.key, card));
         card.addEventListener('pointerleave', () => on.onHover(null, card));
         return card;
+    }
+
+    /**
+     * Makes an element drag `rect` (and itself) around the world. `grip` is where the drag starts.
+     * Calls `moving` on every step and `done` once at the end if it moved.
+     */
+    function draggable(element, grip, rect, moving, done, { resize = false } = {}) {
+        grip.addEventListener('pointerdown', e => {
+            if (e.button !== 0 || e.target.closest('.wihero-handle, textarea, input, button')) return;
+            e.stopPropagation();
+            const start = toWorld(e.clientX, e.clientY);
+            const from = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+            let moved = false;
+            dragging++;
+            grip.setPointerCapture(e.pointerId);
+            const move = ev => {
+                const p = toWorld(ev.clientX, ev.clientY);
+                const dx = Math.round(p.x - start.x);
+                const dy = Math.round(p.y - start.y);
+                if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+                moved = true;
+                if (resize) { rect.w = Math.max(120, from.w + dx); rect.h = Math.max(60, from.h + dy); }
+                else { rect.x = from.x + dx; rect.y = from.y + dy; }
+                Object.assign(element.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px` });
+                moving();
+            };
+            const up = () => {
+                dragging--;
+                grip.removeEventListener('pointermove', move);
+                grip.removeEventListener('pointerup', up);
+                if (moved) { element._dragged = true; done(); }
+            };
+            grip.addEventListener('pointermove', move);
+            grip.addEventListener('pointerup', up);
+        });
+    }
+
+    /** The dot on a card's right edge: drag it onto another card or a label box to draw a link. */
+    function handle(key) {
+        const dot = el('button', { type: 'button', class: 'wihero-handle', 'aria-label': 'Draw a link from here', title: 'Drag onto another entry or a label box to link' });
+        dot.addEventListener('pointerdown', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            dot.setPointerCapture(e.pointerId);
+            dragging++;
+            const a = current.placed.pos.get(key);
+            const line = svg('path', { class: 'wihero-link wihero-link-drawing' });
+            links.append(line);
+            const move = ev => {
+                const p = toWorld(ev.clientX, ev.clientY);
+                line.setAttribute('d', `M ${a.x + a.w} ${a.y + a.h / 2} L ${p.x} ${p.y}`);
+            };
+            const up = ev => {
+                dragging--;
+                dot.removeEventListener('pointermove', move);
+                dot.removeEventListener('pointerup', up);
+                line.remove();
+                const target = document.elementsFromPoint(ev.clientX, ev.clientY).map(x => x.closest?.('[data-key]')).find(x => x && x.dataset.key !== key);
+                on.onLink?.(key, target?.dataset.key ?? null, ev.clientX, ev.clientY);
+            };
+            dot.addEventListener('pointermove', move);
+            dot.addEventListener('pointerup', up);
+        });
+        return dot;
+    }
+
+    /** A label box, a group area or a note on the canvas: behind the cards, moved by its title, resized by its corner. */
+    function boxFor(kind, id, rect, { title, text, key } = {}) {
+        const box = el('div', { class: `wihero-box wihero-box-${kind}`, ...(key && { 'data-key': key }), 'data-box': id });
+        Object.assign(box.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px` });
+        const head = el('div', { class: 'wihero-box-head' });
+        const done = () => on.onBox?.(kind, id, { x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+        if (kind === 'area') {
+            const name = el('input', { type: 'text', class: 'wihero-box-name', value: title, 'aria-label': 'Area name' });
+            name.addEventListener('change', () => on.onArea?.(id, name.value));
+            head.append(name);
+        } else {
+            head.append(el('b', {}, title));
+        }
+        if (kind === 'label') head.append(handle(key));
+        if (kind !== 'label') {
+            const x = el('button', { type: 'button', class: 'wihero-box-remove', 'aria-label': `Remove this ${kind}` }, '×');
+            x.addEventListener('click', e => { e.stopPropagation(); on.onRemove?.(kind, id); });
+            head.append(x);
+        }
+        box.append(head);
+        if (kind === 'note') {
+            const area = el('textarea', { class: 'wihero-box-text', 'aria-label': 'Note' });
+            area.value = text ?? '';
+            area.addEventListener('change', () => on.onNote?.(id, area.value));
+            box.append(area);
+        }
+        const corner = el('div', { class: 'wihero-box-corner', 'aria-hidden': 'true' });
+        box.append(corner);
+        draggable(box, head, rect, () => drawLinks(), done);
+        draggable(box, corner, rect, () => drawLinks(), done, { resize: true });
+        return box;
     }
 
     /** Path from one box to another: out of the right side, into the left, as a gentle curve. Pills are entered from the left too. */
@@ -131,13 +246,41 @@ export function createGraphView(stage, on) {
      * @param {{ pos: Map, width: number, height: number }} placed layout() of it
      * @param {(node: object) => { className?: string, content: Node[] }} look How a card looks.
      */
-    function render(graph, placed, look, { keepView = false } = {}) {
+    function render(graph, placed, look, { keepView = false, canvas = null } = {}) {
         size = { width: placed.width, height: placed.height };
+        current = { graph, placed, canvas: !!canvas };
         for (const card of cards.values()) card.remove();
         cards.clear();
-        links.replaceChildren(defs);
+        for (const b of boxes.splice(0)) b.remove();
         Object.assign(links.style, { width: `${placed.width + 80}px`, height: `${placed.height + 80}px` });
+        if (canvas) {
+            for (const a of canvas.areas) boxes.push(boxFor('area', a.id, a, { title: a.name }));
+            for (const n of graph.nodes.values()) {
+                const p = placed.pos.get(n.key);
+                if (n.kind === 'label' && p?.box) boxes.push(boxFor('label', n.key, p, { title: n.title, key: n.key }));
+            }
+            for (const note of canvas.notes) boxes.push(boxFor('note', note.id, note, { title: 'Note', text: note.text }));
+            world.prepend(...boxes);
+            world.prepend(links);
+        }
+        drawLinks();
+        for (const node of graph.nodes.values()) {
+            const p = placed.pos.get(node.key);
+            if (!p || p.box) continue;
+            const card = cardFor(node, p, look(node));
+            cards.set(node.key, card);
+            world.append(card);
+        }
+        if (!keepView) fit();
+    }
+
+    /** Draws every link from the current positions (again after a drag). */
+    function drawLinks() {
+        const { graph, placed, canvas } = current;
+        links.replaceChildren(defs);
         for (const l of graph.links) {
+            // On the canvas a label is a box around its entries, so membership needs no line.
+            if (canvas && l.type === 'member') continue;
             const a = placed.pos.get(l.from);
             const b = placed.pos.get(l.to);
             if (!a || !b) continue;
@@ -147,14 +290,19 @@ export function createGraphView(stage, on) {
             path.lastChild.textContent = LINK_NAMES[l.type];
             links.append(path);
         }
-        for (const node of graph.nodes.values()) {
-            const p = placed.pos.get(node.key);
-            if (!p) continue;
-            const card = cardFor(node, p, look(node));
-            cards.set(node.key, card);
-            world.append(card);
+        // Mask pills follow their entry.
+        if (canvas) for (const n of graph.nodes.values()) {
+            if (n.kind !== 'mask') continue;
+            const o = placed.pos.get(n.owner);
+            const p = placed.pos.get(n.key);
+            const card = cards.get(n.key);
+            if (!o || !p || !card) continue;
+            const pills = [...graph.nodes.values()].filter(m => m.kind === 'mask' && m.owner === n.owner);
+            const i = pills.indexOf(n);
+            p.x = o.x + 16;
+            p.y = o.y + o.h + 4 + i * 32;
+            Object.assign(card.style, { left: `${p.x}px`, top: `${p.y}px` });
         }
-        if (!keepView) fit();
     }
 
     /** Marks the selected card and dims what isn't linked to it. */
@@ -170,5 +318,5 @@ export function createGraphView(stage, on) {
         }
     }
 
-    return { render, select, fit, center, zoomAt, get view() { return view; }, cards };
+    return { render, select, fit, center, zoomAt, toWorld, busy: () => dragging > 0, get view() { return view; }, cards };
 }

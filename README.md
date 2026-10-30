@@ -53,6 +53,17 @@ ST's own timers still win. A running sticky finishes even after its entry closes
 - The slider at the bottom shows the chat state at any earlier message; the Timeline lists what fired when.
 - The right panel edits the selected entry: **Entry** (title, keywords, filter, content, position, depth, order, trigger %, and more), **Story logic** (everything the WI Hero section edits), **Timers** (sticky, cooldown, delay), **Links** (links both ways, its history in this chat, and **unlinked mentions**: entries whose text mentions its keywords, with one click to gate them on it). Saves go through ST, like any edit.
 
+### Canvas
+
+Switch the workspace from **Graph** to **Canvas** to arrange the book yourself, the way you'd lay out a story on a board.
+
+![The canvas, with #town as a box](docs/img/canvas.png)
+
+- Drag cards anywhere. Places are kept per book in the extension settings, never on the entries, so arranging never resets ST's timers. New cards appear where the graph would put them; **Tidy** lays everything out again; **Undo** (Ctrl Z) steps back.
+- A label is a box around its entries: resize it by its corner, and drop a card into or out of it to add or remove the label (it asks first, since that edits the entry).
+- **Area** adds a named frame to arrange cards in, **Note** a note card. Both are for you only: nothing in them reaches the model.
+- Draw a link by dragging the dot on a card's right edge onto another card, a label box or a mask pill. A menu asks what the link means: gate, closes, ends glue, gates for a label, mask gate, or another switch path from a fork. A link that would break something (a loop, say) is refused with the reason.
+
 ## The panel and the entry list
 
 Extensions → WI Hero lists every gated entry with its status for the next turn, how often it fired in this chat, and its labels, grouped by folder. Entries that fired last turn are bold. In ST's World Info editor each entry row shows a WI Hero badge with the same status (hover for the reason) and a stripe in the entry's color.

@@ -5,7 +5,7 @@ import { el } from './panel.js';
 import { FIELD, buildModel, eligibility, activeMask, entryKey } from './engine.js';
 import { stateBefore } from './chat-state.js';
 import { buildGraph, collapse, neighborhood } from './graph.js';
-import { layout } from './layout.js';
+import { layout, CARD } from './layout.js';
 import { createGraphView, LINK_NAMES } from './graph-view.js';
 import { shortStatus, statusClass } from './status.js';
 import { folderList } from './bulk.js';
@@ -13,6 +13,7 @@ import { ENTRY_FIELDS, TIMER_FIELDS, fieldText, formChanges, applyEntryChanges, 
 import { applyConfig } from './editor-model.js';
 import { logicForm } from './editor.js';
 import { originalWIDataKeyMap } from './st.js';
+import { canvasOf, placeKey, canvasLayout, inside, linkOptions, applyLink, setLabel, newProblems, pushUndo } from './canvas-model.js';
 
 let deps;
 let root = null;
@@ -22,6 +23,7 @@ const ws = {
     selected: null, showState: true, scrub: null, folded: new Set(), local: { on: false, depth: 1 },
     tabs: [{ key: 'graph', title: 'Graph' }], tab: 'graph', section: 'files', search: '',
     panelTab: 'entry', version: 0, panelFor: '',
+    mode: 'graph', undo: {},
 };
 let ui = {};
 let view = null;
@@ -56,7 +58,9 @@ export function refreshWorkspace({ books = false } = {}) {
     if (!root) return;
     pending = { books: books || pending?.books };
     clearTimeout(refreshWorkspace.timer);
-    refreshWorkspace.timer = setTimeout(() => {
+    refreshWorkspace.timer = setTimeout(function later() {
+        // Re-rendering mid-drag would pull the card or handle out from under the pointer.
+        if (view?.busy()) { refreshWorkspace.timer = setTimeout(later, 150); return; }
         const { books: reload } = pending;
         pending = null;
         if (!root) return;
@@ -93,7 +97,18 @@ function build() {
     ui.stateToggle.addEventListener('change', () => { ws.showState = ui.stateToggle.checked; draw({ keepView: true }); });
     const fit = button('Fit', { title: 'Show the whole graph' });
     fit.addEventListener('click', () => view?.fit());
-    const tools = el('div', { class: 'wihero-ws-tools' },
+    ui.modes = el('div', { class: 'wihero-ws-modes', role: 'group', 'aria-label': 'Layout' }, ...[['graph', 'Graph'], ['canvas', 'Canvas']].map(([mode, label]) => {
+        const b = button(label, { 'data-mode': mode, 'aria-pressed': 'false' });
+        b.addEventListener('click', () => { ws.mode = mode; deps.settings.workspaceMode = mode; deps.save(); draw({ fit: true }); });
+        return b;
+    }));
+    const tool = (label, title, action) => { const b = button(label, { title, class: 'wihero-ws-canvas-tool' }); b.addEventListener('click', action); return b; };
+    ui.canvasTools = el('span', { class: 'wihero-ws-canvas-tools' },
+        tool('Area', 'Add a named area: a frame to arrange cards in (layout only)', () => addBox('areas', { name: 'Area', w: 420, h: 280 })),
+        tool('Note', 'Add a note card (never sent to the model)', () => addBox('notes', { text: '', w: 220, h: 140 })),
+        tool('Tidy', 'Lay the cards out automatically again', tidy),
+        tool('Undo', 'Undo the last canvas change (Ctrl Z)', undo));
+    const tools = el('div', { class: 'wihero-ws-tools' }, ui.modes, ui.canvasTools,
         el('label', {}, ui.localToggle, ' Local graph'), el('label', {}, 'depth ', ui.localDepth),
         el('label', {}, ui.stateToggle, ' Chat state'), fit);
 
@@ -117,14 +132,23 @@ function build() {
         el('footer', { class: 'wihero-ws-status' }, ui.counts, el('span', { class: 'wihero-ws-spacer' }), ui.scrubLabel, ui.scrub),
         ui.preview);
     root.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && !e.target.closest('input, textarea, select')) closeWorkspace();
+        if (e.target.closest('input, textarea, select')) return;
+        if (e.key === 'Escape') closeWorkspace();
+        if (e.key === 'z' && (e.ctrlKey || e.metaKey) && ws.mode === 'canvas') { e.preventDefault(); undo(); }
     });
     document.body.append(root);
     view = createGraphView(ui.stage, {
         onSelect: key => selectNode(key),
         onOpen: key => openTab(key),
         onHover: (key, card) => preview(key, card),
+        onMove: (key, x, y) => moved(key, x, y),
+        onBox: (kind, id, rect) => boxChanged(kind, id, rect),
+        onLink: (from, to, x, y) => linkMenu(from, to, x, y),
+        onNote: (id, text) => editCanvas(c => { c.notes.find(n => n.id === id).text = text; }, { redraw: false }),
+        onArea: (id, name) => editCanvas(c => { c.areas.find(a => a.id === id).name = name; }, { redraw: false }),
+        onRemove: (kind, id) => editCanvas(c => { c[`${kind}s`] = c[`${kind}s`].filter(x => x.id !== id); }),
     });
+    ws.mode = deps.settings.workspaceMode === 'canvas' ? 'canvas' : 'graph';
     root.focus();
 }
 
@@ -135,6 +159,7 @@ async function load({ fit = false } = {}) {
     ui.bookSelect.replaceChildren(...names.map(n => el('option', { value: n }, n)));
     ui.bookSelect.value = ws.book;
     ws.data = ws.book ? await ctx.loadWorldInfo(ws.book) : null;
+    if (ws.book && deps.settings.workspaceBook !== ws.book) { deps.settings.workspaceBook = ws.book; deps.save(); }
     ws.entries = Object.values(ws.data?.entries ?? {}).map(e => ({ ...e, world: ws.book }));
     const others = deps.loadedEntries().filter(e => e.world !== ws.book);
     ws.model = buildModel([...others, ...ws.entries]);
@@ -194,16 +219,70 @@ function looks(state) {
     };
 }
 
+/**
+ * On the canvas, entries without links are cards too (in a column of their own), so they can be linked or
+ * dropped into a label box. Vanilla entries get a stand-in for the engine node they don't have.
+ */
+function withUnlinked(graph) {
+    const nodes = new Map(graph.nodes);
+    for (const e of ws.graph.unlinked) {
+        const key = entryKey(e);
+        const m = ws.model.byKey.get(key) ?? { world: e.world, uid: e.uid, id: null, labels: [], switch: [], masks: [], closes: [], gates: [], glue: null };
+        nodes.set(key, {
+            key, kind: 'entry', id: m.id, uid: e.uid, world: e.world, title: e.comment || e.key?.[0] || `uid ${e.uid}`,
+            external: false, unlinked: true, folder: '', color: e.wihero?.color ?? '', node: m, content: e.content ?? '',
+        });
+    }
+    return { ...graph, nodes };
+}
+
+/** Puts the unlinked cards in a column right of the graph. */
+function placeUnlinked(graph, auto) {
+    const x = auto.width + CARD.col - CARD.w;
+    let y = 0;
+    for (const n of graph.nodes.values()) {
+        if (!n.unlinked) continue;
+        auto.pos.set(n.key, { x, y, w: CARD.w, h: CARD.h });
+        y += CARD.h + CARD.gap;
+    }
+    if (y) { auto.width = x + CARD.w; auto.height = Math.max(auto.height, y - CARD.gap); }
+}
+
 /** Rebuilds what's shown: folding, local graph, layout, cards, sidebar, panel, status bar. */
 function draw({ fit = false, keepView = false } = {}) {
     if (!root || !ws.graph) return;
     let shown = collapse(ws.graph, ws.folded);
     if (ws.local.on && ws.selected && shown.nodes.has(ws.selected)) shown = neighborhood(shown, ws.selected, ws.local.depth);
+    if (ws.mode === 'canvas' && !ws.local.on) shown = withUnlinked(shown);
     ws.shown = shown;
-    ws.placed = layout(shown);
+    const auto = layout(shown);
+    if (ws.mode === 'canvas') placeUnlinked(shown, auto);
+    let canvas = null;
+    if (ws.mode === 'canvas') {
+        canvas = canvasOf(deps.settings, ws.book);
+        ws.placed = canvasLayout(shown, auto, canvas);
+        // Everything is pinned the first time the canvas shows it: new links change the automatic layout,
+        // and cards and label boxes the user hasn't moved must not wander off. Tidy unpins them all.
+        let fixed = false;
+        for (const [key, p] of ws.placed.pos) {
+            const node = shown.nodes.get(key);
+            if (p.box) {
+                if (!canvas.boxes[key]) { canvas.boxes[key] = { x: p.x, y: p.y, w: p.w, h: p.h }; fixed = true; }
+            } else if (node && (node.kind === 'entry' || node.kind === 'group') && !canvas.pos[placeKey(node)]) {
+                canvas.pos[placeKey(node)] = { x: p.x, y: p.y };
+                fixed = true;
+            }
+        }
+        if (fixed) deps.save();
+    } else {
+        ws.placed = auto;
+    }
+    for (const b of ui.modes.children) b.setAttribute('aria-pressed', String(b.dataset.mode === ws.mode));
+    ui.canvasTools.style.display = ws.mode === 'canvas' ? '' : 'none';
+    root.classList.toggle('wihero-ws-canvas', ws.mode === 'canvas');
     const { state, at, last } = chatState();
     ui.center.replaceChildren(ws.tab === 'graph' ? ui.stage : ui.reader);
-    view.render(shown, ws.placed, looks(state), { keepView: keepView && !fit });
+    view.render(shown, ws.placed, looks(state), { keepView: keepView && !fit, canvas });
     view.select(ws.selected);
     if (ws.tab !== 'graph') drawReader(ws.tab, state);
     drawTabs();
@@ -222,7 +301,8 @@ const issuesHere = () => ws.model.issues.filter(i => i.key.startsWith(`${ws.book
 
 function drawTabs() {
     ui.tabs.replaceChildren(...ws.tabs.map(t => {
-        const tab = el('button', { type: 'button', role: 'tab', class: `wihero-ws-tab${t.key === ws.tab ? ' wihero-ws-tab-on' : ''}`, 'aria-selected': String(t.key === ws.tab) }, t.title);
+        const title = t.key === 'graph' ? (ws.mode === 'canvas' ? 'Canvas' : 'Graph') : t.title;
+        const tab = el('button', { type: 'button', role: 'tab', class: `wihero-ws-tab${t.key === ws.tab ? ' wihero-ws-tab-on' : ''}`, 'aria-selected': String(t.key === ws.tab) }, title);
         tab.addEventListener('click', () => { ws.tab = t.key; draw({ keepView: true }); });
         if (t.key === 'graph') return tab;
         const x = el('button', { type: 'button', class: 'wihero-ws-tab-close', 'aria-label': `Close ${t.title}` }, '×');
@@ -562,4 +642,98 @@ function linksTab(entry, state) {
 
 function drawReader(key, state) {
     ui.reader.replaceChildren(...summary(key, state, { wide: true }));
+}
+
+// ── Canvas ───────────────────────────────────────────────────────────
+
+/** Changes the book's canvas in settings, with undo. */
+function editCanvas(change, { redraw = true } = {}) {
+    const canvas = canvasOf(deps.settings, ws.book);
+    pushUndo(ws.undo[ws.book] ??= [], canvas);
+    change(canvas);
+    deps.save();
+    if (redraw) draw({ keepView: true });
+}
+
+function undo() {
+    const stack = ws.undo[ws.book];
+    if (!stack?.length) return void toastr.info('Nothing to undo.', 'WI Hero');
+    deps.settings.canvas[ws.book] = JSON.parse(stack.pop());
+    deps.save();
+    draw({ keepView: true });
+}
+
+/** A new area or note in the middle of the view. */
+function addBox(list, fields) {
+    const r = ui.stage.getBoundingClientRect();
+    const c = view.toWorld(r.left + r.width / 2, r.top + r.height / 2);
+    editCanvas(canvas => canvas[list].push({ id: `${list[0]}${Date.now().toString(36)}`, x: Math.round(c.x - fields.w / 2), y: Math.round(c.y - fields.h / 2), ...fields }));
+}
+
+async function tidy() {
+    const ok = await deps.ctx().callGenericPopup('Lay every card out automatically again? Areas and notes stay where they are. Undo brings your arrangement back.', deps.ctx().POPUP_TYPE.CONFIRM);
+    if (ok) editCanvas(c => { c.pos = {}; c.boxes = {}; });
+}
+
+function boxChanged(kind, id, rect) {
+    editCanvas(canvas => {
+        if (kind === 'label') canvas.boxes[id] = rect;
+        else Object.assign(canvas[`${kind}s`].find(x => x.id === id), rect);
+    }, { redraw: false });
+}
+
+/** A card was dropped: remember where, and if it entered or left a label box, offer to add or remove the label. */
+async function moved(key, x, y) {
+    const node = ws.shown.nodes.get(key);
+    if (!node) return;
+    editCanvas(c => { c.pos[placeKey(node)] = { x, y }; }, { redraw: false });
+    if (node.kind !== 'entry' || node.external) return draw({ keepView: true });
+    const p = ws.placed.pos.get(key);
+    const centre = { x: p.x + p.w / 2, y: p.y + p.h / 2 };
+    const has = new Set(node.node.labels);
+    for (const [k, box] of ws.placed.pos) {
+        if (!box.box) continue;
+        const label = k.slice(1);
+        const within = inside(centre, box);
+        if (within === has.has(label)) continue;
+        const ctx = deps.ctx();
+        const ok = await ctx.callGenericPopup(`${within ? 'Add' : 'Remove'} #${label} ${within ? 'to' : 'from'} ${node.id}?<br><small>This edits the entry, which resets its own sticky and cooldown timers, like any edit.</small>`, ctx.POPUP_TYPE.CONFIRM);
+        if (ok) return saveBook(data => setLabel(data.entries[node.uid], label, within, new Set(ws.model.nodes.keys())));
+    }
+    draw({ keepView: true });
+}
+
+/** After a link is drawn onto something: a small menu of what it can mean. */
+function linkMenu(fromKey, toKey, x, y) {
+    root.querySelector('.wihero-link-menu')?.remove();
+    const from = ws.shown.nodes.get(fromKey);
+    const to = toKey && ws.shown.nodes.get(toKey);
+    if (!to) return;
+    const options = linkOptions(from, to);
+    if (!options.length) return void toastr.info("These two can't be linked.", 'WI Hero');
+    const menu = el('div', { class: 'wihero-link-menu', role: 'menu' },
+        el('small', { class: 'wihero-ws-heading' }, 'THIS LINK MEANS'),
+        ...options.map(o => {
+            const b = el('button', { type: 'button', role: 'menuitem', class: 'wihero-ws-item', 'data-type': o.type }, o.label);
+            b.addEventListener('click', () => { menu.remove(); link(from, to, o.type); });
+            return b;
+        }),
+        el('small', { class: 'wihero-hint' }, 'This edits the entry, which resets its own timers, like any edit.'));
+    const cancel = el('button', { type: 'button', class: 'wihero-ws-button' }, 'Cancel');
+    cancel.addEventListener('click', () => menu.remove());
+    menu.append(cancel);
+    Object.assign(menu.style, { left: `${Math.min(x, window.innerWidth - 340)}px`, top: `${Math.min(y, window.innerHeight - 260)}px` });
+    root.append(menu);
+    menu.querySelector('button')?.focus();
+}
+
+/** Applies a link if the engine has no new problem with it; otherwise says why not. */
+async function link(from, to, type) {
+    const before = await deps.ctx().loadWorldInfo(ws.book);
+    const after = structuredClone(before);
+    const uids = applyLink(after, from, to, type, new Set(ws.model.nodes.keys()));
+    const others = deps.loadedEntries().filter(e => e.world !== ws.book);
+    const problems = newProblems(others, ws.book, before, after, uids);
+    if (problems.length) return void toastr.warning(`Not linked: ${problems.join('; ')}`, 'WI Hero');
+    await saveBook(data => applyLink(data, from, to, type, new Set(ws.model.nodes.keys())));
 }

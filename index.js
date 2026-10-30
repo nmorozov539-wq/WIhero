@@ -202,7 +202,7 @@ mountWorkspace({
     loadedEntries: () => loaded,
     settings,
     save: saveSettingsDebounced,
-    defaultBook: () => bookName() ?? loaded[0]?.world,
+    defaultBook: () => bookName() ?? (ctx().getWorldInfoNames().includes(settings.workspaceBook) ? settings.workspaceBook : loaded[0]?.world),
     openInST,
     onSaved: () => getSortedEntries(),
 });
