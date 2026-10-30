@@ -50,10 +50,7 @@ async function swipeRight() {
     await waitGenerated(before);
 }
 
-try {
-    // ── Setup: connect to the mock, sample lorebook as the only global book, new chat ──
-    await page.goto(ST_URL);
-    await page.waitForFunction(() => window.wihero && SillyTavern.getContext().characters.length > 0, null, { timeout: 60000 });
+async function connect() {
     await ev(url => {
         $('#main_api').val('openai').trigger('change');
         $('#chat_completion_source').val('custom').trigger('change');
@@ -63,6 +60,18 @@ try {
         $('#api_button_openai').trigger('click');
     }, MOCK_URL);
     await page.waitForFunction(() => SillyTavern.getContext().onlineStatus !== 'no_connection', null, { timeout: 20000 });
+}
+
+try {
+    // ── Setup: connect to the mock, sample lorebook as the only global book, new chat ──
+    await page.goto(ST_URL);
+    // Fresh data shows the first-run welcome popup, which holds back loading the characters.
+    const welcome = page.locator('.popup:has-text("Welcome to SillyTavern") .popup-button-ok');
+    await welcome.waitFor({ timeout: 15000 }).then(() => welcome.click(), () => {});
+    await page.waitForFunction(() => window.wihero && SillyTavern.getContext().characters.length > 0, null, { timeout: 60000 });
+    await connect();
+    // A failed earlier run can leave the extension switched off in the saved settings.
+    await ev(() => { const box = document.getElementById('wihero_enabled'); if (!box.checked) box.click(); });
     await slash('/world silent=true WIHero-Sample');
     await slash('/go Seraphina');
     await page.waitForFunction(() => SillyTavern.getContext().getCurrentChatId()?.startsWith('Seraphina'), null, { timeout: 20000 });
@@ -138,6 +147,7 @@ try {
         await slash('/go Seraphina');
         await wait(1500);
     });
+    await connect(); // auto-connect is off on fresh data, and Send stays hidden until connected
     assert.deepEqual(await state(), before);
     ok('reload: state is read back from the saved chat');
 
