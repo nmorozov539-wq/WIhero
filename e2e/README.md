@@ -9,3 +9,4 @@ Run it against a throwaway SillyTavern, never your own: it changes the connectio
 3. Start it (`node server.js --port 8000`, or set `ST_URL`).
 4. `node e2e/mock.mjs &` (OpenAI-compatible mock on port 5001, logs prompts to `e2e/log/`).
 5. `npm i --no-save playwright@1.55.0`, then `node e2e/gating.mjs`. Set `CHROMIUM=/path/to/chrome` if Playwright's own browser isn't installed.
+6. `node e2e/editor.mjs` checks the entry editor: it gates a new entry through the UI, reads the book from disk (set `ST_WORLDS` to that SillyTavern's `data/default-user/worlds`), plays it in a chat and removes the config again. Copy a fresh sample book first (step 2): it adds an entry. It also writes the README screenshots to `docs/img/`.

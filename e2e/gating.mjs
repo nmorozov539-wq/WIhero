@@ -20,9 +20,10 @@ const ok = msg => console.log(`ok ${++step} - ${msg}`);
 const ev = (fn, arg) => page.evaluate(fn, arg);
 const wait = ms => page.waitForTimeout(ms);
 const slash = cmd => ev(c => SillyTavern.getContext().executeSlashCommandsWithOptions(c), cmd);
-const promptCount = () => fs.readdirSync(LOG).length;
+const prompts = () => fs.readdirSync(LOG).filter(f => f.endsWith('.json')).sort();
+const promptCount = () => prompts().length;
 function lastPrompt() {
-    const file = fs.readdirSync(LOG).sort().pop();
+    const file = prompts().pop();
     return JSON.parse(fs.readFileSync(LOG + file, 'utf8')).body.messages.map(m => m.content).join('\n');
 }
 /** Which sample entries reached the last prompt. */
@@ -261,7 +262,7 @@ try {
     console.log(`\n${step} passed`);
 } catch (error) {
     console.log(`not ok ${step + 1} - ${error.message}`);
-    if (fs.readdirSync(LOG).length) console.log('last prompt:\n' + lastPrompt().slice(0, 3000));
+    if (promptCount()) console.log('last prompt:\n' + lastPrompt().slice(0, 3000));
     console.log('state:', JSON.stringify(await state().catch(() => null)));
     printObserved();
     process.exitCode = 1;
