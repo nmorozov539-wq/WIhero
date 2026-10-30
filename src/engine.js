@@ -91,6 +91,10 @@ export function buildModel(entries) {
                     issues.push({ key: node.key, id: node.id, label: node.label, warning: true,
                         message: 'is glued but has a trigger chance below 100%, so it can still drop out' });
                 }
+                if (Number(entry.cooldown) > 0) {
+                    issues.push({ key: node.key, id: node.id, label: node.label, warning: true,
+                        message: "has a cooldown, so glue can't hold it every turn" });
+                }
             }
         }
 
@@ -241,14 +245,15 @@ export function eligibility(entry, model, state) {
  * Removes the entries that may not fire from ST's lore lists, in place.
  * Only removes: editing an entry here would change the hash ST keys timed effects by.
  * @param {Record<string, object[]>} lore The WORLDINFO_ENTRIES_LOADED payload.
+ * @param {Set<string> | Map<string, unknown>} [keep] world.uid keys never to remove (entries ST holds by sticky).
  * @returns {number} How many entries were removed.
  */
-export function removeIneligible(lore, model, state) {
+export function removeIneligible(lore, model, state, keep) {
     let removed = 0;
     for (const list of Object.values(lore ?? {})) {
         if (!Array.isArray(list)) continue;
         for (let i = list.length - 1; i >= 0; i--) {
-            if (!eligibility(list[i], model, state).eligible) {
+            if (!keep?.has(entryKey(list[i])) && !eligibility(list[i], model, state).eligible) {
                 list.splice(i, 1);
                 removed++;
             }

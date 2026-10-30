@@ -5,7 +5,8 @@ import { mountPanel, render } from './src/panel.js';
 import { buildModel, eligibility, entryKey, gluedKeys, removeIneligible } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
-import { getSortedEntries } from './src/st.js';
+import { entryHash, scanLength, stickyHeld } from './src/timers.js';
+import { getSortedEntries, getStringHash } from './src/st.js';
 
 const ctx = () => SillyTavern.getContext();
 const { eventSource, eventTypes, extensionSettings, saveSettingsDebounced } = ctx();
@@ -13,6 +14,13 @@ const settings = getSettings(extensionSettings);
 
 /** Model of the gated entries in the books ST loaded last. */
 let model = null;
+/** The entries ST loaded last, before gating removed any, and their ST hashes by world.uid. */
+let loaded = [];
+let hashes = new Map();
+let hashWarned = false;
+const hashOf = entry => hashes.get(entryKey(entry));
+/** Entries ST will hold by sticky in a scan of `length` messages: gating leaves them in. */
+const held = length => stickyHeld(loaded, ctx().chatMetadata?.timedWorldInfo, length, hashOf);
 /**
  * The generation in progress: { type, record, base, model, activated }.
  * `base` and `model` are set by its World Info scan; `activated` collects world.uid keys.
@@ -34,13 +42,19 @@ async function onAfterCommands(type) {
     if (!settings.enabled) return;
     const entries = await getSortedEntries();
     if (!model) return;
+    if (!hashWarned && entries.some(e => hashes.has(entryKey(e)) && hashes.get(entryKey(e)) !== e.hash)) {
+        hashWarned = true;
+        console.warn('[WI Hero] Entry hashes differ from SillyTavern\'s; sticky entries may be cut short when they close.');
+    }
     const keys = new Set(gluedKeys(model, gatingState(ctx().chat ?? [], type)));
     const glued = entries.filter(e => keys.has(entryKey(e)));
     if (glued.length) await eventSource.emit(eventTypes.WORLDINFO_FORCE_ACTIVATE, glued);
 }
 
 function onEntriesLoaded(lore) {
-    model = buildModel(Object.values(lore ?? {}).filter(Array.isArray).flat());
+    loaded = Object.values(lore ?? {}).filter(Array.isArray).flat();
+    hashes = new Map(loaded.map(e => [entryKey(e), entryHash(e, getStringHash)]));
+    model = buildModel(loaded);
     if (!settings.enabled) return refresh();
     const chat = ctx().chat ?? [];
     const state = gatingState(chat, generation?.type);
@@ -48,7 +62,8 @@ function onEntriesLoaded(lore) {
         generation.base = state;
         generation.model = model;
     }
-    removeIneligible(lore, model, state);
+    // ST skips timed effects on dry runs, and a dry run never sets `generation`.
+    removeIneligible(lore, model, state, generation ? held(scanLength(chat, generation.type)) : null);
     refresh();
 }
 
@@ -69,11 +84,17 @@ function onMessageReceived(messageId) {
 /** Status of every gated entry for the next generation. */
 function refresh() {
     if (!model) return render(null);
-    const { state, index } = stateBefore(ctx().chat ?? []);
+    const chat = ctx().chat ?? [];
+    const { state, index } = stateBefore(chat);
+    const sticky = settings.enabled ? held(scanLength(chat) + 1) : new Map(); // the next send adds a message
+    const status = node => {
+        const { eligible, reason } = eligibility(node, model, state);
+        return !eligible && sticky.has(node.key) ? `sticky (${reason})` : reason;
+    };
     const rows = [...model.byKey.values()].map(node => ({
         id: node.id ?? node.label,
         key: node.key,
-        status: eligibility(node, model, state).reason,
+        status: status(node),
         fired: node.id ? state.fired[node.id] ?? 0 : 0,
         lastRound: state.round.includes(node.key),
     }));

@@ -151,6 +151,18 @@ test('removeIneligible splices every lore list in place and keeps plain entries'
     assert.deepEqual(lore.characterLore, []);
 });
 
+test('removeIneligible leaves the entries in `keep` whatever their gates say', () => {
+    const a = entry({ id: 'a' });
+    const b = entry({ id: 'b', gates: ['a'] });
+    const c = entry({ id: 'c', gates: ['a'] });
+    const lore = { globalLore: [a, b, c] };
+    const model = buildModel([a, b, c]);
+    const state = { ...initialState(), closed: { a: true } };
+    assert.equal(removeIneligible(lore, model, state, new Set([`Book.${a.uid}`, `Book.${b.uid}`])), 1);
+    assert.deepEqual(lore.globalLore, [a, b]);
+    assert.equal(removeIneligible({ globalLore: [a] }, model, state, new Map([[`Book.${a.uid}`, 7]])), 0, 'a Map works too');
+});
+
 test('removeIneligible never edits the entries it keeps', () => {
     const a = entry({ id: 'a' });
     const before = structuredClone(a);
@@ -354,5 +366,13 @@ test('a glued entry with a trigger chance below 100% gets a warning but still wo
     const b = entry({ id: 'b', glue: true }, { probability: 50, useProbability: false });
     const model = buildModel([a, b]);
     assert.deepEqual(model.issues.map(i => [i.id, i.warning]), [['a', true]]);
+    assert.ok(eligibility(a, model, initialState()).eligible);
+});
+
+test('a glued entry with a cooldown gets a warning', () => {
+    const a = entry({ id: 'a', glue: true }, { cooldown: 5 });
+    const b = entry({ id: 'b' }, { cooldown: 5 });
+    const model = buildModel([a, b]);
+    assert.deepEqual(model.issues.map(i => [i.id, i.warning, i.message]), [['a', true, "has a cooldown, so glue can't hold it every turn"]]);
     assert.ok(eligibility(a, model, initialState()).eligible);
 });

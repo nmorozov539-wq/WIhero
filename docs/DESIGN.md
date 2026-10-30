@@ -37,6 +37,8 @@ Both conditions share one underlying engine; sticky, permanent, glue, and condit
 - **Gates open on the next turn.** State is evaluated once, before the scan. An entry firing this turn opens downstream gates for the following generation, never within the same scan or recursion pass.
 - **Only chat generations count.** A generation moves gate state only if its result lands in the chat (normal replies, swipes, continues). Background generations (summaries, quiet prompts, other extensions' calls) never move gates.
 - **Vanilla timers are never violated.** The extension only decides eligibility. ST's own sticky, cooldown, delay, probability and inclusion groups still apply on top, unchanged.
+  - A running sticky finishes even if the entry closes (or is otherwise not eligible); normal gating applies again once it ends.
+  - Cooldown and delay can hold back a glued entry: glue doesn't override them. The panel warns when a glued entry has a cooldown.
 
 ### 2.1 Basic gates
 

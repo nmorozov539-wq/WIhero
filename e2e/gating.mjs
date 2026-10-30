@@ -11,7 +11,7 @@ const LOG = new URL('./log/', import.meta.url).pathname;
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const errors = [];
-page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
+page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning' && /WI Hero/.test(m.text())) errors.push(m.text().slice(0, 300)); });
 page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
 page.on('dialog', d => d.accept());
 
@@ -227,7 +227,9 @@ try {
     assert.ok(r.closed.includes('bell') && !r.glued.includes('bell'), 'bell closed by its keyword');
     r = await observe('bell', 'Was that the bell?', ['WIH-6']);
     assert.deepEqual(r.injected, [], 'closed bell stays out');
-    ok('cooldown: bell glued, then closed by "bell stops" (per-turn presence recorded below)');
+    const issues = await ev(() => document.getElementById('wihero_issues')?.textContent ?? '');
+    assert.ok(issues.includes("bell has a cooldown, so glue can't hold it every turn"), `bell cooldown warning shown: ${issues}`);
+    ok('cooldown: bell glued, then closed by "bell stops"; panel warns about the cooldown');
 
     // ── Sticky vs closing: the ferry is sticky, then the crossing closes it ──
     r = await observe('ferry', 'The ferry arrives.', ['WIH-7', 'WIH-8']);
@@ -235,10 +237,15 @@ try {
     r = await observe('ferry', 'We start the crossing.', ['WIH-7', 'WIH-8']);
     assert.ok(r.injected.includes('WIH-8'), 'crossing fires');
     assert.ok(r.closed.includes('ferry'), 'ferry closes after the crossing');
+    assert.equal((await status()).ferry, 'sticky (closed)');
+    // A running vanilla sticky finishes even though the ferry closed, as with WI Hero off.
+    const ferryAfter = [];
     for (const text of ['The water is calm.', 'Gulls overhead.', 'We reach the far bank.']) {
-        await observe('ferry', text, ['WIH-7', 'WIH-8']);
+        ferryAfter.push((await observe('ferry', text, ['WIH-7', 'WIH-8'])).injected.includes('WIH-7'));
     }
-    ok('sticky vs closing: crossing closes the ferry (per-turn presence recorded below)');
+    assert.deepEqual(ferryAfter, [true, true, false]);
+    assert.equal((await status()).ferry, 'closed');
+    ok('sticky vs closing: the closed ferry stays until its sticky ends, then goes');
 
     // ── Swipe on a sticky turn ──
     await observe('swipe', 'I light the lantern again.', ['WIH-5']);
@@ -249,7 +256,7 @@ try {
     ok('swipe on a sticky turn: lantern the same as before the swipe');
 
     assert.deepEqual(errors.filter(e => /wihero|WI Hero/i.test(e)), []);
-    ok('no WI Hero errors in the console');
+    ok('no WI Hero errors or warnings in the console (our entry hashes match ST\'s)');
     printObserved();
     console.log(`\n${step} passed`);
 } catch (error) {

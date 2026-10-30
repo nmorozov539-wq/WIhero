@@ -30,6 +30,16 @@ All four hooks the design needs exist. Two of them don't work the way the design
 - Consequence: setting `constant: true` for glue, or swapping `content` for a mask, inside `ENTRIES_LOADED` would silently break that entry's vanilla sticky/cooldown whenever glue or mask state changes. This violates the "vanilla timers are never violated" rule, so neither may happen there.
 - Our own config field is static, so it's just part of the hash like any other field. Editing an entry's WI-hero config in the editor resets its timers, same as editing any vanilla field.
 
+### 2a. Letting a running sticky finish
+
+Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps the effect in `chat_metadata.timedWorldInfo.sticky`, but can only apply it to an entry that is in the list. So gating leaves in every entry ST is about to hold by sticky (`src/timers.js`):
+
+- **Hash.** In `getSortedEntries()` ST maps each entry to `{ ...entry, decorators, content }` with `parseDecorators` (4627–4630, 4652), then hashes `getStringHash(JSON.stringify(entry))` (4632). Nothing changes the entries between the event (4604) and that. `entryHash()` does the same on the `ENTRIES_LOADED` objects, with ST's exported `getStringHash` (utils.js 522) and a copy of `parseDecorators` and `KNOWN_DECORATORS` (100), which aren't exported. In `GENERATION_AFTER_COMMANDS` the extension compares its hashes with the ones `getSortedEntries()` returns and logs a warning once if they differ (a sign ST changed this).
+- **Sticky active.** `timedWorldInfo.sticky` is `{ "world.uid": { hash, start, end, protected } }`, with `start` the scan's chat length when the entry fired and `end = start + sticky` (604–610). `#checkTimedEffectOfType` (619–656) drops an effect when `length <= start && !protected` (a swipe or regenerate of the turn that set it), when no entry has its hash, when the entry has no `sticky`, or when `length >= end`; otherwise the entry is active. `stickyHeld()` applies the same tests.
+- **Length.** The scan sees the non-system messages, minus the reply a swipe replaces (script.js 4496–4499): `scanLength()`. The panel predicts the next send with one more message.
+- Dry runs skip timed effects (682–686), so they don't hold anything either.
+- **Turns.** Sticky and cooldown count messages, and a turn adds two (user message and reply), so sticky or cooldown N lasts floor((N-1)/2) more turns after the one that set it: 2 does nothing visible, 5 holds two more turns.
+
 ## 3. Glue: `WORLDINFO_FORCE_ACTIVATE`
 
 - Handler at 1020 stores entries in `WorldInfoBuffer.externalActivations` keyed `world.uid`. They're cleared at the end of every `checkWorldInfo` (5275), so we must emit before **every** scan.
