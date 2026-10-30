@@ -48,9 +48,10 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 - Plan: before the prompt is built (`GENERATION_AFTER_COMMANDS`, script.js 4321), call the exported `getSortedEntries()`, pick the glued entries out of the result (they're fully processed, with the right hashes), and emit `WORLDINFO_FORCE_ACTIVATE` with them. Our own `ENTRIES_LOADED` handler runs during that call too, which is fine since it only removes entries.
 - Glued entries should have probability off (or 100). Otherwise they can drop out on a roll. The extension can warn about this.
 
-## 4. Masks: `WORLDINFO_SCAN_DONE`
+## 4. Switches and masks: `WORLDINFO_SCAN_DONE`
 
-- Emitted at the end of every scan loop (5175), **after** the budget step has added the loop's entries to `allActivatedEntries`.
+- Emitted at the end of every scan loop (5175), **after** the budget step has added the loop's entries to `allActivatedEntries`, a `Map` keyed `world.uid` (4732, 5075). `args.activated.entries` is that Map itself (5161), and listeners may change it (comment at 5177–5178).
+- **Dropping an entry** (switch ties): deleting its key from the Map keeps it out of the prompt (built from the Map, 5203), out of `setTimedEffects` (5274) and out of the returned set that `WORLD_INFO_ACTIVATED` reports (5281, 900–903), so it doesn't count as fired either. Two leftovers: its content was already added to the recursion buffer in that loop (5139–5144), so it can still trigger other entries by recursion; and a later loop could match it again, since `allActivatedEntries.has()` (4797) no longer sees it. The handler runs after every loop, so it is dropped again.
 - The prompt is built from `allActivatedEntries.values()` afterwards (5203), and `hash` is already a stored property. So setting `entry.content = mask` on activated entries in this event changes what's injected without touching timers.
 - Side effects: the budget was measured on base content (irrelevant with a high budget). Recursion text (`args.activated.text`) still holds base content, so masked text won't trigger recursion unless we also rewrite that (allowed, see 5180).
 

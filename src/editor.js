@@ -109,6 +109,7 @@ async function fillBlock(block, name, uid) {
     closeKeywords.value = form.closeKeywords;
     const closeWhenFired = textInput('wihero_close_when_fired', form.closeWhenFired, 'ids, comma separated');
     const closeWhenAllFired = textInput('wihero_close_when_all_fired', form.closeWhenAllFired, 'ids, comma separated');
+    const switchPaths = textInput('wihero_switch', form.switch, 'ids, comma separated');
     const issues = el('ul', { class: 'wihero-issues wihero-entry-issues' });
     const summary = el('small', { class: 'wihero-entry-summary' });
     const status = el('small', { class: 'wihero-entry-status' });
@@ -116,6 +117,7 @@ async function fillBlock(block, name, uid) {
     const read = () => ({
         id: id.value, gates: gates.value, gateMode: gateMode.value, closeGates: closeGates.checked, glue: glue.checked,
         closeKeywords: closeKeywords.value, closeWhenFired: closeWhenFired.value, closeWhenAllFired: closeWhenAllFired.value,
+        switch: switchPaths.value,
     });
     const glueFields = el('div', { class: 'wihero-glue-fields' },
         field('Close when the turn contains', closeKeywords),
@@ -124,6 +126,7 @@ async function fillBlock(block, name, uid) {
     const [gateChips, updateGateChips] = suggestions(gates, ids, () => update());
     const [firedChips, updateFiredChips] = suggestions(closeWhenFired, ids, () => update());
     const [allChips, updateAllChips] = suggestions(closeWhenAllFired, ids, () => update());
+    const [switchChips, updateSwitchChips] = suggestions(switchPaths, ids, () => update());
 
     function update() {
         const config = formToConfig(read());
@@ -134,7 +137,7 @@ async function fillBlock(block, name, uid) {
         suggested = slugify(title?.value || entry.comment || entry.key?.[0]);
         useSuggested.textContent = suggested;
         useSuggested.style.display = !id.value.trim() && suggested ? '' : 'none';
-        updateGateChips(); updateFiredChips(); updateAllChips();
+        updateGateChips(); updateFiredChips(); updateAllChips(); updateSwitchChips();
         status.textContent = '';
     }
 
@@ -150,6 +153,8 @@ async function fillBlock(block, name, uid) {
         closeGatesLabel,
         glueLabel,
         glueFields,
+        field('Switch: when one of these paths fires, the others close', switchPaths),
+        switchChips,
         el('div', { class: 'wihero-row' }, firedChips, allChips),
         issues,
         el('small', { class: 'wihero-hint' }, "Saving changes the entry, which resets its own sticky and cooldown timers, like any edit."),
@@ -169,7 +174,7 @@ async function fillBlock(block, name, uid) {
         content);
     // ST's drawer toggle bubbles; the entry's own drawer listens for it.
     $(drawer).on('inline-drawer-toggle', e => { e.stopPropagation(); update(); });
-    for (const input of [id, gates, closeWhenFired, closeWhenAllFired]) {
+    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths]) {
         input.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
     }
     content.addEventListener('input', update);

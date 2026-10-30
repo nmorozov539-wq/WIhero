@@ -82,3 +82,9 @@
 .wihero-chip:hover {
     background: var(--SmartThemeBorderColor, #666);
 }
+
+.wihero-reopen {
+    cursor: pointer;
+    text-decoration: underline;
+    opacity: 1;
+}

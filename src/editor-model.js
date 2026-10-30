@@ -12,6 +12,7 @@ export const EMPTY_FORM = Object.freeze({
     closeKeywords: '',
     closeWhenFired: '',
     closeWhenAllFired: '',
+    switch: '',
 });
 
 /** Suggested id for an entry: its title or first key as a slug. */
@@ -40,6 +41,7 @@ export function configToForm(config) {
         closeKeywords: Array.isArray(glue?.closeKeywords) ? glue.closeKeywords.join('\n') : '',
         closeWhenFired: list(glue?.closeWhenFired),
         closeWhenAllFired: list(glue?.closeWhenAllFired),
+        switch: list(config.switch),
     };
 }
 
@@ -65,6 +67,8 @@ export function formToConfig(form) {
         if (closeWhenAllFired.length) glue.closeWhenAllFired = closeWhenAllFired;
         config.glue = Object.keys(glue).length ? glue : true;
     }
+    const paths = parseIds(form.switch);
+    if (paths.length) config.switch = paths;
     return Object.keys(config).length ? config : null;
 }
 

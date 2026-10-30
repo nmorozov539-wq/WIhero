@@ -27,7 +27,7 @@ const prompts = () => fs.readdirSync(LOG).filter(f => f.endsWith('.json')).sort(
 const lastPrompt = () => JSON.parse(fs.readFileSync(LOG + prompts().pop(), 'utf8')).body.messages.map(m => m.content).join('\n');
 const onDisk = uid => JSON.parse(fs.readFileSync(BOOK_FILE, 'utf8')).entries[uid];
 const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
-    .map(tr => [tr.children[0].textContent, tr.children[1].textContent])));
+    .map(tr => [tr.children[0].textContent, tr.children[1].firstChild?.textContent ?? ''])));
 
 async function send(text) {
     const before = prompts().length;
@@ -105,7 +105,7 @@ try {
     let entry = await openEntry(uid);
     await entry.locator('textarea[name="comment"]').fill('Old Well');
     await entry.locator('textarea.keyprimarytextpole').fill('well');
-    await entry.locator('textarea[name="content"]').fill('[WIH-9 An old well.]');
+    await entry.locator('textarea[name="content"]').fill('[WIH-W An old well.]');
     await entry.locator('.wihero-entry .inline-drawer-toggle').waitFor({ timeout: 5000 });
     await shot(entry.locator('.wihero-entry'), 'editor-collapsed.png');
     let block = await openBlock(entry);
@@ -128,7 +128,7 @@ try {
     const saved = onDisk(uid);
     assert.deepEqual(saved.wihero, { id: 'old-well', gates: ['road'] });
     assert.deepEqual(saved.key, ['well']);
-    assert.equal(saved.content, '[WIH-9 An old well.]');
+    assert.equal(saved.content, '[WIH-W An old well.]');
     ok('save: the book on disk has the wihero field and ST\'s own fields');
 
     entry = page.locator(`#world_popup_entries_list .world_entry[uid="${uid}"]`);
@@ -136,10 +136,10 @@ try {
     await wait(1500);
     assert.equal((await status())['old-well'], 'waiting for road', 'panel lists the new entry');
     // An ST field edited after our save keeps our config: the editor was reloaded with it.
-    await entry.locator('textarea[name="content"]').fill('[WIH-9 An old, old well.]');
+    await entry.locator('textarea[name="content"]').fill('[WIH-W An old, old well.]');
     await wait(2500);
     assert.deepEqual(onDisk(uid).wihero, { id: 'old-well', gates: ['road'] });
-    assert.equal(onDisk(uid).content, '[WIH-9 An old, old well.]');
+    assert.equal(onDisk(uid).content, '[WIH-W An old, old well.]');
     ok('after saving, the entry reopens, the panel lists it, and a later ST edit keeps the config');
 
     // ── Read back after a reload ──
@@ -159,11 +159,11 @@ try {
     await page.waitForFunction(() => SillyTavern.getContext().chat.length === 1, null, { timeout: 10000 });
     await wait(1500);
     await send('We look at the well.');
-    assert.ok(!lastPrompt().includes('WIH-9'), 'well waits for road');
+    assert.ok(!lastPrompt().includes('WIH-W'), 'well waits for road');
     await send('We follow the road.');
-    assert.ok(lastPrompt().includes('WIH-1'), 'road fires');
+    assert.ok(lastPrompt().includes('[WIH-1 '), 'road fires');
     await send('We drink from the well.');
-    assert.ok(lastPrompt().includes('WIH-9'), 'well fires once road has');
+    assert.ok(lastPrompt().includes('WIH-W'), 'well fires once road has');
     assert.ok((await ev(() => wihero.state)).closed.road, 'well closes road');
     ok('chat: the entry waits for road, fires after it, and closes it');
 

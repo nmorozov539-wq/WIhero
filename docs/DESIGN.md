@@ -77,6 +77,9 @@ Both conditions share one underlying engine; sticky, permanent, glue, and condit
 - Once one path is triggered, the other is **permanently disabled** for this branch of the story.
 - Rewind and swipe handling comes from per-message state (see 3), not a railway-specific mechanism.
 - A manual reset control remains as the escape hatch for edits that state tracking can't see (e.g. hand-editing an earlier message's text).
+- Config on the fork entry: `wihero.switch: ['left', 'right']` (two or more ids). When any listed path fires, every other listed path closes for good (`closed` in the snapshot). The paths are normally gated on the fork; the editor warns when one isn't.
+- **Tie:** if two paths activate in the same scan, only the first in switch order is injected and fires; the others are dropped from that scan and closed.
+- **Reopen:** the panel's Reopen button on a closed entry writes a snapshot without it in `closed` onto the message the current state comes from (and its current swipe), and saves the chat. Rewinding past that message undoes it. A reopened switch path that fires takes the switch again, closing the other paths.
 
 ### 2.6 Masks
 

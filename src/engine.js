@@ -10,6 +10,10 @@
 // Glue keeps an entry injected every turn from its first firing until a close condition, then closes it:
 //   glue: { closeKeywords: ['we leave'], closeWhenFired: ['x'], closeWhenAllFired: ['x', 'y'] }
 // `glue: true` (or {}) glues with no close condition. A glued entry is never closed by a chain advancing.
+//
+// A railway switch on a fork entry: when one of its paths fires, the others close for good.
+//   switch: ['left', 'right']
+// Only one path fires per turn: a tie keeps the first in switch order (switchLosers).
 // Entries without `wihero` are never touched.
 
 export const FIELD = 'wihero';
@@ -25,8 +29,9 @@ const label = entry => entry.comment || (Array.isArray(entry.key) && entry.key[0
 /**
  * Reads the gate config of every entry and checks it.
  * @param {object[]} entries ST entries, each with `world` and `uid`.
- * @returns {{ nodes: Map<string, object>, byKey: Map<string, object>, issues: object[] }}
+ * @returns {{ nodes: Map<string, object>, byKey: Map<string, object>, issues: object[], switches: object[], switchOf: Map<string, object> }}
  *   `nodes` by id, `byKey` by world.uid for every entry with config.
+ *   `switches` are { fork, paths } for every working switch, `switchOf` maps a path id to its switch.
  *   A node is { id, key, world, uid, label, gates, gateMode, closeGates, broken }.
  *   A broken node can never fire: its config is wrong, so letting it through could leak a spoiler.
  */
@@ -49,6 +54,7 @@ export function buildModel(entries) {
             gateMode: 'all',
             closeGates: true,
             glue: null,
+            switch: [],
             broken: false,
         };
         byKey.set(node.key, node);
@@ -98,6 +104,14 @@ export function buildModel(entries) {
             }
         }
 
+        if (config.switch !== undefined) {
+            if (!Array.isArray(config.switch) || config.switch.some(x => typeof x !== 'string' || !x) || new Set(config.switch).size < 2) {
+                problem('switch must list at least two ids');
+            } else {
+                node.switch = [...new Set(config.switch)];
+            }
+        }
+
         if (node.id === null) continue;
         if (nodes.has(node.id)) {
             duplicates.add(node.id);
@@ -131,6 +145,26 @@ export function buildModel(entries) {
         }
     }
 
+    const pathOwners = new Map();
+    for (const node of nodes.values()) {
+        for (const path of node.switch) {
+            if (!pathOwners.has(path)) pathOwners.set(path, []);
+            pathOwners.get(path).push(node);
+        }
+    }
+    for (const node of nodes.values()) {
+        for (const path of node.switch) {
+            const issue = (message, warning = false) => {
+                if (!warning) node.broken = true;
+                issues.push({ key: node.key, id: node.id, label: node.label, message, ...(warning && { warning }) });
+            };
+            if (path === node.id) issue('switch lists itself');
+            else if (!nodes.has(path)) issue(`switch lists "${path}", which no entry has`);
+            else if (pathOwners.get(path).length > 1) issue(`switch path "${path}" is also in the switch of ${pathOwners.get(path).filter(n => n !== node).map(n => n.id).join(', ')}`);
+            else if (!nodes.get(path).gates.includes(node.id)) issue(`switch path "${path}" doesn't gate on ${node.id}, so it can be taken before the fork`, true);
+        }
+    }
+
     for (const cycle of findCycles(nodes)) {
         for (const id of cycle) {
             const node = nodes.get(id);
@@ -139,7 +173,9 @@ export function buildModel(entries) {
         }
     }
 
-    return { nodes, byKey, issues };
+    const switches = [...nodes.values()].filter(n => n.switch.length && !n.broken).map(fork => ({ fork: fork.id, paths: fork.switch }));
+    const switchOf = new Map(switches.flatMap(sw => sw.paths.map(path => [path, sw])));
+    return { nodes, byKey, issues, switches, switchOf };
 }
 
 /** Parses a glue config, or returns what's wrong with it. */
@@ -231,7 +267,7 @@ export function eligibility(entry, model, state) {
     const node = model.byKey.get(entryKey(entry));
     if (!node) return { eligible: true, reason: 'not gated' };
     if (node.broken) return { eligible: false, reason: 'config problem' };
-    if (state.closed[node.id]) return { eligible: false, reason: 'closed' };
+    if (state.closed[node.id]) return { eligible: false, reason: closedReason(node, model, state) };
     if (state.glued[node.id]) return { eligible: true, reason: 'glued' };
     if (!node.gates.length) return { eligible: true, reason: 'open' };
     const passed = node.gates.filter(g => state.fired[g] > 0);
@@ -239,6 +275,34 @@ export function eligibility(entry, model, state) {
     if (open) return { eligible: true, reason: 'gate open' };
     const waiting = node.gates.filter(g => !(state.fired[g] > 0));
     return { eligible: false, reason: `waiting for ${waiting.join(node.gateMode === 'any' ? ' or ' : ' and ')}` };
+}
+
+/** "closed", or which path a switch took instead of this one. */
+function closedReason(node, model, state) {
+    const taken = model.switchOf?.get(node.id)?.paths.find(path => path !== node.id && state.fired[path] > 0);
+    return taken ? `closed (switch: took ${taken})` : 'closed';
+}
+
+/**
+ * world.uid keys to drop from one scan's activated entries so each switch fires at most one path:
+ * of the paths activated together, the first in switch order stays.
+ * @param {string[]} keys world.uid keys ST activated so far in the scan.
+ */
+export function switchLosers(model, keys) {
+    const active = new Set(keys.map(key => model.byKey.get(key)?.id).filter(Boolean));
+    const losers = [];
+    for (const sw of model.switches ?? []) {
+        const [, ...others] = sw.paths.filter(path => active.has(path));
+        losers.push(...others.map(id => model.nodes.get(id).key));
+    }
+    return losers;
+}
+
+/** State with an entry no longer closed: the manual escape hatch. */
+export function reopen(state, id) {
+    const next = structuredClone(state);
+    delete next.closed[id];
+    return next;
 }
 
 /**
@@ -318,6 +382,16 @@ export function advance(state, activated, model, text = '') {
     // New glue starts from the entry's first firing; its close conditions count from the next turn.
     for (const node of firedNodes) {
         if (node.glue && !state.glued?.[node.id] && !next.closed[node.id]) next.glued[node.id] = { seen: [] };
+    }
+    // A switch closes every path but the one taken (the first in switch order, should two fire together).
+    for (const sw of model.switches ?? []) {
+        const taken = sw.paths.find(path => firedNow.has(path));
+        if (!taken) continue;
+        for (const path of sw.paths) {
+            if (path === taken) continue;
+            next.closed[path] = true;
+            delete next.glued[path];
+        }
     }
     // Closing happens after counting, so an entry and its child firing together both count.
     // Only gates that actually fired close: with gateMode "any", the other paths stay as they are.

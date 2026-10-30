@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildModel, initialState, readState, eligibility, removeIneligible, advance, gluedKeys, keywordMatcher } from '../src/engine.js';
+import { buildModel, initialState, readState, eligibility, removeIneligible, advance, gluedKeys, keywordMatcher, switchLosers, reopen } from '../src/engine.js';
 
 let nextUid = 0;
 const entry = (wihero, extra = {}) => ({ world: 'Book', uid: nextUid++, comment: wihero?.id ?? 'plain', content: 'text', ...(wihero !== undefined && { wihero }), ...extra });
@@ -375,4 +375,85 @@ test('a glued entry with a cooldown gets a warning', () => {
     const model = buildModel([a, b]);
     assert.deepEqual(model.issues.map(i => [i.id, i.warning, i.message]), [['a', true, "has a cooldown, so glue can't hold it every turn"]]);
     assert.ok(eligibility(a, model, initialState()).eligible);
+});
+
+// ── Railway switch ────────────────────────────────────────────────────
+
+const fork = () => {
+    const f = entry({ id: 'fork', switch: ['left', 'right'] });
+    const left = entry({ id: 'left', gates: ['fork'], closeGates: false });
+    const right = entry({ id: 'right', gates: ['fork'], closeGates: false });
+    return [f, left, right];
+};
+
+test('taking one path closes the others for good', () => {
+    const entries = fork();
+    const { model, state } = play(entries, [['fork'], ['right']]);
+    assert.deepEqual(state.closed, { left: true });
+    assert.equal(eligibility(entries[1], model, state).reason, 'closed (switch: took right)');
+    assert.ok(eligibility(entries[2], model, state).eligible);
+    assert.deepEqual(eligibleIds(entries, model, state), ['fork', 'right']);
+});
+
+test('a tie closes every path but the first in switch order', () => {
+    const entries = fork();
+    const { state } = play(entries, [['fork']]);
+    const model = buildModel(entries);
+    const after = advance(state, [entries[2], entries[1]], model);
+    assert.deepEqual(after.closed, { right: true });
+});
+
+test('switchLosers drops all but the first activated path in switch order', () => {
+    const [f, left, right] = fork();
+    const model = buildModel([f, left, right]);
+    const key = e => `${e.world}.${e.uid}`;
+    assert.deepEqual(switchLosers(model, [key(right), key(f), key(left)]), [key(right)]);
+    assert.deepEqual(switchLosers(model, [key(right), key(f)]), []);
+    assert.deepEqual(switchLosers(model, ['Other.1']), []);
+});
+
+test('a broken switch does nothing and its fork never fires', () => {
+    const f = entry({ id: 'fork', switch: ['left', 'ghost'] });
+    const left = entry({ id: 'left', gates: ['fork'] });
+    const model = buildModel([f, left]);
+    assert.deepEqual(model.switches, []);
+    assert.equal(eligibility(f, model, initialState()).reason, 'config problem');
+});
+
+test('bad switch configs are reported', () => {
+    const model = buildModel([
+        entry({ id: 's1', switch: ['a'] }),
+        entry({ id: 's2', switch: ['s2', 'a'] }),
+        entry({ id: 's3', switch: ['a', 'b'] }),
+        entry({ id: 's4', switch: ['b', 'c'] }),
+        entry({ id: 'a', gates: ['s3'] }),
+        entry({ id: 'b', gates: ['s3'] }),
+        entry({ id: 'c', gates: ['s4'] }),
+    ]);
+    assert.deepEqual(model.issues.map(i => `${i.id}: ${i.message}${i.warning ? ' (warning)' : ''}`), [
+        's1: switch must list at least two ids',
+        's2: switch lists itself',
+        's2: switch path "a" is also in the switch of s3',
+        's3: switch path "a" is also in the switch of s2',
+        's3: switch path "b" is also in the switch of s4',
+        's4: switch path "b" is also in the switch of s3',
+    ]);
+});
+
+test('a switch path that does not gate on the fork gets a warning', () => {
+    const model = buildModel([entry({ id: 'fork', switch: ['left', 'right'] }), entry({ id: 'left' }), entry({ id: 'right', gates: ['fork'] })]);
+    assert.deepEqual(model.issues.map(i => [i.id, i.warning, i.message]),
+        [['fork', true, "switch path \"left\" doesn't gate on fork, so it can be taken before the fork"]]);
+    assert.equal(model.switches.length, 1);
+});
+
+test('reopen takes an entry out of closed without touching the state it was given', () => {
+    const entries = fork();
+    const { model, state } = play(entries, [['fork'], ['right']]);
+    const copy = structuredClone(state);
+    const opened = reopen(state, 'left');
+    assert.deepEqual(state, copy);
+    assert.deepEqual(opened.closed, {});
+    assert.equal(eligibility(entries[1], model, opened).reason, 'gate open');
+    assert.deepEqual(advance(opened, [entries[1]], model).closed, { right: true }, 'taking the reopened path switches again');
 });

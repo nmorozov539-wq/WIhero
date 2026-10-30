@@ -30,9 +30,10 @@ The editor stores a `wihero` field on the entry in the lorebook JSON (`data/defa
 - `gates`: ids that must have fired before this entry may fire. Leave out for an entry that's open from the start.
 - `gateMode`: `"all"` (default) or `"any"`.
 - `closeGates`: when this entry fires, the gates it opened from close for good (a chain advancing). Default `true`.
+- `switch`: ids of two or more paths (on the fork entry). When one fires, the others close for this branch of the story. If two fire in the same turn, only the first listed is injected.
 - `glue`: `true`, or `{ closeKeywords, closeWhenFired, closeWhenAllFired }`. Keeps the entry injected every turn from its first firing until a condition is met, then closes it. Close keywords are checked against the turn's new messages (the user message(s) and the reply). A glued chain link isn't closed when the chain advances.
 
-A gate opens on the turn after its parent fires. Entries with a config problem never fire; the panel lists the problem.
+A gate opens on the turn after its parent fires. Entries with a config problem never fire; the panel lists the problem. A closed entry has a **Reopen** button in the panel, for when the story changed in a way WI Hero can't see (an edited message, say). It applies from the current message on and rewinds like everything else.
 
 ST's own timers still win. A running sticky finishes even after its entry closes (the panel shows `sticky (closed)`), and cooldown and delay can hold back a glued entry (the panel warns about glue with a cooldown). Sticky and cooldown count messages, two per turn, so N lasts floor((N-1)/2) more turns.
 

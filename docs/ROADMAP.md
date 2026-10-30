@@ -37,5 +37,21 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** a chain can be built and debugged without editing JSON.
 
+## M6 — Railway switch ✓
+- `wihero.switch: ['left', 'right']` on the fork entry: when one path fires, the others close for this branch of the story.
+- A same-turn tie keeps only the first path in switch order (dropped in `WORLDINFO_SCAN_DONE`).
+- Panel: why a path is closed, and a Reopen button on closed entries (the manual escape hatch).
+- Editor: a switch paths list.
+
+**Done when:** taking one path keeps the other out even when it's mentioned, a tie injects one path, swiping back restores both, and Reopen brings a closed entry back.
+
+## M7 — Masks
+- `wihero.masks: [{ name, content, gates?, gateMode? }]`: alternate content, chosen by its own gates or by `/wihero-mask`.
+- Applied to the activated copies in `WORLDINFO_SCAN_DONE`; the book and the entry's hash and timers are untouched.
+- The selection is part of the per-message state, so it rewinds with the chat.
+- Panel shows the active mask; editor edits the masks.
+
+**Done when:** a gate-driven mask and a selected mask change the injected text, deleting or swiping rewinds them, and the book on disk never changes.
+
 ## Later
-Masks, railway switch, labels; then grouping, visuals, node editor.
+Labels; then grouping, visuals, node editor.

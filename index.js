@@ -3,7 +3,7 @@
 import { MODULE, getSettings } from './src/settings.js';
 import { mountPanel, render } from './src/panel.js';
 import { mountEditor } from './src/editor.js';
-import { buildModel, eligibility, entryKey, gluedKeys, removeIneligible } from './src/engine.js';
+import { buildModel, eligibility, entryKey, gluedKeys, removeIneligible, reopen, switchLosers } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
 import { entryHash, scanLength, stickyHeld } from './src/timers.js';
@@ -68,6 +68,16 @@ function onEntriesLoaded(lore) {
     refresh();
 }
 
+/**
+ * After each scan loop: a switch fires one path per turn. Entries deleted from the activated Map stay out of
+ * the prompt, the timed effects and WORLD_INFO_ACTIVATED (docs/TECHNICAL_NOTES.md section 4).
+ */
+function onScanDone(args) {
+    const activated = args?.activated?.entries;
+    if (!settings.enabled || !model || !(activated instanceof Map)) return;
+    for (const key of switchLosers(model, [...activated.keys()])) activated.delete(key);
+}
+
 function onWorldInfoActivated(entries) {
     if (generation?.record && generation.base) generation.activated.push(...entries.map(entryKey));
 }
@@ -79,6 +89,19 @@ function onMessageReceived(messageId) {
     if (!message || message.is_user) return;
     generation = null;
     writeSnapshot(message, snapshotFor({ ...current, message, text: turnText(ctx().chat, messageId) }));
+    refresh();
+}
+
+/**
+ * Edits the state in effect now: writes it onto the message it comes from (or the last message at story start),
+ * including that message's current swipe, and saves the chat. Rewinding past that message undoes the edit.
+ */
+async function editState(edit) {
+    const chat = ctx().chat ?? [];
+    if (!chat.length) return;
+    const { state, index } = stateBefore(chat);
+    writeSnapshot(chat[index >= 0 ? index : chat.length - 1], edit(state));
+    await ctx().saveChat();
     refresh();
 }
 
@@ -110,6 +133,7 @@ mountPanel({
             saveSettingsDebounced();
             refresh();
         },
+        onReopen: id => editState(state => reopen(state, id)),
     },
 });
 
@@ -123,6 +147,7 @@ mountEditor({
 eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
 eventSource.on(eventTypes.GENERATION_AFTER_COMMANDS, onAfterCommands);
 eventSource.on(eventTypes.WORLDINFO_ENTRIES_LOADED, onEntriesLoaded);
+eventSource.on(eventTypes.WORLDINFO_SCAN_DONE, onScanDone);
 eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
 eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
 eventSource.on(eventTypes.CHAT_CHANGED, () => { generation = null; });

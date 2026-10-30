@@ -40,6 +40,14 @@ export function mountPanel({ settings, handlers: h }) {
     render(null);
 }
 
+/** The manual escape hatch on a closed entry. */
+function reopenButton(row) {
+    if (!row.status.startsWith('closed') || !row.id) return [];
+    const button = el('span', { class: 'wihero-reopen', title: 'Reopen this entry from the current message on' }, 'Reopen');
+    button.addEventListener('click', () => handlers.onReopen?.(row.id));
+    return [' ', button];
+}
+
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 /**
@@ -69,7 +77,7 @@ export function render(view) {
         el('tr', {}, el('th', {}, 'Entry'), el('th', {}, 'Next turn'), el('th', { title: 'Times fired in this chat' }, 'Fired')),
         ...view.rows.map(r => el('tr', { class: r.lastRound ? 'wihero-last-round' : '', title: r.key },
             el('td', {}, r.id),
-            el('td', { class: `wihero-status-${r.status.split(' ')[0]}` }, r.status),
+            el('td', { class: `wihero-status-${r.status.split(' ')[0]}` }, r.status, ...reopenButton(r)),
             el('td', {}, String(r.fired)))),
     );
 }

@@ -41,6 +41,7 @@ test('configToForm and formToConfig round-trip', () => {
         { id: 'x', gates: ['a', 'b'], gateMode: 'any', closeGates: false },
         { id: 'storm', glue: true },
         { id: 'bell', glue: { closeKeywords: ['bell stops', 'a, b'], closeWhenFired: ['x'] } },
+        { id: 'fork', switch: ['left', 'right'] },
     ]) {
         assert.deepEqual(formToConfig(configToForm(config)), config);
     }
