@@ -1,6 +1,7 @@
 // Entry editor logic: the form's fields to and from a `wihero` config, and the issues it would cause.
 // No DOM, no SillyTavern imports. The block itself is in editor.js.
 import { FIELD, buildModel, entryKey } from './engine.js';
+import { normalizeFolder } from './bulk.js';
 
 /** The form for an entry without config. */
 export const EMPTY_FORM = Object.freeze({
@@ -16,6 +17,8 @@ export const EMPTY_FORM = Object.freeze({
     labels: '',
     gatesFor: '',
     closes: '',
+    folder: '',
+    color: '',
     masks: [],
 });
 
@@ -52,6 +55,8 @@ export function configToForm(config) {
         labels: list(config.labels),
         gatesFor: list(config.gatesFor),
         closes: list(config.closes),
+        folder: typeof config.folder === 'string' ? config.folder : '',
+        color: typeof config.color === 'string' ? config.color : '',
         masks: Array.isArray(config.masks) ? config.masks.map(m => ({
             name: typeof m?.name === 'string' ? m.name : '',
             content: typeof m?.content === 'string' ? m.content : '',
@@ -85,6 +90,9 @@ export function formToConfig(form) {
     }
     const paths = parseIds(form.switch);
     if (paths.length) config.switch = paths;
+    const folder = normalizeFolder(form.folder);
+    if (folder) config.folder = folder;
+    if (form.color) config.color = form.color;
     for (const field of ['labels', 'gatesFor', 'closes']) {
         const list = parseIds(form[field]).map(x => field === 'labels' ? x.replace(/^#/, '') : x);
         if (list.length) config[field] = list;

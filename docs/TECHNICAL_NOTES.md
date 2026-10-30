@@ -92,6 +92,18 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 - After a save, `getSortedEntries()` re-emits `WORLDINFO_ENTRIES_LOADED`, which rebuilds the model and the panel.
 - ST's drawer toggle handler (script.js 12193) triggers `inline-drawer-toggle` with jQuery, which bubbles to the entry's own drawer handler, so the block stops it.
 
+## 10. Folders: ST's World Info list filter
+
+What ST 1.19 already has, in the World Info editor:
+- A fuzzy **search** box (`#world_info_search`, index.html 4851; handler world-info.js 6342) and a **sort** dropdown (`#world_info_sort_order`, 4852; `sortWorldInfoEntries`, 2146), plus pagination (25 per page by default, 2384–2405).
+- Two book-wide buttons: fill empty titles with keywords (`#world_backfill_memos`, 2479) and apply the current sorting as Order (`#world_apply_current_sorting`, 2496).
+- **No** folders, multi-select or bulk edit of entries.
+
+How the folder filter hooks in:
+- The list is built from `getDataArray()`, which runs `worldInfoFilter.applyFilters(entries)` then the sort (2371–2373). `worldInfoFilter` is an exported `FilterHelper` (world-info.js 92) whose `applyFilters` runs every function in its `filterFunctions` object in turn (filters.js 383–397), and `setFilterData` re-renders the list through its callback (filters.js 356–364, `updateEditor`).
+- So `src/folders.js` adds one entry, `filterFunctions.wihero_folder`, and sets `filterData.wihero_folder` through `setFilterData`. That works together with ST's search, sort and pagination, and patches no function. It does add a key to ST's object, so a future ST that rebuilt `filterFunctions` would drop the filter silently (the list would just show everything).
+- Bulk actions go through ST's save path like the entry editor (section 9): `loadWorldInfo` copy → edit → `saveWorldInfo(name, data, true)` → `reloadWorldInfoEditor`. For books imported from a character card, the matching `originalData` fields are kept in sync the way ST's editor does it (`enabled`, `extensions.probability`, `extensions.depth`, `insertion_order`, `keys`; see the `setWIOriginalDataValue` calls, e.g. 3185, 3333, 3397, 2696).
+
 ## Design changes this implies
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.

@@ -113,3 +113,23 @@
     opacity: 0.6;
     font-weight: normal;
 }
+
+.wihero-folders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.wihero-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.wihero-bulk input,
+.wihero-bulk select {
+    width: auto;
+    max-width: 10em;
+}

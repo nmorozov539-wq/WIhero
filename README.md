@@ -41,6 +41,10 @@ A gate opens on the turn after its parent fires. Entries with a config problem n
 
 ST's own timers still win. A running sticky finishes even after its entry closes (the panel shows `sticky (closed)`), and cooldown and delay can hold back a glued entry (the panel warns about glue with a cooldown). Sticky and cooldown count messages, two per turn, so N lasts floor((N-1)/2) more turns.
 
+## Folders and bulk edits
+
+Give entries a **Folder** (`Town/Inn`) and a **Color** in the WI Hero section. Above ST's entry list, next to the search box, a folder menu shows only that folder (subfolders included), and a bar of bulk actions appears for it: enable, disable, trigger %, depth, order offset, keyword prefix, color. Each asks before applying. Folders and colors never change what fires.
+
 ## Trying it
 
 1. Copy `examples/WIHero-Sample.json` to `SillyTavern/data/default-user/worlds/` and select it as a global lorebook.

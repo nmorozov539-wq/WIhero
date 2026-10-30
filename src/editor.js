@@ -3,6 +3,8 @@
 // MutationObserver on the entry list adds the block to every edit area that appears.
 // See docs/TECHNICAL_NOTES.md section 9.
 import { el } from './panel.js';
+import { COLORS, folderList } from './bulk.js';
+import { UI_FIELDS } from './engine.js';
 import { EMPTY_MASK, slugify, configToForm, formToConfig, applyConfig, issuesFor, knownIds, knownLabels } from './editor-model.js';
 
 let deps;
@@ -21,9 +23,9 @@ export function mountEditor(d) {
 }
 
 /** Name of the book open in ST's editor (its select's value is an index into the book names). */
-function bookName() {
-    const index = Number(document.getElementById('world_editor_select')?.value);
-    return deps.ctx().getWorldInfoNames()[index];
+export function bookName() {
+    const value = document.getElementById('world_editor_select')?.value;
+    return value === '' || value === undefined ? undefined : deps.ctx().getWorldInfoNames()[Number(value)];
 }
 
 function injectAll() {
@@ -137,6 +139,12 @@ async function fillBlock(block, name, uid) {
     const labels = textInput('wihero_labels', form.labels, 'names, comma separated');
     const gatesFor = textInput('wihero_gates_for', form.gatesFor, 'ids or #labels');
     const closes = textInput('wihero_closes', form.closes, 'ids or #labels');
+    const folder = textInput('wihero_folder', form.folder, 'e.g. Town/Inn');
+    const folderChoices = el('datalist', { id: `wihero_folders_${uid}` }, ...folderList(Object.values(data.entries ?? {})).map(f => el('option', { value: f })));
+    folder.setAttribute('list', folderChoices.id);
+    const color = el('select', { name: 'wihero_color', class: 'text_pole' }, el('option', { value: '' }, 'none'),
+        ...Object.keys(COLORS).map(c => el('option', { value: c }, c)));
+    color.value = form.color;
     const issues = el('ul', { class: 'wihero-issues wihero-entry-issues' });
     const summary = el('small', { class: 'wihero-entry-summary' });
     const status = el('small', { class: 'wihero-entry-status' });
@@ -157,6 +165,7 @@ async function fillBlock(block, name, uid) {
         closeKeywords: closeKeywords.value, closeWhenFired: closeWhenFired.value, closeWhenAllFired: closeWhenAllFired.value,
         switch: switchPaths.value, masks: masks.map(m => m.read()),
         labels: labels.value, gatesFor: gatesFor.value, closes: closes.value,
+        folder: folder.value, color: color.value,
     });
     const glueFields = el('div', { class: 'wihero-glue-fields' },
         field('Close when the turn contains', closeKeywords),
@@ -174,7 +183,8 @@ async function fillBlock(block, name, uid) {
         const config = formToConfig(read());
         const found = issuesFor(entries, target, config);
         issues.replaceChildren(...found.map(i => el('li', { class: i.warning ? 'wihero-warning' : '' }, i.message)));
-        summary.textContent = !config ? 'not gated' : `${config.id ?? 'no id'}${found.some(i => !i.warning) ? ' · problem' : ''}`;
+        const gated = config && !Object.keys(config).every(k => UI_FIELDS.includes(k));
+        summary.textContent = !gated ? 'not gated' : `${config.id ?? 'no id'}${found.some(i => !i.warning) ? ' · problem' : ''}`;
         glueFields.style.display = glue.checked ? '' : 'none';
         suggested = slugify(title?.value || entry.comment || entry.key?.[0]);
         useSuggested.textContent = suggested;
@@ -192,6 +202,7 @@ async function fillBlock(block, name, uid) {
 
     const content = el('div', { class: 'inline-drawer-content' },
         el('div', { class: 'wihero-row' }, field('Id', id), useSuggested),
+        el('div', { class: 'wihero-row' }, field('Folder', folder), folderChoices, field('Color', color)),
         field('Labels', labels),
         labelChips,
         el('div', { class: 'wihero-row' }, field('Gates: fires only after', gates), field('Needs', gateMode)),
@@ -227,7 +238,7 @@ async function fillBlock(block, name, uid) {
         content);
     // ST's drawer toggle bubbles; the entry's own drawer listens for it.
     $(drawer).on('inline-drawer-toggle', e => { e.stopPropagation(); update(); });
-    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths, labels, gatesFor, closes]) {
+    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths, labels, gatesFor, closes, folder]) {
         input.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
     }
     content.addEventListener('input', update);

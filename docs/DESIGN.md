@@ -17,6 +17,8 @@ Primarily a UI/QoL layer — not core to the triggering logic.
 - Sub-folders inside WI for organizing entries.
 - Bulk actions on a folder: toggle on/off, bulk-set probability/depth/order offset, bulk-apply keyword prefixes, color tags for visual scanning.
 - Open question (deferred): should a folder ever act as a shared injection/budget unit, or stay purely a UI container? Default to UI-only for v1 — touching the core WI evaluation loop is higher risk and not needed for the main use case.
+- Config: `wihero.folder: 'Town X/Inn'` (slashes nest) and `wihero.color` (one of red, orange, yellow, green, teal, blue, purple, pink, gray). They're UI only: an entry whose config holds nothing else is not gated, and they never cause a problem.
+- In ST's World Info editor: a folder filter next to ST's search (a folder includes its subfolders; "No folder" shows the rest), and bulk actions on the chosen folder: enable, disable, set trigger %, set depth, add to order, add a keyword prefix (regex keys and keys that already have it are skipped), set color. They ask first and save through ST; like any edit they change the entries, so vanilla timers reset.
 
 ---
 

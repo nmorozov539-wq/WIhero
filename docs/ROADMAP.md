@@ -60,7 +60,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** a label opens a gate, `gatesFor` adds a requirement to an entry with its own gate, `closes` retires a whole label, and rewinding undoes it.
 
-## M9 — Grouping
+## M9 — Grouping ✓
 - `wihero.folder` (`'Town X/Inn'`) and `wihero.color`: UI only, never gating.
 - A folder filter in ST's World Info editor, and bulk actions on the filtered folder through ST's save path.
 - Folder and color in the editor block.

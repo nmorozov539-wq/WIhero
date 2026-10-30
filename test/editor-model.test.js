@@ -43,6 +43,8 @@ test('configToForm and formToConfig round-trip', () => {
         { id: 'bell', glue: { closeKeywords: ['bell stops', 'a, b'], closeWhenFired: ['x'] } },
         { id: 'fork', switch: ['left', 'right'] },
         { id: 'gatehouse', labels: ['town', 'gate'], gatesFor: ['#town'], closes: ['#camp', 'x'] },
+        { folder: 'Town/Inn', color: 'red' },
+        { id: 'a', folder: 'Town' },
         { id: 'tower', masks: [{ name: 'ruined', content: 'Ruins.\n', gates: ['storm'] }, { name: 'lit', content: 'Light.', gates: ['a', 'b'], gateMode: 'any' }] },
     ]) {
         assert.deepEqual(formToConfig(configToForm(config)), config);
@@ -91,4 +93,10 @@ test('labels: a leading # is dropped, knownLabels lists every label', () => {
     assert.deepEqual(formToConfig(form({ id: 'a', labels: '#town, camp' })), { id: 'a', labels: ['town', 'camp'] });
     const entries = [{ world: 'B', uid: 0, wihero: { id: 'a', labels: ['town'] } }, { world: 'B', uid: 1, wihero: { id: 'b', labels: ['camp', 'town'] } }, { world: 'B', uid: 2 }];
     assert.deepEqual(knownLabels(entries), ['camp', 'town']);
+});
+
+test('folder and color are kept, normalized, and never cause issues', () => {
+    assert.deepEqual(formToConfig(form({ folder: ' Town / Inn ', color: 'teal' })), { folder: 'Town/Inn', color: 'teal' });
+    const entries = [{ world: 'B', uid: 1 }];
+    assert.deepEqual(issuesFor(entries, entries[0], { folder: 'Town', color: 'red' }), []);
 });

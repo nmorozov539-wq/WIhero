@@ -30,6 +30,9 @@ export const STATE_VERSION = 1;
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
 
+/** Config fields for the editor UI only (grouping); they never affect gating. */
+export const UI_FIELDS = Object.freeze(['folder', 'color']);
+
 /** Key ST uses for an entry within the loaded books. */
 export const entryKey = entry => `${entry.world}.${entry.uid}`;
 
@@ -55,6 +58,8 @@ export function buildModel(entries) {
     for (const entry of entries ?? []) {
         const config = entry?.[FIELD];
         if (config === undefined || config === null) continue;
+        // Folder and color are UI only: an entry with nothing else isn't gated.
+        if (typeof config === 'object' && !Array.isArray(config) && Object.keys(config).every(k => UI_FIELDS.includes(k))) continue;
         const node = {
             id: null,
             key: entryKey(entry),

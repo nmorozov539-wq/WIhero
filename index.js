@@ -2,7 +2,8 @@
 // and retire once it moves past. See docs/DESIGN.md.
 import { MODULE, getSettings } from './src/settings.js';
 import { mountPanel, render } from './src/panel.js';
-import { mountEditor } from './src/editor.js';
+import { bookName, mountEditor } from './src/editor.js';
+import { mountFolders } from './src/folders.js';
 import { activeMask, buildModel, eligibility, entryKey, gluedKeys, removeIneligible, reopen, selectMask, switchLosers } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
@@ -181,6 +182,8 @@ mountEditor({
     // Rebuilds the model from the saved books: getSortedEntries() emits WORLDINFO_ENTRIES_LOADED.
     onSaved: () => getSortedEntries(),
 });
+
+mountFolders({ ctx, bookName, onSaved: () => getSortedEntries() });
 
 eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
 eventSource.on(eventTypes.GENERATION_AFTER_COMMANDS, onAfterCommands);

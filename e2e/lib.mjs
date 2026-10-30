@@ -97,3 +97,31 @@ export async function run(steps) {
         await browser.close();
     }
 }
+
+/** Opens the World Info drawer on the sample book. */
+export async function openBook() {
+    if (!await page.isVisible('#world_popup_entries_list')) await page.click('#WIDrawerIcon');
+    await ev(() => SillyTavern.getContext().reloadWorldInfoEditor('WIHero-Sample', true));
+    await page.waitForSelector('#world_popup_entries_list .world_entry', { timeout: 10000 });
+}
+
+/** Opens an entry's edit area (ST renders it on open) and returns its locator. */
+export async function openEntry(uid) {
+    const entry = page.locator(`#world_popup_entries_list .world_entry[uid="${uid}"]`);
+    await entry.waitFor({ timeout: 10000 });
+    if (!await entry.locator('.world_entry_edit').count()) await entry.locator('.inline-drawer-icon').first().click();
+    await entry.locator('.world_entry_edit').waitFor({ timeout: 5000 });
+    return entry;
+}
+
+/** The WI Hero block in an entry, expanded. */
+export async function openBlock(entry) {
+    const block = entry.locator('.wihero-entry');
+    await block.locator('.inline-drawer-toggle').waitFor({ timeout: 5000 });
+    if (!await block.locator('.inline-drawer-content').isVisible()) await block.locator('.inline-drawer-toggle').click();
+    await block.locator('input[name="wihero_id"]').waitFor({ state: 'visible', timeout: 5000 });
+    return block;
+}
+
+/** Uids of the entries ST's editor lists (on its current page). */
+export const listedUids = () => ev(() => [...document.querySelectorAll('#world_popup_entries_list .world_entry')].map(e => Number(e.getAttribute('uid'))));
