@@ -15,7 +15,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** tests cover every gate and chain rule in DESIGN 2.0–2.2.
 
-## M3 — ST wiring (built, needs a live check)
+## M3 — ST wiring ✓
 - `WORLDINFO_ENTRIES_LOADED`: remove ineligible entries (remove only, never edit).
 - `GENERATION_STARTED` filter: record on normal / swipe / regenerate / continue; skip quiet, impersonate, dry runs.
 - `WORLD_INFO_ACTIVATED` → pending list → snapshot on `MESSAGE_RECEIVED` in `message.extra.wihero` (and the current `swipe_info` entry).
@@ -24,7 +24,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** a chain advances in a real chat, and swiping or deleting a message rewinds it.
 
-## M4 — Glue
+## M4 — Glue ✓
 - Force-activate glued entries from `getSortedEntries()` before each prompt build.
 - Close conditions: keyword in newest message, sibling fired, held until X and Y active.
 - Warn when a glued entry has probability below 100.

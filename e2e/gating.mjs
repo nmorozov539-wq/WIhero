@@ -26,7 +26,7 @@ function lastPrompt() {
     return JSON.parse(fs.readFileSync(LOG + file, 'utf8')).body.messages.map(m => m.content).join('\n');
 }
 /** Which sample entries reached the last prompt. */
-const injected = () => ['WIH-0', 'WIH-1', 'WIH-2', 'WIH-3'].filter(tag => lastPrompt().includes(tag));
+const injected = () => ['WIH-0', 'WIH-1', 'WIH-2', 'WIH-3', 'WIH-4'].filter(tag => lastPrompt().includes(tag));
 const state = () => ev(() => wihero.state);
 const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
     .map(tr => [tr.children[0].textContent, tr.children[1].textContent])));
@@ -86,14 +86,14 @@ try {
     }
     ok('setup');
 
-    assert.deepEqual(await status(), { road: 'open', mill: 'waiting for road', tunnel: 'waiting for mill' });
+    assert.deepEqual(await status(), { road: 'open', mill: 'waiting for road', tunnel: 'waiting for mill', storm: 'open' });
     ok('story start: road open, mill and tunnel waiting');
 
     // ── Turn 1: "mill" is mentioned but its gate is closed ──
     await send('We stand on the road out of the village, talking about the mill.');
     assert.deepEqual(injected(), ['WIH-0', 'WIH-1']);
     assert.deepEqual((await state()).fired, { road: 1 });
-    assert.deepEqual(await status(), { road: 'open', mill: 'gate open', tunnel: 'waiting for mill' });
+    assert.deepEqual(await status(), { road: 'open', mill: 'gate open', tunnel: 'waiting for mill', storm: 'open' });
     ok('turn 1: road fires, mill is held back, mill opens for next turn');
 
     // ── Turn 2: mill fires and closes road ──
@@ -157,6 +157,33 @@ try {
     assert.deepEqual(injected(), ['WIH-1', 'WIH-2', 'WIH-3']);
     await ev(() => { document.getElementById('wihero_enabled').click(); });
     ok('disabled: every entry is scanned');
+
+    // ── Glue: the storm is held every turn from its first firing until it passes ──
+    await send('A storm rolls in.');
+    assert.ok(injected().includes('WIH-4'), 'storm injected');
+    assert.ok(!injected().includes('WIH-1'), 'closed road stays out');
+    assert.ok((await state()).glued.storm, 'storm glued');
+    assert.equal((await status()).storm, 'glued');
+    ok('glue: storm fires and is glued');
+
+    await send('We wait inside.');
+    assert.ok(injected().includes('WIH-4'), 'glued storm forced in without its keyword');
+    assert.ok(!injected().includes('WIH-1'), 'closed road stays out');
+    assert.ok((await state()).glued.storm, 'storm still glued');
+    ok('glue: storm held on a turn without its keyword');
+
+    await send('At last the storm passes.');
+    assert.ok(injected().includes('WIH-4'), 'storm injected on the closing turn');
+    s = await state();
+    assert.equal(s.closed.storm, true);
+    assert.ok(!s.glued.storm, 'glue released');
+    assert.equal((await status()).storm, 'closed');
+    ok('glue: close keyword releases the glue and closes the storm');
+
+    await send('Is that another storm?');
+    assert.ok(!injected().includes('WIH-4'), 'closed storm not injected');
+    assert.ok(!injected().includes('WIH-1'), 'closed road stays out');
+    ok('glue: closed storm stays out even when mentioned');
 
     assert.deepEqual(errors.filter(e => /wihero|WI Hero/i.test(e)), []);
     ok('no WI Hero errors in the console');

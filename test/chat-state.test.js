@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { stateBefore, writeSnapshot } from '../src/chat-state.js';
 import { initialState } from '../src/engine.js';
 
-const snap = n => ({ v: 1, fired: { a: n }, closed: {}, round: [] });
+const snap = n => ({ v: 1, fired: { a: n }, closed: {}, glued: {}, round: [] });
 
 test('an empty chat or one without snapshots starts from the initial state', () => {
     assert.deepEqual(stateBefore([]), { state: initialState(), index: -1 });

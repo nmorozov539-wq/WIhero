@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildModel, initialState, readState, eligibility, removeIneligible, advance } from '../src/engine.js';
+import { buildModel, initialState, readState, eligibility, removeIneligible, advance, gluedKeys, keywordMatcher } from '../src/engine.js';
 
 let nextUid = 0;
 const entry = (wihero, extra = {}) => ({ world: 'Book', uid: nextUid++, comment: wihero?.id ?? 'plain', content: 'text', ...(wihero !== undefined && { wihero }), ...extra });
@@ -9,14 +9,15 @@ const entry = (wihero, extra = {}) => ({ world: 'Book', uid: nextUid++, comment:
 const eligibleIds = (entries, model, state) =>
     entries.filter(e => eligibility(e, model, state).eligible).map(e => e.wihero?.id ?? e.comment);
 
-/** Plays rounds, each a list of ids that fire, and returns the final state. */
+/** Plays rounds, each a list of ids that fire (optionally `{ ids, text }`), and returns the final state. */
 function play(entries, rounds) {
     const model = buildModel(entries);
     let state = initialState();
-    for (const ids of rounds) {
+    for (const round of rounds) {
+        const { ids, text } = Array.isArray(round) ? { ids: round, text: '' } : round;
         const fired = ids.map(id => entries.find(e => (e.wihero?.id ?? e.comment) === id));
         for (const e of fired) assert.ok(eligibility(e, model, state).eligible, `${e.comment} fired while not eligible`);
-        state = advance(state, fired, model);
+        state = advance(state, fired, model, text);
     }
     return { model, state };
 }
@@ -223,9 +224,135 @@ test('an entry gated on a broken entry just waits', () => {
 });
 
 test('readState accepts its own output and rejects anything else', () => {
-    const state = { v: 1, fired: { a: 1 }, closed: { b: true }, round: ['Book.1'] };
+    const state = { v: 1, fired: { a: 1 }, closed: { b: true }, glued: { c: { seen: [] } }, round: ['Book.1'] };
     assert.deepEqual(readState(structuredClone(state)), state);
     assert.equal(readState(null), null);
     assert.equal(readState({ v: 2 }), null);
-    assert.deepEqual(readState({ v: 1, fired: [], closed: null }), { v: 1, fired: {}, closed: {}, round: [] });
+    assert.deepEqual(readState({ v: 1, fired: [], closed: null }), { v: 1, fired: {}, closed: {}, glued: {}, round: [] });
+});
+
+// ── Glue ──────────────────────────────────────────────────────────────
+
+const key = e => `${e.world}.${e.uid}`;
+
+test('a glued entry is forced every turn from its first firing', () => {
+    const a = entry({ id: 'a', glue: true });
+    const b = entry({ id: 'b' });
+    const model = buildModel([a, b]);
+    assert.deepEqual(gluedKeys(model, initialState()), []);
+    let state = advance(initialState(), [a], model);
+    assert.deepEqual(gluedKeys(model, state), [key(a)]);
+    assert.equal(eligibility(a, model, state).reason, 'glued');
+    state = advance(state, [b], model);
+    state = advance(state, [], model);
+    assert.deepEqual(gluedKeys(model, state), [key(a)]);
+});
+
+test('a glued chain link stays open when the chain advances', () => {
+    const l1 = entry({ id: 'l1', glue: { closeWhenFired: ['l3'] } });
+    const l2 = entry({ id: 'l2', gates: ['l1'] });
+    const l3 = entry({ id: 'l3', gates: ['l2'] });
+    const { model, state } = play([l1, l2, l3], [['l1'], ['l1', 'l2']]);
+    assert.deepEqual(state.closed, {});
+    assert.ok(state.glued.l1);
+    const after = advance(state, [l1, l3], model);
+    assert.deepEqual(after.glued, {});
+    assert.deepEqual(after.closed, { l1: true, l2: true });
+});
+
+test('a close keyword in the turn releases glue and closes the entry', () => {
+    const a = entry({ id: 'a', glue: { closeKeywords: ['leave the mill', '/\\bexit\\b/i'] } });
+    const model = buildModel([a]);
+    let state = advance(initialState(), [a], model, 'we arrive and could leave the mill later');
+    assert.ok(state.glued.a, 'keywords in the turn that starts the glue do not count');
+    state = advance(state, [a], model, 'nothing yet');
+    assert.ok(state.glued.a);
+    state = advance(state, [a], model, 'We LEAVE THE MILL.');
+    assert.deepEqual(state.glued, {});
+    assert.ok(state.closed.a);
+    assert.equal(eligibility(a, model, state).reason, 'closed');
+    const viaRegex = advance(advance(initialState(), [a], model), [a], model, 'Exit, stage left');
+    assert.ok(viaRegex.closed.a);
+});
+
+test('closeWhenFired releases on any listed entry firing', () => {
+    const a = entry({ id: 'a', glue: { closeWhenFired: ['x', 'y'] } });
+    const x = entry({ id: 'x' });
+    const y = entry({ id: 'y' });
+    const { state } = play([a, x, y], [['a'], ['a'], ['a', 'y']]);
+    assert.ok(state.closed.a);
+});
+
+test('closeWhenAllFired waits until every listed entry has fired since the glue began', () => {
+    const a = entry({ id: 'a', glue: { closeWhenAllFired: ['x', 'y'] } });
+    const x = entry({ id: 'x' });
+    const y = entry({ id: 'y' });
+    const { model, state } = play([a, x, y], [['x'], ['a'], ['a', 'x']]);
+    assert.deepEqual(state.glued.a, { seen: ['x'] }, 'x before the glue does not count, x after does');
+    const after = advance(state, [a, y], model);
+    assert.ok(after.closed.a);
+});
+
+test('glue with no close condition holds for good', () => {
+    const a = entry({ id: 'a', glue: {} });
+    const { state } = play([a], [['a'], ['a'], ['a'], ['a']]);
+    assert.ok(state.glued.a);
+});
+
+test('glue never restarts on a closed entry', () => {
+    const a = entry({ id: 'a', glue: { closeKeywords: ['bye'] } });
+    const model = buildModel([a]);
+    let state = advance(advance(initialState(), [a], model), [a], model, 'bye');
+    assert.ok(state.closed.a);
+    state = advance(state, [a], model);
+    assert.deepEqual(state.glued, {});
+});
+
+test('glue that was removed from an entry is dropped from the state', () => {
+    const a = entry({ id: 'a', glue: true });
+    const state = advance(initialState(), [a], buildModel([a]));
+    const plainModel = buildModel([entry({ id: 'a' })]);
+    assert.deepEqual(advance(state, [], plainModel).glued, {});
+});
+
+test('advance does not change the glue state it was given', () => {
+    const a = entry({ id: 'a', glue: { closeWhenAllFired: ['x', 'y'] } });
+    const x = entry({ id: 'x' });
+    const model = buildModel([a, x, entry({ id: 'y' })]);
+    const s1 = advance(initialState(), [a], model);
+    const copy = structuredClone(s1);
+    advance(s1, [x], model);
+    assert.deepEqual(s1, copy);
+});
+
+test('bad glue configs are reported', () => {
+    const model = buildModel([
+        entry({ id: 'g1', glue: 'yes' }),
+        entry({ id: 'g2', glue: { closeKeywords: 'bye' } }),
+        entry({ id: 'g3', glue: { closeWhenFired: ['ghost'] } }),
+        entry({ id: 'g4', glue: { closeKeywords: ['/(/'] } }),
+        entry({ id: 'g5', glue: { closeOn: [] } }),
+    ]);
+    assert.deepEqual(messages(model), [
+        'g1: glue must be true or an object',
+        'g2: glue.closeKeywords must be a list of strings',
+        'g4: glue.closeKeywords: "/(/" is not a valid regex',
+        'g5: glue has unknown field closeOn',
+        'g3: glue closes on "ghost", which no entry has',
+    ]);
+});
+
+test('keywordMatcher: substrings ignore case, /regex/ uses its flags', () => {
+    assert.ok(keywordMatcher('Mill')('the old mill'));
+    assert.ok(!keywordMatcher('/Mill/')('the old mill'));
+    assert.ok(keywordMatcher('/mi+l/i')('MIIIL'));
+    assert.equal(keywordMatcher('/[/'), null);
+});
+
+test('a glued entry with a trigger chance below 100% gets a warning but still works', () => {
+    const a = entry({ id: 'a', glue: true }, { probability: 50, useProbability: true });
+    const b = entry({ id: 'b', glue: true }, { probability: 50, useProbability: false });
+    const model = buildModel([a, b]);
+    assert.deepEqual(model.issues.map(i => [i.id, i.warning]), [['a', true]]);
+    assert.ok(eligibility(a, model, initialState()).eligible);
 });

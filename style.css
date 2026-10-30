@@ -28,3 +28,8 @@
 .wihero-status-config {
     opacity: 0.6;
 }
+
+.wihero-issues .wihero-warning {
+    color: inherit;
+    opacity: 0.8;
+}

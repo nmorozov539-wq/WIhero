@@ -207,6 +207,62 @@
             "triggers": [],
             "uid": 3,
             "displayIndex": 3
+        },
+        "4": {
+            "key": [
+                "storm"
+            ],
+            "keysecondary": [],
+            "comment": "Storm (glued until it passes)",
+            "content": "[WIH-4 A storm batters the valley.]",
+            "constant": false,
+            "vectorized": false,
+            "selective": true,
+            "selectiveLogic": 0,
+            "addMemo": true,
+            "order": 100,
+            "position": 0,
+            "disable": false,
+            "ignoreBudget": false,
+            "excludeRecursion": false,
+            "preventRecursion": false,
+            "matchPersonaDescription": false,
+            "matchCharacterDescription": false,
+            "matchCharacterPersonality": false,
+            "matchCharacterDepthPrompt": false,
+            "matchScenario": false,
+            "matchCreatorNotes": false,
+            "delayUntilRecursion": 0,
+            "probability": 100,
+            "useProbability": true,
+            "depth": 4,
+            "outletName": "",
+            "group": "",
+            "groupOverride": false,
+            "groupWeight": 100,
+            "scanDepth": null,
+            "caseSensitive": null,
+            "matchWholeWords": null,
+            "useGroupScoring": null,
+            "automationId": "",
+            "role": null,
+            "sticky": 0,
+            "cooldown": 0,
+            "delay": 0,
+            "characterFilterNames": [],
+            "characterFilterTags": [],
+            "characterFilterExclude": false,
+            "triggers": [],
+            "uid": 4,
+            "displayIndex": 4,
+            "wihero": {
+                "id": "storm",
+                "glue": {
+                    "closeKeywords": [
+                        "storm passes"
+                    ]
+                }
+            }
         }
     }
 }

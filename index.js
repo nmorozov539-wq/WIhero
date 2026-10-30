@@ -2,9 +2,10 @@
 // and retire once it moves past. See docs/DESIGN.md.
 import { MODULE, getSettings } from './src/settings.js';
 import { mountPanel, render } from './src/panel.js';
-import { buildModel, eligibility, entryKey, removeIneligible } from './src/engine.js';
+import { buildModel, eligibility, entryKey, gluedKeys, removeIneligible } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
-import { isRecorded, gatingState, snapshotFor } from './src/generation.js';
+import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
+import { getSortedEntries } from './src/st.js';
 
 const ctx = () => SillyTavern.getContext();
 const { eventSource, eventTypes, extensionSettings, saveSettingsDebounced } = ctx();
@@ -22,6 +23,20 @@ let generation = null;
 function onGenerationStarted(type, _options, dryRun) {
     if (dryRun) return;
     generation = { type, record: isRecorded(type), base: null, model: null, activated: [] };
+}
+
+/**
+ * Glue: force-activate glued entries for this generation's scan. ST clears forced entries after every
+ * scan, so this runs before each one. The entries come from getSortedEntries() so they carry the hash
+ * ST keys sticky/cooldown by (docs/TECHNICAL_NOTES.md section 3).
+ */
+async function onAfterCommands(type) {
+    if (!settings.enabled) return;
+    const entries = await getSortedEntries();
+    if (!model) return;
+    const keys = new Set(gluedKeys(model, gatingState(ctx().chat ?? [], type)));
+    const glued = entries.filter(e => keys.has(entryKey(e)));
+    if (glued.length) await eventSource.emit(eventTypes.WORLDINFO_FORCE_ACTIVATE, glued);
 }
 
 function onEntriesLoaded(lore) {
@@ -47,7 +62,7 @@ function onMessageReceived(messageId) {
     const message = ctx().chat?.[messageId];
     if (!message || message.is_user) return;
     generation = null;
-    writeSnapshot(message, snapshotFor({ ...current, message }));
+    writeSnapshot(message, snapshotFor({ ...current, message, text: turnText(ctx().chat, messageId) }));
     refresh();
 }
 
@@ -77,6 +92,7 @@ mountPanel({
 });
 
 eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
+eventSource.on(eventTypes.GENERATION_AFTER_COMMANDS, onAfterCommands);
 eventSource.on(eventTypes.WORLDINFO_ENTRIES_LOADED, onEntriesLoaded);
 eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
 eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);

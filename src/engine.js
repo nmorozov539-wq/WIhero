@@ -6,6 +6,10 @@
 // `gates` lists ids that must have fired before the entry may fire. When the entry fires,
 // it closes the gate entries that fired (a chain advancing), unless `closeGates` is false.
 // Closed is final: only a rewind (an older snapshot) brings an entry back.
+//
+// Glue keeps an entry injected every turn from its first firing until a close condition, then closes it:
+//   glue: { closeKeywords: ['we leave'], closeWhenFired: ['x'], closeWhenAllFired: ['x', 'y'] }
+// `glue: true` (or {}) glues with no close condition. A glued entry is never closed by a chain advancing.
 // Entries without `wihero` are never touched.
 
 export const FIELD = 'wihero';
@@ -44,6 +48,7 @@ export function buildModel(entries) {
             gates: [],
             gateMode: 'all',
             closeGates: true,
+            glue: null,
             broken: false,
         };
         byKey.set(node.key, node);
@@ -76,6 +81,18 @@ export function buildModel(entries) {
             if (typeof config.closeGates === 'boolean') node.closeGates = config.closeGates;
             else problem('closeGates must be true or false');
         }
+        if (config.glue !== undefined && config.glue !== false) {
+            const glue = readGlue(config.glue);
+            if (typeof glue === 'string') {
+                problem(glue);
+            } else {
+                node.glue = glue;
+                if (entry.useProbability !== false && Number(entry.probability ?? 100) < 100) {
+                    issues.push({ key: node.key, id: node.id, label: node.label, warning: true,
+                        message: 'is glued but has a trigger chance below 100%, so it can still drop out' });
+                }
+            }
+        }
 
         if (node.id === null) continue;
         if (nodes.has(node.id)) {
@@ -102,6 +119,12 @@ export function buildModel(entries) {
                 issues.push({ key: node.key, id: node.id, label: node.label, message: `gates on "${gate}", which no entry has` });
             }
         }
+        for (const id of node.glue ? [...node.glue.closeWhenFired, ...node.glue.closeWhenAllFired] : []) {
+            if (!nodes.has(id)) {
+                node.broken = true;
+                issues.push({ key: node.key, id: node.id, label: node.label, message: `glue closes on "${id}", which no entry has` });
+            }
+        }
     }
 
     for (const cycle of findCycles(nodes)) {
@@ -113,6 +136,42 @@ export function buildModel(entries) {
     }
 
     return { nodes, byKey, issues };
+}
+
+/** Parses a glue config, or returns what's wrong with it. */
+function readGlue(value) {
+    if (value === true) value = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return 'glue must be true or an object';
+    const glue = { closeKeywords: [], closeWhenFired: [], closeWhenAllFired: [] };
+    for (const field of Object.keys(glue)) {
+        if (value[field] === undefined) continue;
+        if (!Array.isArray(value[field]) || value[field].some(x => typeof x !== 'string' || !x)) return `glue.${field} must be a list of strings`;
+        glue[field] = [...new Set(value[field])];
+    }
+    for (const keyword of glue.closeKeywords) {
+        if (keywordMatcher(keyword) === null) return `glue.closeKeywords: "${keyword}" is not a valid regex`;
+    }
+    const unknown = Object.keys(value).filter(k => !(k in glue));
+    if (unknown.length) return `glue has unknown field${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}`;
+    return glue;
+}
+
+/**
+ * Keyword test like ST's: `/pattern/flags` is a regex, anything else a case-insensitive substring.
+ * @returns {((text: string) => boolean) | null} null for a broken regex.
+ */
+export function keywordMatcher(keyword) {
+    const regex = /^\/(.+)\/([a-z]*)$/s.exec(keyword);
+    if (!regex) {
+        const needle = keyword.toLowerCase();
+        return text => text.toLowerCase().includes(needle);
+    }
+    try {
+        const pattern = new RegExp(regex[1], regex[2]);
+        return text => { pattern.lastIndex = 0; return pattern.test(text); };
+    } catch {
+        return null;
+    }
 }
 
 /** Gate loops, each as a list of ids. Self-gates are reported separately and skipped here. */
@@ -144,7 +203,7 @@ function findCycles(nodes) {
 
 /** State at the start of a chat: nothing fired, nothing closed. Entries without gates are open. */
 export function initialState() {
-    return { v: STATE_VERSION, fired: {}, closed: {}, round: [] };
+    return { v: STATE_VERSION, fired: {}, closed: {}, glued: {}, round: [] };
 }
 
 /** Accepts a stored snapshot, or returns null if it isn't one this version can read. */
@@ -155,6 +214,7 @@ export function readState(value) {
         v: STATE_VERSION,
         fired: object(value.fired),
         closed: object(value.closed),
+        glued: object(value.glued),
         round: Array.isArray(value.round) ? [...value.round] : [],
     };
 }
@@ -168,6 +228,7 @@ export function eligibility(entry, model, state) {
     if (!node) return { eligible: true, reason: 'not gated' };
     if (node.broken) return { eligible: false, reason: 'config problem' };
     if (state.closed[node.id]) return { eligible: false, reason: 'closed' };
+    if (state.glued[node.id]) return { eligible: true, reason: 'glued' };
     if (!node.gates.length) return { eligible: true, reason: 'open' };
     const passed = node.gates.filter(g => state.fired[g] > 0);
     const open = node.gateMode === 'any' ? passed.length > 0 : passed.length === node.gates.length;
@@ -196,14 +257,29 @@ export function removeIneligible(lore, model, state) {
     return removed;
 }
 
+/** world.uid keys of the entries that are glued and so must be force-activated. */
+export function gluedKeys(model, state) {
+    return Object.keys(state.glued)
+        .map(id => model.nodes.get(id))
+        .filter(node => node && !node.broken && !state.closed[node.id])
+        .map(node => node.key);
+}
+
 /**
  * State after one chat generation. Takes effect from the next generation on.
  * @param {object} state State before the generation.
  * @param {(object|string)[]} activated Entries ST activated (WORLD_INFO_ACTIVATED), or their world.uid keys.
+ * @param {string} [text] The turn's new messages, checked for glue close keywords.
  * @returns {object} New state; `round` holds the world.uid keys of everything that fired.
  */
-export function advance(state, activated, model) {
-    const next = { v: STATE_VERSION, fired: { ...state.fired }, closed: { ...state.closed }, round: [] };
+export function advance(state, activated, model, text = '') {
+    const next = {
+        v: STATE_VERSION,
+        fired: { ...state.fired },
+        closed: { ...state.closed },
+        glued: Object.fromEntries(Object.entries(state.glued ?? {}).map(([id, g]) => [id, { seen: [...g.seen] }])),
+        round: [],
+    };
     const firedNodes = [];
     for (const item of activated ?? []) {
         const key = typeof item === 'string' ? item : entryKey(item);
@@ -214,12 +290,37 @@ export function advance(state, activated, model) {
         next.fired[node.id] = (next.fired[node.id] ?? 0) + 1;
         firedNodes.push(node);
     }
+    const firedNow = new Set(firedNodes.map(n => n.id));
+
+    // Glue that was already holding: check its close conditions against this turn.
+    for (const [id, glued] of Object.entries(next.glued)) {
+        const glue = model.nodes.get(id)?.glue;
+        if (!glue) {
+            delete next.glued[id];
+            continue;
+        }
+        for (const other of glue.closeWhenAllFired) {
+            if (firedNow.has(other) && !glued.seen.includes(other)) glued.seen.push(other);
+        }
+        const release = glue.closeKeywords.some(k => keywordMatcher(k)?.(text))
+            || glue.closeWhenFired.some(other => firedNow.has(other))
+            || glue.closeWhenAllFired.length > 0 && glue.closeWhenAllFired.every(other => glued.seen.includes(other));
+        if (release) {
+            delete next.glued[id];
+            next.closed[id] = true;
+        }
+    }
+    // New glue starts from the entry's first firing; its close conditions count from the next turn.
+    for (const node of firedNodes) {
+        if (node.glue && !state.glued?.[node.id] && !next.closed[node.id]) next.glued[node.id] = { seen: [] };
+    }
     // Closing happens after counting, so an entry and its child firing together both count.
     // Only gates that actually fired close: with gateMode "any", the other paths stay as they are.
+    // Glued gates stay open: glue is the override for a chain advancing.
     for (const node of firedNodes) {
         if (!node.closeGates) continue;
         for (const gate of node.gates) {
-            if (next.fired[gate] > 0) next.closed[gate] = true;
+            if (next.fired[gate] > 0 && !next.glued[gate]) next.closed[gate] = true;
         }
     }
     return next;

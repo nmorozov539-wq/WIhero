@@ -54,13 +54,16 @@ export function render(view) {
         return;
     }
     const parts = [plural(view.rows.length, 'gated entry', 'gated entries')];
-    if (view.issues.length) parts.push(plural(view.issues.length, 'problem', 'problems'));
+    const problems = view.issues.filter(i => !i.warning).length;
+    const warnings = view.issues.length - problems;
+    if (problems) parts.push(plural(problems, 'problem', 'problems'));
+    if (warnings) parts.push(plural(warnings, 'warning', 'warnings'));
     parts.push(view.from < 0 ? 'story start' : `state from message #${view.from}, ${plural(view.roundSize, 'entry', 'entries')} fired there`);
     if (!view.enabled) parts.push('disabled: ST scans every entry');
     summary.textContent = parts.join(' · ');
 
     issueList.replaceChildren(...view.issues.map(i =>
-        el('li', { title: i.key }, el('b', {}, i.id ?? i.label), ` ${i.message}`)));
+        el('li', { title: i.key, class: i.warning ? 'wihero-warning' : '' }, el('b', {}, i.id ?? i.label), ` ${i.message}`)));
 
     table.replaceChildren(
         el('tr', {}, el('th', {}, 'Entry'), el('th', {}, 'Next turn'), el('th', { title: 'Times fired in this chat' }, 'Fired')),

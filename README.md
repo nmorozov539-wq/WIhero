@@ -20,6 +20,7 @@ Until the entry editor exists (M5), gates are written by hand as a `wihero` fiel
 - `gates`: ids that must have fired before this entry may fire. Leave out for an entry that's open from the start.
 - `gateMode`: `"all"` (default) or `"any"`.
 - `closeGates`: when this entry fires, the gates it opened from close for good (a chain advancing). Default `true`.
+- `glue`: `true`, or `{ closeKeywords, closeWhenFired, closeWhenAllFired }`. Keeps the entry injected every turn from its first firing until a condition is met, then closes it. Close keywords are checked against the turn's new messages (the user message(s) and the reply). A glued chain link isn't closed when the chain advances.
 
 A gate opens on the turn after its parent fires. Entries with a config problem never fire; the panel lists the problem.
 
