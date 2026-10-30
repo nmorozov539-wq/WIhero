@@ -34,7 +34,7 @@ await run(async () => {
     assert.ok(labelsShown.includes('#town'), 'labels shown on rows');
     const pick = value => ev(v => { const f = document.getElementById('wihero_label_filter'); f.value = v; f.dispatchEvent(new Event('change')); }, value);
     await pick('town');
-    const filtered = await ev(() => [...document.querySelectorAll('#wihero_entries tr')].slice(1).map(tr => tr.children[0].firstChild.textContent));
+    const filtered = await ev(() => [...document.querySelectorAll('#wihero_entries tr.wihero-entry-row')].map(tr => tr.children[0].firstChild.textContent));
     assert.deepEqual(filtered, ['tavern', 'market']);
     await pick('');
     ok('panel: labels on rows, the filter shows only #town');

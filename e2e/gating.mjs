@@ -29,7 +29,7 @@ function lastPrompt() {
 /** Which sample entries reached the last prompt. */
 const injected = () => ['WIH-0', 'WIH-1', 'WIH-2', 'WIH-3', 'WIH-4', 'WIH-5', 'WIH-6', 'WIH-7', 'WIH-8'].filter(tag => lastPrompt().includes(`[${tag} `));
 const state = () => ev(() => wihero.state);
-const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
+const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr.wihero-entry-row')]
     .map(tr => [tr.children[0].firstChild?.textContent ?? '', tr.children[1].firstChild?.textContent ?? ''])));
 
 async function waitGenerated(before) {

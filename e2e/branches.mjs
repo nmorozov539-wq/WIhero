@@ -40,7 +40,7 @@ await run(async () => {
 
     // ── Reopen: the manual escape hatch ──
     await page.locator('#wihero_entries tr', { hasText: /^right/ }).locator('.wihero-reopen').dispatchEvent('click');
-    await page.waitForFunction(() => [...document.querySelectorAll('#wihero_entries tr')]
+    await page.waitForFunction(() => [...document.querySelectorAll('#wihero_entries tr.wihero-entry-row')]
         .some(tr => tr.children[0].firstChild?.textContent === 'right' && tr.children[1].firstChild?.textContent === 'gate open'), null, { timeout: 5000 });
     assert.ok(!(await state()).closed.right);
     const saved = await ev(() => SillyTavern.getContext().chat.at(-1).extra.wihero.closed);

@@ -4,6 +4,7 @@ import { MODULE, getSettings } from './src/settings.js';
 import { mountPanel, render } from './src/panel.js';
 import { bookName, mountEditor } from './src/editor.js';
 import { mountFolders } from './src/folders.js';
+import { mountBadges, updateBadges } from './src/badges.js';
 import { activeMask, buildModel, eligibility, entryKey, gluedKeys, removeIneligible, reopen, selectMask, switchLosers } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
@@ -21,6 +22,8 @@ let loaded = [];
 let hashes = new Map();
 let hashWarned = false;
 const hashOf = entry => hashes.get(entryKey(entry));
+/** Panel status of every gated entry by world.uid, for the badges in ST's World Info editor. */
+let statuses = new Map();
 /** Entries ST will hold by sticky in a scan of `length` messages: gating leaves them in. */
 const held = length => stickyHeld(loaded, ctx().chatMetadata?.timedWorldInfo, length, hashOf);
 /**
@@ -115,7 +118,11 @@ async function editState(edit) {
 
 /** Status of every gated entry for the next generation. */
 function refresh() {
-    if (!model) return render(null);
+    if (!model) {
+        statuses = new Map();
+        updateBadges();
+        return render(null);
+    }
     const chat = ctx().chat ?? [];
     const { state, index } = stateBefore(chat);
     const sticky = settings.enabled ? held(scanLength(chat) + 1) : new Map(); // the next send adds a message
@@ -131,7 +138,10 @@ function refresh() {
         fired: node.id ? state.fired[node.id] ?? 0 : 0,
         lastRound: state.round.includes(node.key),
         labels: node.labels,
+        folder: node.folder,
     }));
+    statuses = new Map(rows.map(r => [r.key, r.status]));
+    updateBadges();
     render({ rows, issues: model.issues, enabled: settings.enabled, from: index, roundSize: state.round.length, labels: [...model.labels.keys()].sort() });
 }
 
@@ -184,6 +194,7 @@ mountEditor({
 });
 
 mountFolders({ ctx, bookName, onSaved: () => getSortedEntries() });
+mountBadges({ ctx, bookName, statusOf: key => statuses.get(key) });
 
 eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
 eventSource.on(eventTypes.GENERATION_AFTER_COMMANDS, onAfterCommands);

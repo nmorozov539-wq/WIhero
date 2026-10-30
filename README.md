@@ -2,7 +2,7 @@
 
 A SillyTavern extension for story-gated World Info: entries that only become eligible once the story reaches a point, and retire once it moves past.
 
-Status: M1–M7 (gates, chains, glue, the entry editor, railway switches and masks). Targets SillyTavern 1.19.0.
+Status: M1–M10 (gates, chains, glue, the entry editor, railway switches, masks, labels, folders and visuals). The node editor is for later. Targets SillyTavern 1.19.0.
 
 - [Design](docs/DESIGN.md)
 - [Roadmap](docs/ROADMAP.md)
@@ -40,6 +40,14 @@ The editor stores a `wihero` field on the entry in the lorebook JSON (`data/defa
 A gate opens on the turn after its parent fires. Entries with a config problem never fire; the panel lists the problem. A closed entry has a **Reopen** button in the panel, for when the story changed in a way WI Hero can't see (an edited message, say). It applies from the current message on and rewinds like everything else.
 
 ST's own timers still win. A running sticky finishes even after its entry closes (the panel shows `sticky (closed)`), and cooldown and delay can hold back a glued entry (the panel warns about glue with a cooldown). Sticky and cooldown count messages, two per turn, so N lasts floor((N-1)/2) more turns.
+
+## The panel and the entry list
+
+Extensions → WI Hero lists every gated entry with its status for the next turn, how often it fired in this chat, and its labels, grouped by folder. Entries that fired last turn are bold. In ST's World Info editor each entry row shows a WI Hero badge with the same status (hover for the reason) and a stripe in the entry's color.
+
+![The WI Hero panel](docs/img/panel.png) ![Badges and color stripes on ST's entry list](docs/img/badges.png)
+
+The panel at a phone's width: [docs/img/panel-narrow.png](docs/img/panel-narrow.png).
 
 ## Folders and bulk edits
 

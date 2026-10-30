@@ -76,6 +76,7 @@ export function buildModel(entries) {
             gatesFor: [],
             closes: [],
             requires: [],
+            folder: typeof config === 'object' && typeof config?.folder === 'string' ? config.folder : '',
             broken: false,
         };
         byKey.set(node.key, node);

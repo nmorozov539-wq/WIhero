@@ -2,7 +2,7 @@
     margin: 4px 0 0;
     padding-left: 1.2em;
     font-size: 0.9em;
-    color: var(--warning, #e8a33d);
+    color: var(--warning);
 }
 
 .wihero-table {
@@ -30,8 +30,7 @@
 }
 
 .wihero-issues .wihero-warning {
-    color: inherit;
-    opacity: 0.8;
+    color: var(--SmartThemeQuoteColor);
 }
 
 .wihero-entry {
@@ -74,13 +73,13 @@
 .wihero-chip {
     cursor: pointer;
     padding: 0 6px;
-    border: 1px solid var(--SmartThemeBorderColor, #666);
+    border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 8px;
     font-size: 0.85em;
 }
 
 .wihero-chip:hover {
-    background: var(--SmartThemeBorderColor, #666);
+    background: var(--SmartThemeBorderColor);
 }
 
 .wihero-reopen {
@@ -94,7 +93,7 @@
     flex-direction: column;
     gap: 3px;
     padding: 4px;
-    border: 1px solid var(--SmartThemeBorderColor, #666);
+    border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 6px;
 }
 
@@ -132,4 +131,59 @@
 .wihero-bulk select {
     width: auto;
     max-width: 10em;
+}
+
+.wihero-folder-row td {
+    padding-top: 6px;
+    font-weight: bold;
+    color: var(--SmartThemeEmColor);
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.wihero-table td {
+    overflow-wrap: break-word;
+}
+
+/* ST's narrow layout: the status wraps under the entry instead of squeezing the table. */
+@media screen and (max-width: 1000px) {
+    .wihero-table {
+        font-size: 0.85em;
+    }
+
+    .wihero-table th:last-child,
+    .wihero-entry-row td:last-child {
+        width: 2.5em;
+        text-align: right;
+    }
+}
+
+/* Entry rows in ST's World Info editor */
+.world_entry.wihero-colored {
+    box-shadow: inset 4px 0 0 var(--wihero-color);
+}
+
+.wihero-badge {
+    flex-shrink: 0;
+    margin: 0 4px;
+    padding: 0 6px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    color: var(--SmartThemeBodyColor);
+}
+
+.wihero-badge.wihero-status-open,
+.wihero-badge.wihero-status-gate {
+    border-color: var(--active);
+}
+
+.wihero-badge.wihero-status-glued,
+.wihero-badge.wihero-status-sticky {
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.wihero-badge.wihero-status-config {
+    border-color: var(--warning);
+    opacity: 1;
 }

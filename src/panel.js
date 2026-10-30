@@ -1,4 +1,6 @@
 // Settings panel in the Extensions drawer: the gated entries and their status for the next generation.
+import { normalizeFolder } from './bulk.js';
+import { statusClass } from './status.js';
 
 let handlers = {};
 let summary;
@@ -88,11 +90,26 @@ export function render(view) {
     labelFilter.style.display = labels.length ? '' : 'none';
     const rows = shownLabel ? view.rows.filter(r => r.labels?.includes(shownLabel)) : view.rows;
 
+    // Grouped by folder (the order within a folder is kept); entries without one come first, unheaded.
+    const groups = new Map();
+    for (const r of rows) {
+        const folder = normalizeFolder(r.folder);
+        if (!groups.has(folder)) groups.set(folder, []);
+        groups.get(folder).push(r);
+    }
+    const folders = [...groups.keys()].sort((a, b) => a === '' ? -1 : b === '' ? 1 : a.localeCompare(b));
     table.replaceChildren(
         el('tr', {}, el('th', {}, 'Entry'), el('th', {}, 'Next turn'), el('th', { title: 'Times fired in this chat' }, 'Fired')),
-        ...rows.map(r => el('tr', { class: r.lastRound ? 'wihero-last-round' : '', title: r.key },
-            el('td', {}, r.id, ...(r.labels?.length ? [el('small', { class: 'wihero-labels' }, r.labels.map(l => `#${l}`).join(' '))] : [])),
-            el('td', { class: `wihero-status-${r.status.split(' ')[0]}` }, r.status, ...reopenButton(r)),
-            el('td', {}, String(r.fired)))),
+        ...folders.flatMap(folder => [
+            ...(folder ? [el('tr', { class: 'wihero-folder-row' }, el('td', { colspan: '3' }, folder))] : []),
+            ...groups.get(folder).map(entryRow),
+        ]),
     );
+}
+
+function entryRow(r) {
+    return el('tr', { class: `wihero-entry-row${r.lastRound ? ' wihero-last-round' : ''}`, title: r.key },
+        el('td', {}, r.id, ...(r.labels?.length ? [el('small', { class: 'wihero-labels' }, r.labels.map(l => `#${l}`).join(' '))] : [])),
+        el('td', { class: statusClass(r.status) }, r.status, ...reopenButton(r)),
+        el('td', {}, String(r.fired)));
 }

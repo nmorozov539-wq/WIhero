@@ -67,7 +67,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** entries can be filed into folders, the editor list filters by folder, bulk actions change the book on disk, and gating doesn't change.
 
-## M10 — Visuals
+## M10 — Visuals ✓
 - Color stripe and a status badge on each entry row in ST's World Info editor.
 - Panel grouped by folder, readable on narrow screens, ST theme colors.
 

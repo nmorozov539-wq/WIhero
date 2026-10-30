@@ -12,4 +12,5 @@ Run it against a throwaway SillyTavern, never your own: it changes the connectio
 6. `node e2e/editor.mjs` checks the entry editor: it gates a new entry through the UI, reads the book from disk (set `ST_WORLDS` to that SillyTavern's `data/default-user/worlds`), plays it in a chat and removes the config again. Copy a fresh sample book first (step 2): it adds an entry. It also writes the README screenshots to `docs/img/`.
 7. `node e2e/labels.mjs` checks labels: a label as a gate source, `gatesFor`, `closes`, the panel filter and rewind.
 8. `node e2e/folders.mjs` checks folders: set in the entry editor, the folder filter, bulk actions on disk, gating unchanged.
-9. `node e2e/branches.mjs` checks railway switches (and masks). It starts its own chat; copy a fresh sample book first. Scripts after `gating.mjs` share their setup in `e2e/lib.mjs`.
+9. `node e2e/visuals.mjs` checks the badges and stripes on ST's entry list and the panel's folder groups, and writes the panel and badge screenshots to `docs/img/`.
+10. `node e2e/branches.mjs` checks railway switches (and masks). It starts its own chat; copy a fresh sample book first. Scripts after `gating.mjs` share their setup in `e2e/lib.mjs`.

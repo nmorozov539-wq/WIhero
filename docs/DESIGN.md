@@ -136,6 +136,9 @@ Every mechanism above (gate, glue, mask trigger) is really one underlying primit
 
 Lowest risk, built last. General cleanup of the WI entry list/editor UI; no functional dependencies on gating or grouping.
 
+- Each entry row in ST's World Info editor gets a stripe in its WI Hero color and a badge with its status for the open chat (open, waiting, closed, glued, sticky, problem, plus the active mask), with the full reason on hover. Entries WI Hero doesn't gate get no badge.
+- The panel groups entries by folder, keeps the Fired column and the bold last-round rows, and uses ST's theme variables so it follows any theme. It fits ST's narrow layout.
+
 ## 5. Visual Node Editor
 
 A canvas-based editor for configuring gates and chains visually, alongside the form-based editor — not just a cosmetic pass over the entry list.
