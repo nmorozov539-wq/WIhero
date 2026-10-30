@@ -5,6 +5,7 @@ import { mountPanel, render } from './src/panel.js';
 import { bookName, mountEditor } from './src/editor.js';
 import { mountFolders } from './src/folders.js';
 import { mountBadges, updateBadges } from './src/badges.js';
+import { mountWorkspace, openWorkspace, refreshWorkspace } from './src/workspace.js';
 import { activeMask, buildModel, eligibility, entryKey, gluedKeys, removeIneligible, reopen, selectMask, switchLosers } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
@@ -142,6 +143,7 @@ function refresh() {
     }));
     statuses = new Map(rows.map(r => [r.key, r.status]));
     updateBadges();
+    refreshWorkspace();
     render({ rows, issues: model.issues, enabled: settings.enabled, from: index, roundSize: state.round.length, labels: [...model.labels.keys()].sort() });
 }
 
@@ -154,6 +156,7 @@ mountPanel({
             refresh();
         },
         onReopen: id => editState(state => reopen(state, id)),
+        onOpenWorkspace: () => openWorkspace(),
     },
 });
 
@@ -193,7 +196,31 @@ mountEditor({
     onSaved: () => getSortedEntries(),
 });
 
-mountFolders({ ctx, bookName, onSaved: () => getSortedEntries() });
+mountFolders({ ctx, bookName, onSaved: () => getSortedEntries(), onOpenWorkspace: () => openWorkspace(bookName()) });
+mountWorkspace({
+    ctx,
+    loadedEntries: () => loaded,
+    settings,
+    save: saveSettingsDebounced,
+    defaultBook: () => bookName() ?? loaded[0]?.world,
+    openInST,
+});
+
+/** Opens ST's World Info editor on an entry: its book, then the entry's row (searching for it if it's on another page). */
+async function openInST(book, uid) {
+    if (!document.getElementById('WorldInfo')?.classList.contains('openDrawer')) document.getElementById('WIDrawerIcon')?.click();
+    ctx().reloadWorldInfoEditor(book, true);
+    const row = () => document.querySelector(`#world_popup_entries_list .world_entry[uid="${uid}"]`);
+    const wait = async () => { for (let i = 0; i < 30 && !row(); i++) await new Promise(r => setTimeout(r, 100)); return row(); };
+    if (!await wait()) {
+        const entry = (await ctx().loadWorldInfo(book))?.entries?.[uid];
+        const search = document.getElementById('world_info_search');
+        if (search && entry) { search.value = entry.comment || entry.key?.[0] || ''; search.dispatchEvent(new Event('input')); }
+    }
+    const found = await wait();
+    if (found && !found.querySelector('.world_entry_edit')) found.querySelector('.inline-drawer-icon')?.click();
+    found?.scrollIntoView({ block: 'center' });
+}
 mountBadges({ ctx, bookName, statusOf: key => statuses.get(key) });
 
 eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
@@ -203,6 +230,7 @@ eventSource.on(eventTypes.WORLDINFO_SCAN_DONE, onScanDone);
 eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, onWorldInfoActivated);
 eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
 eventSource.on(eventTypes.CHAT_CHANGED, () => { generation = null; });
+eventSource.on(eventTypes.WORLDINFO_UPDATED, () => refreshWorkspace({ books: true }));
 for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED']) {
     eventSource.on(eventTypes[type], refresh);
 }

@@ -73,5 +73,32 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** the badges show each entry's status for the open chat before and after a turn, and the panel works on desktop and narrow layouts.
 
+## M11 — Workspace and graph ✓
+- A full-screen workspace, opened from the WI Hero panel and ST's World Info editor: top bar (book, jump box, save status), ribbon, sidebar (folders, not linked yet, labels, bookmarks, problems), tabs, right panel, status bar.
+- Read-only graph: layered auto layout (pure, tested), cards with status and badges, every link type, label hubs, masks docked beside their entry, collapsible labels and folders.
+- Live chat state on the cards, and a scrubber for the state at any message. Hover preview, local graph (depth 1–2), selection with a summary.
+
+**Done when:** the sample book shows every link type with the right statuses, and scrubbing changes them.
+
+## M12 — Entry editor in the right panel
+- Tabs: Entry (ST's common fields, the rest under More), Story logic (the WI Hero block's fields), Timers, Links (outgoing, backlinks, history in this chat, unlinked mentions with one-click gating).
+- Saves through ST's path, keeping card-imported books in sync.
+
+**Done when:** an entry's text, keys and story logic can be edited in the workspace and land on disk, and an unlinked mention becomes a gate in one click.
+
+## M13 — Canvas mode and drawing links
+- Canvas/Graph toggle; canvas positions in extension settings (book + id), never on entries.
+- Drag to move, group areas, note cards, Tidy, undo.
+- Drag from a card's handle to link; a menu asks what the link means; invalid links are refused with the reason.
+
+**Done when:** cards can be arranged and links drawn on the canvas, positions survive a reload, and the book on disk gets the new links.
+
+## M14 — Phones and the command palette
+- Below 1000px: full-screen workspace with a top bar (drawer button, search, entry button), tab chips, bottom sheets for Link and Edit, zoom buttons and pinch, no navigation gestures.
+- Ctrl K palette: entry search and commands.
+- Viewport culling for big books.
+
+**Done when:** the workspace works at 390px wide, and a 500-entry book stays responsive there.
+
 ## Later
-Node editor.
+Timeline scrubber across branches, a book-level starting state.

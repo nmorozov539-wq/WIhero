@@ -104,6 +104,14 @@ How the folder filter hooks in:
 - So `src/folders.js` adds one entry, `filterFunctions.wihero_folder`, and sets `filterData.wihero_folder` through `setFilterData`. That works together with ST's search, sort and pagination, and patches no function. It does add a key to ST's object, so a future ST that rebuilt `filterFunctions` would drop the filter silently (the list would just show everything).
 - Bulk actions go through ST's save path like the entry editor (section 9): `loadWorldInfo` copy → edit → `saveWorldInfo(name, data, true)` → `reloadWorldInfoEditor`. For books imported from a character card, the matching `originalData` fields are kept in sync the way ST's editor does it (`enabled`, `extensions.probability`, `extensions.depth`, `insertion_order`, `keys`; see the `setWIOriginalDataValue` calls, e.g. 3185, 3333, 3397, 2696).
 
+## 11. The workspace
+
+- A full-screen element on `document.body` (`src/workspace.js`), opened from the WI Hero panel or the folder bar in ST's World Info editor. Nothing in ST's own layout is moved or patched; Escape or Close removes it.
+- It reads a book with `loadWorldInfo` (a copy of ST's cache) and builds the engine model from that book plus the other loaded books, so gates on another book's entries show as dotted external cards.
+- `src/graph.js` turns the model into nodes and links (pure); `src/layout.js` places them: break loops with a depth-first search, rank by longest path, four barycentre sweeps, then stack each column. Mask pills dock under their entry, and a gate into a pill counts as a gate into its entry for the columns. Computed once per change; nothing animates.
+- `src/graph-view.js` draws: one world `<div>` moved by a single CSS `transform` (pan and zoom), one `<svg>` for every link, plain `<div>` cards.
+- Statuses come from `eligibility()` with the state the scrubber points at (`stateBefore(chat, i + 1)`), read only. ST refreshes often during a generation, so the workspace batches refreshes (150 ms).
+
 ## Design changes this implies
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.

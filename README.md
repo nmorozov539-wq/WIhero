@@ -41,6 +41,17 @@ A gate opens on the turn after its parent fires. Entries with a config problem n
 
 ST's own timers still win. A running sticky finishes even after its entry closes (the panel shows `sticky (closed)`), and cooldown and delay can hold back a glued entry (the panel warns about glue with a cooldown). Sticky and cooldown count messages, two per turn, so N lasts floor((N-1)/2) more turns.
 
+## The workspace
+
+**Open workspace** in the WI Hero panel (or **Workspace** next to ST's World Info search) opens a full-screen view of a book: the whole story as a graph, laid out by its gates, with each entry's status in the open chat.
+
+![The WI Hero workspace](docs/img/workspace.png)
+
+- Links: gates, switches, label gates and `gatesFor`, `closes`, glue endings, mask gates into the mask pills under their entry. A `#label` is a hub card its entries point to.
+- Click an entry for its summary, links and history on the right; hover for its content; double-click to open it in a tab.
+- **Local graph** shows only what's within 1 or 2 links of the selected entry. Labels and folders fold into one card (Labels and Files in the sidebar).
+- The slider at the bottom shows the chat state at any earlier message; the Timeline lists what fired when.
+
 ## The panel and the entry list
 
 Extensions → WI Hero lists every gated entry with its status for the next turn, how often it fired in this chat, and its labels, grouped by folder. Entries that fired last turn are bold. In ST's World Info editor each entry row shows a WI Hero badge with the same status (hover for the reason) and a stripe in the entry's color.

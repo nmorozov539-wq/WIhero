@@ -25,7 +25,9 @@ export function mountFolders(d) {
     });
     bar = bulkBar();
     bar.style.display = 'none';
-    search.after(el('div', { class: 'wihero-folders' }, select, bar));
+    const open = el('div', { class: 'menu_button wihero-open-workspace', title: 'Open this book in the WI Hero workspace' }, 'Workspace');
+    open.addEventListener('click', () => deps.onOpenWorkspace());
+    search.after(el('div', { class: 'wihero-folders' }, select, open, bar));
 
     const list = document.getElementById('world_popup_entries_list');
     if (list) new MutationObserver(() => refreshFolders()).observe(list, { childList: true });

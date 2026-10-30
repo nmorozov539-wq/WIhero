@@ -23,6 +23,8 @@ export function mountPanel({ settings, handlers: h }) {
     const enabled = el('input', { type: 'checkbox', id: 'wihero_enabled' });
     enabled.checked = settings.enabled;
     enabled.addEventListener('change', () => handlers.onToggle(enabled.checked));
+    const open = el('div', { class: 'menu_button wihero-open-workspace', title: 'Open the WI Hero workspace: graph and editor for a book' }, 'Open workspace');
+    open.addEventListener('click', () => handlers.onOpenWorkspace?.());
 
     summary = el('div', { id: 'wihero_summary' });
     table = el('table', { id: 'wihero_entries', class: 'wihero-table' });
@@ -37,7 +39,7 @@ export function mountPanel({ settings, handlers: h }) {
                 el('div', { class: 'inline-drawer-icon fa-solid fa-circle-chevron-down down' }),
             ),
             el('div', { class: 'inline-drawer-content' },
-                el('label', { class: 'checkbox_label', for: 'wihero_enabled' }, enabled, el('span', {}, 'Enabled')),
+                el('div', { class: 'wihero-panel-top' }, el('label', { class: 'checkbox_label', for: 'wihero_enabled' }, enabled, el('span', {}, 'Enabled')), open),
                 summary,
                 issueList,
                 labelFilter,
