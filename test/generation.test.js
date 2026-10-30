@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { isRecorded, scanEnd, gatingState, snapshotFor, turnText } from '../src/generation.js';
 import { buildModel, initialState } from '../src/engine.js';
 
-const snap = (fired, round = []) => ({ v: 1, fired, closed: {}, glued: {}, round });
+const snap = (fired, round = []) => ({ v: 1, fired, closed: {}, glued: {}, masks: {}, round });
 
 test('only generations that land in the chat are recorded', () => {
     for (const type of [undefined, 'normal', 'swipe', 'regenerate', 'continue']) assert.ok(isRecorded(type), String(type));

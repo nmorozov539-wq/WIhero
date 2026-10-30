@@ -91,6 +91,10 @@ Masks let an entry's injected content change over time without the entry being r
 - A mask can carry its own independent trigger (its own gate/glue), separate from the base entry's eligibility gate — so the entry stays eligible to fire while *which version* fires depends on separate scene-state logic.
 - Which mask is active is part of the per-message state (see 3), so it rewinds with the chat.
 - In the visual editor, a mask appears as a neighboring node that inherits the base entry's links and parameters rather than existing as a fully separate object.
+- Config: `wihero.masks: [{ name, content, gates?, gateMode? }]`. `name` follows the id rules and is unique within the entry; `content` is a non-empty string. A malformed mask is reported on its own and skipped; the entry keeps working and injects its base content.
+- **Which mask:** a mask selected in the state wins; otherwise the last listed mask whose gates have fired (all of them, or any for `gateMode: "any"`); otherwise the base content. A mask without gates is only active when selected. A selected name that isn't a well-formed mask means base content.
+- **Selection:** `/wihero-mask entry=<id> <name>` selects a mask; `/wihero-mask entry=<id>` clears the selection, so the gates decide again. The selection is written into the snapshot the current state comes from (the last reply, or the last message at story start) and saved with the chat, like Reopen. It applies to the next generation (swipes and regenerations of the next reply included) and every later snapshot carries it. Deleting that message takes it away.
+- The mask replaces the content of the scan's own copy of the entry after activation, so the book, the entry's hash and its sticky/cooldown are untouched, and the masked text doesn't drive recursion.
 
 ### 2.7 Labels (Unified Flag Targets)
 

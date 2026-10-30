@@ -88,3 +88,22 @@
     text-decoration: underline;
     opacity: 1;
 }
+
+.wihero-mask {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px;
+    border: 1px solid var(--SmartThemeBorderColor, #666);
+    border-radius: 6px;
+}
+
+.wihero-masks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wihero-entry .menu_button {
+    white-space: nowrap;
+}

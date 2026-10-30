@@ -3,7 +3,7 @@
 import { MODULE, getSettings } from './src/settings.js';
 import { mountPanel, render } from './src/panel.js';
 import { mountEditor } from './src/editor.js';
-import { buildModel, eligibility, entryKey, gluedKeys, removeIneligible, reopen, switchLosers } from './src/engine.js';
+import { activeMask, buildModel, eligibility, entryKey, gluedKeys, removeIneligible, reopen, selectMask, switchLosers } from './src/engine.js';
 import { stateBefore, writeSnapshot } from './src/chat-state.js';
 import { isRecorded, gatingState, snapshotFor, turnText } from './src/generation.js';
 import { entryHash, scanLength, stickyHeld } from './src/timers.js';
@@ -69,13 +69,20 @@ function onEntriesLoaded(lore) {
 }
 
 /**
- * After each scan loop: a switch fires one path per turn. Entries deleted from the activated Map stay out of
- * the prompt, the timed effects and WORLD_INFO_ACTIVATED (docs/TECHNICAL_NOTES.md section 4).
+ * After each scan loop: a switch fires one path per turn, and masked entries get their mask's content.
+ * Entries deleted from the activated Map stay out of the prompt, the timed effects and WORLD_INFO_ACTIVATED.
+ * The activated entries are the scan's own copies, already hashed, so a mask changes neither the book nor
+ * the timers (docs/TECHNICAL_NOTES.md section 4).
  */
 function onScanDone(args) {
     const activated = args?.activated?.entries;
     if (!settings.enabled || !model || !(activated instanceof Map)) return;
     for (const key of switchLosers(model, [...activated.keys()])) activated.delete(key);
+    const state = generation?.base ?? gatingState(ctx().chat ?? [], generation?.type);
+    for (const entry of activated.values()) {
+        const mask = activeMask(model.byKey.get(entryKey(entry)), state);
+        if (mask) entry.content = mask.content;
+    }
 }
 
 function onWorldInfoActivated(entries) {
@@ -113,7 +120,8 @@ function refresh() {
     const sticky = settings.enabled ? held(scanLength(chat) + 1) : new Map(); // the next send adds a message
     const status = node => {
         const { eligible, reason } = eligibility(node, model, state);
-        return !eligible && sticky.has(node.key) ? `sticky (${reason})` : reason;
+        const mask = activeMask(node, state);
+        return (!eligible && sticky.has(node.key) ? `sticky (${reason})` : reason) + (mask ? ` · mask: ${mask.name}` : '');
     };
     const rows = [...model.byKey.values()].map(node => ({
         id: node.id ?? node.label,
@@ -136,6 +144,35 @@ mountPanel({
         onReopen: id => editState(state => reopen(state, id)),
     },
 });
+
+/** /wihero-mask entry=<id> [name]: selects a mask from the current message on; no name clears the selection. */
+function registerCommands() {
+    const { SlashCommandParser, SlashCommand, SlashCommandNamedArgument, SlashCommandArgument, ARGUMENT_TYPE } = ctx();
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'wihero-mask',
+        helpString: 'Selects a WI Hero mask for an entry from the current message on (it rewinds with the chat). '
+            + 'Without a name, the selection is cleared and the mask follows its gates again.',
+        namedArgumentList: [SlashCommandNamedArgument.fromProps({
+            name: 'entry', description: 'WI Hero id of the entry', typeList: [ARGUMENT_TYPE.STRING], isRequired: true,
+        })],
+        unnamedArgumentList: [SlashCommandArgument.fromProps({
+            description: 'mask name', typeList: [ARGUMENT_TYPE.STRING], isRequired: false,
+        })],
+        callback: async (args, value) => {
+            const id = String(args.entry ?? '').trim();
+            const name = String(value ?? '').trim();
+            const node = model?.nodes.get(id);
+            const problem = !node ? `no entry with id "${id}" in the loaded books`
+                : name && !node.masks.some(m => m.name === name) ? `${id} has no mask "${name}"`
+                    : !ctx().chat?.length ? 'open a chat first' : null;
+            if (problem) toastr.warning(`WI Hero: ${problem}.`);
+            else await editState(state => selectMask(state, id, name));
+            return '';
+        },
+    }));
+}
+
+registerCommands();
 
 mountEditor({
     ctx,

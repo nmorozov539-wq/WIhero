@@ -107,7 +107,7 @@ try {
 
     assert.deepEqual(await status(), { road: 'open', mill: 'waiting for road', tunnel: 'waiting for mill', storm: 'open',
         lantern: 'open', bell: 'open', ferry: 'open', crossing: 'waiting for ferry',
-        fork: 'open', left: 'waiting for fork', right: 'waiting for fork' });
+        fork: 'open', left: 'waiting for fork', right: 'waiting for fork', tower: 'open' });
     ok('story start: road open, mill and tunnel waiting');
 
     // ── Turn 1: "mill" is mentioned but its gate is closed ──
@@ -116,7 +116,7 @@ try {
     assert.deepEqual((await state()).fired, { road: 1 });
     assert.deepEqual(await status(), { road: 'open', mill: 'gate open', tunnel: 'waiting for mill', storm: 'open',
         lantern: 'open', bell: 'open', ferry: 'open', crossing: 'waiting for ferry',
-        fork: 'open', left: 'waiting for fork', right: 'waiting for fork' });
+        fork: 'open', left: 'waiting for fork', right: 'waiting for fork', tower: 'open' });
     ok('turn 1: road fires, mill is held back, mill opens for next turn');
 
     // ── Turn 2: mill fires and closes road ──

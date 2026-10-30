@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildModel, initialState, readState, eligibility, removeIneligible, advance, gluedKeys, keywordMatcher, switchLosers, reopen } from '../src/engine.js';
+import { buildModel, initialState, readState, eligibility, removeIneligible, advance, gluedKeys, keywordMatcher, switchLosers, reopen, activeMask, selectMask } from '../src/engine.js';
 
 let nextUid = 0;
 const entry = (wihero, extra = {}) => ({ world: 'Book', uid: nextUid++, comment: wihero?.id ?? 'plain', content: 'text', ...(wihero !== undefined && { wihero }), ...extra });
@@ -236,11 +236,11 @@ test('an entry gated on a broken entry just waits', () => {
 });
 
 test('readState accepts its own output and rejects anything else', () => {
-    const state = { v: 1, fired: { a: 1 }, closed: { b: true }, glued: { c: { seen: [] } }, round: ['Book.1'] };
+    const state = { v: 1, fired: { a: 1 }, closed: { b: true }, glued: { c: { seen: [] } }, masks: { c: 'x' }, round: ['Book.1'] };
     assert.deepEqual(readState(structuredClone(state)), state);
     assert.equal(readState(null), null);
     assert.equal(readState({ v: 2 }), null);
-    assert.deepEqual(readState({ v: 1, fired: [], closed: null }), { v: 1, fired: {}, closed: {}, glued: {}, round: [] });
+    assert.deepEqual(readState({ v: 1, fired: [], closed: null }), { v: 1, fired: {}, closed: {}, glued: {}, masks: {}, round: [] });
 });
 
 // ── Glue ──────────────────────────────────────────────────────────────
@@ -456,4 +456,76 @@ test('reopen takes an entry out of closed without touching the state it was give
     assert.deepEqual(opened.closed, {});
     assert.equal(eligibility(entries[1], model, opened).reason, 'gate open');
     assert.deepEqual(advance(opened, [entries[1]], model).closed, { right: true }, 'taking the reopened path switches again');
+});
+
+// ── Masks ─────────────────────────────────────────────────────────────
+
+const tower = () => [
+    entry({ id: 'tower', masks: [
+        { name: 'ruined', content: 'ruins', gates: ['storm'] },
+        { name: 'lit', content: 'light' },
+        { name: 'rebuilt', content: 'new', gates: ['storm', 'spring'], gateMode: 'all' },
+    ] }),
+    entry({ id: 'storm' }),
+    entry({ id: 'spring' }),
+];
+const maskName = (entries, rounds, edit = s => s) => {
+    const { model, state } = play(entries, rounds);
+    return activeMask(model.nodes.get('tower'), edit(state))?.name ?? null;
+};
+
+test('a mask is active once its gates have fired; the last such mask wins', () => {
+    const entries = tower();
+    assert.equal(maskName(entries, []), null, 'base content at first');
+    assert.equal(maskName(entries, [['storm']]), 'ruined');
+    assert.equal(maskName(entries, [['storm'], ['spring']]), 'rebuilt');
+});
+
+test('a selected mask wins, a mask without gates needs selecting, clearing goes back to the gates', () => {
+    const entries = tower();
+    assert.equal(maskName(entries, [['storm']], s => selectMask(s, 'tower', 'lit')), 'lit');
+    assert.equal(maskName(entries, [], s => selectMask(s, 'tower', 'lit')), 'lit');
+    assert.equal(maskName(entries, [['storm']], s => selectMask(selectMask(s, 'tower', 'lit'), 'tower', '')), 'ruined');
+    assert.equal(maskName(entries, [['storm']], s => selectMask(s, 'tower', 'ghost')), null, 'an unknown selection means base content');
+});
+
+test('the selection is carried by every later snapshot and never changes the state it was given', () => {
+    const [t, storm] = tower();
+    const model = buildModel([t, storm]);
+    const selected = selectMask(initialState(), 'tower', 'lit');
+    assert.deepEqual(initialState().masks, {});
+    const later = advance(advance(selected, [storm], model), [], model);
+    assert.deepEqual(later.masks, { tower: 'lit' });
+    assert.deepEqual(readState(structuredClone(later)).masks, { tower: 'lit' });
+});
+
+test('malformed masks are reported and skipped; the entry still works', () => {
+    const t = entry({ id: 't', masks: [
+        { name: 'ok', content: 'fine', gates: ['t2'] },
+        { content: 'no name' },
+        { name: 'bad name', content: 'x' },
+        { name: 'ok', content: 'twice' },
+        { name: 'empty', content: '  ' },
+        { name: 'g', content: 'x', gates: 'storm' },
+        { name: 'm', content: 'x', gateMode: 'some' },
+        { name: 'u', content: 'x', extra: 1 },
+        { name: 'ghost', content: 'x', gates: ['nobody'] },
+        'text',
+    ] });
+    const model = buildModel([t, entry({ id: 't2' })]);
+    assert.deepEqual(messages(model), [
+        't: mask 2: has no name',
+        't: mask "bad name": name is not valid',
+        't: mask "ok": name is used twice',
+        't: mask "empty": has no content',
+        't: mask "g": gates must be a list of ids',
+        't: mask "m": gateMode must be "all" or "any"',
+        't: mask "u": has unknown field extra',
+        't: mask 10: is not an object',
+        't: mask "ghost" gates on "nobody", which no entry has',
+    ]);
+    assert.deepEqual(model.nodes.get('t').masks.map(m => m.name), ['ok']);
+    assert.ok(eligibility(t, model, initialState()).eligible);
+    assert.equal(activeMask(model.nodes.get('t'), selectMask(initialState(), 't', 'ghost')), null);
+    assert.deepEqual(messages(buildModel([entry({ id: 'x', masks: {} })])), ['x: masks must be a list']);
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY_FORM, slugify, parseIds, parseLines, configToForm, formToConfig, applyConfig, issuesFor, knownIds } from '../src/editor-model.js';
+import { EMPTY_FORM, EMPTY_MASK, slugify, parseIds, parseLines, configToForm, formToConfig, applyConfig, issuesFor, knownIds } from '../src/editor-model.js';
 
 const form = fields => ({ ...EMPTY_FORM, ...fields });
 
@@ -42,6 +42,7 @@ test('configToForm and formToConfig round-trip', () => {
         { id: 'storm', glue: true },
         { id: 'bell', glue: { closeKeywords: ['bell stops', 'a, b'], closeWhenFired: ['x'] } },
         { id: 'fork', switch: ['left', 'right'] },
+        { id: 'tower', masks: [{ name: 'ruined', content: 'Ruins.\n', gates: ['storm'] }, { name: 'lit', content: 'Light.', gates: ['a', 'b'], gateMode: 'any' }] },
     ]) {
         assert.deepEqual(formToConfig(configToForm(config)), config);
     }
@@ -76,4 +77,11 @@ test('issuesFor checks the edited config against the other entries', () => {
 test('knownIds lists the other entries ids', () => {
     const entries = [{ world: 'A', uid: 0, wihero: { id: 'b' } }, { world: 'B', uid: 0, wihero: { id: 'a' } }, { world: 'B', uid: 1 }, { world: 'B', uid: 2, wihero: { id: 'me' } }];
     assert.deepEqual(knownIds(entries, entries[3]), ['a', 'b']);
+});
+
+test('empty mask rows are dropped; a half-filled one is kept for the issues to flag', () => {
+    const masks = [{ ...EMPTY_MASK }, { ...EMPTY_MASK, name: 'lit' }, { ...EMPTY_MASK, content: '  ' }];
+    assert.deepEqual(formToConfig(form({ id: 't', masks })), { id: 't', masks: [{ name: 'lit', content: '' }] });
+    const entries = [{ world: 'B', uid: 1 }];
+    assert.deepEqual(issuesFor(entries, entries[0], formToConfig(form({ id: 't', masks }))).map(i => i.message), ['mask "lit": has no content']);
 });

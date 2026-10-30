@@ -14,6 +14,10 @@
 // A railway switch on a fork entry: when one of its paths fires, the others close for good.
 //   switch: ['left', 'right']
 // Only one path fires per turn: a tie keeps the first in switch order (switchLosers).
+//
+// Masks are alternate content for an entry, active by their own gates or when selected (state.masks):
+//   masks: [{ name: 'ruined', content: '...', gates: ['storm'], gateMode: 'all' }]
+// A malformed mask is reported and skipped; the entry itself still works with its base content.
 // Entries without `wihero` are never touched.
 
 export const FIELD = 'wihero';
@@ -55,6 +59,7 @@ export function buildModel(entries) {
             closeGates: true,
             glue: null,
             switch: [],
+            masks: [],
             broken: false,
         };
         byKey.set(node.key, node);
@@ -112,6 +117,12 @@ export function buildModel(entries) {
             }
         }
 
+        if (config.masks !== undefined) {
+            const note = message => issues.push({ key: node.key, id: node.id, label: node.label, message });
+            if (!Array.isArray(config.masks)) note('masks must be a list');
+            else node.masks = readMasks(config.masks, note);
+        }
+
         if (node.id === null) continue;
         if (nodes.has(node.id)) {
             duplicates.add(node.id);
@@ -143,6 +154,14 @@ export function buildModel(entries) {
                 issues.push({ key: node.key, id: node.id, label: node.label, message: `glue closes on "${id}", which no entry has` });
             }
         }
+    }
+
+    for (const node of byKey.values()) {
+        node.masks = node.masks.filter(mask => {
+            const unknown = mask.gates.find(gate => !nodes.has(gate));
+            if (unknown) issues.push({ key: node.key, id: node.id, label: node.label, message: `mask "${mask.name}" gates on "${unknown}", which no entry has` });
+            return !unknown;
+        });
     }
 
     const pathOwners = new Map();
@@ -196,6 +215,25 @@ function readGlue(value) {
     return glue;
 }
 
+/** The well-formed masks of a config; each malformed one is reported through `note` and left out. */
+function readMasks(list, note) {
+    const masks = [];
+    list.forEach((mask, i) => {
+        const name = typeof mask?.name === 'string' && mask.name ? mask.name : null;
+        const problem = message => note(`mask ${name ? `"${name}"` : i + 1}: ${message}`);
+        if (!mask || typeof mask !== 'object' || Array.isArray(mask)) return problem('is not an object');
+        if (!name || !ID_PATTERN.test(name)) return problem(name ? 'name is not valid' : 'has no name');
+        if (masks.some(m => m.name === name)) return problem('name is used twice');
+        if (typeof mask.content !== 'string' || !mask.content.trim()) return problem('has no content');
+        if (mask.gates !== undefined && (!Array.isArray(mask.gates) || mask.gates.some(g => typeof g !== 'string' || !g))) return problem('gates must be a list of ids');
+        if (mask.gateMode !== undefined && mask.gateMode !== 'all' && mask.gateMode !== 'any') return problem('gateMode must be "all" or "any"');
+        const unknown = Object.keys(mask).filter(k => !['name', 'content', 'gates', 'gateMode'].includes(k));
+        if (unknown.length) return problem(`has unknown field${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}`);
+        masks.push({ name, content: mask.content, gates: [...new Set(mask.gates ?? [])], gateMode: mask.gateMode ?? 'all' });
+    });
+    return masks;
+}
+
 /**
  * Keyword test like ST's: `/pattern/flags` is a regex, anything else a case-insensitive substring.
  * @returns {((text: string) => boolean) | null} null for a broken regex.
@@ -243,7 +281,7 @@ function findCycles(nodes) {
 
 /** State at the start of a chat: nothing fired, nothing closed. Entries without gates are open. */
 export function initialState() {
-    return { v: STATE_VERSION, fired: {}, closed: {}, glued: {}, round: [] };
+    return { v: STATE_VERSION, fired: {}, closed: {}, glued: {}, masks: {}, round: [] };
 }
 
 /** Accepts a stored snapshot, or returns null if it isn't one this version can read. */
@@ -255,6 +293,7 @@ export function readState(value) {
         fired: object(value.fired),
         closed: object(value.closed),
         glued: object(value.glued),
+        masks: object(value.masks),
         round: Array.isArray(value.round) ? [...value.round] : [],
     };
 }
@@ -270,11 +309,36 @@ export function eligibility(entry, model, state) {
     if (state.closed[node.id]) return { eligible: false, reason: closedReason(node, model, state) };
     if (state.glued[node.id]) return { eligible: true, reason: 'glued' };
     if (!node.gates.length) return { eligible: true, reason: 'open' };
-    const passed = node.gates.filter(g => state.fired[g] > 0);
-    const open = node.gateMode === 'any' ? passed.length > 0 : passed.length === node.gates.length;
-    if (open) return { eligible: true, reason: 'gate open' };
+    if (gatesPassed(node, state)) return { eligible: true, reason: 'gate open' };
     const waiting = node.gates.filter(g => !(state.fired[g] > 0));
     return { eligible: false, reason: `waiting for ${waiting.join(node.gateMode === 'any' ? ' or ' : ' and ')}` };
+}
+
+/** Whether the gates of an entry or a mask have fired (all of them, or any for gateMode "any"). */
+function gatesPassed({ gates, gateMode }, state) {
+    const passed = gates.filter(g => state.fired[g] > 0).length;
+    return gateMode === 'any' ? passed > 0 : passed === gates.length;
+}
+
+/**
+ * The mask an entry injects now, or null for its base content. A selected mask (state.masks) wins;
+ * otherwise the last listed mask whose gates have fired. A mask without gates is only active when selected,
+ * and a selected name that isn't a well-formed mask means base content.
+ */
+export function activeMask(node, state) {
+    if (!node || node.broken) return null;
+    const selected = state.masks?.[node.id];
+    if (selected !== undefined) return node.masks.find(m => m.name === selected) ?? null;
+    return node.masks.findLast(m => m.gates.length && gatesPassed(m, state)) ?? null;
+}
+
+/** State with a mask selected for an entry, or the selection cleared (name empty). */
+export function selectMask(state, id, name) {
+    const next = structuredClone(state);
+    next.masks ??= {};
+    if (name) next.masks[id] = name;
+    else delete next.masks[id];
+    return next;
 }
 
 /** "closed", or which path a switch took instead of this one. */
@@ -347,6 +411,7 @@ export function advance(state, activated, model, text = '') {
         fired: { ...state.fired },
         closed: { ...state.closed },
         glued: Object.fromEntries(Object.entries(state.glued ?? {}).map(([id, g]) => [id, { seen: [...g.seen] }])),
+        masks: { ...state.masks },
         round: [],
     };
     const firedNodes = [];

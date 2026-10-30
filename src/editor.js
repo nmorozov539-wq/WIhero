@@ -3,7 +3,7 @@
 // MutationObserver on the entry list adds the block to every edit area that appears.
 // See docs/TECHNICAL_NOTES.md section 9.
 import { el } from './panel.js';
-import { slugify, configToForm, formToConfig, applyConfig, issuesFor, knownIds } from './editor-model.js';
+import { EMPTY_MASK, slugify, configToForm, formToConfig, applyConfig, issuesFor, knownIds } from './editor-model.js';
 
 let deps;
 /** Uid whose block opens expanded after the editor re-renders on save. */
@@ -78,6 +78,27 @@ function suggestions(input, ids, onChange) {
     return [box, update];
 }
 
+/** One mask's fields; returns its element, a reader and a chip refresher. */
+function maskRow(mask, ids, onChange, onRemove) {
+    const name = textInput('wihero_mask_name', mask.name, 'name');
+    const gates = textInput('wihero_mask_gates', mask.gates, 'gates: ids, comma separated (none: only when selected)');
+    const gateMode = el('select', { name: 'wihero_mask_gate_mode', class: 'text_pole' },
+        el('option', { value: 'all' }, 'all of them'), el('option', { value: 'any' }, 'any of them'));
+    gateMode.value = mask.gateMode;
+    const content = el('textarea', { class: 'text_pole', name: 'wihero_mask_content', rows: '3', placeholder: 'content injected instead of the entry\'s own' });
+    content.value = mask.content;
+    const remove = el('div', { class: 'menu_button fa-solid fa-trash-can wihero-mask-remove', title: 'Remove this mask' });
+    const [chips, updateChips] = suggestions(gates, ids, onChange);
+    const row = el('div', { class: 'wihero-mask' },
+        el('div', { class: 'wihero-row' }, field('Mask', name), field('Active when', gates), field('Needs', gateMode), remove),
+        chips,
+        content);
+    remove.addEventListener('click', () => { row.remove(); onRemove(); });
+    name.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    gates.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    return { row, read: () => ({ name: name.value, content: content.value, gates: gates.value, gateMode: gateMode.value }), updateChips };
+}
+
 async function fillBlock(block, name, uid) {
     const ctx = deps.ctx();
     const data = await ctx.loadWorldInfo(name);
@@ -114,10 +135,21 @@ async function fillBlock(block, name, uid) {
     const summary = el('small', { class: 'wihero-entry-summary' });
     const status = el('small', { class: 'wihero-entry-status' });
 
+    const maskList = el('div', { class: 'wihero-masks' });
+    let masks = [];
+    const addMask = mask => {
+        const row = maskRow(mask, ids, () => update(), () => { masks = masks.filter(m => m !== row); update(); });
+        masks.push(row);
+        maskList.append(row.row);
+    };
+    form.masks.forEach(addMask);
+    const addMaskButton = el('div', { class: 'menu_button wihero-mask-add', title: 'Add alternate content for this entry' }, 'Add mask');
+    addMaskButton.addEventListener('click', () => { addMask({ ...EMPTY_MASK }); update(); });
+
     const read = () => ({
         id: id.value, gates: gates.value, gateMode: gateMode.value, closeGates: closeGates.checked, glue: glue.checked,
         closeKeywords: closeKeywords.value, closeWhenFired: closeWhenFired.value, closeWhenAllFired: closeWhenAllFired.value,
-        switch: switchPaths.value,
+        switch: switchPaths.value, masks: masks.map(m => m.read()),
     });
     const glueFields = el('div', { class: 'wihero-glue-fields' },
         field('Close when the turn contains', closeKeywords),
@@ -138,6 +170,7 @@ async function fillBlock(block, name, uid) {
         useSuggested.textContent = suggested;
         useSuggested.style.display = !id.value.trim() && suggested ? '' : 'none';
         updateGateChips(); updateFiredChips(); updateAllChips(); updateSwitchChips();
+        masks.forEach(m => m.updateChips());
         status.textContent = '';
     }
 
@@ -155,6 +188,9 @@ async function fillBlock(block, name, uid) {
         glueFields,
         field('Switch: when one of these paths fires, the others close', switchPaths),
         switchChips,
+        el('small', {}, 'Masks: content injected instead, by its own gates or /wihero-mask'),
+        maskList,
+        el('div', { class: 'wihero-row' }, addMaskButton),
         el('div', { class: 'wihero-row' }, firedChips, allChips),
         issues,
         el('small', { class: 'wihero-hint' }, "Saving changes the entry, which resets its own sticky and cooldown timers, like any edit."),

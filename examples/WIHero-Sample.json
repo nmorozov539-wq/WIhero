@@ -312,7 +312,13 @@
             "uid": 5,
             "displayIndex": 5,
             "wihero": {
-                "id": "lantern"
+                "id": "lantern",
+                "masks": [
+                    {
+                        "name": "dim",
+                        "content": "[WIH-5 The lantern burns low.]"
+                    }
+                ]
             }
         },
         "6": {
@@ -638,6 +644,70 @@
                 "id": "right",
                 "gates": [
                     "fork"
+                ]
+            }
+        },
+        "12": {
+            "key": [
+                "tower"
+            ],
+            "keysecondary": [],
+            "comment": "Tower (masks: ruined after the storm, lit when selected)",
+            "content": "[WIH-12 A tall tower.]",
+            "constant": false,
+            "vectorized": false,
+            "selective": true,
+            "selectiveLogic": 0,
+            "addMemo": true,
+            "order": 100,
+            "position": 0,
+            "disable": false,
+            "ignoreBudget": false,
+            "excludeRecursion": false,
+            "preventRecursion": false,
+            "matchPersonaDescription": false,
+            "matchCharacterDescription": false,
+            "matchCharacterPersonality": false,
+            "matchCharacterDepthPrompt": false,
+            "matchScenario": false,
+            "matchCreatorNotes": false,
+            "delayUntilRecursion": 0,
+            "probability": 100,
+            "useProbability": true,
+            "depth": 4,
+            "outletName": "",
+            "group": "",
+            "groupOverride": false,
+            "groupWeight": 100,
+            "scanDepth": null,
+            "caseSensitive": null,
+            "matchWholeWords": null,
+            "useGroupScoring": null,
+            "automationId": "",
+            "role": null,
+            "sticky": 0,
+            "cooldown": 0,
+            "delay": 0,
+            "characterFilterNames": [],
+            "characterFilterTags": [],
+            "characterFilterExclude": false,
+            "triggers": [],
+            "uid": 12,
+            "displayIndex": 12,
+            "wihero": {
+                "id": "tower",
+                "masks": [
+                    {
+                        "name": "ruined",
+                        "content": "[WIH-12 The tower lies in ruins.]",
+                        "gates": [
+                            "storm"
+                        ]
+                    },
+                    {
+                        "name": "lit",
+                        "content": "[WIH-12 Light burns in the tower.]"
+                    }
                 ]
             }
         }

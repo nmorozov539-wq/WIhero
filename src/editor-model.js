@@ -13,7 +13,11 @@ export const EMPTY_FORM = Object.freeze({
     closeWhenFired: '',
     closeWhenAllFired: '',
     switch: '',
+    masks: [],
 });
+
+/** A mask row of the form. */
+export const EMPTY_MASK = Object.freeze({ name: '', content: '', gates: '', gateMode: 'all' });
 
 /** Suggested id for an entry: its title or first key as a slug. */
 export function slugify(text) {
@@ -42,6 +46,12 @@ export function configToForm(config) {
         closeWhenFired: list(glue?.closeWhenFired),
         closeWhenAllFired: list(glue?.closeWhenAllFired),
         switch: list(config.switch),
+        masks: Array.isArray(config.masks) ? config.masks.map(m => ({
+            name: typeof m?.name === 'string' ? m.name : '',
+            content: typeof m?.content === 'string' ? m.content : '',
+            gates: list(m?.gates),
+            gateMode: m?.gateMode === 'any' ? 'any' : 'all',
+        })) : [],
     };
 }
 
@@ -69,6 +79,15 @@ export function formToConfig(form) {
     }
     const paths = parseIds(form.switch);
     if (paths.length) config.switch = paths;
+    // A row counts once it has a name, content or gates. Content is kept as typed.
+    const masks = (form.masks ?? []).filter(m => m.name.trim() || m.content.trim() || m.gates.trim()).map(m => {
+        const mask = { name: m.name.trim(), content: m.content };
+        const gates = parseIds(m.gates);
+        if (gates.length) mask.gates = gates;
+        if (m.gateMode === 'any') mask.gateMode = 'any';
+        return mask;
+    });
+    if (masks.length) config.masks = masks;
     return Object.keys(config).length ? config : null;
 }
 

@@ -45,7 +45,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** taking one path keeps the other out even when it's mentioned, a tie injects one path, swiping back restores both, and Reopen brings a closed entry back.
 
-## M7 — Masks
+## M7 — Masks ✓
 - `wihero.masks: [{ name, content, gates?, gateMode? }]`: alternate content, chosen by its own gates or by `/wihero-mask`.
 - Applied to the activated copies in `WORLDINFO_SCAN_DONE`; the book and the entry's hash and timers are untouched.
 - The selection is part of the per-message state, so it rewinds with the chat.
