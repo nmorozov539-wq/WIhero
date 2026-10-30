@@ -199,14 +199,14 @@ export function removeIneligible(lore, model, state) {
 /**
  * State after one chat generation. Takes effect from the next generation on.
  * @param {object} state State before the generation.
- * @param {object[]} activated Entries ST activated (WORLD_INFO_ACTIVATED).
+ * @param {(object|string)[]} activated Entries ST activated (WORLD_INFO_ACTIVATED), or their world.uid keys.
  * @returns {object} New state; `round` holds the world.uid keys of everything that fired.
  */
 export function advance(state, activated, model) {
     const next = { v: STATE_VERSION, fired: { ...state.fired }, closed: { ...state.closed }, round: [] };
     const firedNodes = [];
-    for (const entry of activated ?? []) {
-        const key = entryKey(entry);
+    for (const item of activated ?? []) {
+        const key = typeof item === 'string' ? item : entryKey(item);
         if (next.round.includes(key)) continue;
         next.round.push(key);
         const node = model.byKey.get(key);

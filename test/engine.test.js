@@ -117,6 +117,16 @@ test('fire counts accumulate and round lists everything that fired', () => {
     assert.deepEqual(state.round, [`Book.${a.uid}`]);
 });
 
+test('advance takes world.uid keys as well as entries', () => {
+    const a = entry({ id: 'a' });
+    const b = entry({ id: 'b', gates: ['a'] });
+    const model = buildModel([a, b]);
+    const s1 = advance(initialState(), [`Book.${a.uid}`, 'Other.7'], model);
+    assert.deepEqual(s1.fired, { a: 1 });
+    assert.deepEqual(s1.round, [`Book.${a.uid}`, 'Other.7']);
+    assert.deepEqual(advance(s1, [`Book.${b.uid}`], model).closed, { a: true });
+});
+
 test('advance does not change the state it was given', () => {
     const a = entry({ id: 'a' });
     const b = entry({ id: 'b', gates: ['a'] });

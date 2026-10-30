@@ -2,4 +2,29 @@
     margin: 4px 0 0;
     padding-left: 1.2em;
     font-size: 0.9em;
+    color: var(--warning, #e8a33d);
+}
+
+.wihero-table {
+    width: 100%;
+    margin-top: 6px;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.wihero-table th,
+.wihero-table td {
+    text-align: left;
+    padding: 2px 4px;
+    vertical-align: top;
+}
+
+.wihero-last-round td:first-child {
+    font-weight: bold;
+}
+
+.wihero-status-waiting,
+.wihero-status-closed,
+.wihero-status-config {
+    opacity: 0.6;
 }

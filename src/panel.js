@@ -1,7 +1,8 @@
-// Settings panel in the Extensions drawer.
+// Settings panel in the Extensions drawer: the gated entries and their status for the next generation.
 
 let handlers = {};
 let summary;
+let table;
 let issueList;
 
 function el(tag, attrs = {}, ...children) {
@@ -17,7 +18,8 @@ export function mountPanel({ settings, handlers: h }) {
     enabled.checked = settings.enabled;
     enabled.addEventListener('change', () => handlers.onToggle(enabled.checked));
 
-    summary = el('div', { id: 'wihero_summary' }, 'No lorebooks loaded yet.');
+    summary = el('div', { id: 'wihero_summary' });
+    table = el('table', { id: 'wihero_entries', class: 'wihero-table' });
     issueList = el('ul', { id: 'wihero_issues', class: 'wihero-issues' });
 
     const root = el('div', { class: 'wihero-settings' },
@@ -30,22 +32,41 @@ export function mountPanel({ settings, handlers: h }) {
                 el('label', { class: 'checkbox_label', for: 'wihero_enabled' }, enabled, el('span', {}, 'Enabled')),
                 summary,
                 issueList,
+                table,
             ),
         ),
     );
     document.getElementById('extensions_settings2')?.append(root);
+    render(null);
 }
 
-/** @param {{ gated: number, issues: object[] } | null} info */
-export function renderSummary(info) {
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * @param {{ rows: object[], issues: object[], enabled: boolean, from: number, roundSize: number } | null} view
+ */
+export function render(view) {
     if (!summary) return;
-    if (!info) {
-        summary.textContent = 'No lorebooks loaded yet.';
+    if (!view) {
+        summary.textContent = 'No lorebooks loaded yet. Open a chat to load them.';
+        table.replaceChildren();
         issueList.replaceChildren();
         return;
     }
-    const problems = info.issues.length ? ` · ${info.issues.length} problem${info.issues.length === 1 ? '' : 's'}` : '';
-    summary.textContent = `${info.gated} gated entr${info.gated === 1 ? 'y' : 'ies'}${problems}`;
-    issueList.replaceChildren(...info.issues.map(i =>
+    const parts = [plural(view.rows.length, 'gated entry', 'gated entries')];
+    if (view.issues.length) parts.push(plural(view.issues.length, 'problem', 'problems'));
+    parts.push(view.from < 0 ? 'story start' : `state from message #${view.from}, ${plural(view.roundSize, 'entry', 'entries')} fired there`);
+    if (!view.enabled) parts.push('disabled: ST scans every entry');
+    summary.textContent = parts.join(' · ');
+
+    issueList.replaceChildren(...view.issues.map(i =>
         el('li', { title: i.key }, el('b', {}, i.id ?? i.label), ` ${i.message}`)));
+
+    table.replaceChildren(
+        el('tr', {}, el('th', {}, 'Entry'), el('th', {}, 'Next turn'), el('th', { title: 'Times fired in this chat' }, 'Fired')),
+        ...view.rows.map(r => el('tr', { class: r.lastRound ? 'wihero-last-round' : '', title: r.key },
+            el('td', {}, r.id),
+            el('td', { class: `wihero-status-${r.status.split(' ')[0]}` }, r.status),
+            el('td', {}, String(r.fired)))),
+    );
 }

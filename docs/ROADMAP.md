@@ -2,20 +2,20 @@
 
 Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md).
 
-## M1 — Skeleton
+## M1 — Skeleton ✓
 - `manifest.json`, empty `index.js`, settings panel.
 - Installed into ST via symlink so edits show on reload.
 
 **Done when:** the extension loads in ST 1.19.0 and its settings panel appears.
 
-## M2 — Gate engine (no ST)
+## M2 — Gate engine (no ST) ✓
 - Pure function: `(prevState, firedEntries, newestMessage, config) → nextState`.
 - Stable ids, duplicate detection, AND/OR gates, cycle detection, chain auto-close, closed-is-final.
 - Unit tests with `node:test`.
 
 **Done when:** tests cover every gate and chain rule in DESIGN 2.0–2.2.
 
-## M3 — ST wiring
+## M3 — ST wiring (built, needs a live check)
 - `WORLDINFO_ENTRIES_LOADED`: remove ineligible entries (remove only, never edit).
 - `GENERATION_STARTED` filter: record on normal / swipe / regenerate / continue; skip quiet, impersonate, dry runs.
 - `WORLD_INFO_ACTIVATED` → pending list → snapshot on `MESSAGE_RECEIVED` in `message.extra.wihero` (and the current `swipe_info` entry).
