@@ -2,7 +2,7 @@
 
 A SillyTavern extension for story-gated World Info: entries that only become eligible once the story reaches a point, and retire once it moves past.
 
-Status: M1–M4 (gates, chains and glue work; the entry editor is next). Targets SillyTavern 1.19.0.
+Status: M1–M5 (gates, chains, glue and the entry editor). Targets SillyTavern 1.19.0.
 
 - [Design](docs/DESIGN.md)
 - [Roadmap](docs/ROADMAP.md)
@@ -10,7 +10,17 @@ Status: M1–M4 (gates, chains and glue work; the entry editor is next). Targets
 
 ## Gating an entry
 
-Until the entry editor exists (M5), gates are written by hand as a `wihero` field on the entry in the lorebook JSON (`data/default-user/worlds/<book>.json`):
+Open an entry in the World Info editor. At the bottom of its edit area there's a **WI Hero** section:
+
+![The WI Hero section of an entry, flagging a gate on an id no entry has](docs/img/editor-problem.png)
+
+- **Id**: suggested from the entry's title (click the suggestion to use it).
+- **Gates**: the ids this entry waits for. Click an id below the field to add it. **Needs** picks all of them or any.
+- **Close its gates when this fires** and **Glue**, with glue's close conditions.
+- Problems (red) and warnings show as you type. **Save** writes the config to the book, and **Remove** takes it off so the entry is vanilla again.
+- Saving changes the entry, so its own sticky and cooldown timers reset, as with any edit.
+
+The editor stores a `wihero` field on the entry in the lorebook JSON (`data/default-user/worlds/<book>.json`), which you can also write by hand:
 
 ```json
 "wihero": { "id": "mill", "gates": ["road"], "gateMode": "all", "closeGates": true }

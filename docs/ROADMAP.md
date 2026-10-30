@@ -31,7 +31,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** a glued entry injects every turn until its close condition, and vanilla sticky/cooldown still behave.
 
-## M5 — UI
+## M5 — UI ✓
 - Per-entry gate/glue editor in the WI entry panel.
 - "Fired this round" panel with per-entry fire counts.
 
