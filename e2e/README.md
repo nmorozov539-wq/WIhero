@@ -1,6 +1,6 @@
 # End-to-end tests
 
-`gating.mjs` plays a chat in a real SillyTavern 1.19.0 with a mock model and checks what reaches the prompt, the panel and the saved snapshots: a chain advancing, a closed entry staying out, swipe, delete, a quiet generation, a reload and the off switch.
+`gating.mjs` plays a chat in a real SillyTavern 1.19.0 with a mock model and checks what reaches the prompt, the panel and the saved snapshots: a chain advancing, a closed entry staying out, swipe, delete, a quiet generation, a reload, the off switch, glue, and ST's own sticky and cooldown alongside gating and glue. The timed-effect steps also print a per-turn table of what was injected.
 
 Run it against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebook.
 

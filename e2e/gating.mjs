@@ -26,7 +26,7 @@ function lastPrompt() {
     return JSON.parse(fs.readFileSync(LOG + file, 'utf8')).body.messages.map(m => m.content).join('\n');
 }
 /** Which sample entries reached the last prompt. */
-const injected = () => ['WIH-0', 'WIH-1', 'WIH-2', 'WIH-3', 'WIH-4'].filter(tag => lastPrompt().includes(tag));
+const injected = () => ['WIH-0', 'WIH-1', 'WIH-2', 'WIH-3', 'WIH-4', 'WIH-5', 'WIH-6', 'WIH-7', 'WIH-8'].filter(tag => lastPrompt().includes(tag));
 const state = () => ev(() => wihero.state);
 const status = () => ev(() => Object.fromEntries([...document.querySelectorAll('#wihero_entries tr')].slice(1)
     .map(tr => [tr.children[0].textContent, tr.children[1].textContent])));
@@ -48,6 +48,24 @@ async function swipeRight() {
     const before = promptCount();
     await page.locator('#chat .last_mes .swipe_right').dispatchEvent('click');
     await waitGenerated(before);
+}
+
+/** Per-turn observations of the timed-effect scenarios, printed at the end. */
+const observed = [];
+async function observe(scenario, text, tags, swipe = false) {
+    if (swipe) await swipeRight(); else await send(text);
+    const s = await state();
+    const row = { scenario, turn: swipe ? `(swipe) ${text}` : text, injected: injected().filter(t => tags.includes(t)),
+        glued: Object.keys(s.glued), closed: Object.keys(s.closed).filter(id => ['lantern', 'bell', 'ferry', 'crossing'].includes(id)) };
+    observed.push(row);
+    return row;
+}
+function printObserved() {
+    if (!observed.length) return;
+    console.log('\nobserved turns:');
+    for (const r of observed) {
+        console.log(`  ${r.scenario.padEnd(8)} | ${r.turn.padEnd(34)} | injected: ${r.injected.join(',') || '-'} | glued: ${r.glued.join(',') || '-'} | closed: ${r.closed.join(',') || '-'}`);
+    }
 }
 
 async function connect() {
@@ -86,14 +104,16 @@ try {
     }
     ok('setup');
 
-    assert.deepEqual(await status(), { road: 'open', mill: 'waiting for road', tunnel: 'waiting for mill', storm: 'open' });
+    assert.deepEqual(await status(), { road: 'open', mill: 'waiting for road', tunnel: 'waiting for mill', storm: 'open',
+        lantern: 'open', bell: 'open', ferry: 'open', crossing: 'waiting for ferry' });
     ok('story start: road open, mill and tunnel waiting');
 
     // ── Turn 1: "mill" is mentioned but its gate is closed ──
     await send('We stand on the road out of the village, talking about the mill.');
     assert.deepEqual(injected(), ['WIH-0', 'WIH-1']);
     assert.deepEqual((await state()).fired, { road: 1 });
-    assert.deepEqual(await status(), { road: 'open', mill: 'gate open', tunnel: 'waiting for mill', storm: 'open' });
+    assert.deepEqual(await status(), { road: 'open', mill: 'gate open', tunnel: 'waiting for mill', storm: 'open',
+        lantern: 'open', bell: 'open', ferry: 'open', crossing: 'waiting for ferry' });
     ok('turn 1: road fires, mill is held back, mill opens for next turn');
 
     // ── Turn 2: mill fires and closes road ──
@@ -185,13 +205,58 @@ try {
     assert.ok(!injected().includes('WIH-1'), 'closed road stays out');
     ok('glue: closed storm stays out even when mentioned');
 
+    // ── Sticky survives gating: removal on ENTRIES_LOADED and getSortedEntries() keep ST's timers ──
+    let r = await observe('lantern', 'I light the lantern.', ['WIH-5']);
+    assert.deepEqual(r.injected, ['WIH-5']);
+    const lanternAfter = [];
+    for (const text of ['We walk in silence.', 'The path bends.', 'We keep going.', 'Nothing much happens.']) {
+        lanternAfter.push((await observe('lantern', text, ['WIH-5'])).injected.length > 0);
+    }
+    // Sticky counts messages and a turn adds two (user + reply): sticky 5 holds for two more turns, as in vanilla ST.
+    assert.deepEqual(lanternAfter, [true, true, false, false]);
+    ok('sticky: lantern held two turns past its keyword, then gone, as without WI Hero');
+
+    // ── Cooldown vs glue: a glued entry on cooldown ──
+    r = await observe('bell', 'The bell rings.', ['WIH-6']);
+    assert.deepEqual(r.injected, ['WIH-6']);
+    assert.ok(r.glued.includes('bell'), 'bell glued');
+    for (const text of ['We listen.', 'The air is still.', 'Someone coughs.', 'We look around.']) {
+        await observe('bell', text, ['WIH-6']);
+    }
+    r = await observe('bell', 'The bell stops.', ['WIH-6']);
+    assert.ok(r.closed.includes('bell') && !r.glued.includes('bell'), 'bell closed by its keyword');
+    r = await observe('bell', 'Was that the bell?', ['WIH-6']);
+    assert.deepEqual(r.injected, [], 'closed bell stays out');
+    ok('cooldown: bell glued, then closed by "bell stops" (per-turn presence recorded below)');
+
+    // ── Sticky vs closing: the ferry is sticky, then the crossing closes it ──
+    r = await observe('ferry', 'The ferry arrives.', ['WIH-7', 'WIH-8']);
+    assert.deepEqual(r.injected, ['WIH-7']);
+    r = await observe('ferry', 'We start the crossing.', ['WIH-7', 'WIH-8']);
+    assert.ok(r.injected.includes('WIH-8'), 'crossing fires');
+    assert.ok(r.closed.includes('ferry'), 'ferry closes after the crossing');
+    for (const text of ['The water is calm.', 'Gulls overhead.', 'We reach the far bank.']) {
+        await observe('ferry', text, ['WIH-7', 'WIH-8']);
+    }
+    ok('sticky vs closing: crossing closes the ferry (per-turn presence recorded below)');
+
+    // ── Swipe on a sticky turn ──
+    await observe('swipe', 'I light the lantern again.', ['WIH-5']);
+    const plain = await observe('swipe', 'We walk on.', ['WIH-5']);
+    const swiped = await observe('swipe', 'We walk on.', ['WIH-5'], true);
+    await observe('swipe', 'The path bends again.', ['WIH-5']);
+    assert.deepEqual(swiped.injected, plain.injected, 'swipe sees the same sticky lantern as the reply it replaces');
+    ok('swipe on a sticky turn: lantern the same as before the swipe');
+
     assert.deepEqual(errors.filter(e => /wihero|WI Hero/i.test(e)), []);
     ok('no WI Hero errors in the console');
+    printObserved();
     console.log(`\n${step} passed`);
 } catch (error) {
     console.log(`not ok ${step + 1} - ${error.message}`);
     if (fs.readdirSync(LOG).length) console.log('last prompt:\n' + lastPrompt().slice(0, 3000));
     console.log('state:', JSON.stringify(await state().catch(() => null)));
+    printObserved();
     process.exitCode = 1;
 } finally {
     console.log('console errors:', errors.length ? `\n${errors.join('\n')}` : 'none');
