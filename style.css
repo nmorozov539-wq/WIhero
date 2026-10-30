@@ -679,3 +679,41 @@
 .wihero-card.wihero-near {
     opacity: 1;
 }
+
+.wihero-logic,
+.wihero-ws-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.wihero-ws-panel .wihero-field {
+    min-width: 0;
+}
+
+.wihero-ws-panel textarea {
+    resize: vertical;
+}
+
+.wihero-ws-paneltabs {
+    margin: 6px 0 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--ws-line);
+}
+
+.wihero-ws-more summary {
+    cursor: pointer;
+    margin: 4px 0;
+}
+
+.wihero-ws-more {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.wihero-ws-mention {
+    padding: 6px;
+    border: 1px solid var(--ws-line);
+    border-radius: 6px;
+}

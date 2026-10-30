@@ -112,6 +112,13 @@ How the folder filter hooks in:
 - `src/graph-view.js` draws: one world `<div>` moved by a single CSS `transform` (pan and zoom), one `<svg>` for every link, plain `<div>` cards.
 - Statuses come from `eligibility()` with the state the scrubber points at (`stateBefore(chat, i + 1)`), read only. ST refreshes often during a generation, so the workspace batches refreshes (150 ms).
 
+### 11a. Editing from the workspace
+
+- Every save takes the same path as the entry editor block and bulk actions: `loadWorldInfo` copy → edit → `saveWorldInfo(name, data, true)` → `reloadWorldInfoEditor`, then `getSortedEntries()` for the panel and a reload of the workspace.
+- ST fields go through `applyEntryChanges` (`src/entry-model.js`), which also updates `originalData` with ST's own exported `originalWIDataKeyMap` (world-info.js 2687), so card-imported books stay in sync; `disable` maps to the inverted `enabled`, and `position` also sets the card's `before_char`/`after_char` like ST (3434).
+- The Story logic tab is the same form as the block (`logicForm` in `src/editor.js`).
+- The panel is rebuilt only when the entry, the tab or the book changes, so ST's frequent refreshes don't wipe what's being typed.
+
 ## Design changes this implies
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.

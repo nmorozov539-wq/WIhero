@@ -2,7 +2,7 @@
 // Setup: as gating.mjs (e2e/README.md), with a fresh copy of the sample book. Env: ST_URL, MOCK_PORT, CHROMIUM, ST_WORLDS.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { page, ok, ev, wait, send, start, run, openBook, LOG } from './lib.mjs';
+import { page, ok, ev, wait, send, start, run, openBook, book, LOG } from './lib.mjs';
 
 const SHOTS = new URL('../docs/img/', import.meta.url).pathname;
 const B = 'WIHero-Sample';
@@ -41,8 +41,10 @@ await run(async () => {
     assert.ok((await page.locator('.wihero-ws-preview').innerText()).includes('A storm batters the valley'));
     await page.mouse.move(5, 5);
     await card(1).click();
-    const panel = await page.locator('.wihero-ws-panel').innerText();
-    assert.ok(panel.includes('Mill: arrival') && panel.includes('road → gate') && panel.includes('gate → tunnel'), panel);
+    await page.locator('.wihero-ws-paneltabs [data-tab="links"]').click();
+    const summary = await page.locator('.wihero-ws-panel').innerText();
+    assert.ok(summary.includes('Mill: arrival') && summary.includes('road → gate') && summary.includes('gate → tunnel'), summary);
+    await page.locator('.wihero-ws-paneltabs [data-tab="entry"]').click();
     ok('hover preview shows the content; selecting mill shows its links in the right panel');
 
     await page.locator('input[name="wihero_local"]').check();
@@ -81,4 +83,38 @@ await run(async () => {
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('.wihero-ws').count(), 0, 'Escape closes it');
     ok("ST's World Info editor opens the workspace on its book; Escape closes it");
+
+    // ── The entry editor in the right panel ──
+    await openFromPanel();
+    const panel = page.locator('.wihero-ws-panel');
+    const tab = name => panel.locator(`.wihero-ws-paneltabs [data-tab="${name}"]`).click();
+    const saved = async check => { for (let i = 0; i < 50 && !check(book().entries); i++) await wait(100); assert.ok(check(book().entries), 'saved to disk'); };
+    await card(1).click();
+    await panel.locator('textarea[name="wihero_entry_content"]').fill('[WIH-2 The mill is abandoned; its wheel turns again.]');
+    await panel.locator('input[name="wihero_entry_key"]').fill('mill, millwheel');
+    await panel.locator('.wihero-ws-save').click();
+    await saved(e => e[1].content.includes('turns again') && e[1].key.includes('millwheel'));
+    assert.deepEqual(book().entries[1].wihero, { id: 'mill', gates: ['road'] }, 'story logic untouched');
+    ok('entry tab: content and keywords saved to the book on disk');
+
+    await tab('timers');
+    await panel.locator('input[name="wihero_entry_sticky"]').fill('3');
+    await panel.locator('.wihero-ws-save').click();
+    await saved(e => e[1].sticky === 3);
+    await tab('logic');
+    await panel.locator('input[name="wihero_glue"]').check();
+    await panel.locator('.wihero-save').click();
+    await saved(e => e[1].wihero?.glue === true);
+    assert.match(await page.locator('.wihero-ws-saved').innerText(), /All changes saved/);
+    ok('timers and story logic tabs save sticky and glue');
+
+    await card(0).click();
+    await tab('links');
+    const mention = panel.locator('.wihero-ws-mention', { hasText: 'fork' });
+    assert.ok((await mention.innerText()).includes('mentions "road"'));
+    await mention.locator('.wihero-ws-gate-on').click();
+    await saved(e => e[9].wihero?.gates?.includes('road'));
+    assert.deepEqual(book().entries[9].wihero, { id: 'fork', switch: ['left', 'right'], gates: ['road'] });
+    await page.locator(`.wihero-ws .wihero-link[data-type="gate"][data-from="${B}.0"][data-to="${B}.9"]`).waitFor({ state: 'attached', timeout: 5000 });
+    ok('links tab: "fork" mentions road; one click gates fork on road, and the graph shows the new link');
 });

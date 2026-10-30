@@ -9,6 +9,10 @@ import { layout } from './layout.js';
 import { createGraphView, LINK_NAMES } from './graph-view.js';
 import { shortStatus, statusClass } from './status.js';
 import { folderList } from './bulk.js';
+import { ENTRY_FIELDS, TIMER_FIELDS, fieldText, formChanges, applyEntryChanges, unlinkedMentions, gateOn } from './entry-model.js';
+import { applyConfig } from './editor-model.js';
+import { logicForm } from './editor.js';
+import { originalWIDataKeyMap } from './st.js';
 
 let deps;
 let root = null;
@@ -17,13 +21,14 @@ const ws = {
     book: '', data: null, entries: [], model: null, graph: null, shown: null, placed: null,
     selected: null, showState: true, scrub: null, folded: new Set(), local: { on: false, depth: 1 },
     tabs: [{ key: 'graph', title: 'Graph' }], tab: 'graph', section: 'files', search: '',
+    panelTab: 'entry', version: 0, panelFor: '',
 };
 let ui = {};
 let view = null;
 
 /**
  * @param {{ ctx: () => object, loadedEntries: () => object[], settings: object, save: () => void,
- *   openInST: (book: string, uid: number) => void, defaultBook: () => string | undefined }} d
+ *   openInST: (book: string, uid: number) => void, defaultBook: () => string | undefined, onSaved: () => void }} d
  */
 export function mountWorkspace(d) {
     deps = d;
@@ -134,10 +139,11 @@ async function load({ fit = false } = {}) {
     const others = deps.loadedEntries().filter(e => e.world !== ws.book);
     ws.model = buildModel([...others, ...ws.entries]);
     ws.graph = buildGraph(ws.entries, ws.model, ws.book);
+    ws.version++;
     if (ws.selected && !ws.graph.nodes.has(ws.selected) && !ws.entries.some(e => entryKey(e) === ws.selected)) ws.selected = null;
     ws.tabs = ws.tabs.filter(t => t.key === 'graph' || ws.entries.some(e => entryKey(e) === t.key));
     if (!ws.tabs.some(t => t.key === ws.tab)) ws.tab = 'graph';
-    draw({ fit });
+    draw({ fit, keepView: !fit });
 }
 
 /** The chat state the cards show: the latest, or the message the scrubber is on. */
@@ -402,7 +408,7 @@ function history(id) {
     return lines;
 }
 
-function summary(key, state, { wide = false } = {}) {
+function summary(key, state, { wide = false, head = false } = {}) {
     const entry = entryOf(key);
     const node = ws.graph.nodes.get(key);
     if (!entry) {
@@ -419,12 +425,21 @@ function summary(key, state, { wide = false } = {}) {
         if (starred) list.delete(key); else list.add(key);
         deps.settings.bookmarks = { ...deps.settings.bookmarks, [ws.book]: [...list] };
         deps.save();
+        ws.panelFor = '';
         draw({ keepView: true });
     });
     const openST = el('button', { type: 'button', class: 'wihero-ws-button' }, "Open in ST's entry editor");
     openST.addEventListener('click', () => { closeWorkspace(); deps.openInST(ws.book, entry.uid); });
     const list = (title, items) => items.length ? [heading(title), ...items.map(t => el('span', { class: 'wihero-ws-line' }, t))] : [];
     const content = entry.content ?? '';
+    if (head) {
+        return [
+            el('div', { class: 'wihero-ws-head' }, el('b', { class: 'wihero-ws-title' }, entry.comment || m?.id || `uid ${entry.uid}`),
+                el('span', { class: `wihero-badge ${statusClass(status)}` }, shortStatus(status) ?? 'not gated')),
+            el('small', {}, `${m?.id ? `id ${m.id} · ` : ''}uid ${entry.uid}${entry.wihero?.folder ? ` · ${entry.wihero.folder}` : ''} · ${status}`),
+            el('div', { class: 'wihero-ws-row' }, star, openST),
+        ];
+    }
     return [
         el('div', { class: 'wihero-ws-head' }, el('b', { class: 'wihero-ws-title' }, entry.comment || m?.id || `uid ${entry.uid}`),
             el('span', { class: `wihero-badge ${statusClass(status)}` }, shortStatus(status) ?? 'not gated')),
@@ -436,8 +451,113 @@ function summary(key, state, { wide = false } = {}) {
     ];
 }
 
-function drawPanel(state) {
-    ui.panel.replaceChildren(...summary(ws.selected, state));
+/** The right panel: the selected entry's editor. Rebuilt only when the entry, the tab or the book changes, so typing survives refreshes. */
+function drawPanel(state, { force = false } = {}) {
+    const id = `${ws.selected}|${ws.panelTab}|${ws.version}`;
+    if (!force && id === ws.panelFor) return;
+    ws.panelFor = id;
+    const entry = entryOf(ws.selected);
+    if (!entry) return ui.panel.replaceChildren(...summary(ws.selected, state));
+    const tabs = [['entry', 'Entry'], ['logic', 'Story logic'], ['timers', 'Timers'], ['links', 'Links']].map(([key, label]) => {
+        const b = el('button', { type: 'button', role: 'tab', class: `wihero-ws-tab${ws.panelTab === key ? ' wihero-ws-tab-on' : ''}`, 'data-tab': key, 'aria-selected': String(ws.panelTab === key) }, label);
+        b.addEventListener('click', () => { ws.panelTab = key; drawPanel(state); });
+        return b;
+    });
+    const body = { entry: entryTab, logic: logicTab, timers: timersTab, links: linksTab }[ws.panelTab](entry, state);
+    ui.panel.replaceChildren(...summary(ws.selected, state, { head: true }), el('div', { class: 'wihero-ws-tabs wihero-ws-paneltabs', role: 'tablist' }, ...tabs), ...body);
+}
+
+/** Saves a change to the book through ST, as the entry editor block does, then reloads the workspace. */
+async function saveBook(edit, status) {
+    const ctx = deps.ctx();
+    ui.saved.textContent = 'Saving…';
+    const data = await ctx.loadWorldInfo(ws.book);
+    if (!data) return;
+    edit(data);
+    await ctx.saveWorldInfo(ws.book, data, true);
+    ctx.reloadWorldInfoEditor(ws.book);
+    ui.saved.textContent = 'All changes saved';
+    if (status) status.textContent = 'Saved';
+    deps.onSaved?.();
+    await load();
+}
+
+const hint = () => el('small', { class: 'wihero-hint' }, 'Saving changes the entry, which resets its own sticky and cooldown timers, like any edit.');
+
+/** A form for some ST fields of the entry, with Save. */
+function fieldsForm(entry, specs, { more = [] } = {}) {
+    const inputs = new Map();
+    const control = spec => {
+        const value = fieldText(spec, entry[spec.field]);
+        let input;
+        if (spec.type === 'textarea') input = el('textarea', { class: 'text_pole', rows: '8' });
+        else if (spec.type === 'bool') input = el('input', { type: 'checkbox' });
+        else if (spec.type === 'select' || spec.type === 'tristate') input = el('select', { class: 'text_pole' }, ...spec.options.map(([v, l]) => el('option', { value: String(v) }, l)));
+        else input = el('input', { type: spec.type === 'int' ? 'number' : 'text', class: 'text_pole' });
+        input.name = `wihero_entry_${spec.field}`;
+        if (spec.type === 'bool') input.checked = value; else input.value = value;
+        inputs.set(spec.field, input);
+        return spec.type === 'bool'
+            ? el('label', { class: 'checkbox_label' }, input, el('span', {}, spec.label))
+            : el('label', { class: 'wihero-field' }, el('small', {}, spec.label), input);
+    };
+    const shown = specs.map(control);
+    const extra = more.length ? [el('details', { class: 'wihero-ws-more' }, el('summary', {}, 'More'), ...more.map(control))] : [];
+    const status = el('small', { class: 'wihero-entry-status' });
+    const save = el('button', { type: 'button', class: 'wihero-ws-button wihero-ws-save' }, 'Save');
+    save.addEventListener('click', () => {
+        const read = f => { const i = inputs.get(f); return i.type === 'checkbox' ? i.checked : i.value; };
+        const { changes, errors } = formChanges(entry, [...specs, ...more], read);
+        if (errors.length) return void (status.textContent = errors.join('; '));
+        if (!Object.keys(changes).length) return void (status.textContent = 'Nothing changed');
+        saveBook(data => applyEntryChanges(data, entry.uid, changes, originalWIDataKeyMap), status);
+    });
+    return [el('div', { class: 'wihero-ws-form' }, ...shown), ...extra, hint(), el('div', { class: 'wihero-ws-row' }, save, status)];
+}
+
+function entryTab(entry) {
+    return fieldsForm(entry, ENTRY_FIELDS.filter(s => !s.more), { more: ENTRY_FIELDS.filter(s => s.more) });
+}
+
+function timersTab(entry) {
+    return [el('small', {}, "ST's own timers, counted in messages (a turn is two). WI Hero never changes them."), ...fieldsForm(entry, TIMER_FIELDS)];
+}
+
+function logicTab(entry) {
+    const { content } = logicForm(ws.book, entry.uid, ws.data, {
+        title: () => entry.comment ?? '',
+        onSave: (config, status) => saveBook(data => applyConfig(data.entries[entry.uid], config), status),
+    });
+    return [content];
+}
+
+function linksTab(entry, state) {
+    const key = entryKey(entry);
+    const { out, into } = linkLines(key);
+    const id = ws.model.byKey.get(key)?.id;
+    const list = (title, items, empty) => [heading(title), ...(items.length ? items.map(t => el('span', { class: 'wihero-ws-line' }, t)) : [el('small', {}, empty)])];
+    const ignored = new Set(deps.settings.ignoredMentions?.[ws.book]?.[key] ?? []);
+    const mentions = unlinkedMentions(ws.entries, ws.graph, entry, ignored).map(({ entry: other, keyword }) => {
+        const okey = entryKey(other);
+        const name = other.wihero?.id ?? (other.comment || `uid ${other.uid}`);
+        const gate = el('button', { type: 'button', class: 'wihero-ws-button wihero-ws-gate-on' }, `Gate ${name} on ${id ?? (entry.comment || 'this')}`);
+        gate.addEventListener('click', () => saveBook(data => gateOn(data, other.uid, entry.uid, new Set(ws.model.nodes.keys()))));
+        const ignore = el('button', { type: 'button', class: 'wihero-ws-button' }, 'Ignore');
+        ignore.addEventListener('click', () => {
+            const all = deps.settings.ignoredMentions ??= {};
+            const book = all[ws.book] ??= {};
+            book[key] = [...new Set([...(book[key] ?? []), okey])];
+            deps.save();
+            drawPanel(state, { force: true });
+        });
+        return el('div', { class: 'wihero-ws-mention' }, el('span', {}, el('b', {}, name), ` mentions "${keyword}"`), el('div', { class: 'wihero-ws-row' }, gate, ignore));
+    });
+    return [
+        ...list('LINKS OUT', out, 'None.'),
+        ...list('BACKLINKS', into, 'None.'),
+        ...list('IN THIS CHAT', id ? history(id) : [], id ? 'Not fired in this chat.' : 'Not gated.'),
+        heading('UNLINKED MENTIONS'), ...(mentions.length ? mentions : [el('small', {}, 'No other entry mentions its keywords.')]),
+    ];
 }
 
 function drawReader(key, state) {

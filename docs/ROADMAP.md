@@ -80,7 +80,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** the sample book shows every link type with the right statuses, and scrubbing changes them.
 
-## M12 — Entry editor in the right panel
+## M12 — Entry editor in the right panel ✓
 - Tabs: Entry (ST's common fields, the rest under More), Story logic (the WI Hero block's fields), Timers, Links (outgoing, backlinks, history in this chat, unlinked mentions with one-click gating).
 - Saves through ST's path, keeping card-imported books in sync.
 

@@ -101,16 +101,14 @@ function maskRow(mask, ids, onChange, onRemove) {
     return { row, read: () => ({ name: name.value, content: content.value, gates: gates.value, gateMode: gateMode.value }), updateChips };
 }
 
-async function fillBlock(block, name, uid) {
-    const ctx = deps.ctx();
-    const data = await ctx.loadWorldInfo(name);
-    const entry = data?.entries?.[uid];
-    if (!entry) {
-        // A new entry reaches ST's cache (and its save) with its first edit. Until then there's nothing to save to.
-        block.replaceChildren(el('small', { class: 'wihero-hint' }, 'WI Hero: edit any field of this new entry first.'));
-        block.closest('.world_entry')?.addEventListener('input', () => fillBlock(block, name, uid), { once: true });
-        return;
-    }
+/**
+ * The story-logic form of one entry: every WI Hero field, live issues, Save and Remove (which saves null).
+ * Used by the block in ST's entry editor and by the workspace's Story logic tab.
+ * @param {{ title: () => string, onSave: (config: object | null, status: HTMLElement) => void }} options
+ *   `title` gives the entry's current title, for the id suggestion.
+ */
+export function logicForm(name, uid, data, { title, onSave }) {
+    const entry = data.entries[uid];
     const target = { ...entry, world: name };
     const entries = entriesFor(name, data);
     const ids = knownIds(entries, target);
@@ -118,8 +116,6 @@ async function fillBlock(block, name, uid) {
     // Gate-like lists take ids and #labels; switch paths take ids only.
     const refs = [...ids, ...labelNames.map(l => `#${l}`)];
     const form = configToForm(entry.wihero);
-    // The title can change while the block is open, so the suggestion is read from ST's field.
-    const title = block.closest('.world_entry')?.querySelector('textarea[name="comment"]');
     let suggested = '';
 
     const id = textInput('wihero_id', form.id, 'e.g. arrive-town');
@@ -186,7 +182,7 @@ async function fillBlock(block, name, uid) {
         const gated = config && !Object.keys(config).every(k => UI_FIELDS.includes(k));
         summary.textContent = !gated ? 'not gated' : `${config.id ?? 'no id'}${found.some(i => !i.warning) ? ' · problem' : ''}`;
         glueFields.style.display = glue.checked ? '' : 'none';
-        suggested = slugify(title?.value || entry.comment || entry.key?.[0]);
+        suggested = slugify(title() || entry.comment || entry.key?.[0]);
         useSuggested.textContent = suggested;
         useSuggested.style.display = !id.value.trim() && suggested ? '' : 'none';
         updateGateChips(); updateFiredChips(); updateAllChips(); updateSwitchChips();
@@ -197,10 +193,10 @@ async function fillBlock(block, name, uid) {
 
     const save = el('div', { class: 'menu_button wihero-save', title: 'Save the WI Hero config of this entry' }, 'Save');
     const remove = el('div', { class: 'menu_button wihero-remove', title: 'Remove the WI Hero config: the entry goes back to vanilla' }, 'Remove');
-    save.addEventListener('click', () => store(name, uid, formToConfig(read()), status));
-    remove.addEventListener('click', () => store(name, uid, null, status));
+    save.addEventListener('click', () => onSave(formToConfig(read()), status));
+    remove.addEventListener('click', () => onSave(null, status));
 
-    const content = el('div', { class: 'inline-drawer-content' },
+    const content = el('div', { class: 'wihero-logic' },
         el('div', { class: 'wihero-row' }, field('Id', id), useSuggested),
         el('div', { class: 'wihero-row' }, field('Folder', folder), folderChoices, field('Color', color)),
         field('Labels', labels),
@@ -227,6 +223,31 @@ async function fillBlock(block, name, uid) {
     // The chips for the two glue lists sit with their inputs.
     closeWhenFired.after(firedChips);
     closeWhenAllFired.after(allChips);
+    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths, labels, gatesFor, closes, folder]) {
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    }
+    content.addEventListener('input', update);
+    content.addEventListener('change', update);
+    update();
+    return { content, update, summary };
+}
+
+async function fillBlock(block, name, uid) {
+    const ctx = deps.ctx();
+    const data = await ctx.loadWorldInfo(name);
+    const entry = data?.entries?.[uid];
+    if (!entry) {
+        // A new entry reaches ST's cache (and its save) with its first edit. Until then there's nothing to save to.
+        block.replaceChildren(el('small', { class: 'wihero-hint' }, 'WI Hero: edit any field of this new entry first.'));
+        block.closest('.world_entry')?.addEventListener('input', () => fillBlock(block, name, uid), { once: true });
+        return;
+    }
+    // The title can change while the block is open, so the id suggestion reads ST's field.
+    const { content, update, summary } = logicForm(name, uid, data, {
+        title: () => block.closest('.world_entry')?.querySelector('textarea[name="comment"]')?.value ?? '',
+        onSave: (config, status) => store(name, uid, config, status),
+    });
+    content.classList.add('inline-drawer-content');
     content.style.display = reopenUid === String(uid) ? '' : 'none';
     const open = content.style.display === '';
     reopenUid = null;
@@ -238,13 +259,7 @@ async function fillBlock(block, name, uid) {
         content);
     // ST's drawer toggle bubbles; the entry's own drawer listens for it.
     $(drawer).on('inline-drawer-toggle', e => { e.stopPropagation(); update(); });
-    for (const input of [id, gates, closeWhenFired, closeWhenAllFired, switchPaths, labels, gatesFor, closes, folder]) {
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
-    }
-    content.addEventListener('input', update);
-    content.addEventListener('change', update);
     block.replaceChildren(drawer);
-    update();
 }
 
 /** Saves a config through ST's own save path, then reloads the editor so its copy of the book has it. */

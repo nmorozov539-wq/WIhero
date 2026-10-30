@@ -204,6 +204,7 @@ mountWorkspace({
     save: saveSettingsDebounced,
     defaultBook: () => bookName() ?? loaded[0]?.world,
     openInST,
+    onSaved: () => getSortedEntries(),
 });
 
 /** Opens ST's World Info editor on an entry: its book, then the entry's row (searching for it if it's on another page). */

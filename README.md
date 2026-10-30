@@ -51,6 +51,7 @@ ST's own timers still win. A running sticky finishes even after its entry closes
 - Click an entry for its summary, links and history on the right; hover for its content; double-click to open it in a tab.
 - **Local graph** shows only what's within 1 or 2 links of the selected entry. Labels and folders fold into one card (Labels and Files in the sidebar).
 - The slider at the bottom shows the chat state at any earlier message; the Timeline lists what fired when.
+- The right panel edits the selected entry: **Entry** (title, keywords, filter, content, position, depth, order, trigger %, and more), **Story logic** (everything the WI Hero section edits), **Timers** (sticky, cooldown, delay), **Links** (links both ways, its history in this chat, and **unlinked mentions**: entries whose text mentions its keywords, with one click to gate them on it). Saves go through ST, like any edit.
 
 ## The panel and the entry list
 
