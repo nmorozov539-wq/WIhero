@@ -13,7 +13,7 @@ Status: M1–M14 (gates, chains, glue, the entry editor, railway switches, masks
 In SillyTavern, open **Extensions** → **Install extension**, paste
 
 ```
-<repo-url>
+https://github.com/nmorozov539-wq/WIhero
 ```
 
 and choose whether to install it for all users or just you. **WI Hero** then appears in the Extensions panel. To update it later, use the update button next to it in **Manage extensions**.
