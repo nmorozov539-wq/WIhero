@@ -14,4 +14,5 @@ Run it against a throwaway SillyTavern, never your own: it changes the connectio
 8. `node e2e/folders.mjs` checks folders: set in the entry editor, the folder filter, bulk actions on disk, gating unchanged.
 9. `node e2e/visuals.mjs` checks the badges and stripes on ST's entry list and the panel's folder groups, and writes the panel and badge screenshots to `docs/img/`.
 10. `node e2e/workspace.mjs` checks the workspace: opening, link types, statuses, hover, local graph, folding, the chat-state scrubber. It writes `docs/img/workspace.png`.
-11. `node e2e/branches.mjs` checks railway switches (and masks). It starts its own chat; copy a fresh sample book first. Scripts after `gating.mjs` share their setup in `e2e/lib.mjs`.
+11. `node e2e/phone.mjs` checks the Ctrl K palette, the phone layout at 390×844 (drawer, sheet, full-screen entry, tap-to-link, zoom, search) and a generated 500-entry book's timings. It writes `docs/img/phone.png` and `docs/img/palette.png`, and removes the big book again.
+12. `node e2e/branches.mjs` checks railway switches (and masks). It starts its own chat; copy a fresh sample book first. Scripts after `gating.mjs` share their setup in `e2e/lib.mjs`.

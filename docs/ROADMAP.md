@@ -93,7 +93,7 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** cards can be arranged and links drawn on the canvas, positions survive a reload, and the book on disk gets the new links.
 
-## M14 — Phones and the command palette
+## M14 — Phones and the command palette ✓
 - Below 1000px: full-screen workspace with a top bar (drawer button, search, entry button), tab chips, bottom sheets for Link and Edit, zoom buttons and pinch, no navigation gestures.
 - Ctrl K palette: entry search and commands.
 - Viewport culling for big books.

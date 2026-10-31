@@ -4,6 +4,9 @@ import { el } from './panel.js';
 import { COLORS } from './bulk.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
+/** Above this many cards, only those near the visible part of the world are in the page. */
+export const CULL_ABOVE = 300;
+const CULL_MARGIN = 300;
 const svg = (tag, attrs = {}) => {
     const node = document.createElementNS(SVG, tag);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
@@ -54,16 +57,36 @@ export function createGraphView(stage, on) {
         const r = stage.getBoundingClientRect();
         return { x: (cx - r.left - view.x) / view.k, y: (cy - r.top - view.y) / view.k };
     };
-    const apply = () => { world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`; };
+    let culling = null;
+    let cullFrame = 0;
+    const apply = () => {
+        world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`;
+        if (culling && !cullFrame) cullFrame = requestAnimationFrame(() => { cullFrame = 0; cull(); });
+    };
 
     // Pan by dragging the background, zoom with the wheel around the pointer.
     let drag = null;
+    // Two fingers on the background pinch to zoom.
+    const touches = new Map();
+    let pinch = null;
+    const spread = () => { const [a, b] = [...touches.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
     stage.addEventListener('pointerdown', e => {
-        if (e.target.closest('.wihero-card, .wihero-box') || e.button !== 0) return;
-        drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
+        if (e.target.closest('.wihero-card, .wihero-box, .wihero-zoom') || e.button !== 0) return;
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
         stage.setPointerCapture(e.pointerId);
+        if (touches.size === 2) { drag = null; pinch = spread(); return; }
+        drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
     });
+    stage.addEventListener('pointercancel', e => { touches.delete(e.pointerId); pinch = null; drag = null; });
     stage.addEventListener('pointermove', e => {
+        if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch && touches.size === 2) {
+            const now = spread();
+            const r = stage.getBoundingClientRect();
+            zoomAt(now.x - r.left, now.y - r.top, now.d / Math.max(1, pinch.d));
+            pinch = now;
+            return;
+        }
         if (!drag) return;
         const dx = e.clientX - drag.x;
         const dy = e.clientY - drag.y;
@@ -72,7 +95,9 @@ export function createGraphView(stage, on) {
         view.y = drag.vy + dy;
         apply();
     });
-    stage.addEventListener('pointerup', () => {
+    stage.addEventListener('pointerup', e => {
+        touches.delete(e.pointerId);
+        if (touches.size < 2) pinch = null;
         if (drag && !drag.moved) on.onSelect(null);
         drag = null;
     });
@@ -90,6 +115,11 @@ export function createGraphView(stage, on) {
         apply();
     }
 
+    /** Zooms around the middle of the stage (the zoom buttons). */
+    function zoomBy(factor) {
+        zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, factor);
+    }
+
     /** Fits the whole graph in the stage (never above 100%). */
     function fit() {
         const w = stage.clientWidth || 800;
@@ -103,9 +133,8 @@ export function createGraphView(stage, on) {
 
     /** Pans so a node is in the middle. */
     function center(key) {
-        const card = cards.get(key);
-        if (!card) return;
-        const p = card._pos;
+        const p = current.placed?.pos.get(key);
+        if (!p) return;
         view.x = stage.clientWidth / 2 - (p.x + p.w / 2) * view.k;
         view.y = stage.clientHeight / 2 - (p.y + p.h / 2) * view.k;
         apply();
@@ -264,14 +293,35 @@ export function createGraphView(stage, on) {
             world.prepend(links);
         }
         drawLinks();
-        for (const node of graph.nodes.values()) {
-            const p = placed.pos.get(node.key);
-            if (!p || p.box) continue;
-            const card = cardFor(node, p, look(node));
-            cards.set(node.key, card);
-            world.append(card);
-        }
+        const drawable = [...graph.nodes.values()].filter(n => placed.pos.get(n.key) && !placed.pos.get(n.key).box);
+        culling = drawable.length > CULL_ABOVE ? { nodes: drawable, look } : null;
         if (!keepView) fit();
+        if (culling) cull();
+        else for (const node of drawable) addCard(node, look);
+    }
+
+    function addCard(node, look) {
+        const card = cardFor(node, current.placed.pos.get(node.key), look(node));
+        if (selected === node.key) card.classList.add('wihero-selected');
+        cards.set(node.key, card);
+        world.append(card);
+    }
+
+    /** Keeps only the cards near the visible part of the world in the page (big books). */
+    function cull() {
+        if (!culling) return;
+        const w = stage.clientWidth || 800;
+        const h = stage.clientHeight || 600;
+        const area = {
+            x: -view.x / view.k - CULL_MARGIN, y: -view.y / view.k - CULL_MARGIN,
+            r: (w - view.x) / view.k + CULL_MARGIN, b: (h - view.y) / view.k + CULL_MARGIN,
+        };
+        for (const node of culling.nodes) {
+            const p = current.placed.pos.get(node.key);
+            const near = p.x + p.w >= area.x && p.x <= area.r && p.y + p.h >= area.y && p.y <= area.b;
+            if (near && !cards.has(node.key)) addCard(node, culling.look);
+            else if (!near && cards.has(node.key) && node.key !== selected) { cards.get(node.key).remove(); cards.delete(node.key); }
+        }
     }
 
     /** Draws every link from the current positions (again after a drag). */
@@ -305,8 +355,10 @@ export function createGraphView(stage, on) {
         }
     }
 
+    let selected = null;
     /** Marks the selected card and dims what isn't linked to it. */
     function select(key) {
+        selected = key;
         const near = new Set();
         if (key) for (const p of links.querySelectorAll('.wihero-link')) {
             if (p.dataset.from === key || p.dataset.to === key) { near.add(p.dataset.from); near.add(p.dataset.to); p.classList.add('wihero-link-near'); }
@@ -318,5 +370,5 @@ export function createGraphView(stage, on) {
         }
     }
 
-    return { render, select, fit, center, zoomAt, toWorld, busy: () => dragging > 0, get view() { return view; }, cards };
+    return { render, select, fit, center, zoomAt, zoomBy, toWorld, busy: () => dragging > 0, get view() { return view; }, cards, get culling() { return !!culling; } };
 }

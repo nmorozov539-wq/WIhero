@@ -203,7 +203,13 @@
     --ws-ground: color-mix(in srgb, var(--SmartThemeBodyColor) 3%, var(--SmartThemeBlurTintColor));
     --ws-muted: color-mix(in srgb, var(--SmartThemeBodyColor) 65%, transparent);
     position: fixed;
-    inset: 0;
+    /* An explicit size: in ST's narrow layout fixed elements don't get the viewport as their box. For the same
+       reason the workspace's own overlays (drawer, sheet, palette, menus) are positioned against it, not fixed. */
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
     z-index: 10000;
     display: flex;
     flex-direction: column;
@@ -499,7 +505,7 @@
 }
 
 .wihero-ws-preview {
-    position: fixed;
+    position: absolute;
     z-index: 10001;
     width: 320px;
     max-height: 220px;
@@ -833,7 +839,7 @@
 }
 
 .wihero-link-menu {
-    position: fixed;
+    position: absolute;
     z-index: 10002;
     width: 320px;
     box-sizing: border-box;
@@ -845,4 +851,283 @@
     border-radius: 10px;
     background: var(--ws-soft);
     box-shadow: 0 8px 24px var(--SmartThemeShadowColor);
+}
+
+/* ── Workspace: palette, outline, phones ───────────────────────────── */
+
+.wihero-ws-phone {
+    display: none;
+}
+
+.wihero-ws-side {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.wihero-ws-side .wihero-ws-sidebar {
+    flex: 1;
+}
+
+.wihero-ws-drawerhead:empty {
+    display: none;
+}
+
+.wihero-ws-panelbody {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.wihero-ws-outline {
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 12px;
+}
+
+.wihero-ws-outline-row .wihero-status-closed {
+    opacity: 0.6;
+}
+
+.wihero-zoom {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.wihero-zoom button {
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.wihero-ws-palette {
+    position: absolute;
+    inset: 0;
+    z-index: 10003;
+    display: none;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 12vh;
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 50%, transparent);
+}
+
+.wihero-ws-palette.wihero-show {
+    display: flex;
+}
+
+.wihero-ws-palette-box {
+    width: min(560px, calc(100vw - 24px));
+    max-height: 70vh;
+    box-sizing: border-box;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--ws-line);
+    border-radius: 10px;
+    background: var(--ws-soft);
+    box-shadow: 0 12px 32px var(--SmartThemeShadowColor);
+}
+
+.wihero-ws-palette-box input {
+    flex: 1;
+    margin: 0;
+}
+
+.wihero-ws-palette-box .wihero-ws-results {
+    overflow-y: auto;
+}
+
+.wihero-ws-sheet {
+    display: none;
+}
+
+.wihero-ws-linking .wihero-stage {
+    cursor: crosshair;
+}
+
+@media screen and (max-width: 1000px) {
+    .wihero-ws-phone {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .wihero-ws-top {
+        gap: 6px;
+        padding: 0 6px;
+    }
+
+    .wihero-ws-top .wihero-ws-brand,
+    .wihero-ws-top .wihero-ws-jump,
+    .wihero-ws-top .wihero-ws-saved,
+    .wihero-ws-top .wihero-ws-bookhome,
+    .wihero-ws-top .wihero-ws-closehome,
+    .wihero-ws-ribbonhome,
+    .wihero-ws-toolshome,
+    .wihero-ws-preview {
+        display: none !important;
+    }
+
+    .wihero-ws-menu,
+    .wihero-ws-entry {
+        min-width: 44px;
+        min-height: 40px;
+    }
+
+    .wihero-ws-phone-search {
+        flex: 1;
+        min-height: 40px;
+        color: var(--ws-muted) !important;
+    }
+
+    /* The sidebar is a drawer over the graph. */
+    .wihero-ws-side {
+        position: absolute;
+        z-index: 10002;
+        top: 48px;
+        bottom: 0;
+        left: 0;
+        width: min(340px, 88vw);
+        display: none;
+        overflow-y: auto;
+        background: var(--SmartThemeBlurTintColor);
+        border-right: 1px solid var(--ws-line);
+        box-shadow: 8px 0 24px var(--SmartThemeShadowColor);
+    }
+
+    .wihero-ws-drawer-open .wihero-ws-side {
+        display: flex;
+    }
+
+    .wihero-ws-side .wihero-ws-sidebar {
+        width: auto;
+        border: none;
+        overflow: visible;
+    }
+
+    .wihero-ws-drawerhead {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        border-bottom: 1px solid var(--ws-line);
+    }
+
+    .wihero-ws-drawerhead .wihero-ws-ribbon {
+        flex-direction: row;
+        flex-wrap: wrap;
+        padding: 0;
+        border: none;
+    }
+
+    .wihero-ws-drawerhead .wihero-ws-book {
+        max-width: none;
+    }
+
+    /* The entry editor is a page of its own. */
+    .wihero-ws-panel {
+        position: absolute;
+        z-index: 10002;
+        inset: 0;
+        width: auto;
+        display: none;
+        border: none;
+        background: var(--SmartThemeBlurTintColor);
+    }
+
+    .wihero-ws-panel-open .wihero-ws-panel {
+        display: flex;
+    }
+
+    .wihero-ws-back {
+        align-self: flex-start;
+        min-height: 40px;
+    }
+
+    .wihero-ws-tabbar {
+        padding: 4px 6px;
+    }
+
+    .wihero-ws-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+
+    .wihero-ws-tab {
+        border: 1px solid var(--ws-line);
+        border-radius: 14px;
+        white-space: nowrap;
+    }
+
+    .wihero-zoom {
+        display: flex;
+    }
+
+    .wihero-ws-status {
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        padding: 4px 8px;
+    }
+
+    .wihero-ws-counts {
+        display: none;
+    }
+
+    .wihero-ws-scrub {
+        flex: 1;
+        width: auto;
+        min-width: 120px;
+    }
+
+    .wihero-ws-sheet {
+        position: absolute;
+        z-index: 10002;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        box-sizing: border-box;
+        padding: 12px;
+        flex-direction: column;
+        gap: 8px;
+        border-top: 1px solid var(--ws-line);
+        border-radius: 14px 14px 0 0;
+        background: var(--ws-soft);
+        box-shadow: 0 -8px 24px var(--SmartThemeShadowColor);
+    }
+
+    .wihero-ws-sheet.wihero-show {
+        display: flex;
+    }
+
+    .wihero-ws-sheet .wihero-ws-button {
+        min-height: 44px;
+        flex: 1;
+    }
+
+    /* The link menu is a sheet too. */
+    .wihero-link-menu {
+        left: 0 !important;
+        right: 0;
+        top: auto !important;
+        bottom: 0;
+        width: auto;
+        border-radius: 14px 14px 0 0;
+    }
+
+    .wihero-link-menu .wihero-ws-item {
+        min-height: 44px;
+    }
+
+    .wihero-ws-palette {
+        padding-top: 8px;
+    }
+
+    .wihero-ws-palette-box {
+        max-height: calc(100vh - 16px);
+    }
 }

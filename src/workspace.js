@@ -23,14 +23,17 @@ const ws = {
     selected: null, showState: true, scrub: null, folded: new Set(), local: { on: false, depth: 1 },
     tabs: [{ key: 'graph', title: 'Graph' }], tab: 'graph', section: 'files', search: '',
     panelTab: 'entry', version: 0, panelFor: '',
-    mode: 'graph', undo: {},
+    mode: 'graph', undo: {}, linking: null,
 };
+/** ST's narrow layout starts below 1000px; the workspace follows it. */
+const phone = () => window.matchMedia('(max-width: 1000px)').matches;
 let ui = {};
 let view = null;
 
 /**
  * @param {{ ctx: () => object, loadedEntries: () => object[], settings: object, save: () => void,
- *   openInST: (book: string, uid: number) => void, defaultBook: () => string | undefined, onSaved: () => void }} d
+ *   openInST: (book: string, uid: number) => void, defaultBook: () => string | undefined, onSaved: () => void,
+ *   selectMask: (id: string, name: string) => void }} d
  */
 export function mountWorkspace(d) {
     deps = d;
@@ -47,6 +50,7 @@ export async function openWorkspace(book) {
 }
 
 export function closeWorkspace() {
+    if (ui.onResize) window.removeEventListener('resize', ui.onResize);
     root?.remove();
     root = null;
     view = null;
@@ -72,11 +76,19 @@ export function refreshWorkspace({ books = false } = {}) {
 function build() {
     const button = (label, { class: extra = '', ...attrs } = {}) => el('button', { type: 'button', class: `wihero-ws-button ${extra}`, ...attrs }, label);
     ui.bookSelect = el('select', { class: 'text_pole wihero-ws-book', 'aria-label': 'Book' });
+    ui.bookSelect.addEventListener('focus', fillBooks);
     ui.bookSelect.addEventListener('change', () => { ws.book = ui.bookSelect.value; ws.selected = null; ws.folded.clear(); load({ fit: true }); });
     ui.jump = button('Jump to entry or run a command', { class: 'wihero-ws-jump', title: 'Ctrl K' });
     ui.saved = el('span', { class: 'wihero-ws-saved' }, 'All changes saved');
     const close = button('Close', { class: 'wihero-ws-close', 'aria-label': 'Close the workspace' });
     close.addEventListener('click', closeWorkspace);
+    ui.jump.addEventListener('click', () => openPalette());
+    ui.menuButton = button('Menu', { class: 'wihero-ws-phone wihero-ws-menu', 'aria-label': 'Book, views and lists', 'aria-expanded': 'false' });
+    ui.menuButton.addEventListener('click', () => toggleDrawer());
+    ui.phoneSearch = button('Search or > command', { class: 'wihero-ws-phone wihero-ws-phone-search', 'aria-label': 'Search entries or run a command' });
+    ui.phoneSearch.addEventListener('click', () => openPalette());
+    ui.entryButton = button('Entry', { class: 'wihero-ws-phone wihero-ws-entry', 'aria-label': 'Open the selected entry' });
+    ui.entryButton.addEventListener('click', () => togglePanel(true));
 
     const ribbon = el('nav', { class: 'wihero-ws-ribbon', 'aria-label': 'Sidebar' }, ...[
         ['files', 'Files'], ['search', 'Search'], ['labels', 'Labels'], ['problems', 'Problems'], ['timeline', 'Timeline'],
@@ -97,7 +109,7 @@ function build() {
     ui.stateToggle.addEventListener('change', () => { ws.showState = ui.stateToggle.checked; draw({ keepView: true }); });
     const fit = button('Fit', { title: 'Show the whole graph' });
     fit.addEventListener('click', () => view?.fit());
-    ui.modes = el('div', { class: 'wihero-ws-modes', role: 'group', 'aria-label': 'Layout' }, ...[['graph', 'Graph'], ['canvas', 'Canvas']].map(([mode, label]) => {
+    ui.modes = el('div', { class: 'wihero-ws-modes', role: 'group', 'aria-label': 'Layout' }, ...[['graph', 'Graph'], ['canvas', 'Canvas'], ['outline', 'Outline']].map(([mode, label]) => {
         const b = button(label, { 'data-mode': mode, 'aria-pressed': 'false' });
         b.addEventListener('click', () => { ws.mode = mode; deps.settings.workspaceMode = mode; deps.save(); draw({ fit: true }); });
         return b;
@@ -108,14 +120,29 @@ function build() {
         tool('Note', 'Add a note card (never sent to the model)', () => addBox('notes', { text: '', w: 220, h: 140 })),
         tool('Tidy', 'Lay the cards out automatically again', tidy),
         tool('Undo', 'Undo the last canvas change (Ctrl Z)', undo));
-    const tools = el('div', { class: 'wihero-ws-tools' }, ui.modes, ui.canvasTools,
+    ui.zoom = el('div', { class: 'wihero-zoom' }, ...[['+', 'Zoom in', () => view.zoomBy(1.25)], ['−', 'Zoom out', () => view.zoomBy(0.8)], ['Fit', 'Show everything', () => view.fit()]].map(([label, title, action]) => {
+        const b = button(label, { 'aria-label': title, title });
+        b.addEventListener('click', action);
+        return b;
+    }));
+    ui.tools = el('div', { class: 'wihero-ws-tools' }, ui.modes, ui.canvasTools,
         el('label', {}, ui.localToggle, ' Local graph'), el('label', {}, 'depth ', ui.localDepth),
         el('label', {}, ui.stateToggle, ' Chat state'), fit);
+    const tools = ui.tools;
+    ui.ribbon = ribbon;
+    ui.close = close;
 
     ui.stage = el('div', { class: 'wihero-stage' });
     ui.center = el('div', { class: 'wihero-ws-center' });
     ui.reader = el('div', { class: 'wihero-ws-reader' });
-    ui.panel = el('aside', { class: 'wihero-ws-panel', 'aria-label': 'Selected entry' });
+    ui.panelBack = button('‹ Back', { class: 'wihero-ws-phone wihero-ws-back' });
+    ui.panelBack.addEventListener('click', () => togglePanel(false));
+    ui.panelBody = el('div', { class: 'wihero-ws-panelbody' });
+    ui.panel = el('aside', { class: 'wihero-ws-panel', 'aria-label': 'Selected entry' }, ui.panelBack, ui.panelBody);
+    ui.outline = el('div', { class: 'wihero-ws-outline', role: 'list' });
+    ui.drawerHead = el('div', { class: 'wihero-ws-drawerhead' });
+    ui.sheet = el('div', { class: 'wihero-ws-sheet', role: 'dialog', 'aria-label': 'Selected entry' });
+    ui.palette = el('div', { class: 'wihero-ws-palette', role: 'dialog', 'aria-label': 'Jump to entry or run a command' });
     ui.preview = el('div', { class: 'wihero-ws-preview', role: 'tooltip' });
 
     ui.counts = el('span', { class: 'wihero-ws-counts' });
@@ -124,16 +151,23 @@ function build() {
     ui.scrub.addEventListener('input', () => { ws.scrub = Number(ui.scrub.value); draw({ keepView: true }); });
 
     root = el('div', { class: 'wihero-ws', role: 'dialog', 'aria-label': 'WI Hero workspace', tabindex: '-1' },
-        el('header', { class: 'wihero-ws-top' }, el('b', {}, 'WI Hero'), ui.bookSelect, ui.jump, ui.saved, close),
+        el('header', { class: 'wihero-ws-top' }, ui.menuButton, el('b', { class: 'wihero-ws-brand' }, 'WI Hero'), ui.bookHome = el('span', { class: 'wihero-ws-bookhome' }, ui.bookSelect),
+            ui.jump, ui.phoneSearch, ui.saved, ui.closeHome = el('span', { class: 'wihero-ws-closehome' }, close), ui.entryButton),
         el('div', { class: 'wihero-ws-body' },
-            ribbon, ui.sidebar,
-            el('main', { class: 'wihero-ws-main' }, el('div', { class: 'wihero-ws-tabbar' }, ui.tabs, tools), ui.center),
+            ui.ribbonHome = el('div', { class: 'wihero-ws-ribbonhome' }, ribbon), el('div', { class: 'wihero-ws-side' }, ui.drawerHead, ui.sidebar),
+            el('main', { class: 'wihero-ws-main' }, el('div', { class: 'wihero-ws-tabbar' }, ui.tabs, ui.toolsHome = el('span', { class: 'wihero-ws-toolshome' }, tools)), ui.center),
             ui.panel),
         el('footer', { class: 'wihero-ws-status' }, ui.counts, el('span', { class: 'wihero-ws-spacer' }), ui.scrubLabel, ui.scrub),
-        ui.preview);
+        ui.preview, ui.sheet, ui.palette);
     root.addEventListener('keydown', e => {
+        if (e.key === 'k' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); return openPalette(); }
         if (e.target.closest('input, textarea, select')) return;
-        if (e.key === 'Escape') closeWorkspace();
+        if (e.key === 'Escape') {
+            if (ws.linking) return void cancelLinking();
+            if (root.classList.contains('wihero-ws-drawer-open')) return void toggleDrawer(false);
+            if (root.classList.contains('wihero-ws-panel-open')) return void togglePanel(false);
+            return closeWorkspace();
+        }
         if (e.key === 'z' && (e.ctrlKey || e.metaKey) && ws.mode === 'canvas') { e.preventDefault(); undo(); }
     });
     document.body.append(root);
@@ -148,16 +182,19 @@ function build() {
         onArea: (id, name) => editCanvas(c => { c.areas.find(a => a.id === id).name = name; }, { redraw: false }),
         onRemove: (kind, id) => editCanvas(c => { c[`${kind}s`] = c[`${kind}s`].filter(x => x.id !== id); }),
     });
-    ws.mode = deps.settings.workspaceMode === 'canvas' ? 'canvas' : 'graph';
+    ui.stage.append(ui.zoom);
+    // Turning a phone, or crossing ST's narrow-layout width, changes the stage: fit the graph to it again.
+    let resizeTimer = null;
+    ui.onResize = () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!phone()) { toggleDrawer(false); togglePanel(false); } view?.fit(); }, 200); };
+    window.addEventListener('resize', ui.onResize);
+    ws.mode = ['canvas', 'outline'].includes(deps.settings.workspaceMode) ? deps.settings.workspaceMode : 'graph';
     root.focus();
 }
 
 /** Loads the book and rebuilds the model and graph from it and the other loaded books. */
 async function load({ fit = false } = {}) {
     const ctx = deps.ctx();
-    const names = ctx.getWorldInfoNames();
-    ui.bookSelect.replaceChildren(...names.map(n => el('option', { value: n }, n)));
-    ui.bookSelect.value = ws.book;
+    fillBooks();
     ws.data = ws.book ? await ctx.loadWorldInfo(ws.book) : null;
     if (ws.book && deps.settings.workspaceBook !== ws.book) { deps.settings.workspaceBook = ws.book; deps.save(); }
     ws.entries = Object.values(ws.data?.entries ?? {}).map(e => ({ ...e, world: ws.book }));
@@ -169,6 +206,14 @@ async function load({ fit = false } = {}) {
     ws.tabs = ws.tabs.filter(t => t.key === 'graph' || ws.entries.some(e => entryKey(e) === t.key));
     if (!ws.tabs.some(t => t.key === ws.tab)) ws.tab = 'graph';
     draw({ fit, keepView: !fit });
+    drawSheet();
+}
+
+/** The book picker's choices, from ST's current list (books can be added while the workspace is open). */
+function fillBooks() {
+    const names = deps.ctx().getWorldInfoNames();
+    ui.bookSelect.replaceChildren(...names.map(n => el('option', { value: n }, n)));
+    ui.bookSelect.value = ws.book;
 }
 
 /** The chat state the cards show: the latest, or the message the scrubber is on. */
@@ -281,7 +326,8 @@ function draw({ fit = false, keepView = false } = {}) {
     ui.canvasTools.style.display = ws.mode === 'canvas' ? '' : 'none';
     root.classList.toggle('wihero-ws-canvas', ws.mode === 'canvas');
     const { state, at, last } = chatState();
-    ui.center.replaceChildren(ws.tab === 'graph' ? ui.stage : ui.reader);
+    ui.center.replaceChildren(ws.tab !== 'graph' ? ui.reader : ws.mode === 'outline' ? ui.outline : ui.stage);
+    if (ws.mode === 'outline') drawOutline(shown, auto, state);
     view.render(shown, ws.placed, looks(state), { keepView: keepView && !fit, canvas });
     view.select(ws.selected);
     if (ws.tab !== 'graph') drawReader(ws.tab, state);
@@ -301,7 +347,7 @@ const issuesHere = () => ws.model.issues.filter(i => i.key.startsWith(`${ws.book
 
 function drawTabs() {
     ui.tabs.replaceChildren(...ws.tabs.map(t => {
-        const title = t.key === 'graph' ? (ws.mode === 'canvas' ? 'Canvas' : 'Graph') : t.title;
+        const title = t.key === 'graph' ? { canvas: 'Canvas', outline: 'Outline' }[ws.mode] ?? 'Graph' : t.title;
         const tab = el('button', { type: 'button', role: 'tab', class: `wihero-ws-tab${t.key === ws.tab ? ' wihero-ws-tab-on' : ''}`, 'aria-selected': String(t.key === ws.tab) }, title);
         tab.addEventListener('click', () => { ws.tab = t.key; draw({ keepView: true }); });
         if (t.key === 'graph') return tab;
@@ -331,12 +377,21 @@ function openTab(key) {
 }
 
 function selectNode(key, { center = false } = {}) {
+    if (ws.linking) {
+        if (!key || key === ws.linking) return;
+        const from = ws.linking;
+        cancelLinking();
+        const r = view.cards.get(key)?.getBoundingClientRect();
+        return linkMenu(from, key, r ? r.left : window.innerWidth / 2, r ? r.bottom : window.innerHeight / 2);
+    }
     const node = key && ws.shown?.nodes.get(key);
     ws.selected = node?.kind === 'mask' ? node.owner : key;
     if (ws.local.on) return draw({ fit: true });
     view.select(ws.selected);
     drawPanel(chatState().state);
     drawSidebar();
+    drawSheet();
+    if (ws.mode === 'outline') draw({ keepView: true });
     if (center && ws.selected) view.center(ws.selected);
 }
 
@@ -537,14 +592,14 @@ function drawPanel(state, { force = false } = {}) {
     if (!force && id === ws.panelFor) return;
     ws.panelFor = id;
     const entry = entryOf(ws.selected);
-    if (!entry) return ui.panel.replaceChildren(...summary(ws.selected, state));
+    if (!entry) return ui.panelBody.replaceChildren(...summary(ws.selected, state));
     const tabs = [['entry', 'Entry'], ['logic', 'Story logic'], ['timers', 'Timers'], ['links', 'Links']].map(([key, label]) => {
         const b = el('button', { type: 'button', role: 'tab', class: `wihero-ws-tab${ws.panelTab === key ? ' wihero-ws-tab-on' : ''}`, 'data-tab': key, 'aria-selected': String(ws.panelTab === key) }, label);
         b.addEventListener('click', () => { ws.panelTab = key; drawPanel(state); });
         return b;
     });
     const body = { entry: entryTab, logic: logicTab, timers: timersTab, links: linksTab }[ws.panelTab](entry, state);
-    ui.panel.replaceChildren(...summary(ws.selected, state, { head: true }), el('div', { class: 'wihero-ws-tabs wihero-ws-paneltabs', role: 'tablist' }, ...tabs), ...body);
+    ui.panelBody.replaceChildren(...summary(ws.selected, state, { head: true }), el('div', { class: 'wihero-ws-tabs wihero-ws-paneltabs', role: 'tablist' }, ...tabs), ...body);
 }
 
 /** Saves a change to the book through ST, as the entry editor block does, then reloads the workspace. */
@@ -736,4 +791,158 @@ async function link(from, to, type) {
     const problems = newProblems(others, ws.book, before, after, uids);
     if (problems.length) return void toastr.warning(`Not linked: ${problems.join('; ')}`, 'WI Hero');
     await saveBook(data => applyLink(data, from, to, type, new Set(ws.model.nodes.keys())));
+}
+
+// ── Phones: drawer, full-screen entry, bottom sheet; Outline view; the palette ─────────
+
+/** On a phone the sidebar is a drawer, and the book picker, view options and section buttons move into it. */
+function toggleDrawer(open = !root.classList.contains('wihero-ws-drawer-open')) {
+    root.classList.toggle('wihero-ws-drawer-open', open);
+    ui.menuButton.setAttribute('aria-expanded', String(open));
+    if (open) {
+        fillBooks();
+        ui.drawerHead.append(ui.bookSelect, ui.tools, ui.ribbon, ui.close);
+    }
+    else {
+        ui.bookHome.append(ui.bookSelect);
+        ui.toolsHome.append(ui.tools);
+        ui.ribbonHome.append(ui.ribbon);
+        ui.closeHome.append(ui.close);
+    }
+}
+
+/** On a phone the entry editor is a full-screen page with a Back button. */
+function togglePanel(open) {
+    root.classList.toggle('wihero-ws-panel-open', open);
+    if (open) { ui.sheet.classList.remove('wihero-show'); ui.panelBack.focus(); }
+}
+
+/** On a phone, tapping a card raises a sheet: Link or Edit. */
+function drawSheet() {
+    const entry = entryOf(ws.selected);
+    if (!phone() || !entry || ws.linking) return ui.sheet.classList.remove('wihero-show');
+    const m = ws.model.byKey.get(ws.selected);
+    const status = m ? eligibility(m, ws.model, chatState().state).reason : 'not gated';
+    const button = (label, action, extra = '') => { const b = el('button', { type: 'button', class: `wihero-ws-button ${extra}` }, label); b.addEventListener('click', action); return b; };
+    ui.sheet.replaceChildren(
+        el('div', { class: 'wihero-ws-head' }, el('b', {}, entry.comment || m?.id || `uid ${entry.uid}`), el('small', {}, status)),
+        el('div', { class: 'wihero-ws-row' },
+            button('Link', () => startLinking(ws.selected), 'wihero-ws-sheet-link'),
+            button('Edit', () => togglePanel(true), 'wihero-ws-sheet-edit'),
+            button('Close', () => ui.sheet.classList.remove('wihero-show'))));
+    ui.sheet.classList.add('wihero-show');
+}
+
+/** Link by tapping: the next entry or label box tapped is the other end. */
+function startLinking(key) {
+    ws.linking = key;
+    ui.sheet.replaceChildren(el('span', {}, 'Tap the entry, label box or mask to link to.'));
+    const cancel = el('button', { type: 'button', class: 'wihero-ws-button' }, 'Cancel');
+    cancel.addEventListener('click', cancelLinking);
+    ui.sheet.append(cancel);
+    ui.sheet.classList.add('wihero-show');
+    root.classList.add('wihero-ws-linking');
+}
+
+function cancelLinking() {
+    ws.linking = null;
+    root.classList.remove('wihero-ws-linking');
+    ui.sheet.classList.remove('wihero-show');
+}
+
+/** Outline: the graph as an indented list, column by column, for reading or small screens. */
+function drawOutline(graph, placed, state) {
+    const rows = [...graph.nodes.values()].filter(n => n.kind === 'entry' || n.kind === 'label' || n.kind === 'group')
+        .map(n => ({ n, p: placed.pos.get(n.key) })).filter(r => r.p)
+        .sort((a, b) => a.p.x - b.p.x || a.p.y - b.p.y);
+    ui.outline.replaceChildren(...rows.map(({ n, p }) => {
+        const status = n.kind === 'entry' && ws.showState ? statusOf(n, state) : null;
+        const b = el('button', { type: 'button', role: 'listitem', class: `wihero-ws-item wihero-ws-outline-row${n.key === ws.selected ? ' wihero-ws-item-on' : ''}`, 'data-key': n.key,
+            style: `padding-left: ${8 + Math.round(p.x / CARD.col) * 16}px` },
+        el('b', {}, n.id ?? n.title), ' ', el('small', { class: status ? statusClass(status) : '' }, status ? shortStatus(status) ?? status : n.kind === 'entry' ? '' : n.kind));
+        b.addEventListener('click', () => selectNode(n.key));
+        return b;
+    }));
+}
+
+/** Everything the palette can do. `when` hides a command that doesn't apply now. */
+function commands() {
+    const selected = ws.model?.byKey.get(ws.selected);
+    const list = [
+        { label: 'Link the selected entry to…', when: () => entryOf(ws.selected), run: () => startLinking(ws.selected) },
+        { label: 'Toggle local graph', run: () => { ws.local.on = !ws.local.on; ui.localToggle.checked = ws.local.on; draw({ fit: true }); } },
+        { label: 'Next problem', when: () => issuesHere().length, run: nextProblem },
+        { label: 'Graph view', run: () => setMode('graph') },
+        { label: 'Canvas view', run: () => setMode('canvas') },
+        { label: 'Outline view', run: () => setMode('outline') },
+        { label: 'Tidy the canvas', when: () => ws.mode === 'canvas', run: tidy },
+        { label: 'Fit the view', run: () => view.fit() },
+        { label: 'Close the workspace', run: closeWorkspace },
+    ];
+    for (const mask of selected?.masks ?? []) list.push({ label: `Use mask "${mask.name}" for ${selected.id}`, run: () => deps.selectMask(selected.id, mask.name) });
+    if (selected?.masks?.length) list.push({ label: `Let ${selected.id}'s gates pick its mask`, run: () => deps.selectMask(selected.id, '') });
+    return list.filter(c => !c.when || c.when());
+}
+
+/** Shows an entry: selected and centred on the graph, or just selected if it isn't drawn. */
+function jumpTo(key) {
+    ws.tab = 'graph';
+    if (ws.local.on || !ws.shown.nodes.has(key)) {
+        ws.selected = key;
+        draw({ keepView: true });
+        drawSheet();
+    } else selectNode(key, { center: true });
+}
+
+function setMode(mode) {
+    ws.mode = mode;
+    deps.settings.workspaceMode = mode;
+    deps.save();
+    draw({ fit: true });
+}
+
+function nextProblem() {
+    const keys = [...new Set(issuesHere().map(i => i.key))];
+    const next = keys[(keys.indexOf(ws.selected) + 1) % keys.length];
+    selectNode(next, { center: true });
+}
+
+/** Ctrl K (or the search box on a phone): jump to an entry, or type ">" for commands. */
+function openPalette() {
+    const input = el('input', { type: 'search', class: 'text_pole', placeholder: 'Jump to an entry, or type > for commands', 'aria-label': 'Jump to an entry or run a command', name: 'wihero_palette' });
+    const list = el('div', { class: 'wihero-ws-results', role: 'listbox' });
+    let items = [];
+    let at = 0;
+    const close = () => { ui.palette.classList.remove('wihero-show'); root.focus(); };
+    const choose = item => { close(); item?.run(); };
+    const render = () => {
+        const q = input.value.trim();
+        if (q.startsWith('>')) {
+            const t = q.slice(1).trim().toLowerCase();
+            items = commands().filter(c => c.label.toLowerCase().includes(t));
+        } else {
+            const t = q.toLowerCase();
+            items = ws.entries.filter(e => !t || [e.wihero?.id, e.comment, ...(e.key ?? [])].some(x => String(x ?? '').toLowerCase().includes(t)))
+                .slice(0, 30).map(e => ({ label: e.wihero?.id ? `${e.wihero.id} · ${e.comment ?? ''}` : e.comment || `uid ${e.uid}`, run: () => jumpTo(entryKey(e)) }));
+        }
+        at = Math.min(at, Math.max(0, items.length - 1));
+        list.replaceChildren(...items.map((item, i) => {
+            const b = el('button', { type: 'button', role: 'option', class: `wihero-ws-item${i === at ? ' wihero-ws-item-on' : ''}`, 'aria-selected': String(i === at) }, item.label);
+            b.addEventListener('click', () => choose(item));
+            return b;
+        }));
+    };
+    input.addEventListener('input', () => { at = 0; render(); });
+    input.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown') { at = Math.min(items.length - 1, at + 1); render(); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { at = Math.max(0, at - 1); render(); e.preventDefault(); }
+        else if (e.key === 'Enter') choose(items[at]);
+        else if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    });
+    const cancel = el('button', { type: 'button', class: 'wihero-ws-button wihero-ws-phone' }, 'Cancel');
+    cancel.addEventListener('click', close);
+    ui.palette.replaceChildren(el('div', { class: 'wihero-ws-palette-box' }, el('div', { class: 'wihero-ws-row' }, input, cancel), list));
+    ui.palette.classList.add('wihero-show');
+    render();
+    input.focus();
 }

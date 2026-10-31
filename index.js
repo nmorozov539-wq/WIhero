@@ -205,6 +205,7 @@ mountWorkspace({
     defaultBook: () => bookName() ?? (ctx().getWorldInfoNames().includes(settings.workspaceBook) ? settings.workspaceBook : loaded[0]?.world),
     openInST,
     onSaved: () => getSortedEntries(),
+    selectMask: (id, name) => editState(state => selectMask(state, id, name)),
 });
 
 /** Opens ST's World Info editor on an entry: its book, then the entry's row (searching for it if it's on another page). */

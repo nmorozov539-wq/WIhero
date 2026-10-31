@@ -127,6 +127,13 @@ How the folder filter hooks in:
 - The workspace holds off its batched refreshes while a pointer drag is in progress, so a refresh can't pull a card out from under the pointer.
 - Known limit: Tidy's label boxes are fitted around wherever the automatic layout puts a label's entries, which can be far apart; resize the box or move the cards together.
 
+### 11c. Phones and big books
+
+- The phone layout follows ST's own breakpoint (`max-width: 1000px`): the sidebar becomes a drawer that takes the book picker, the view options and the section buttons (moved there while it's open, so there's one of each), and the right panel becomes a full-screen page.
+- In ST's narrow layout, `position: fixed` elements don't get the viewport as their box (a fixed element with `inset: 0` came out 0 px tall, and one with `bottom: 0` sat above the screen). So the workspace sets its size explicitly (`100vw` × `100dvh`), and everything inside it that floats (drawer, sheet, palette, menus, hover preview) is positioned against the workspace instead of the viewport.
+- Pinch zoom is two pointers on the stage; the zoom buttons zoom around its middle. There are no swipe gestures.
+- Above 300 cards the stage culls: only cards within 300 px of the visible area are in the page, re-checked once per frame while panning or zooming. Links are all drawn (one SVG). The e2e test's 500-entry book keeps about 100 cards in the page.
+
 ## Design changes this implies
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.

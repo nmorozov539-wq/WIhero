@@ -2,7 +2,7 @@
 
 A SillyTavern extension for story-gated World Info: entries that only become eligible once the story reaches a point, and retire once it moves past.
 
-Status: M1–M10 (gates, chains, glue, the entry editor, railway switches, masks, labels, folders and visuals). The node editor is for later. Targets SillyTavern 1.19.0.
+Status: M1–M14 (gates, chains, glue, the entry editor, railway switches, masks, labels, folders, visuals, and the workspace with graph, canvas, outline and a phone layout). Targets SillyTavern 1.19.0.
 
 - [Design](docs/DESIGN.md)
 - [Roadmap](docs/ROADMAP.md)
@@ -63,6 +63,16 @@ Switch the workspace from **Graph** to **Canvas** to arrange the book yourself, 
 - A label is a box around its entries: resize it by its corner, and drop a card into or out of it to add or remove the label (it asks first, since that edits the entry).
 - **Area** adds a named frame to arrange cards in, **Note** a note card. Both are for you only: nothing in them reaches the model.
 - Draw a link by dragging the dot on a card's right edge onto another card, a label box or a mask pill. A menu asks what the link means: gate, closes, ends glue, gates for a label, mask gate, or another switch path from a fork. A link that would break something (a loop, say) is refused with the reason.
+
+### Ctrl K, Outline and phones
+
+- **Ctrl K** (or the box at the top) jumps to any entry. Start with `>` for commands: link the selected entry, local graph, next problem, Graph / Canvas / Outline view, tidy, pick a mask.
+- **Outline** shows the book as an indented list in the order of its gates, for reading or small screens.
+- On a phone (below ST's 1000px narrow layout) the workspace is full-screen with **Menu**, a search box and **Entry** at the top. Menu holds the book, the views and the lists; Entry opens the selected entry as a page with Back. Tap a card for **Link** and **Edit**; after Link, tap the other end. Zoom with the + and − buttons or two fingers. No swipes are needed for anything.
+
+![The workspace on a phone](docs/img/phone.png) ![Ctrl K](docs/img/palette.png)
+
+Big books stay quick: above 300 cards only those near the screen are drawn. A 500-entry book on a 390px screen opened in about 0.4 s, with zoom steps around 80 ms and pan steps around 20 ms in the test run.
 
 ## The panel and the entry list
 
