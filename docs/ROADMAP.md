@@ -100,5 +100,9 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 **Done when:** the workspace works at 390px wide, and a 500-entry book stays responsive there.
 
+## Next — New editor and Hero mode
+
+UX agreed in [UX_SPEC.md](UX_SPEC.md): the tabbed phone-first editor that replaces ST's drawer, and Hero mode with puzzle pieces, gate rows, packs and locks.
+
 ## Later
 Timeline scrubber across branches, a book-level starting state.

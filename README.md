@@ -108,6 +108,14 @@ Give entries a **Folder** (`Town/Inn`) and a **Color** in the WI Hero section. A
    - turn 3: WIH-2 and WIH-3 fire; `mill` closes.
 4. Swipe or delete the last reply: the panel goes back one step.
 
+## Next
+
+The new editor and Hero mode are specified in [docs/UX_SPEC.md](docs/UX_SPEC.md).
+
 ## Tests
 
 `npm test` runs the engine tests (no SillyTavern needed).
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
