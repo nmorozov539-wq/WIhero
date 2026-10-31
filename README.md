@@ -8,6 +8,18 @@ Status: M1–M14 (gates, chains, glue, the entry editor, railway switches, masks
 - [Roadmap](docs/ROADMAP.md)
 - [Technical notes](docs/TECHNICAL_NOTES.md): how the design maps onto ST's World Info hooks
 
+## Install
+
+In SillyTavern, open **Extensions** → **Install extension**, paste
+
+```
+<repo-url>
+```
+
+and choose whether to install it for all users or just you. **WI Hero** then appears in the Extensions panel. To update it later, use the update button next to it in **Manage extensions**.
+
+Tested with SillyTavern 1.19.0.
+
 ## Gating an entry
 
 Open an entry in the World Info editor. At the bottom of its edit area there's a **WI Hero** section:
