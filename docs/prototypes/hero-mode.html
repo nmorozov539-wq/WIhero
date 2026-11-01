@@ -253,13 +253,86 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
 .legend { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; background: currentColor; }
 @media (max-width: 520px) { .notes { padding: 20px 16px 40px; } }
+
+/* Preview tab */
+.phint { position: absolute; top: 18px; left: 62px; z-index: 9; color: var(--muted); font-size: 13px; pointer-events: none; display: flex; align-items: center; gap: 6px; }
+.ppage { position: absolute; inset: 0; overflow-y: auto; background: var(--app); display: flex; flex-direction: column; }
+.phead { display: flex; align-items: center; gap: 6px; padding: 10px 12px 2px 16px; }
+.phead h2 { margin: 0; font-size: 20px; flex: 1; }
+.srcchip { height: 34px; border-radius: 17px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; max-width: 62%; }
+.srcchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pnote { color: var(--muted); font-size: 12.5px; padding: 0 16px 10px; }
+.pbody { flex: 1; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.slot { border-radius: 14px; background: var(--surface); border: 1px solid var(--line); padding: 4px 6px 12px 14px; }
+.slot.me { border-color: #3d4650; }
+.slot .sh { display: flex; align-items: center; gap: 4px; min-height: 40px; }
+.slot .sh b { flex: 1; font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.slot .sh .ib { width: 36px; height: 36px; }
+.htext { font-size: 15px; line-height: 1.7; padding-right: 8px; white-space: pre-wrap; min-height: 26px; cursor: text; }
+.htext .ph { color: var(--muted); }
+.slot textarea { width: 100%; min-height: 110px; resize: vertical; border: none; background: none; color: var(--fg); font: inherit; font-size: 15px; line-height: 1.7; padding: 0 8px 0 0; outline: none; user-select: text; -webkit-user-select: text; }
+.hl { display: inline; font: inherit; color: inherit; border: none; margin: 0; padding: 1px 3px; border-radius: 4px; cursor: pointer; background: color-mix(in srgb, var(--c) 30%, transparent); box-shadow: inset 0 -2px 0 var(--c); }
+.hl.plain { background: none; box-shadow: none; padding: 1px 1px; border-bottom: 2px dotted var(--c); border-radius: 0; }
+.hl.lk::before { content: '🔒'; font-size: 11px; margin-right: 2px; }
+.hl.no { text-decoration: line-through; text-decoration-color: var(--closes); text-decoration-thickness: 2px; opacity: .75; }
+.psum { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 2px 4px; }
+.psum b { color: var(--fg); }
+.also { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 0 2px; }
+.also small { color: var(--muted); font-size: 12px; margin-right: 2px; }
+.achip { height: 32px; border-radius: 16px; border: 1px solid var(--c); background: none; color: var(--fg); padding: 0 12px; font-size: 13px; cursor: pointer; }
+.achip.no { opacity: .6; text-decoration: line-through; }
+.pkey { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12px; padding: 0 4px; }
+.pkey span .hl { cursor: default; }
+.pfoot { position: sticky; bottom: 0; padding: 10px 12px 12px; background: linear-gradient(transparent, var(--app) 30%); }
+.pfoot button { width: 100%; height: 48px; border-radius: 12px; border: none; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+.why { font-size: 15px; line-height: 1.5; margin: 0 0 12px; }
+.why b { font-weight: 600; }
+.rsec h3 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 0 6px; letter-spacing: .03em; text-transform: uppercase; }
+.rrow { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; border: none; background: var(--surface); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; border-left: 3px solid var(--c); }
+.rrow div { flex: 1; min-width: 0; }
+.rrow b { display: block; font-size: 14px; }
+.rrow small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; line-height: 1.4; }
+.rbody { padding: 0 16px 40px; }
+.rstate { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+/* v6: card grip, canvas tools, menu sections */
+.card .grip { position: absolute; top: 2px; right: 2px; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--muted); cursor: grab; touch-action: none; font-size: 16px; line-height: 1; }
+.card .grip:hover { color: var(--fg); background: var(--raised); }
+.card .t { padding-right: 22px; }
+.card.moving { z-index: 20; box-shadow: 0 12px 30px rgba(0,0,0,.5); border-color: var(--accent); cursor: grabbing; transition: none; }
+.presshint { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; border: 2px solid var(--accent); pointer-events: none; z-index: 7; animation: press .5s linear forwards; }
+@keyframes press { from { transform: scale(.3); opacity: .2; } to { transform: scale(1); opacity: 1; } }
+.dropmark { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--accent); pointer-events: none; z-index: 7; box-shadow: 0 0 0 6px rgba(227,145,58,.25); }
+.shd { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin: 16px 0 4px; }
+.shd:first-child { margin-top: 4px; }
+.modeseg { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--app); }
+.modeseg button { flex: 1; height: 40px; border: none; border-radius: 9px; background: none; color: var(--muted); font-weight: 600; cursor: pointer; }
+.modeseg button.on { background: var(--raised); color: var(--fg); }
+.nrow { display: flex; align-items: center; gap: 10px; min-height: 50px; border-bottom: 1px solid var(--line); }
+.nrow label { flex: 1; font-size: 14px; }
+.nrow small { display: block; color: var(--muted); font-size: 12px; }
+.nrow input[type=number] { width: 92px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--app); color: var(--fg); padding: 0 10px; font: inherit; font-size: 14px; text-align: right; user-select: text; }
+
+/* v7: ⌄ opens a drop-down under it */
+.scrim.clear { background: rgba(0,0,0,.25); }
+.dd { position: absolute; top: 50px; left: 6px; width: min(340px, calc(100% - 12px)); max-height: calc(100% - 64px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 12px 12px; box-shadow: 0 14px 40px rgba(0,0,0,.55); transform-origin: 20px 0; animation: ddin .14s ease-out; }
+@keyframes ddin { from { opacity: 0; transform: scale(.96) translateY(-6px); } to { opacity: 1; transform: none; } }
+.dd .ddh { display: flex; align-items: center; gap: 4px; min-height: 40px; font-weight: 600; font-size: 15px; }
+.dd .ddh .ib { width: 36px; height: 36px; margin-left: -8px; }
+.modebtn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--app); color: var(--fg); cursor: pointer; text-align: left; font-weight: 600; font-size: 15px; transition: background .15s, border-color .15s; }
+.modebtn span { flex: 1; }
+.modebtn .sw2 { color: var(--muted); }
+.modebtn.arm { border-color: var(--accent); background: rgba(227,145,58,.12); color: var(--accent); font-weight: 500; font-size: 14px; }
+.modebtn.arm .sw2 { color: var(--accent); }
+.menuOn { color: var(--fg) !important; background: var(--surface) !important; }
 </style>
 
 <div class="stage">
   <div class="phone" id="phone">
     <div class="tabs">
-      <button class="ib" id="menuBtn" aria-label="View and tab options"><svg class="i" viewBox="0 0 24 24"><path d="M6 9 L12 15 L18 9"/></svg></button>
+      <button class="ib" id="menuBtn" aria-label="Mode, book and World Info settings"><svg class="i" viewBox="0 0 24 24"><path d="M6 9 L12 15 L18 9"/></svg></button>
       <button class="tab home" id="canvasTab" aria-label="Canvas"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6 H14 M17.5 9 V15"/></svg></button>
+      <button class="tab home" id="previewTab" aria-label="Preview"><svg class="i" viewBox="0 0 24 24"><path d="M7 4.5 L19 12 L7 19.5 Z"/></svg></button>
       <div class="tscroll" id="tscroll"></div>
     </div>
     <div class="main" id="main">
@@ -268,12 +341,13 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
           <div class="world" id="world"><svg class="links" id="links" width="10" height="10"></svg></div>
           <div class="empty" id="empty" hidden>Nothing on this canvas yet.<br>Drag entries here from the panel.</div>
           <div class="banner" id="banner" hidden><span></span><button id="bannerX">Cancel</button></div>
-          <div class="zoom"><button id="fitBtn" aria-label="Fit the whole canvas"><svg class="i" viewBox="0 0 24 24"><path d="M4 9 V4 H9 M15 4 H20 V9 M20 15 V20 H15 M9 20 H4 V15"/></svg></button><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button></div>
+          <div class="zoom"><button id="flowBtn" aria-label="Flow direction">⇄</button><button id="fitBtn" aria-label="Fit the whole canvas"><svg class="i" viewBox="0 0 24 24"><path d="M4 9 V4 H9 M15 4 H20 V9 M20 15 V20 H15 M9 20 H4 V15"/></svg></button><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button></div>
           <div class="zlabel" id="zlabel"></div>
         </div>
         <nav class="tray" id="tray" aria-label="Pieces"></nav>
       </div>
       <div class="view" id="entryView" hidden><div class="epage" id="epage"></div></div>
+      <div class="view" id="previewView" hidden><div class="ppage" id="ppage"></div></div>
 
       <aside class="panel" id="panel" aria-label="Entries">
         <div class="selbar" id="selbar" hidden>
@@ -294,10 +368,10 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
         <div class="selacts" id="selacts" hidden></div>
         <div class="bookrow">
           <button class="bookpick" id="bookPick"><b><span id="bookName"></span><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M6 9 L12 15 L18 9"/></svg></b><span class="bchips" id="bookChips"></span></button>
-          <button class="ib" id="bookMenu" aria-label="Book options"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
         </div>
       </aside>
       <button class="panelBtn" id="panelBtn" aria-label="Entries panel"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4 V20"/></svg></button>
+      <div class="phint" id="phint" hidden><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M19 12 H5 M11 6 L5 12 L11 18"/></svg>Open your entries to start</div>
       <div class="cancelZone" id="cancelZone" hidden aria-hidden="true">✕</div>
     </div>
     <div class="sysback"><button id="sysBack"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><path d="M15 5 L8 12 L15 19"/></svg>Back</button></div>
@@ -311,9 +385,21 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     <h3>Layout</h3>
     <ul>
       <li><b>Side panel</b> (Obsidian style) lists the book's entries. Sort by folders, packs, A–Z or ID (sort button at the bottom). A dot means the entry is on the canvas.</li>
-      <li><b>Book picker</b> at the bottom of the panel. Switching books switches the canvas.</li>
+      <li><b>Book picker</b> at the bottom of the panel, and nothing else there. Switching books switches the canvas.</li>
+      <li><b>⌄ menu</b> (top left): Mode (Normal or Hero, plus "Open books in Hero mode"), Activation (Global and linked characters with Unlink), Settings (ST's World Info settings, this book's new entry defaults), then Rename, Export, Delete.</li>
+      <li><b>Canvas buttons</b> by + and −: flow direction (⇄/⇅) and Fit.</li>
       <li><b>Tabs</b> work like the base editor. The first tab is always the Canvas; entries open in their own tabs with the full entry page.</li>
-      <li><b>Panel button</b> on the canvas opens and closes the panel.</li>
+      <li><b>Panel button</b> on the canvas opens and closes the panel. The panel starts closed, with a hint the first time.</li>
+      <li><b>Preview tab</b> (▷) is the third permanent tab.</li>
+    </ul>
+    <h3>Preview</h3>
+    <ul>
+      <li>A pretend exchange: one slot for your message, one for the character's reply. Tap a slot to edit it, ✕ to clear it. Nothing is saved.</li>
+      <li>It starts from the open chat's latest pair and how far its story has got. Tap the chip at the top and pick <b>No chat open</b> to start empty.</li>
+      <li><b>Highlights</b> use the strategy colors: solid for entries with pieces, dotted for plain ones, 🔒 for lock phrases, struck through when blocked. Tap one to see what it did.</li>
+      <li><b>Also active</b> lists permanent entries and vector matches, which have no phrase to highlight. Try "black bird" for Crows.</li>
+      <li><b>Report</b> at the bottom: what fires and why, what's blocked and by what, and what would change.</li>
+      <li>Old hermit is set to <b>triggered by you only</b>, so the reply's "hermit" is blocked.</li>
     </ul>
     <h3>Try</h3>
     <ul>
@@ -321,7 +407,9 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       <li><b>The dot</b> on the right is the canvas control. Filled: on the canvas, tap to jump there. Hollow: tap to place it in the middle of the view, or drag it where you want. While dragging, the canvas scrolls near its edges; drop on the <b>✕ circle</b> to cancel.</li>
       <li><b>Long press</b> an entry to select. Then: On, Off, Move to a folder (or a new one), Edit… for parameters, Place, Pack, <b>Add to a gate</b> (one row of all selected), Delete with Undo. A folder's checkbox selects everything in it.</li>
       <li><b>Left stripe</b> = strategy (green keywords, blue permanent, purple vectorized). Off entries are dimmed and gray. Ferry is off.</li>
-      <li><b>Search</b> and <b>New entry</b> sit in the panel's bottom bar. <b>⋮ next to the book</b>: Global, linked characters, rename, export, delete.</li>
+      <li><b>Search</b> and <b>New entry</b> sit in the panel's bottom bar.</li>
+      <li><b>⠿ on a card</b>: drag it to move the entry anywhere on the canvas. Changing the flow direction tidies everything back up.</li>
+      <li><b>Long press empty canvas</b>: a picker with search adds an entry right there (or moves it there), or makes a new one.</li>
       <li><b>Linked entries are always on the canvas.</b> Add a link to an entry that isn't there and it appears. An entry with links can't be taken off; remove the links first.</li>
       <li>Tap the canvas strip to close the panel. Switch to <b>Ashfall Keep</b> in the book picker to see a nearly empty canvas.</li>
     </ul>
@@ -361,10 +449,10 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       { uid: 10, id: 'smithy', title: 'Smithy', keys: ['smith'], folder: 'Places/Town', packs: ['town'], content: '' },
       { uid: 11, id: 'tower', title: 'Tower', keys: ['tower'], folder: 'Places', gates: [['marsh'], ['ridge']], masks: [{ name: 'ruined', gates: ['storm'] }, { name: 'rebuilt', gates: ['smithy'] }], content: 'A lone tower above the valley.' },
       { uid: 12, id: 'finale', title: 'Finale', keys: ['crown'], folder: 'Events', gates: [['#town:all', 'tower']], closes: ['storm'], content: '' },
-      { uid: 13, id: 'hermit', title: 'Old hermit', keys: ['hermit'], folder: 'People', content: 'Lives by the river and talks to crows.' },
+      { uid: 13, id: 'hermit', title: 'Old hermit', keys: ['hermit'], folder: 'People', by: 'user', content: 'Lives by the river and talks to crows.' },
       { uid: 14, id: 'ferry', title: 'Ferry', keys: ['ferry', 'ferryman'], folder: 'Places', off: true, content: '' },
       { uid: 15, id: 'lore', title: 'Weather lore', keys: [], folder: 'Lore', strategy: 'permanent', content: 'Storms in this valley always come from the west.' },
-      { uid: 16, id: 'crows', title: 'Crows', keys: ['crow', 'crows'], strategy: 'vector', content: 'Crows follow whoever carries the crown.' }
+      { uid: 16, id: 'crows', title: 'Crows', keys: ['crow', 'crows'], strategy: 'vector', vec: ['bird', 'feather', 'wings'], content: 'Crows follow whoever carries the crown.' }
     ] },
     { name: 'Ashfall Keep', entries: [
       { uid: 1, id: 'keep', title: 'The Keep', keys: ['keep'], folder: 'Places', content: '' },
@@ -374,7 +462,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     ] }
   ];
   BOOKS[0].global = true; BOOKS[0].links = ['Seraphina', 'Road trip chat']; BOOKS[1].global = false; BOOKS[1].links = [];
-  BOOKS.forEach(b => b.v = { manual: {}, lastPos: {}, lastPlaced: [], scale: 0.7, tx: 20, ty: 20, focus: null, tabs: [], active: 'canvas', started: false });
+  BOOKS.forEach(b => b.v = { manual: {}, lastPos: {}, lastPlaced: [], moved: {}, scale: 0.7, tx: 20, ty: 20, focus: null, tabs: [], active: 'canvas', started: false });
   let B = BOOKS[0], E = B.entries;
   const byId = id => E.find(e => e.id === id);
   const KIND = {
@@ -471,6 +559,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       });
     });
     for (const [id, p] of Object.entries(vw().manual)) if (!pos[id] && byId(id)) pos[id] = p;
+    for (const [id, p] of Object.entries(vw().moved)) if (pos[id]) pos[id] = p;
     return pos;
   }
 
@@ -504,7 +593,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       c.className = 'card' + (e.off ? ' off' : '') + (focus?.id === e.id ? ' focus' : '') + (focus && !related.has(e.id) ? ' dim' : '') + (state.pick ? ' pickable' : '') + (freshId === e.id ? ' fresh' : '');
       c.dataset.id = e.id;
       c.style.left = pos[e.id].x + 'px'; c.style.top = pos[e.id].y + 'px';
-      c.innerHTML = `<div class="t"></div><div class="k"></div>`;
+      c.innerHTML = `<div class="t"></div><div class="k"></div><span class="grip" aria-label="Move" title="Drag to move">⠿</span>`;
       c.querySelector('.t').textContent = e.title;
       c.querySelector('.k').textContent = (e.strategy === 'permanent' ? 'permanent' : e.keys.join(', ')) + ((e.packs || []).length ? '  #' + e.packs.join(' #') : '');
       const sides = { in: [], out: [], a: [], b: [] };
@@ -550,7 +639,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     applyView();
     drawLinks(focus);
     renderTray(); renderBanner(); renderPanel(); renderTabs();
-    if (state.active !== 'canvas') renderEntry();
+    if (state.active === 'preview') renderPreview(); else if (state.active !== 'canvas') renderEntry();
   }
   function relatedRef(r, set) { const p = parseRef(r); if (p.lock) return; (p.id ? [byId(p.id)] : packMembers(p.pack)).forEach(e => e && set.add(e.id)); }
   function packRelated(pk, focus) { return [...(focus.gatesFor || []), ...(focus.closes || []), ...(focus.gates || []).flat()].some(r => parseRef(r).pack === pk); }
@@ -640,8 +729,25 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     if (state.panel) { setPanel(false); return; }
     vp.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (ptrs.size === 1) gesture = { kind: 'tap', sx: e.clientX, sy: e.clientY, tx: state.tx, ty: state.ty, target: e.target };
-    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), s: state.scale }; }
+    const grip = e.target.closest('.grip');
+    if (ptrs.size === 1 && grip && !state.pick && !state.tool) {
+      const c = grip.closest('.card'); c.classList.add('moving');
+      gesture = { kind: 'move', id: c.dataset.id, card: c, sx: e.clientX, sy: e.clientY, x: c.offsetLeft, y: c.offsetTop };
+      return;
+    }
+    if (ptrs.size === 1) {
+      gesture = { kind: 'tap', sx: e.clientX, sy: e.clientY, tx: state.tx, ty: state.ty, target: e.target };
+      if (!e.target.closest('.card, .packframe, .zoom, .banner') && !state.pick && !state.tool) {
+        const r = vp.getBoundingClientRect(), g = gesture, hint = el('div', 'presshint');
+        hint.style.left = (e.clientX - r.left) + 'px'; hint.style.top = (e.clientY - r.top) + 'px'; vp.appendChild(hint); g.hint = hint;
+        g.timer = setTimeout(() => {
+          if (gesture !== g || g.kind !== 'tap') { hint.remove(); return; }
+          g.kind = 'long'; hint.remove();
+          addHere((g.sx - r.left - state.tx) / state.scale, (g.sy - r.top - state.ty) / state.scale, g.sx - r.left, g.sy - r.top);
+        }, 500);
+      }
+    }
+    else if (ptrs.size === 2) { clearTimeout(gesture?.timer); vp.querySelectorAll('.presshint').forEach(n => n.remove()); const [a, b] = [...ptrs.values()]; gesture = { kind: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), s: state.scale }; }
   });
   vp.addEventListener('pointermove', e => {
     if (!ptrs.has(e.pointerId) || !gesture) return;
@@ -653,7 +759,11 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       return;
     }
     const dx = e.clientX - gesture.sx, dy = e.clientY - gesture.sy;
-    if (gesture.kind === 'tap' && Math.hypot(dx, dy) > 6) gesture.kind = 'pan';
+    if (gesture.kind === 'move') {
+      const g = gesture; g.nx = Math.round(g.x + dx / state.scale); g.ny = Math.round(g.y + dy / state.scale);
+      g.card.style.left = g.nx + 'px'; g.card.style.top = g.ny + 'px'; drawLinks(state.focus ? byId(state.focus) : null); return;
+    }
+    if (gesture.kind === 'tap' && Math.hypot(dx, dy) > 6) { gesture.kind = 'pan'; clearTimeout(gesture.timer); gesture.hint?.remove(); }
     if (gesture.kind === 'pan') { state.tx = gesture.tx + dx; state.ty = gesture.ty + dy; applyView(); }
   });
   const up = e => {
@@ -661,6 +771,12 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     if (!gesture) return;
     const g = gesture;
     if (ptrs.size === 0) gesture = null;
+    clearTimeout(g.timer); vp.querySelectorAll('.presshint').forEach(n => n.remove());
+    if (g.kind === 'move') {
+      g.card.classList.remove('moving');
+      if (g.nx != null) { vw().moved[g.id] = { x: g.nx, y: g.ny }; if (vw().manual[g.id]) vw().manual[g.id] = { x: g.nx, y: g.ny }; render(); }
+      return;
+    }
     if (g.kind === 'tap' && e.type === 'pointerup') onTap(g.target);
   };
   vp.addEventListener('scroll', () => { vp.scrollLeft = 0; vp.scrollTop = 0; });
@@ -778,6 +894,8 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   }
   function setPanel(open) {
     state.panel = open;
+    if (open) state.seenPanel = true;
+    $('phint').hidden = state.seenPanel || state.active !== 'canvas';
     $('panel').classList.toggle('closed', !open);
     $('panelBtn').style.left = open ? 'calc(100% - 54px)' : '10px';
     $('panelBtn').setAttribute('aria-expanded', open);
@@ -928,38 +1046,29 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   $('searchBtn').addEventListener('click', () => { $('psearch').hidden = false; setTimeout(() => $('pq').focus(), 30); });
   $('pq').addEventListener('input', () => { state.query = $('pq').value; renderPanel(); });
   $('pqX').addEventListener('click', () => { state.query = ''; $('pq').value = ''; $('psearch').hidden = true; renderPanel(); });
-  function openBookMenu() {
-    sheet(B.name, 'var(--muted)', '', b => {
-      const t = el('button', 'tgl'); t.innerHTML = `<span class="sw${B.global ? ' on' : ''}"></span><span>Active globally</span>`;
-      t.addEventListener('click', () => { B.global = !B.global; renderPanel(); openBookMenu(); toast(B.global ? 'Book is global' : 'Book is not global'); }); b.appendChild(t);
-      const lk = el('div', 'rowbox'); lk.style.marginTop = '10px'; lk.appendChild(el('div', 'rl', 'Linked to'));
-      B.links.forEach((n, i) => lk.appendChild(chipEl(n, () => { B.links.splice(i, 1); renderPanel(); openBookMenu(); toast(`Unlinked from ${n}`); })));
-      const add = el('button', 'addb', '+ link'); add.addEventListener('click', () => toast('Link to this chat or a character, same as List mode')); lk.appendChild(add);
-      b.appendChild(lk);
-      for (const l of ['Rename', 'Export', 'Delete book']) { const o = el('button', 'opt', l); if (l === 'Delete book') o.style.color = 'var(--closes)'; o.addEventListener('click', () => toast(`${l}: same as List mode`)); b.appendChild(o); }
-    });
-  }
-  $('bookMenu').addEventListener('click', openBookMenu);
-
   // ---------- tabs and the entry page ----------
   function openTab(id) {
+    if (state.active === 'canvas' || state.active === 'preview') state.from = state.active;
     if (!state.tabs.includes(id)) state.tabs.push(id);
     state.active = id; state.editing = false; setPanel(false); showActive();
   }
   function closeTab(id) {
     const i = state.tabs.indexOf(id); if (i < 0) return;
     state.tabs.splice(i, 1);
-    if (state.active === id) state.active = 'canvas';
+    if (state.active === id) state.active = state.from || 'canvas';
     showActive();
   }
   function showActive() {
-    const canvas = state.active === 'canvas';
-    $('canvasView').hidden = !canvas; $('entryView').hidden = canvas;
+    const canvas = state.active === 'canvas', prev = state.active === 'preview';
+    $('canvasView').hidden = !canvas; $('entryView').hidden = canvas || prev; $('previewView').hidden = !prev;
     $('panel').hidden = !canvas; $('panelBtn').hidden = !canvas;
+    $('phint').hidden = state.seenPanel || !canvas;
+    if (prev) { pv.page = pv.page || null; $('ppage').scrollTop = 0; }
     render();
   }
   function renderTabs() {
     $('canvasTab').classList.toggle('on', state.active === 'canvas');
+    $('previewTab').classList.toggle('on', state.active === 'preview');
     const ts = $('tscroll'); ts.innerHTML = '';
     state.tabs.forEach(id => {
       const e = byId(id); if (!e) return;
@@ -971,6 +1080,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     const on = ts.querySelector('.on'); if (on) on.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }
   $('canvasTab').addEventListener('click', () => { state.active = 'canvas'; showActive(); });
+  $('previewTab').addEventListener('click', () => { state.active = 'preview'; pv.page = null; showActive(); });
 
   function heroLines(e) {
     const L = [];
@@ -982,6 +1092,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     if ((e.switch || []).length) L.push(['var(--switch)', 'Fork', 'only one of ' + e.switch.map(refText).join(', ')]);
     if (e.glue) L.push(['var(--glue)', 'Glued', 'stays on until ' + ([...e.glue.fired.map(refText), ...e.glue.keywords.map(w => '"' + w + '"')].join(' or ') || '(no end yet)')]);
     if ((e.masks || []).length) L.push(['var(--mask)', 'Masks', e.masks.map(m => m.name + (m.gates.length ? ' (after ' + m.gates.map(refText).join(', ') + ')' : '')).join('; ')]);
+    if (e.by && e.by !== 'any') L.push(['var(--muted)', 'Triggered by', e.by === 'user' ? 'your messages only' : 'the character\'s replies only']);
     if ((e.packs || []).length) L.push(['var(--pack)', 'In packs', e.packs.map(p => '#' + p).join(', ')]);
     const heldBy = E.filter(o => (o.gatesFor || []).some(r => { const p = parseRef(r); return p.id === e.id || (p.pack && packMembers(p.pack).includes(e)); }));
     if (heldBy.length) L.push(['var(--gfor)', 'Held back by', heldBy.map(o => o.title).join(', ')]);
@@ -991,7 +1102,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   }
   function wihero(e) {
     const w = {};
-    for (const k of ['packs', 'gates', 'closeGates', 'gatesFor', 'closes', 'switch', 'glue', 'masks']) if (e[k] !== undefined) w[k] = e[k];
+    for (const k of ['by', 'packs', 'gates', 'closeGates', 'gatesFor', 'closes', 'switch', 'glue', 'masks']) if (e[k] !== undefined) w[k] = e[k];
     return JSON.stringify(w, null, 2).replace(/\[\s*("[^"\]]*"(?:,\s*"[^"\]]*")*)\s*\]/g, (m, inner) => '[' + inner.replace(/\s*\n\s*/g, ' ') + ']').replace(/\[\s*\]/g, '[]');
   }
   const icon = d => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
@@ -1059,7 +1170,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   }
 
   // ---------- sheets ----------
-  function closeLayer() { const l = $('layer'); if (l.firstChild) { l.innerHTML = ''; return true; } return false; }
+  function closeLayer() { const l = $('layer'); $('menuBtn')?.classList.remove('menuOn'); if (l.firstChild) { l.innerHTML = ''; return true; } return false; }
   function sheet(title, color, help, build) {
     const l = $('layer');
     l.innerHTML = `<div class="scrim"></div><div class="sheet" role="dialog"><div class="grab"></div><h2 style="color:${color}"><span class="dot"></span><span class="tt" style="color:var(--fg)"></span></h2><p class="help"></p><div class="body"></div></div>`;
@@ -1067,6 +1178,14 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     if (!help) l.querySelector('.help').remove();
     l.querySelector('.scrim').addEventListener('click', closeLayer);
     build(l.querySelector('.body'));
+    return l;
+  }
+  function dropdown(build) {
+    const l = $('layer');
+    l.innerHTML = `<div class="scrim clear"></div><div class="dd" role="menu"></div>`;
+    l.querySelector('.scrim').addEventListener('click', closeLayer);
+    $('menuBtn').classList.add('menuOn');
+    build(l.querySelector('.dd'));
     return l;
   }
   function chipEl(text, onX, pk) { const c = el('span', 'chip' + (pk ? ' pk' : '')); c.appendChild(el('span', '', text)); const x = el('button', '', '×'); x.setAttribute('aria-label', 'Remove ' + text); x.addEventListener('click', onX); c.appendChild(x); return c; }
@@ -1222,6 +1341,11 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       else { const o = el('button', 'opt', 'Open entry'); o.appendChild(el('span', '', 'new tab')); o.addEventListener('click', () => { closeLayer(); openTab(e.id); }); b.appendChild(o); }
       const d = el('button', 'opt', 'Show entry data { }'); d.addEventListener('click', () => showData(e)); b.appendChild(d);
       const p = el('button', 'opt', 'Pack into…'); p.addEventListener('click', () => askPack(e)); b.appendChild(p);
+      b.appendChild(el('div', 'shd', 'Entry'));
+      const du = el('button', 'opt', 'Duplicate'); du.addEventListener('click', () => { closeLayer(); duplicateEntry(e); }); b.appendChild(du);
+      const mv = el('button', 'opt', 'Move to another book'); mv.addEventListener('click', () => moveToBook(e)); b.appendChild(mv);
+      const cp = el('button', 'opt', 'Copy as text'); cp.addEventListener('click', () => { closeLayer(); const t = `${e.title}\nKeys: ${e.keys.join(', ')}\n\n${e.content}`; try { navigator.clipboard.writeText(t).then(() => toast('Copied as text'), () => toast('Copied as text')); } catch { toast('Copied as text'); } }); b.appendChild(cp);
+      const dl = el('button', 'opt', 'Delete'); dl.style.color = 'var(--closes)'; dl.addEventListener('click', () => { closeLayer(); deleteEntry(e); }); b.appendChild(dl);
       if (linked || manual) {
         const r = el('button', 'opt', 'Remove from canvas');
         if (linked) { r.disabled = true; r.appendChild(el('span', '', 'has links: remove them first')); }
@@ -1230,20 +1354,124 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
       }
     });
   }
+  function duplicateEntry(e) {
+    const c = JSON.parse(JSON.stringify(e)); c.uid = Math.max(0, ...E.map(x => x.uid)) + 1; c.id = e.id + '-copy' + Date.now().toString(36).slice(-2); c.title = e.title + ' (copy)';
+    E.splice(E.indexOf(e) + 1, 0, c); render();
+    toast(`${c.title} made`, { label: 'Open', fn: () => openTab(c.id) });
+  }
+  function deleteEntry(e) {
+    const snap = E.slice(), man = { ...vw().manual }, tabs = state.tabs.slice(), act = state.active;
+    E.splice(E.indexOf(e), 1); delete vw().manual[e.id];
+    state.tabs = state.tabs.filter(id => id !== e.id); if (state.active === e.id) state.active = state.from || 'canvas';
+    if (state.focus === e.id) state.focus = null;
+    showActive();
+    toast(`${e.title} deleted`, { label: 'Undo', fn: () => { E.length = 0; snap.forEach(x => E.push(x)); vw().manual = man; state.tabs = tabs; state.active = act; showActive(); toast('Restored'); } });
+  }
+  function moveToBook(e) {
+    const others = BOOKS.filter(bk => bk !== B);
+    sheet(`Move ${e.title}`, 'var(--accent)', linkedSet().has(e.id) ? 'Its pieces and the links to it stay in this book: they are removed when it moves.' : 'It keeps its key words, content and parameters.', b => {
+      others.forEach(bk => { const o = el('button', 'opt', bk.name); o.appendChild(el('span', '', `${bk.entries.length} entries`)); o.addEventListener('click', () => {
+        closeLayer();
+        const c = JSON.parse(JSON.stringify(e)); for (const k of ['gates', 'gatesFor', 'closes', 'switch', 'glue', 'masks', 'closeGates']) delete c[k];
+        c.uid = Math.max(0, ...bk.entries.map(x => x.uid)) + 1; bk.entries.push(c);
+        for (const o2 of E) { if (o2.gates) o2.gates = o2.gates.map(r => r.filter(x => x !== e.id)); for (const k of ['gatesFor', 'closes', 'switch']) if (o2[k]) o2[k] = o2[k].filter(x => x !== e.id); }
+        E.splice(E.indexOf(e), 1); delete vw().manual[e.id]; delete vw().moved[e.id];
+        state.tabs = state.tabs.filter(id => id !== e.id); if (state.active === e.id) state.active = state.from || 'canvas';
+        showActive(); toast(`Moved to ${bk.name}`);
+      }); b.appendChild(o); });
+    });
+  }
   function showData(e) {
     sheet(`${e.title} · data`, 'var(--muted)', 'This is everything Hero mode reads, stored in the entry\'s own wihero field. The pieces are just a drawing of it.', b => {
       const pre = el('pre', 'json'); pre.textContent = '"wihero": ' + wihero(e); b.appendChild(pre);
     });
   }
   function openMenu() {
-    sheet('View', 'var(--muted)', '', b => {
-      const d = el('button', 'opt', state.dir === 'lr' ? 'Flow: left to right' : 'Flow: top to bottom'); d.appendChild(el('span', '', state.dir === 'lr' ? '⇄' : '⇅'));
-      d.addEventListener('click', () => { state.dir = state.dir === 'lr' ? 'tb' : 'lr'; closeLayer(); render(); fit(); }); b.appendChild(d);
-      const f = el('button', 'opt', 'Fit the whole canvas'); f.addEventListener('click', () => { closeLayer(); state.focus = null; render(); fit(); }); b.appendChild(f);
+    dropdown(b => {
+      b.appendChild(el('div', 'shd', 'Mode'));
+      const mb = el('button', 'modebtn');
+      const idle = () => { mb.classList.remove('arm'); mb.innerHTML = icon('<rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6 H14 M17.5 9 V15"/>') + '<span>Hero mode</span>' + '<svg class="i sw2" viewBox="0 0 24 24"><path d="M4 8 H18 L14 4 M20 16 H6 L10 20"/></svg>'; };
+      let armT = null; idle();
+      mb.addEventListener('click', () => {
+        if (mb.classList.contains('arm')) { clearTimeout(armT); closeLayer(); toast('Switching to Normal mode'); return; }
+        mb.classList.add('arm'); mb.innerHTML = icon('<path d="M4 6 H20 M4 12 H20 M4 18 H14"/>') + '<span>Tap again to switch to Normal mode</span>' + '<svg class="i sw2" viewBox="0 0 24 24"><path d="M4 8 H18 L14 4 M20 16 H6 L10 20"/></svg>';
+        armT = setTimeout(idle, 3000);
+      });
+      b.appendChild(mb);
       const t = el('button', 'tgl'); t.innerHTML = `<span class="sw${state.heroStart ? ' on' : ''}"></span><span>Open books in Hero mode</span>`;
-      t.addEventListener('click', () => { state.heroStart = !state.heroStart; t.querySelector('.sw').classList.toggle('on', state.heroStart); toast(state.heroStart ? 'Books open straight into Hero mode' : 'Books open in List mode'); }); b.appendChild(t);
-      if (state.tabs.length) { const c = el('button', 'opt', 'Close all entry tabs'); c.addEventListener('click', () => { state.tabs = []; state.active = 'canvas'; closeLayer(); showActive(); }); b.appendChild(c); }
+      t.addEventListener('click', () => { state.heroStart = !state.heroStart; t.querySelector('.sw').classList.toggle('on', state.heroStart); toast(state.heroStart ? 'Books open straight into Hero mode' : 'Books open in normal mode'); }); b.appendChild(t);
+
+      b.appendChild(el('div', 'shd', 'Activation'));
+      const g = el('button', 'tgl'); g.style.marginTop = '0'; g.innerHTML = `<span class="sw${B.global ? ' on' : ''}"></span><span>Active globally</span>`;
+      g.addEventListener('click', () => { B.global = !B.global; g.querySelector('.sw').classList.toggle('on', B.global); renderPanel(); toast(B.global ? 'Book is global' : 'Book is not global'); }); b.appendChild(g);
+      const lk = el('div', 'rowbox'); lk.style.marginTop = '8px'; lk.appendChild(el('div', 'rl', 'Linked to'));
+      const drawLinksBox = () => {
+        [...lk.querySelectorAll('.chip, .addb, .none')].forEach(n => n.remove());
+        if (!B.links.length) { const n = el('span', 'none', 'Nothing linked'); n.style.cssText = 'color:var(--muted);font-size:13px'; lk.appendChild(n); }
+        B.links.forEach((n, i) => lk.appendChild(chipEl(n, () => { B.links.splice(i, 1); renderPanel(); drawLinksBox(); toast(`Unlinked from ${n}`); })));
+        const add = el('button', 'addb', '+ link'); add.addEventListener('click', () => toast('Link to this chat or a character')); lk.appendChild(add);
+      };
+      drawLinksBox(); b.appendChild(lk);
+
+      b.appendChild(el('div', 'shd', 'Settings'));
+      const ws = el('button', 'opt', 'World Info settings'); ws.appendChild(el('span', '', 'budget, scan depth…')); ws.addEventListener('click', openWISettings); b.appendChild(ws);
+      const nd = el('button', 'opt', 'New entry defaults'); nd.appendChild(el('span', '', 'this book')); nd.addEventListener('click', () => toast('Same as the base editor')); b.appendChild(nd);
+
+      b.appendChild(el('div', 'shd', 'Book · ' + B.name));
+      for (const l of ['Rename', 'Export', 'Delete book']) { const o = el('button', 'opt', l); if (l === 'Delete book') o.style.color = 'var(--closes)'; o.addEventListener('click', () => toast(`${l}: same as the base editor`)); b.appendChild(o); }
+      b.appendChild(el('div', 'shd', 'Tabs'));
+      const cur = state.tabs.includes(state.active) ? state.active : null;
+      const tabOpt = (label, ok, fn) => { const o = el('button', 'opt', label); if (!ok) o.disabled = true; else o.addEventListener('click', () => { closeLayer(); fn(); showActive(); }); b.appendChild(o); };
+      tabOpt('Close tab', !!cur, () => closeTab(cur));
+      tabOpt('Close others', state.tabs.length > (cur ? 1 : 0), () => { state.tabs = cur ? [cur] : []; toast('Other tabs closed'); });
+      tabOpt('Close tabs to the right', !!cur && state.tabs.indexOf(cur) < state.tabs.length - 1, () => { state.tabs = state.tabs.slice(0, state.tabs.indexOf(cur) + 1); });
+      tabOpt('Close all entry tabs', state.tabs.length > 0, () => { state.tabs = []; state.active = 'canvas'; });
+      if (!state.tabs.length) b.lastChild.appendChild(el('span', '', 'none open'));
     });
+  }
+  const WI = { budget: 25, depth: 2, recursive: true };
+  function openWISettings() {
+    const l = dropdown(b => {
+      const h = el('div', 'ddh'), bk = el('button', 'ib'); bk.innerHTML = icon('<path d="M19 12 H5 M11 6 L5 12 L11 18"/>'); bk.setAttribute('aria-label', 'Back'); bk.addEventListener('click', openMenu);
+      h.append(bk, el('span', '', 'World Info settings')); b.appendChild(h);
+      const hp = el('p', 'help', 'ST\'s own settings. They apply to every book, not just this one.'); hp.style.cssText = 'color:var(--muted);font-size:13px;margin:0 0 6px'; b.appendChild(hp);
+      const num = (k, label, sub) => { const r = el('div', 'nrow'), lb = el('label', '', label); lb.appendChild(el('small', '', sub)); const i = el('input'); i.type = 'number'; i.value = WI[k]; i.addEventListener('change', () => { WI[k] = +i.value; }); r.append(lb, i); b.appendChild(r); };
+      num('budget', 'Budget', '% of the context World Info may use');
+      num('depth', 'Scan depth', 'how many recent messages are scanned');
+      const t = el('button', 'tgl'); t.innerHTML = `<span class="sw${WI.recursive ? ' on' : ''}"></span><span>Recursive scan</span>`;
+      t.addEventListener('click', () => { WI.recursive = !WI.recursive; t.querySelector('.sw').classList.toggle('on', WI.recursive); }); b.appendChild(t);
+      const m = el('button', 'opt', 'More settings'); m.appendChild(el('span', '', '›')); m.addEventListener('click', () => toast('The rest of ST\'s World Info settings')); b.appendChild(m);
+    });
+  }
+  // long press on empty canvas: add an entry right there
+  function addHere(x, y, sx, sy) {
+    const mark = el('div', 'dropmark'); mark.style.left = sx + 'px'; mark.style.top = sy + 'px'; vp.appendChild(mark);
+    const placed = placedSet();
+    const put = id => { mark.remove(); vw().manual[id] = { x: Math.round(x - 76), y: Math.round(y - 27) }; if (placed.has(id)) vw().moved[id] = vw().manual[id]; freshId = id; render(); };
+    const l = sheet('Add to canvas', 'var(--accent)', '', b => {
+      const inp = el('input', 'kin'); inp.placeholder = 'Search entries';
+      const nw = el('button', 'opt ctap', '+ New entry here');
+      nw.addEventListener('click', () => askName('New entry', 'Entry name', [], n => {
+        const id = slug(n) + '-' + Date.now().toString(36).slice(-3);
+        E.push({ uid: Math.max(0, ...E.map(e => e.uid)) + 1, id, title: n, keys: [], content: '' });
+        closeLayer(); put(id); toast(`${n} added here`);
+      }, () => { mark.remove(); }, 'Create'));
+      const box = el('div', 'clist');
+      const draw = () => {
+        box.innerHTML = ''; const q = inp.value.trim().toLowerCase();
+        const list = E.filter(e => e.title.toLowerCase().includes(q) || e.keys.some(k => k.includes(q)));
+        list.sort((a, c) => (placed.has(a.id) - placed.has(c.id)) || a.title.localeCompare(c.title)).forEach(e => {
+          const o = el('button', 'opt', e.title); o.style.borderLeft = '3px solid ' + stratColor(e); o.style.paddingLeft = '10px';
+          if (placed.has(e.id)) o.appendChild(el('span', '', linkedSet().has(e.id) ? 'on canvas · move here' : 'on canvas · move here'));
+          o.addEventListener('click', () => { closeLayer(); put(e.id); });
+          box.appendChild(o);
+        });
+        if (!list.length) box.appendChild(el('div', 'rstate', 'No entries match.'));
+      };
+      inp.addEventListener('input', draw);
+      b.append(inp, nw, box); draw();
+    });
+    l.querySelector('.scrim').addEventListener('click', () => mark.remove());
   }
   function openSort() {
     sheet('Sort entries by', 'var(--muted)', '', b => {
@@ -1253,7 +1481,14 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   function openBooks() {
     sheet('Lorebook', 'var(--muted)', 'Each book has its own canvas.', b => {
       BOOKS.forEach(bk => { const o = el('button', 'opt', bk.name); o.appendChild(el('span', '', bk === B ? '✓' : `${bk.entries.length} entries`)); o.addEventListener('click', () => { closeLayer(); switchBook(bk); }); b.appendChild(o); });
+      const nb = el('button', 'opt ctap', '+ New book'); nb.addEventListener('click', () => askName('New book', 'Book name', [], n => { closeLayer(); switchBook(newBook(n, [])); }, openBooks, 'Create')); b.appendChild(nb);
+      const db = el('button', 'opt', `Duplicate ${B.name}`); db.addEventListener('click', () => { closeLayer(); const c = newBook(B.name + ' (copy)', JSON.parse(JSON.stringify(E))); c.v.manual = JSON.parse(JSON.stringify(B.v.manual)); c.v.moved = JSON.parse(JSON.stringify(B.v.moved)); switchBook(c); }); b.appendChild(db);
     });
+  }
+  function newBook(name, entries) {
+    const bk = { name, entries, global: false, links: [] };
+    bk.v = { manual: {}, lastPos: {}, lastPlaced: [], moved: {}, scale: 0.7, tx: 20, ty: 20, focus: null, tabs: [], active: 'canvas', started: false };
+    BOOKS.push(bk); return bk;
   }
   function saveView() { Object.assign(B.v, { scale: state.scale, tx: state.tx, ty: state.ty, focus: state.focus, tabs: state.tabs, active: state.active }); }
   function switchBook(bk) {
@@ -1266,11 +1501,240 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     toast(`${B.name}`);
   }
 
+  // ---------- Preview: one pretend exchange, checked against the book. Nothing is saved. ----------
+  const SEEDS = {
+    chat: { label: 'Road trip chat', note: 'after 12 messages', fired: ['road', 'mill'], closed: ['road'],
+      user: 'We follow the mill race round the back. No ferry today, so is there a tunnel?',
+      reply: 'Behind the stopped wheel a dark tunnel slopes into the hill. Far off, thunder rolls. The old hermit waves from the river bank, and somewhere past the hill a guard with a red beard shouts at the gate. A black bird watches you from the roof.' },
+    fresh: { label: 'Fresh start', note: 'no chat open', fired: [], closed: [], user: '', reply: '' }
+  };
+  const pv = { seed: 'chat', user: SEEDS.chat.user, reply: SEEDS.chat.reply, edit: null, page: null };
+  let SIM = null;
+  const PIECE_FIELDS = ['gates', 'gatesFor', 'closes', 'switch', 'glue', 'masks', 'packs', 'closeGates'];
+  const hasPieces = e => PIECE_FIELDS.some(f => e[f] !== undefined && !(Array.isArray(e[f]) && !e[f].length));
+  const reEsc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function findAll(text, phrase) {
+    const out = []; if (!phrase) return out;
+    const re = new RegExp('\\b' + reEsc(phrase) + '\\b', 'gi'); let m;
+    while ((m = re.exec(text))) out.push([m.index, m.index + m[0].length]);
+    return out;
+  }
+  const SIDES = ['user', 'reply'];
+
+  function simulate() {
+    const seed = SEEDS[pv.seed];
+    const fired0 = new Set(seed.fired.filter(byId)), closed0 = new Set(seed.closed.filter(byId));
+    const texts = { user: pv.user, reply: pv.reply };
+    const hits = { user: [], reply: [] }, result = new Map(), also = [], changes = [];
+    const refFired = (r, set = fired0) => {
+      const p = parseRef(r); if (p.id) return set.has(p.id);
+      const m = packMembers(p.pack), n = m.filter(x => set.has(x.id)).length;
+      return p.mode === 'all' ? m.length > 0 && n === m.length : p.mode === 'any' ? n > 0 : n >= +p.mode;
+    };
+    const lockFound = lk => SIDES.some(side => lk.some(ph => findAll(texts[side], ph).length));
+    const restOf = r => r.filter(x => typeof x !== 'object');
+    function gateCheck(e) {
+      const holders = E.filter(o => (o.gatesFor || []).some(r => { const p = parseRef(r); return p.id === e.id || (p.pack && packMembers(p.pack).includes(e)); }));
+      for (const h of holders) if (!fired0.has(h.id)) return { ok: false, why: `held back until ${h.title} has fired` };
+      const rows = (e.gates || []).filter(r => r.length);
+      if (!rows.length) return { ok: true };
+      let best = null;
+      for (const r of rows) {
+        const missing = restOf(r).filter(x => !refFired(x));
+        if (missing.length) { best = best || { ok: false, why: 'its gate is waiting on ' + missing.map(refText).join(' + ') }; continue; }
+        const locks = r.filter(x => typeof x === 'object'), open = locks.find(l => !lockFound(l.lock));
+        if (open) { best = { ok: false, why: `its lock is armed and waiting for "${open.lock[0]}"` }; continue; }
+        return { ok: true, lock: locks[0] };
+      }
+      return best;
+    }
+    for (const e of E) {
+      const strat = e.strategy || 'keywords';
+      if (strat === 'permanent') {
+        if (e.off) continue;
+        const g = gateCheck(e);
+        result.set(e.id, closed0.has(e.id) ? { status: 'blocked', why: 'it was closed earlier in the chat' } : g.ok ? { status: 'fired', why: 'permanent, always on' } : { status: 'blocked', why: g.why });
+        also.push(e.id); continue;
+      }
+      const found = [];
+      for (const side of SIDES) for (const k of e.keys) for (const [a, b] of findAll(texts[side], k)) found.push({ side, a, b, k });
+      const vec = !found.length && strat === 'vector' && SIDES.some(side => (e.vec || []).some(w => findAll(texts[side], w).length));
+      if (!found.length && !vec) continue;
+      let r;
+      if (e.off) r = { status: 'blocked', why: 'the entry is turned off' };
+      else if (closed0.has(e.id)) r = { status: 'blocked', why: 'it was closed earlier in the chat' };
+      else {
+        const usable = e.by && e.by !== 'any' ? found.filter(f => f.side === e.by) : found;
+        if (found.length && !usable.length) r = { status: 'blocked', why: e.by === 'user' ? 'it is triggered by your messages only, and this was in the reply' : 'it is triggered by the character only, and this was in your message' };
+        else {
+          const g = gateCheck(e);
+          r = g.ok ? { status: 'fired', why: found.length ? `key word "${usable[0].k}"` : 'vector match, close in meaning with no exact key word', lock: g.lock } : { status: 'blocked', why: g.why };
+        }
+      }
+      if (vec) also.push(e.id);
+      result.set(e.id, r);
+      for (const f of found) hits[f.side].push({ a: f.a, b: f.b, id: e.id, ok: r.status === 'fired' });
+    }
+    // a switch lets only one path through
+    for (const e of E) {
+      const paths = (e.switch || []).map(x => parseRef(x).id).filter(id => result.get(id)?.status === 'fired');
+      paths.slice(1).forEach(id => Object.assign(result.get(id), { status: 'blocked', why: `${e.title}'s switch already picked ${byId(paths[0]).title}` }));
+    }
+    // lock phrases
+    for (const e of E) for (const r of (e.gates || [])) for (const l of r.filter(x => typeof x === 'object')) {
+      const armed = restOf(r).every(x => refFired(x)) && !closed0.has(e.id);
+      for (const side of SIDES) for (const ph of l.lock) for (const [a, b] of findAll(texts[side], ph))
+        hits[side].push({ a, b, id: e.id, lock: ph, ok: armed, why: armed ? `opens the lock on ${e.title}'s gate` : `the lock on ${e.title}'s gate isn't armed yet: it arms once ${restOf(r).filter(x => !refFired(x)).map(refText).join(' + ')} has fired` });
+    }
+    const firedNow = [...result].filter(([, r]) => r.status === 'fired').map(([id]) => byId(id));
+    for (const e of firedNow) {
+      const mine = [];
+      if (e.closeGates) restOf((e.gates || []).flat()).forEach(x => { const p = parseRef(x); if (p.id && fired0.has(p.id) && !closed0.has(p.id)) mine.push(['var(--closes)', `${byId(p.id)?.title} closes: the story moves on from it`]); });
+      (e.closes || []).forEach(x => mine.push(['var(--closes)', `${refText(x)} closes for good`]));
+      if (e.glue) mine.push(['var(--glue)', `${e.title} is glued: it stays on until ` + ([...e.glue.fired.map(refText), ...e.glue.keywords.map(w => '"' + w + '"')].join(' or ') || 'something ends it')]);
+      if ((e.switch || []).length) mine.push(['var(--switch)', `${e.title} is a fork: only one of ${e.switch.map(refText).join(', ')} can follow`]);
+      const r = result.get(e.id); if (r.lock) mine.push(['var(--gate)', `Lock opened: "${r.lock.lock[0]}"`]);
+      r.changes = mine; mine.forEach(m => changes.push([...m, e.id, `When ${e.title} fires`]));
+    }
+    const after = new Set([...fired0, ...firedNow.map(e => e.id)]);
+    for (const e of E) {
+      if (after.has(e.id) || closed0.has(e.id) || e.off) continue;
+      const rows = (e.gates || []).filter(r => r.length); if (!rows.length) continue;
+      const was = rows.some(r => restOf(r).every(x => refFired(x))), now = rows.find(r => restOf(r).every(x => refFired(x, after)));
+      if (now && !was) {
+        const t = now.some(x => typeof x === 'object') ? `${e.title}'s lock is armed from the next message` : `${e.title}'s gate opens from the next message`;
+        changes.push(['var(--gate)', t, e.id, 'From the next message']);
+        firedNow.filter(f => now.some(x => parseRef(x).id === f.id)).forEach(f => result.get(f.id).changes.push(['var(--gate)', t]));
+      }
+    }
+    return { hits, result, also, changes, fired0, closed0 };
+  }
+
+  function explainEntry(id, phrase, lockHit) {
+    const e = byId(id), r = SIM.result.get(id);
+    sheet(e.title, stratColor(e), '', b => {
+      const p = el('p', 'why');
+      if (!r && !lockHit) p.textContent = `${e.title} isn't touched by this exchange: none of its key words appear.`;
+      else if (lockHit) p.textContent = `"${phrase}" ${lockHit.why}.`;
+      else if (r.status === 'fired') p.textContent = `${phrase ? '"' + phrase + '": ' : ''}${e.title} fires (${r.why}).`;
+      else p.textContent = `${phrase ? '"' + phrase + '": ' : ''}${e.title} doesn't fire, because ${r.why}.`;
+      b.appendChild(p);
+      if (!lockHit && r.changes?.length) { const u = el('div', 'rstate'); u.textContent = 'It also: ' + r.changes.map(c => c[1].charAt(0).toLowerCase() + c[1].slice(1)).join('; ') + '.'; u.style.marginBottom = '12px'; b.appendChild(u); }
+      if (!hasPieces(e) && !lockHit) { const n = el('div', 'rstate', 'This entry has no pieces, so it is plain World Info: it fires on its key words alone.'); n.style.marginBottom = '12px'; b.appendChild(n); }
+      const o = el('button', 'opt', 'Open entry'); o.addEventListener('click', () => { closeLayer(); openTab(id); }); b.appendChild(o);
+      const c = el('button', 'opt', 'Show on canvas'); c.addEventListener('click', () => { closeLayer(); showOnCanvas(id); }); b.appendChild(c);
+    });
+  }
+
+  function highlighted(side) {
+    const text = pv[side], box = el('div', 'htext');
+    if (!text) { box.appendChild(el('span', 'ph', side === 'user' ? 'Type what you would write' : 'Type or paste the character\'s reply')); return box; }
+    const hs = SIM.hits[side].slice().sort((x, y) => x.a - y.a || (y.b - y.a) - (x.b - x.a));
+    let at = 0;
+    for (const h of hs) {
+      if (h.a < at) continue;
+      box.append(text.slice(at, h.a));
+      const e = byId(h.id), phrase = text.slice(h.a, h.b);
+      const sp = el('button', 'hl' + (h.lock ? ' lk' : hasPieces(e) ? '' : ' plain') + (h.ok ? '' : ' no'), phrase);
+      sp.style.setProperty('--c', h.lock ? 'var(--gate)' : stratColor(e));
+      sp.addEventListener('click', ev => { ev.stopPropagation(); explainEntry(h.id, phrase, h.lock ? h : null); });
+      box.appendChild(sp); at = h.b;
+    }
+    box.append(text.slice(at));
+    return box;
+  }
+
+  function slot(side) {
+    const s = el('div', 'slot' + (side === 'user' ? ' me' : ''));
+    const h = el('div', 'sh'); h.appendChild(el('b', '', side === 'user' ? 'YOU' : 'CHARACTER'));
+    const editing = pv.edit === side;
+    const ed = el('button', 'ib'); ed.innerHTML = editing ? icon('<path d="M5 12 L10 17 L19 7"/>') : icon('<path d="M4 20 L8 19 L19 8 L16 5 L5 16 Z M14 7 L17 10"/>');
+    ed.setAttribute('aria-label', editing ? 'Done' : 'Edit'); ed.addEventListener('click', () => { pv.edit = editing ? null : side; renderPreview(); });
+    h.appendChild(ed);
+    if (pv[side]) { const x = el('button', 'ib'); x.innerHTML = icon('<path d="M6 6 L18 18 M18 6 L6 18"/>'); x.setAttribute('aria-label', 'Clear'); x.addEventListener('click', () => { pv[side] = ''; pv.edit = side; renderPreview(); }); h.appendChild(x); }
+    s.appendChild(h);
+    if (editing) {
+      const t = el('textarea'); t.value = pv[side]; t.placeholder = side === 'user' ? 'Type what you would write' : 'Type or paste the character\'s reply';
+      t.addEventListener('input', () => { pv[side] = t.value; });
+      t.addEventListener('blur', () => setTimeout(() => { if (pv.edit === side) { pv.edit = null; renderPreview(); } }, 120));
+      s.appendChild(t); setTimeout(() => t.focus(), 0);
+    } else {
+      const box = highlighted(side); box.addEventListener('click', () => { pv.edit = side; renderPreview(); }); s.appendChild(box);
+    }
+    return s;
+  }
+
+  function pickSeed() {
+    sheet('Start from', 'var(--muted)', 'Preview reads the open chat\'s latest exchange and how far its story has got. With no chat open it starts empty, from the beginning.', b => {
+      for (const [k, sd] of Object.entries(SEEDS)) {
+        const o = el('button', 'opt', k === 'chat' ? `${sd.label} (open in ST)` : 'No chat open'); o.appendChild(el('span', '', pv.seed === k ? '✓' : sd.note));
+        o.addEventListener('click', () => { closeLayer(); Object.assign(pv, { seed: k, user: sd.user, reply: sd.reply, edit: null, page: null }); renderPreview(); }); b.appendChild(o);
+      }
+    });
+  }
+
+  function renderPreview() {
+    SIM = simulate();
+    const pg = $('ppage'); pg.innerHTML = '';
+    if (pv.page === 'report') { renderReport(pg); return; }
+    const head = el('div', 'phead'); head.appendChild(el('h2', '', 'Preview'));
+    const sd = SEEDS[pv.seed], src = el('button', 'srcchip'); src.innerHTML = '<span></span><svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px;flex-shrink:0"><path d="M6 9 L12 15 L18 9"/></svg>';
+    src.querySelector('span').textContent = pv.seed === 'chat' ? `${sd.label} · ${sd.note}` : sd.label; src.addEventListener('click', pickSeed);
+    head.appendChild(src); pg.appendChild(head);
+    pg.appendChild(el('div', 'pnote', 'A pretend exchange checked against this book. Nothing is saved.'));
+    const body = el('div', 'pbody');
+    body.append(slot('user'), slot('reply'));
+    const all = [...SIM.result.values()], f = all.filter(r => r.status === 'fired').length, bl = all.length - f;
+    const sum = el('div', 'psum');
+    sum.innerHTML = `<span><b>${f}</b> fire</span><span>·</span><span><b>${bl}</b> blocked</span><span>·</span><span><b>${SIM.changes.length}</b> changes</span>`;
+    body.appendChild(sum);
+    if (SIM.also.length) {
+      const a = el('div', 'also'); a.appendChild(el('small', '', 'Also active'));
+      SIM.also.forEach(id => {
+        const e = byId(id), r = SIM.result.get(id);
+        const c = el('button', 'achip' + (r.status === 'fired' ? '' : ' no'), e.title + ((e.strategy === 'vector') ? ' · vector' : ' · permanent'));
+        c.style.setProperty('--c', stratColor(e)); c.addEventListener('click', () => explainEntry(id, null)); a.appendChild(c);
+      });
+      body.appendChild(a);
+    }
+    const key = el('div', 'pkey');
+    key.innerHTML = '<span><span class="hl" style="--c:var(--s-key)">solid</span> has pieces</span><span><span class="hl plain" style="--c:var(--s-key)">dotted</span> plain entry</span><span><span class="hl lk" style="--c:var(--gate)">lock</span></span><span><span class="hl no" style="--c:var(--s-key)">struck</span> blocked</span>';
+    body.appendChild(key);
+    pg.appendChild(body);
+    const ft = el('div', 'pfoot'), rb = el('button', '', 'Report');
+    rb.addEventListener('click', () => { pv.page = 'report'; pv.edit = null; renderPreview(); pg.scrollTop = 0; });
+    ft.appendChild(rb); pg.appendChild(ft);
+  }
+
+  function renderReport(pg) {
+    const head = el('div', 'ehead');
+    const bk = el('button', 'ib'); bk.innerHTML = icon('<path d="M19 12 H5 M11 6 L5 12 L11 18"/>'); bk.setAttribute('aria-label', 'Back to the preview'); bk.addEventListener('click', () => { pv.page = null; renderPreview(); });
+    head.append(bk, el('div', 'ttl', 'Report')); pg.appendChild(head);
+    const body = el('div', 'rbody');
+    const st = el('div', 'rstate');
+    const names = set => [...set].map(id => byId(id)?.title).filter(Boolean).join(', ') || 'nothing';
+    st.textContent = pv.seed === 'chat' ? `Starting from ${SEEDS.chat.label}, ${SEEDS.chat.note}. Already fired: ${names(SIM.fired0)}. Closed: ${names(SIM.closed0)}.` : 'Starting fresh: nothing has fired or closed yet.';
+    body.appendChild(st);
+    const sec = (title, rows) => {
+      const s = el('div', 'rsec'); s.appendChild(el('h3', '', `${title} · ${rows.length}`));
+      if (!rows.length) s.appendChild(el('div', 'rstate', 'Nothing.'));
+      rows.forEach(([c, t, sub, id]) => { const r = el('button', 'rrow'); r.style.setProperty('--c', c); const d = el('div'); d.append(el('b', '', t)); if (sub) d.append(el('small', '', sub)); r.appendChild(d); r.addEventListener('click', () => explainEntry(id, null)); s.appendChild(r); });
+      body.appendChild(s);
+    };
+    const rows = st0 => [...SIM.result].filter(([, r]) => r.status === st0).map(([id, r]) => [stratColor(byId(id)), byId(id).title, (st0 === 'fired' ? r.why.charAt(0).toUpperCase() + r.why.slice(1) : 'Because ' + r.why) + (hasPieces(byId(id)) ? '' : ' (plain entry)'), id]);
+    sec('Fires', rows('fired'));
+    sec('Blocked', rows('blocked'));
+    sec('Would change', SIM.changes.map(([c, t, id, sub]) => [c, t, sub, id]));
+    pg.appendChild(body);
+  }
+
   // ---------- chrome ----------
   let toastTimer;
   function toast(t, action) { const n = $('toast'); n.textContent = t; n.classList.toggle('act', !!action); if (action) { const b = el('button', '', action.label); b.addEventListener('click', () => { n.classList.remove('show', 'act'); action.fn(); }); n.appendChild(b); } n.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => n.classList.remove('show', 'act'), action ? 4500 : 1700); }
   function back() {
+    if ($('layer').querySelector('.dd .ddh')) { openMenu(); return; }
     if (closeLayer()) return;
+    if (state.active === 'preview') { if (pv.page) { pv.page = null; renderPreview(); } else { state.active = 'canvas'; showActive(); } return; }
     if (state.active !== 'canvas') { closeTab(state.active); return; }
     if (state.pick || state.tool) { state.pick = null; state.tool = null; render(); return; }
     if (state.panel && state.sel) { endSel(); return; }
@@ -1293,8 +1757,9 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   $('zin').addEventListener('click', () => zoomAt(1.2));
   $('zout').addEventListener('click', () => zoomAt(1 / 1.2));
   $('fitBtn').addEventListener('click', () => { state.focus = null; render(); fit(); });
+  $('flowBtn').addEventListener('click', () => { state.dir = state.dir === 'lr' ? 'tb' : 'lr'; Object.values(BOOKS).forEach(bk => bk.v.moved = {}); render(); fit(); $('flowBtn').textContent = state.dir === 'lr' ? '⇄' : '⇅'; toast(state.dir === 'lr' ? 'Flow: left to right' : 'Flow: top to bottom'); });
 
-  setPanel(true);
+  setPanel(false);
   B.v.started = true;
   render();
   requestAnimationFrame(() => {

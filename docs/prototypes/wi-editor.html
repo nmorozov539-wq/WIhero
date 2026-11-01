@@ -211,7 +211,7 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
 .sheet .opt:hover { background: var(--raised); }
 .sheet .opt .grow { flex: 1; }
 .sheet .opt .val { color: var(--muted); font-size: 14px; }
-.sheet.menu { top: 50px; bottom: auto; left: 6px; right: auto; width: 250px; border-radius: 10px; padding: 6px 0; box-shadow: 0 8px 28px rgba(0,0,0,.5); max-height: calc(100% - 70px); }
+.sheet.menu { top: 50px; bottom: auto; left: 6px; right: auto; width: 290px; border-radius: 10px; padding: 6px 0; box-shadow: 0 8px 28px rgba(0,0,0,.5); max-height: calc(100% - 70px); }
 .sheet.menu .opt { min-height: 48px; }
 .sheet .lbl { padding: 10px 16px 4px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .sheet .div { height: 1px; background: var(--line); margin: 6px 0; }
@@ -255,6 +255,21 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
 .notes .open li { color: var(--muted); }
 @media (max-width: 520px) { .notes { padding: 24px 16px 40px; width: 100%; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.modebtn { display: flex; align-items: center; gap: 12px; width: calc(100% - 20px); margin: 4px 10px 6px; min-height: 52px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--app); color: var(--fg); cursor: pointer; text-align: left; font: inherit; font-weight: 600; font-size: 15px; transition: background .15s, border-color .15s; }
+.modebtn span { flex: 1; }
+.modebtn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.modebtn .sw2 { color: var(--muted); }
+.modebtn.arm { border-color: var(--accent); background: rgba(227,145,58,.12); color: var(--accent); font-weight: 500; font-size: 14px; }
+.modebtn.arm .sw2 { color: var(--accent); }
+.kbox.kview { cursor: text; }
+.kbox.kview .kchip { padding: 3px 10px; }
+.hero-sec { margin-top: 2px; }
+.hero-sec .hl { display: grid; grid-template-columns: 4px 1fr; gap: 0 12px; padding: 8px 0; border-bottom: 1px solid #2a2c31; }
+.hero-sec .hl i { border-radius: 2px; }
+.hero-sec .hl b { display: block; font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.hero-sec .hl span { font-size: 15px; line-height: 1.45; }
+.hero-go { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.hero-go b { color: var(--accent); font-weight: 600; margin-left: auto; white-space: nowrap; }
 </style>
 
 <div class="stage">
@@ -308,16 +323,16 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
     <h3>Entry page (draft 1)</h3>
     <ul>
       <li><b>Try:</b> Eldoria → The Capital (has a condition), Moon Cult (vectorized), Seraphina → Seraphina (permanent).</li>
-      <li><b>Top:</b> ← on the left goes up to the book (Android's standard spot for it). The right bubble holds the entries drawer, reading/editing and ⋮ (duplicate, move, copy, delete).</li>
+      <li><b>Top:</b> ← on the left goes up to the book (Android's standard spot for it). The right bubble holds the entries drawer and ⋮ (duplicate, move, copy, delete). There is no reading mode.</li>
       <li><b>Title</b> is edited in place. The book line under it is just information.</li>
       <li><b>On/off switch</b> sits at the end of the strategy line; an off entry dims.</li>
-      <li><b>Strategy</b> is a thin line; tap to change. Under it, a one-line keyword box: type a comma-separated list, it scrolls sideways. In reading mode the keywords show as bubbles.</li>
+      <li><b>Strategy</b> is a thin line; tap to change. Under it, a one-line keyword box: type a comma-separated list, it scrolls sideways. Keywords show as bubbles until you tap them, then as plain comma-separated text to edit.</li>
       <li><b>Permanent</b> hides the keyword box (ST ignores keywords). <b>Vectorized</b> keeps it, since ST still matches keywords for vectorized entries.</li>
       <li><b>+ Add condition</b> adds ST's secondary keywords: a thin line ("And any of / And all of / But none of / But not all of these") over a second keyword box. ST allows one per entry.</li>
       <li><b>Content</b> is the page itself, Obsidian-style: a heading, then borderless text with a dim "Type here".</li>
       <li><b>Parameters</b> stay folded, with a summary of whatever isn't default (try changing Probability). Depth and Role only appear for "At depth".</li>
       <li><b>No bottom bar</b> here; the keyboard needs the space. Back or the book line leaves.</li>
-      <li><b>WI Hero story settings</b> have a reserved spot at the end of Parameters, filled in later.</li>
+      <li><b>Hero</b> is a folded, read-only section after Parameters, shown only when the entry has pieces (try Mill, Tunnel, Storm or Tower in WIHero-Sample). It describes the story logic in plain words; editing happens in Hero mode.</li>
     </ul>
     <h3>Book page (draft 1)</h3>
     <ul>
@@ -391,6 +406,14 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
   Object.assign(BOOKS[0].entries[0], { folder: 'Places' }); Object.assign(BOOKS[0].entries[2], { folder: 'Places' }); Object.assign(BOOKS[0].entries[1], { folder: 'People' }); Object.assign(BOOKS[0].entries[3], { folder: 'People' });
   Object.assign(BOOKS[0].entries[0], { content: 'Veyl is the capital of Eldoria, a walled city on the River Sael. Its streets climb toward the Old King\'s palace, and the Guild keeps its hall by the docks.', second: ['night', 'gate'], logic: 'none' });
   Object.assign(BOOKS[1].entries[0], { content: 'Seraphina is a guardian of the Glade. She is kind, patient and a gifted healer.', strategy: 'perm' });
+  {
+    const G = '#6fd09a', CL = '#ff8a7a', GL = '#e6c75a', MK = '#c3a6ff', PK = '#7fb2ff', SW = '#e3913a';
+    const se = n => BOOKS[3].entries.find(x => x.name === n);
+    se('Mill').hero = [[G, 'Waits for', 'Road'], [G, 'When it fires', 'closes its own gate (the story moves on)']];
+    se('Tunnel').hero = [[G, 'Waits for', 'Mill'], [SW, 'Fork', 'only one of Marsh path, Ridge path']];
+    se('Storm').hero = [[G, 'Waits for', 'Mill'], [GL, 'Glued', 'stays on until Tower fires or "calm"'], [CL, 'Closed by', 'Finale']];
+    se('Tower').hero = [[G, 'Waits for', 'Marsh path or Ridge path'], [MK, 'Masks', 'ruined (after Storm); rebuilt (after Smithy)'], [PK, 'In packs', '#landmarks']];
+  }
   Object.assign(BOOKS[0].entries[4], { content: 'The Moon Cult meets under the full moon and worships a forgotten goddess.', strategy: 'vec' });
 
   let uid = 0;
@@ -562,6 +585,7 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
     for (const o of options) {
       if (o.lbl) { const d = document.createElement('div'); d.className = 'lbl'; d.textContent = o.lbl; s.appendChild(d); continue; }
       if (o.div) { const d = document.createElement('div'); d.className = 'div'; s.appendChild(d); continue; }
+      if (o.mode) { s.appendChild(modeButton()); continue; }
       const b = document.createElement('button');
       b.className = 'opt';
       b.innerHTML = `<span class="grow"></span>${o.val != null ? '<span class="val"></span>' : ''}${o.close ? '<span class="x" aria-hidden="true">×</span>' : ''}`;
@@ -571,9 +595,22 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
       s.appendChild(b);
     }
   }
+  // mode switch, same as Hero mode's: one block, tap twice to switch
+  function modeButton() {
+    const mb = document.createElement('button'); mb.className = 'modebtn';
+    const sw = '<svg class="sw2" viewBox="0 0 24 24"><path d="M4 8 H18 L14 4 M20 16 H6 L10 20"/></svg>';
+    const idle = () => { mb.classList.remove('arm'); mb.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 6 H20 M4 12 H20 M4 18 H14"/></svg><span>Normal mode</span>' + sw; };
+    let armT = null; idle();
+    mb.addEventListener('click', () => {
+      if (mb.classList.contains('arm')) { clearTimeout(armT); closeLayer(); toast('Switching to Hero mode'); return; }
+      mb.classList.add('arm'); mb.innerHTML = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6 H14 M17.5 9 V15"/></svg><span>Tap again to switch to Hero mode</span>' + sw;
+      armT = setTimeout(idle, 3000);
+    });
+    return mb;
+  }
   function showTabMenu() {
     const p = page(tab()), t = tab();
-    const opts = [];
+    const opts = [{ lbl: 'Mode' }, { mode: true }, { div: true }];
     if (p.type !== 'entry') {
       opts.push({ lbl: p.type === 'home' ? 'View: books' : 'View: entries' });
       if (p.type === 'home') opts.push({ label: 'Show as', val: state.view === 'list' ? 'List' : 'Tiles', run: () => { state.view = state.view === 'list' ? 'tiles' : 'list'; render(); } });
@@ -755,7 +792,7 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
     $('bkGlobal').addEventListener('click', () => { b.global = !b.global; render(); toast(b.global ? 'Active globally' : 'Not active globally'); });
     $('bkLinks').addEventListener('click', () => showLinks(b));
     $('bkView').addEventListener('click', () => sheet('View', [
-      { label: '● List' }, { label: 'Story (node editor)', run: () => toast('Story view: designed later') }
+      { label: '● List' }, { label: 'Hero', run: () => toast('Switching to Hero mode') }
     ], true));
     $('bookMenu').addEventListener('click', () => sheet(b.name, [{ label: 'New folder…', run: () => askName('New folder', 'Folder name', n => { b.folders = [...(b.folders || []), n]; state.groupBy = 'folder'; render(); }) }, { label: 'Rename' }, { label: 'Duplicate' }, { label: 'Move to folder' }, { label: 'Export' }, { label: 'Delete', run: () => toast('Deleted. Undo') }]));
     // defaults
@@ -854,16 +891,13 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
 
   function renderEntry(v, p) {
     const b = book(p.book), e = ent(b.entries.find(x => x.name === p.entry));
-    const reading = state.reading, ui = state.entryUi;
+    const reading = false, ui = state.entryUi;
     v.innerHTML = `
       <div class="en-top">
         <button class="round" id="enUp" aria-label="Back to ${b.name}"><svg viewBox="0 0 24 24"><path d="M19 12 H5 M11 6 L5 12 L11 18"/></svg></button>
         <span class="sp"></span>
         <div class="pill">
           <button class="round" id="enSide" aria-label="Entries in this book"><svg viewBox="0 0 24 24"><path d="M4 5 H20 V19 H4 Z M15 5 V19"/></svg></button>
-          <button class="round" id="enMode" aria-label="${reading ? 'Switch to editing' : 'Switch to reading'}" aria-pressed="${reading}">${reading
-            ? '<svg viewBox="0 0 24 24"><path d="M4 20 H8 L19 9 L15 5 L4 16 Z M13 7 L17 11"/></svg>'
-            : '<svg viewBox="0 0 24 24"><path d="M12 6 C8 4 5 4 3 5 V19 C5 18 8 18 12 20 C16 18 19 18 21 19 V5 C19 4 16 4 12 6 Z M12 6 V20"/></svg>'}</button>
           <button class="round" id="enMore" aria-label="Entry actions"><svg viewBox="0 0 24 24"><path d="M12 5 v.01 M12 12 v.01 M12 19 v.01" stroke-width="3"/></svg></button>
         </div>
       </div>
@@ -873,6 +907,7 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
         <div class="props" id="enProps"></div>
         <button class="disc ${ui.params ? 'open' : ''}" id="enParams" aria-expanded="${ui.params}"><span class="chev">›</span><h2>Parameters</h2><span class="sum"></span></button>
         <div class="params" id="enParamList" ${ui.params ? '' : 'hidden'}></div>
+        ${e.hero ? `<button class="disc ${ui.hero ? 'open' : ''}" id="enHero" aria-expanded="${!!ui.hero}"><span class="chev">›</span><h2>Hero</h2><span class="sum"></span></button><div class="hero-sec" id="enHeroList" ${ui.hero ? '' : 'hidden'}></div>` : ''}
         <div class="content-h"><h2>Content</h2><small id="enTok"></small></div>
         <div id="enContent"></div>
       </div>`;
@@ -883,7 +918,6 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
     $('enBook').innerHTML = `${svg('book').replace('<svg', '<svg width="16" height="16" style="fill:none;stroke:currentColor;stroke-width:2"')}<span></span>`;
     $('enBook').querySelector('span').textContent = `${b.name} · ${b.global ? 'global' : b.links.length ? 'linked: ' + linkText(b) : 'not active'}`;
     $('enUp').addEventListener('click', () => { const t = tab(); const i = t.history.map(x => x.type).lastIndexOf('book'); if (i >= 0 && t.history[i].book === b.id) { t.history.length = i + 1; render(); } else go({ type: 'book', book: b.id }); });
-    $('enMode').addEventListener('click', () => { state.reading = !state.reading; render(); });
     $('enSide').addEventListener('click', () => showEntryDrawer(b, e));
     $('enMore').addEventListener('click', () => sheet(e.name, [{ label: 'Open in new tab', run: () => openTab({ ...p }, true) }, { label: 'Duplicate' }, { label: 'Move to another book' }, { label: 'Copy as text' }, { label: 'Delete', run: () => toast('Deleted. Undo') }]));
 
@@ -916,7 +950,13 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
       const inp = document.createElement('input'); inp.className = 'kbox'; inp.placeholder = ph; inp.value = list.join(', ');
       inp.setAttribute('aria-label', label); inp.spellcheck = false;
       inp.addEventListener('change', () => { list.length = 0; list.push(...inp.value.split(',').map(x => x.trim()).filter(Boolean)); });
-      props.appendChild(inp);
+      if (!list.length) { props.appendChild(inp); return; }
+      // keywords show as bubbles until tapped, then as plain text to edit
+      const view = document.createElement('button'); view.className = 'kbox kview'; view.setAttribute('aria-label', 'Edit ' + label);
+      for (const k of list) { const c = document.createElement('span'); c.className = 'kchip'; c.textContent = k; view.appendChild(c); }
+      view.addEventListener('click', () => { view.replaceWith(inp); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); });
+      inp.addEventListener('blur', () => { list.length = 0; list.push(...inp.value.split(',').map(x => x.trim()).filter(Boolean)); render(); });
+      props.appendChild(view);
     };
     if (e.strategy !== 'perm') {
       keyBox(e.keys, 'key words, comma separated list', 'keywords');
@@ -941,7 +981,15 @@ button.banner b::after { content: ' ▾'; font-size: 12px; opacity: .7; }
       if (!reading) row.addEventListener('click', () => sheet(pr.l, pr.o.map(o => ({ label: (o === e.params[pr.k] ? '● ' : '') + o, val: o === pr.d ? 'default' : null, run: () => { e.params[pr.k] = o; render(); } }))));
       pl.appendChild(row);
     }
-    const res = document.createElement('div'); res.className = 'reserved'; res.textContent = 'Reserved: WI Hero story settings (gates, glue) go here once the base editor is done.'; pl.appendChild(res);
+    // Hero: read only, shown only when the entry has pieces
+    if (e.hero) {
+      v.querySelector('#enHero .sum').textContent = e.hero.map(h => h[1]).join(' · ');
+      $('enHero').addEventListener('click', () => { ui.hero = !ui.hero; render(); });
+      const hl = $('enHeroList');
+      for (const [c, label, text] of e.hero) { const r = document.createElement('div'); r.className = 'hl'; r.innerHTML = '<i></i><div><b></b><span></span></div>'; r.querySelector('i').style.background = c; r.querySelector('b').textContent = label; r.querySelector('span').textContent = text; hl.appendChild(r); }
+      const go = document.createElement('button'); go.className = 'hero-go'; go.innerHTML = '<span>Read only here.</span><b>Move to Hero mode to edit ›</b>';
+      go.addEventListener('click', () => toast('Switching to Hero mode, focused on ' + e.name)); hl.appendChild(go);
+    }
 
     // content
     const tok = () => { $('enTok').textContent = `≈ ${Math.ceil(e.content.length / 4)} tokens`; };

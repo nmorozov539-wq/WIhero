@@ -12,7 +12,7 @@ fallback: turning the extension off brings ST's own editor back.
 
 ### Tabs
 
-- Top row, left to right: a ⌄ menu (view options and tab actions), the Home tab,
+- Top row, left to right: a ⌄ menu (mode switch, view options and tab actions), the Home tab,
   then the other tabs, which scroll sideways. No tab list.
 - The Home tab is an icon only. It can't be closed and always shows Home.
 - Anything opened from Home opens in a new tab. Long press opens it in a
@@ -21,6 +21,12 @@ fallback: turning the extension off brings ST's own editor back.
 - × shows only on the active tab.
 - Back on a tab's first screen, or when the next step back would be Home, closes
   the tab instead of turning it into a second Home.
+
+### Mode switch
+
+The first block in ⌄, in both modes: the current mode's name across the full
+width with a ⇄ icon. Tap it once and it reads "Tap again to switch to Hero mode"
+(or Normal mode); a second tap within three seconds switches.
 
 ### Bottom bar
 
@@ -57,12 +63,14 @@ Search is universal: books, folders and entries, current book first. No commands
 
 ### Entry page
 
-- ← on the left goes up to the book. The right bubble holds the entries drawer,
-  the reading/editing toggle and ⋮.
+- ← on the left goes up to the book. The right bubble holds the entries drawer
+  and ⋮ (Duplicate, Move to another book, Copy as text, Delete). There is no
+  reading mode: WI Hero renders nothing, so it would only show keyword bubbles.
 - The title is edited in place.
 - A thin strategy line (Keywords, Permanent, Vectorized) with the entry's on/off switch.
 - Keywords: one line, comma separated, scrolls sideways. Empty shows a dim
-  "key words, comma separated list". Reading mode shows them as bubbles.
+  "key words, comma separated list". Keywords show as bubbles until the line is
+  tapped, then as plain text to edit.
 - Permanent hides the keywords. Vectorized keeps them: checked in ST's source,
   keywords still match and the vector match is added on top
   (WORLDINFO_FORCE_ACTIVATE). It needs Vector Storage with World Info turned
@@ -71,8 +79,9 @@ Search is universal: books, folders and entries, current book first. No commands
   "But none of", "But not all of these".
 - A folded Parameters section, whose header sums up the values that aren't default.
 - Content has no box, like Obsidian: a dim "Type here" when empty.
-- A Hero section next to Parameters: reading mode shows the entry's story logic
-  in plain words, editing mode shows the raw `wihero` data.
+- A folded Hero section after Parameters, only when the entry has pieces. It is
+  read only: the story logic in plain words, one line per piece in its color, and
+  "Move to Hero mode to edit". Story logic is edited only in Hero mode.
 
 ### Not in this version
 
@@ -89,6 +98,9 @@ Hero mode is an advanced editor of the same World Info, not a separate system.
 It can create entries and edit their logic; the entry page is shared with the base editor.
 
 - A side panel (Obsidian style) slides in from the left over most of the canvas.
+  It starts closed: a first visit shows an empty canvas, the bottom bar and the
+  panel button with a dim "Open your entries to start". After that the panel
+  remembers whether it was open.
   It lists the book's entries, sorted by folders, packs, A–Z or ID. Each row has a
   strategy stripe on the left (gray and dimmed when off) and a dot on the right.
 - The dot is the canvas control. Filled: on the canvas, tap to jump there. Hollow:
@@ -100,17 +112,48 @@ It can create entries and edit their logic; the entry page is shared with the ba
   folder), Edit… (bulk parameters), Place, Pack, Add to a gate (one row of all
   selected). A folder header's checkbox selects everything in it.
 - Bottom of the panel: + New entry, Search, Sort, Collapse all, then the book
-  picker with the Global and Linked chips, and ⋮ for Global, links, Rename,
-  Export, Delete.
+  picker and nothing else. The picker also has + New book and Duplicate.
+- ⌄ (top left) is a drop-down: Mode, Activation (Global, linked characters with
+  Unlink), Settings (ST's World Info settings, which are shared by every book,
+  and this book's New entry defaults), Book (Rename, Export, Delete) and Tabs
+  (Close tab, Close others, Close tabs to the right, Close all entry tabs).
+- Flow direction (⇄/⇅) and Fit sit with + and − on the canvas.
+- Each card has a ⠿ handle: drag it to move the entry anywhere. Changing the flow
+  direction lays everything out again.
+- Long press on empty canvas opens a picker with search that puts an entry (or
+  a new one) right there.
+- An entry's ⋮ has its pieces, Show on canvas, data, Pack into…, then
+  Duplicate, Move to another book (its pieces and links to it are dropped),
+  Copy as text, Delete with Undo, and Remove from canvas. Hero mode covers
+  everything the normal editor does except book folders.
 - One canvas per book. Switching books switches the canvas. Several books on one
   canvas is out of scope. Tapping the canvas closes the panel.
-- Tabs work as in the base editor, with a Canvas tab in Home's place.
+- Tabs work as in the base editor, with a Canvas tab in Home's place and a
+  Preview tab (▷) after it. Both are permanent.
 - Anything with a link is on the canvas. Linking to an entry puts it there. An
   entry with links can't be taken off; remove its links first.
 - Pieces pick what they point at from a searchable list, or by tapping the canvas.
 - In: book name ▾ → Hero, or "Open books in Hero mode" in ⌄. Back closes a sheet,
   an entry tab, selection or search, the panel, then the focus; on the Canvas
   tab it closes the drawer. Back never switches between List and Hero.
+
+### Preview
+
+A sandbox that checks a pretend exchange against the book, without the LLM.
+Nothing in it is saved. Pieces is the umbrella word for every logic item.
+
+- Two slots: your message and the character's reply, matching how pieces read
+  the newest exchange. With a chat open they start with its latest pair and its
+  story state; with no chat they start empty, from the beginning. No chat picker.
+- Highlighter: phrases that trigger something are highlighted in the strategy
+  colors, solid for entries with pieces and dotted for plain entries. Lock
+  phrases get a lock; a blocked match is struck through. Tap one for a one-line
+  explanation and a way to open the entry.
+- Also active: permanent entries and vector matches, which have no phrase.
+- Report at the bottom: what fires and why, what is blocked and by what
+  (waiting on, lock not armed, wait left, closed, wrong side, off), and what
+  would change.
+- Later: the canvas state filter (fired, armed, closed) may live here.
 
 ### Data model
 
