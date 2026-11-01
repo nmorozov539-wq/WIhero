@@ -83,6 +83,35 @@ Styling, the Classic editor, a command palette in search, master switches.
 Hero mode (formerly the story view or node editor) is a canvas of entries joined
 by puzzle pieces.
 
+### Layout
+
+Hero mode is an advanced editor of the same World Info, not a separate system.
+It can create entries and edit their logic; the entry page is shared with the base editor.
+
+- A side panel (Obsidian style) slides in from the left over most of the canvas.
+  It lists the book's entries, sorted by folders, packs, A–Z or ID. Each row has a
+  strategy stripe on the left (gray and dimmed when off) and a dot on the right.
+- The dot is the canvas control. Filled: on the canvas, tap to jump there. Hollow:
+  tap to place it in the middle of the view, or drag it onto the canvas. While
+  dragging the panel slides away, the canvas scrolls near its edges, and a ✕
+  circle cancels the drop.
+- Tap a row to open the entry in a tab. Long press starts selection: All/None,
+  Invert, Delete (with Undo), then On, Off, Move (folders, No folder, + New
+  folder), Edit… (bulk parameters), Place, Pack, Add to a gate (one row of all
+  selected). A folder header's checkbox selects everything in it.
+- Bottom of the panel: + New entry, Search, Sort, Collapse all, then the book
+  picker with the Global and Linked chips, and ⋮ for Global, links, Rename,
+  Export, Delete.
+- One canvas per book. Switching books switches the canvas. Several books on one
+  canvas is out of scope. Tapping the canvas closes the panel.
+- Tabs work as in the base editor, with a Canvas tab in Home's place.
+- Anything with a link is on the canvas. Linking to an entry puts it there. An
+  entry with links can't be taken off; remove its links first.
+- Pieces pick what they point at from a searchable list, or by tapping the canvas.
+- In: book name ▾ → Hero, or "Open books in Hero mode" in ⌄. Back closes a sheet,
+  an entry tab, selection or search, the panel, then the focus; on the Canvas
+  tab it closes the drawer. Back never switches between List and Hero.
+
 ### Data model
 
 There are no special objects. Everything is a field in each entry's `wihero`
