@@ -165,6 +165,36 @@ A lock is a gate row item: `{"lock": ["red beard", "red-bearded"]}`.
 - It injects nothing. A lock can list several phrases.
 - Later, the panel shows "armed, waiting for…" with an Open button.
 
+### Waits
+
+A wait is a gate row item: `{"wait": 3}`.
+
+- It runs out three messages after the rest of its row has fired. A row that
+  holds only a wait counts from the start of the chat.
+- `{"wait": 3, "by": "user"}` counts only the user's messages, `"char"` only replies.
+- A row can hold a wait and a lock. The lock is armed once the wait has run out.
+- On the canvas a wait is a chip in its gate row: "⏱ 3".
+
+### Once
+
+`"once": true` closes an entry after its first firing, so it never fires again
+in that chat. It is a checkbox in the entry's Hero section; on the canvas the
+entry shows a "1×" badge. A glued entry doesn't offer it: glue has its own close
+conditions.
+
+### Who triggers
+
+`"by": "any" | "user" | "char"` sets whose messages an entry's keywords are
+matched against. The default is Anyone; a book can set its own default under
+New entry defaults.
+
+- It is in the entry's Parameters: Triggered by Anyone, Me or Character.
+- A lock takes the same field: `{"lock": ["red beard"], "by": "user"}`.
+- On the canvas an entry that isn't Anyone shows a small person or bot icon.
+- ST has no per-entry source filter, so for these entries the extension blocks
+  ST's own keyword match and checks the keywords itself, within the entry's scan
+  depth, against the chosen side's messages only.
+
 ### Zoom
 
 - Far: pieces show as notches.
@@ -182,4 +212,8 @@ A lock is a gate row item: `{"lock": ["red beard", "red-bearded"]}`.
 
 ```json
 { "gates": [["#town:all", "tower"]], "closes": ["storm"] }
+```
+
+```json
+{ "gates": [["storm", {"wait": 3, "by": "user"}]], "once": true, "by": "user" }
 ```
