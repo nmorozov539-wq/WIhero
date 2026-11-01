@@ -1,0 +1,62 @@
+<!doctype html><meta charset=utf8><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap">
+<style>body{margin:0;background:#121315;color:#e4e2da;font:14px 'Noto Sans';padding:16px;width:1010px}
+.wrap{display:flex;gap:16px;align-items:flex-start}.pane{background:#16171b;border-radius:14px;padding:10px;background-image:radial-gradient(#25272d 1px,transparent 1px);background-size:20px 20px}
+h3{margin:2px 4px 8px;font-size:13px;color:#a3a49d;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.leg{margin-top:12px;display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;align-items:center;max-width:300px}.leg b{font-weight:600}
+</style>
+<div class=wrap>
+<div class=pane><h3>Readable zoom</h3><svg id=s width=560 height=760></svg></div>
+<div><div class=pane><h3>Far zoom (40%)</h3><svg id=s2 width=224 height=304></svg></div>
+<div class=leg id=leg></div></div>
+</div>
+<script>
+const C={open:'#45c9bd',end:'#ff6f61',glue:'#f2cf4a',mask:'#f07cc8',card:'#26282d',line:'#3a3d44',fg:'#e4e2da',mut:'#a3a49d',kw:'#6fd09a',perm:'#6fa8ff',vec:'#b48cff'};
+const W=150,H=56,R=10,N=9;
+let out='<defs><filter id=sh x=-20% y=-20% width=140% height=160%><feDropShadow dx=0 dy=2 stdDeviation=2 flood-opacity=.45/></filter></defs>';
+const cards={};
+function cardPath(x,y,sock,knob){const cx=x+W/2;let d=`M${x+R},${y}`;
+ if(sock)d+=` L${cx-N},${y} A${N} ${N} 0 0 0 ${cx+N},${y}`;
+ d+=` L${x+W-R},${y} Q${x+W},${y} ${x+W},${y+R} L${x+W},${y+H-R} Q${x+W},${y+H} ${x+W-R},${y+H}`;
+ if(knob)d+=` L${cx+N},${y+H} A${N} ${N} 0 0 1 ${cx-N},${y+H}`;
+ d+=` L${x+R},${y+H} Q${x},${y+H} ${x},${y+H-R} L${x},${y+R} Q${x},${y} ${x+R},${y} Z`;return d;}
+const links=[],over=[];
+function card(id,t,k,x,y,o={}){cards[id]={x,y};
+ let s=`<path d="${cardPath(x,y,o.sock,o.knob)}" fill="${C.card}" stroke="${C.line}" filter="url(#sh)"/>`;
+ if(o.sock)s+=`<path d="M${x+W/2-N},${y} A${N} ${N} 0 0 0 ${x+W/2+N},${y}" fill="none" stroke="${C.open}" stroke-width="2.5"/>`;
+ if(o.knob)s+=`<path d="M${x+W/2+N},${y+H} A${N} ${N} 0 0 1 ${x+W/2-N},${y+H}" fill="${C.open}" stroke="${C.open}" stroke-width="1"/>`;
+ const st=o.st||'kw';
+ s+= st==='vec'?`<g stroke="${C.vec}" stroke-width="2" fill="none"><rect x="${x+12}" y="${y+16}" width="7" height="5" rx="2.5"/><rect x="${x+16}" y="${y+16}" width="7" height="5" rx="2.5"/></g>`
+   :`<circle cx="${x+16}" cy="${y+19}" r="4" fill="${C[st]}"/>`;
+ s+=`<text x="${x+28}" y="${y+24}" fill="${C.fg}" font-weight="600" font-size="14">${t}</text><text x="${x+28}" y="${y+42}" fill="${C.mut}" font-size="12">${k}</text>`;
+ if(o.glue){s+=`<g transform="translate(${x+6},${y+H-4}) rotate(-28)"><rect x="-22" y="-7" width="46" height="14" fill="${C.glue}" opacity=".88"/><path d="M-22,-7 l-3,3.5 l3,3.5 l-3,3.5 l3,3.5 M24,-7 l3,3.5 l-3,3.5 l3,3.5 l-3,3.5" stroke="${C.glue}" fill="${C.glue}" opacity=".88"/></g>`;}
+ if(o.mask){const mx=x+W-80,my=y-10;s+=`<path d="M${mx},${my} H${x+W-4} q4,0 4,4 V${y+18} q-36,12 -76,4 Z" fill="${C.mask}" opacity=".95"/><circle cx="${mx+24}" cy="${y+6}" r="4" fill="#3a1630"/><circle cx="${mx+50}" cy="${y+6}" r="4" fill="#3a1630"/><text x="${mx+8}" y="${my+7}" font-size="0"></text>`;
+   s+=`<text x="${x+W+6}" y="${y+2}" fill="${C.mask}" font-size="11" font-weight="600">ruined</text><text x="${x+W+6}" y="${y+16}" fill="${C.mask}" font-size="11" font-weight="600" opacity=".6">rebuilt</text>`;}
+ if(o.fork){const cx=x+W/2,by=y+H;s+=`<path d="M${cx},${by} v10 M${cx},${by+10} l-14,10 M${cx},${by+10} l14,10" stroke="${C.end}" stroke-width="4" stroke-linecap="round" fill="none"/>`;}
+ if(o.stop){const sx=x+W-24,by=y+H;s+=`<path d="M${sx},${by} v8 M${sx-8},${by+9} h16" stroke="${C.end}" stroke-width="4" stroke-linecap="round"/>`;}
+ over.push(s);}
+function link(a,b,color=C.open,dx1=0,dx2=0,dash){const A=cards[a],B=cards[b];const x1=A.x+W/2+dx1,y1=A.y+H+(dash?9:9),x2=B.x+W/2+dx2,y2=B.y+(dash?0:3);const m=(y1+y2)/2;
+ links.push(`<path d="M${x1},${y1} C${x1},${m} ${x2},${m} ${x2},${y2}" stroke="${color}" stroke-width="2.5" fill="none" ${dash?'stroke-dasharray="7 6"':''}/>`);}
+card('road','Road','road',200,20,{knob:1});
+card('mill','Mill','mill',200,130,{sock:1,knob:1});
+card('storm','Storm','storm, thunder',40,250,{sock:1,glue:1});
+card('tunnel','Tunnel','tunnel',300,250,{sock:1,knob:1});
+card('gh','Gatehouse','gate, guard',300,370,{sock:1,fork:1});
+card('marsh','Marsh path','marsh',200,500,{sock:1,knob:1});
+card('ridge','Ridge path','ridge',390,500,{sock:1,knob:1});
+card('tower','Tower','tower',300,640,{sock:1,mask:1});
+card('lore','Weather lore','permanent',20,500,{st:'perm'});
+card('crows','Crows','crow + meaning',20,620,{st:'vec'});
+link('road','mill');link('mill','storm');link('mill','tunnel');link('tunnel','gh');
+{const A=cards.gh,cx=A.x+W/2,y=A.y+H+20;for(const [b,d] of [['marsh',-14],['ridge',14]]){const B=cards[b],x2=B.x+W/2,y2=B.y+3,m=(y+y2)/2;links.push(`<path d="M${cx+d},${y} C${cx+d},${m} ${x2},${m} ${x2},${y2}" stroke="${C.end}" stroke-width="2.5" fill="none"/>`);}}
+link('marsh','tower');link('ridge','tower');
+// closes: storm closed by Finale -> show stop link from Tower? keep: Mill closes its own gate -> stop mark on Mill
+over.push(`<path d="M${cards.mill.x+W-24},${cards.mill.y+H} v8 M${cards.mill.x+W-32},${cards.mill.y+H+9} h16" stroke="${C.end}" stroke-width="4" stroke-linecap="round"/>`);
+const svg=links.join('')+over.join('');
+document.getElementById('s').innerHTML=out+svg;
+document.getElementById('s2').innerHTML=out+`<g transform="scale(.4)">${svg.replace(/<text[^>]*>[^<]*<\/text>/g,'')}</g>`;
+document.getElementById('leg').innerHTML=[
+['socket (top)','Gate: waits for what comes in',C.open],['knob (bottom)','Gates for: what this one lets through',C.open],
+['fork','Switch: only one path goes on',C.end],['stop bar','Closes: shuts something for good',C.end],
+['tape on a corner','Glue: stays on until…',C.glue],['visor over the top','Mask: alternate content',C.mask],
+['dot before the title','Strategy (green keywords, blue permanent, purple chain vectorized)',C.kw]].map(([s,t,c])=>`<b style="color:${c}">${s}</b><span>${t}</span>`).join('');
+</script>

@@ -1,0 +1,105 @@
+<!doctype html><meta charset=utf8><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap">
+<style>
+body{margin:0;background:#121315;color:#e4e2da;font:14px 'Noto Sans';padding:16px;width:1060px}
+.wrap{display:flex;gap:20px;align-items:flex-start}
+.pane{background:#16171b;border-radius:14px;padding:10px;background-image:radial-gradient(#25272d 1px,transparent 1px);background-size:20px 20px}
+h3{margin:2px 4px 8px;font-size:13px;color:#a3a49d;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.phone{width:390px;height:844px;border:1px solid #3a3d44;border-radius:28px;overflow:hidden;position:relative;background:#16171b;background-image:radial-gradient(#25272d 1px,transparent 1px);background-size:20px 20px}
+.tabs{height:52px;background:#191a1e;border-bottom:1px solid #3a3d44;display:flex;align-items:stretch;padding-left:8px;gap:4px}
+.tabs span{display:flex;align-items:center;padding:0 14px;color:#a3a49d;border-bottom:3px solid transparent}
+.tabs span.on{color:#e4e2da;border-bottom-color:#e3913a}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:372px;background:#26282d;border-radius:18px 18px 0 0;padding:6px 16px;box-shadow:0 -10px 30px rgba(0,0,0,.45)}
+.grab{width:40px;height:4px;border-radius:2px;background:#3a3d44;margin:4px auto 8px}
+.hd{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;margin-bottom:6px}
+.hd a{margin-left:auto;font-size:13px;color:#a3a49d;font-weight:400}
+.sec{border-top:1px solid #34363c;padding:10px 0 8px}
+.sl{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#a3a49d;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.c{height:30px;padding:0 12px;border-radius:15px;background:#2f3238;display:inline-flex;align-items:center;font-size:14px}
+.c.add{background:none;border:1px dashed #3a3d44;color:#a3a49d}
+.or{font-size:12px;color:#a3a49d;margin:6px 0}
+.tg{display:flex;align-items:center;gap:10px;font-size:14px;margin-top:8px}
+.sw{width:36px;height:22px;border-radius:11px;background:#8a5f33;position:relative}.sw::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:8px;background:#f1efe8}
+.addp{display:flex;gap:8px;align-items:center;color:#a3a49d;font-size:14px;padding-top:10px;border-top:1px solid #34363c}
+.note{font-size:12.5px;color:#a3a49d;max-width:390px;line-height:1.5;margin-top:10px}
+</style>
+<div class=wrap>
+<div><div class=pane><h3>Canvas, readable zoom</h3><svg id=s width=600 height=880></svg></div></div>
+<div><div class=phone><div class=tabs><span style="color:#a3a49d">⌄</span><span class=on>▦</span><span>▷</span></div>
+<svg id=p width=390 height=330 style="display:block"></svg>
+<div class=sheet><div class=grab></div>
+<div class=hd><svg width=12 height=18 id=g></svg>Gatehouse<a>Open entry ›</a></div>
+<div class=sec><div class=sl><svg width=20 height=12><path d="M1,1 H6 A4 4 0 0 0 14,1 H19" stroke="#45c9bd" stroke-width="2.5" fill="none"/></svg>Gate · waits for</div>
+<div class=chips><span class=c>Tunnel</span><span class=c>lock: “red beard” +1</span><span class="c add">+ add</span></div>
+<div class=or>+ another row (or)</div>
+<div class=tg><span class=sw></span>Story moves on: adds “Closes Tunnel”</div></div>
+<div class=sec><div class=sl><svg width=20 height=14><path d="M10,0 V4 C10,8 4,8 3,13 M10,4 C10,8 16,8 17,13" stroke="#ff6f61" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>Switch · only one goes on</div>
+<div class=chips><span class=c>Marsh path</span><span class=c>Ridge path</span><span class="c add">+ add</span></div></div>
+<div class=sec><div class=sl><svg width=20 height=12><path d="M1,1 H6 A4 4 0 0 1 14,1 H19" stroke="#45c9bd" stroke-width="2.5" fill="#45c9bd" transform="translate(0,1)"/></svg>Gates for</div>
+<div class=chips><span class=c>any of #town</span><span class="c add">+ add</span></div></div>
+<div class=addp>+ Add piece&nbsp;&nbsp;<span style="color:#f2cf4a">Glue</span> · <span style="color:#f07cc8">Mask</span> · <span style="color:#ff6f61">Closes</span> · Pack</div>
+</div></div>
+<div class=note>Tap a card: it centers and zooms above, the sheet shows every piece already open. Tap a mark on a card: same sheet, scrolled to that piece. Drag only by the grip.</div></div>
+</div>
+<script>
+const C={open:'#45c9bd',end:'#ff6f61',glue:'#f2cf4a',mask:'#f07cc8',card:'#26282d',line:'#3a3d44',fg:'#e4e2da',mut:'#a3a49d',kw:'#6fd09a',perm:'#6fa8ff',vec:'#b48cff'};
+const W=150,H=56,R=10,N=9;
+const defs='<defs><filter id=sh x=-20% y=-20% width=140% height=160%><feDropShadow dx=0 dy=2 stdDeviation=2 flood-opacity=.45/></filter><clipPath id=cp></clipPath></defs>';
+function grip(x,y,st){let s='';for(let r=0;r<3;r++)for(let c=0;c<2;c++){const cx=x+c*6,cy=y+r*6;s+= st==='vec'?`<circle cx="${cx}" cy="${cy}" r="1.9" fill="none" stroke="${C.vec}" stroke-width="1.3"/>`:`<circle cx="${cx}" cy="${cy}" r="2.1" fill="${C[st]}"/>`;}return s;}
+function build(){const cards={},L=[],O=[];
+ const path=(x,y,o)=>{const cx=x+W/2;let d=`M${x+R},${y}`;if(o.sock)d+=` L${cx-N},${y} A${N} ${N} 0 0 0 ${cx+N},${y}`;d+=` L${x+W-R},${y} Q${x+W},${y} ${x+W},${y+R} L${x+W},${y+H-R} Q${x+W},${y+H} ${x+W-R},${y+H}`;if(o.knob)d+=` L${cx+N},${y+H} A${N} ${N} 0 0 1 ${cx-N},${y+H}`;d+=` L${x+R},${y+H} Q${x},${y+H} ${x},${y+H-R} L${x},${y+R} Q${x},${y} ${x+R},${y} Z`;return d;};
+ function card(id,t,k,x,y,o={}){cards[id]={x,y,o};const d=path(x,y,o);let s=`<path d="${d}" fill="${C.card}" stroke="${C.line}" filter="url(#sh)"/>`;
+  if(o.mask){const n=o.mask;s+=`<clipPath id="m${id}"><path d="${d}"/></clipPath><g clip-path="url(#m${id})"><rect x="${x+W*0.55}" y="${y}" width="${W}" height="${H}" fill="${C.mask}" opacity=".28"/>`;for(let i=0;i<n;i++){const sx=x+W*0.72+i*14;s+=`<path d="M${sx},${y+H-8} L${sx+12},${y+8}" stroke="${C.mask}" stroke-width="3" stroke-linecap="round"/>`;}s+=`</g><path d="M${x+W*0.55},${y} V${y+H}" stroke="${C.mask}" stroke-width="1.5" opacity=".7"/>`;}
+  if(o.sock)s+=`<path d="M${x+W/2-N},${y} A${N} ${N} 0 0 0 ${x+W/2+N},${y}" fill="none" stroke="${o.lid?C.end:C.open}" stroke-width="2.5"/>`;
+  if(o.knob)s+=`<path d="M${x+W/2+N},${y+H} A${N} ${N} 0 0 1 ${x+W/2-N},${y+H}" fill="${C.open}"/>`;
+  if(o.chain)s+=`<circle cx="${x+W/2}" cy="${y+H}" r="${N+4}" fill="none" stroke="${C.end}" stroke-width="2.5" stroke-dasharray="${Math.PI*(N+4)} 999" transform="rotate(0 ${x+W/2} ${y+H})"/>`;
+  s+=grip(x+11,y+17,o.st||'kw');
+  s+=`<text x="${x+30}" y="${y+24}" fill="${C.fg}" font-weight="600" font-size="14">${t}</text><text x="${x+30}" y="${y+42}" fill="${C.mut}" font-size="12">${k}</text>`;
+  if(o.hold){s+=`<rect x="${x-5}" y="${y+12}" width="10" height="${H-24}" rx="5" fill="${C.glue}"/><text x="${x+30}" y="${y+42}" fill="${C.glue}" font-size="11" font-weight="600">holds till Tower, “calm”</text>`;}
+  O.push(s);}
+ const curve=(x1,y1,x2,y2,c,ex='')=>L.push(`<path d="M${x1},${y1} C${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}" stroke="${c}" stroke-width="2.5" fill="none" stroke-linecap="round" ${ex}/>`);
+ const link=(a,b)=>{const A=cards[a],B=cards[b];curve(A.x+W/2,A.y+H+9,B.x+W/2,B.y+3,C.open);};
+ return {card,link,curve,cards,L,O};}
+// ---- big canvas
+{const b=build();const {card,link,curve,cards,L,O}=b;
+ card('road','Road','road',225,20,{knob:1});
+ card('mill','Mill','mill',225,130,{sock:1,knob:1});
+ card('storm','Storm','storm, thunder',60,260,{sock:1});
+ card('tunnel','Tunnel','tunnel',330,260,{sock:1,knob:1});
+ card('gh','Gatehouse','gate, guard',330,390,{sock:1});
+ card('echo','Thunder echo','rides with Storm',60,390,{});
+ card('marsh','Marsh path','marsh',225,540,{sock:1,knob:1});
+ card('ridge','Ridge path','ridge',430,540,{sock:1,knob:1});
+ card('tower','Tower','tower',330,690,{sock:1,mask:2});
+ card('lore','Weather lore','permanent',60,800,{st:'perm'});
+ card('crows','Crows','crow + meaning',420,800,{st:'vec'});
+ link('road','mill');link('mill','storm');link('mill','tunnel');link('tunnel','gh');
+ // closes running back along a gate link: thin red rail beside it, bead at the closer, bar at the closed
+ const rail=(a,b2)=>{const A=cards[a],B=cards[b2];const x1=A.x+W/2+14,y1=A.y+H,x2=B.x+W/2+14,y2=B.y;L.push(`<path d="M${x2},${y2} C${x2},${(y1+y2)/2} ${x1},${(y1+y2)/2} ${x1},${y1+2}" stroke="${C.end}" stroke-width="2" fill="none" stroke-dasharray="6 5"/>`);O.push(`<circle cx="${x2}" cy="${y2}" r="4" fill="${C.end}"/><path d="M${x1-7},${y1+2} h14" stroke="${C.end}" stroke-width="3.5" stroke-linecap="round"/>`);};
+ rail('road','mill');rail('mill','tunnel');rail('tunnel','gh');
+ // switch: smooth fork from Gatehouse bottom
+ {const A=cards.gh,cx=A.x+W/2,y=A.y+H;O.push(`<path d="M${cx},${y} v10" stroke="${C.end}" stroke-width="4" stroke-linecap="round"/><circle cx="${cx}" cy="${y+12}" r="5" fill="${C.end}"/>`);
+  for(const t of ['marsh','ridge']){const B=cards[t];curve(cx,y+12,B.x+W/2,B.y+3,C.end,'stroke-width="3"');}}
+ // OR junction into Tower
+ {const T=cards.tower,jx=T.x+W/2,jy=T.y-26;for(const t of ['marsh','ridge']){const A=cards[t];curve(A.x+W/2,A.y+H+9,jx,jy,C.open);}
+  L.push(`<path d="M${jx},${jy} V${T.y+3}" stroke="${C.open}" stroke-width="2.5"/>`);O.push(`<circle cx="${jx}" cy="${jy}" r="9" fill="#16171b" stroke="${C.open}" stroke-width="2.5"/><text x="${jx}" y="${jy+4}" text-anchor="middle" font-size="10" font-weight="700" fill="${C.open}">or</text>`);}
+ // closes: Gatehouse closes Storm (dashed red, lid on target)
+ {const A=cards.gh,B=cards.storm;const x1=A.x,y1=A.y+H/2,x2=B.x+W+4,y2=B.y+H/2;L.push(`<path d="M${x1},${y1} C${x1-70},${y1} ${x2+70},${y2} ${x2},${y2}" stroke="${C.end}" stroke-width="2.5" fill="none" stroke-dasharray="7 6"/>`);
+  O.push(`<circle cx="${x1}" cy="${y1}" r="5" fill="${C.end}"/><path d="M${x2},${B.y+10} V${B.y+H-10}" stroke="${C.end}" stroke-width="4" stroke-linecap="round"/>`);}
+ // glue links. Ride along: Storm -> Thunder echo (arrow). Hold: Tower releases Storm.
+ {const A=cards.storm,B=cards.echo;const x=A.x+50;L.push(`<path d="M${x},${A.y+H} V${B.y-8}" stroke="${C.glue}" stroke-width="3"/>`);O.push(`<path d="M${x-7},${B.y-12} L${x},${B.y-1} L${x+7},${B.y-12} Z" fill="${C.glue}"/><text x="${x+10}" y="${A.y+H+40}" font-size="11" font-weight="600" fill="${C.glue}">rides along</text>`);}
+ {const A=cards.storm,T=cards.tower;O.push(`<rect x="${A.x-5}" y="${A.y+12}" width="10" height="${H-24}" rx="5" fill="${C.glue}"/>`);
+  L.push(`<path d="M${T.x},${T.y+H/2} C${T.x-120},${T.y+H/2} ${A.x-60},${T.y-200} ${A.x-60},${A.y+H/2+40} S${A.x-30},${A.y+H/2} ${A.x-6},${A.y+H/2}" stroke="${C.glue}" stroke-width="2.5" fill="none" stroke-dasharray="2 6" stroke-linecap="round"/>`);
+  O.push(`<circle cx="${T.x}" cy="${T.y+H/2}" r="4.5" fill="${C.glue}"/><text x="${A.x-32}" y="${A.y+H+200}" font-size="11" font-weight="600" fill="${C.glue}" transform="rotate(-90 ${A.x-32} ${A.y+H+200})">holds until Tower</text>`);}
+ document.getElementById('s').innerHTML=defs+L.join('')+O.join('');}
+// ---- phone canvas (Gatehouse focused, zoomed)
+{const b=build();const {card,link,curve,cards,L,O}=b;
+ card('tunnel','Tunnel','tunnel',120,-30,{sock:1,knob:1});
+ card('gh','Gatehouse','gate, guard',120,120,{sock:1});
+ card('marsh','Marsh path','marsh',10,270,{sock:1,knob:1});card('ridge','Ridge path','ridge',230,270,{sock:1,knob:1});
+ link('tunnel','gh');
+ {const A=cards.gh,cx=A.x+W/2,y=A.y+H;O.push(`<path d="M${cx},${y} v10" stroke="${C.end}" stroke-width="4" stroke-linecap="round"/><circle cx="${cx}" cy="${y+12}" r="5" fill="${C.end}"/>`);for(const t of ['marsh','ridge']){const B=cards[t];curve(cx,y+12,B.x+W/2,B.y+3,C.end,'stroke-width="3"');}}
+ O.push(`<rect x="${120-6}" y="${120-6}" width="${W+12}" height="${H+12}" rx="14" fill="none" stroke="#e3913a" stroke-width="2" opacity=".8"/>`);
+ document.getElementById('p').innerHTML=defs+L.join('')+O.join('');}
+document.getElementById('g').innerHTML=grip(3,3,'kw');
+</script>

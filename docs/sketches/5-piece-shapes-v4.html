@@ -1,0 +1,87 @@
+<!doctype html><meta charset=utf8><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap">
+<style>body{margin:0;background:#121315;color:#e4e2da;font:14px 'Noto Sans';padding:16px;width:1130px}
+.wrap{display:flex;gap:20px;align-items:flex-start}.pane{background:#16171b;border-radius:14px;padding:10px;background-image:radial-gradient(#25272d 1px,transparent 1px);background-size:20px 20px}
+h3{margin:2px 4px 8px;font-size:13px;color:#a3a49d;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.leg{width:300px;font-size:13px;line-height:1.5}.leg h4{margin:14px 0 4px;font-size:12px;color:#a3a49d;letter-spacing:.05em;text-transform:uppercase}.leg p{margin:0 0 6px}
+</style>
+<div class=wrap><div class=pane><h3>All pieces, in combination</h3><svg id=s width=780 height=1120></svg></div>
+<div class=leg id=leg></div></div>
+<script>
+const C={open:'#45c9bd',end:'#ff6f61',glue:'#f2cf4a',mask:'#f07cc8',pack:'#cfccc2',card:'#26282d',line:'#3a3d44',fg:'#e4e2da',mut:'#a3a49d',kw:'#6fd09a',perm:'#6fa8ff',vec:'#b48cff',bg:'#16171b'};
+const W=150,H=56,R=10,N=9;const cards={},L=[],O=[],T=[];
+function grip(x,y,st){let s='';for(let r=0;r<3;r++)for(let c=0;c<2;c++){const cx=x+c*6,cy=y+r*6;s+=st==='vec'?`<circle cx="${cx}" cy="${cy}" r="1.9" fill="none" stroke="${C.vec}" stroke-width="1.3"/>`:`<circle cx="${cx}" cy="${cy}" r="2.1" fill="${C[st]}"/>`;}return s;}
+function cpath(x,y,o){const cx=x+W/2;let d=`M${x+R},${y}`;if(o.sock)d+=` L${cx-N},${y} A${N} ${N} 0 0 0 ${cx+N},${y}`;d+=` L${x+W-R},${y} Q${x+W},${y} ${x+W},${y+R} L${x+W},${y+H-R} Q${x+W},${y+H} ${x+W-R},${y+H}`;if(o.knob)d+=` L${cx+N},${y+H} A${N} ${N} 0 0 1 ${cx-N},${y+H}`;d+=` L${x+R},${y+H} Q${x},${y+H} ${x},${y+H-R} L${x},${y+R} Q${x},${y} ${x+R},${y} Z`;return d;}
+function card(id,t,k,x,y,o={}){cards[id]={x,y};const d=cpath(x,y,o);let s=`<g opacity="${o.off?.45:1}"><path d="${d}" fill="${C.card}" stroke="${C.line}" filter="url(#sh)"/>`;
+ if(o.mask){s+=`<clipPath id="m${id}"><path d="${d}"/></clipPath><g clip-path="url(#m${id})"><rect x="${x+W*.6}" y="${y}" width="${W}" height="${H}" fill="${C.mask}" opacity=".28"/>`;for(let i=0;i<o.mask;i++){const sx=x+W*.74+i*14;s+=`<path d="M${sx},${y+H-9} L${sx+11},${y+9}" stroke="${C.mask}" stroke-width="3" stroke-linecap="round"/>`;}s+=`</g><path d="M${x+W*.6},${y} V${y+H}" stroke="${C.mask}" stroke-width="1.5" opacity=".7"/>`;}
+ if(o.sock)s+=`<path d="M${x+W/2-N},${y} A${N} ${N} 0 0 0 ${x+W/2+N},${y}" fill="none" stroke="${C.open}" stroke-width="2.5"/>`;
+ if(o.knob)s+=`<path d="M${x+W/2+N},${y+H} A${N} ${N} 0 0 1 ${x+W/2-N},${y+H}" fill="${C.open}"/>`;
+ s+=grip(x+11,y+17,o.st||'kw');
+ s+=`<text x="${x+30}" y="${y+24}" fill="${C.fg}" font-weight="600" font-size="14">${t}</text><text x="${x+30}" y="${y+42}" fill="${o.kc||C.mut}" font-size="12" ${o.kc?'font-weight="600"':''}>${k}</text>`;
+ if(o.badges){let bx=x+W-8;for(const b of o.badges.slice().reverse()){const w=b.length*6.5+12;bx-=w;s+=`<rect x="${bx}" y="${y-9}" width="${w}" height="18" rx="9" fill="#34373e" stroke="${C.line}"/><text x="${bx+w/2}" y="${y+4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${C.fg}">${b}</text>`;bx-=4;}}
+ if(o.hold)s+=`<rect x="${x-5}" y="${y+12}" width="10" height="${H-24}" rx="5" fill="${C.glue}"/>`;
+ s+='</g>';O.push(s);}
+const cur=(x1,y1,x2,y2,c,ex='')=>L.push(`<path d="M${x1},${y1} C${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}" stroke="${c}" stroke-width="2.5" fill="none" stroke-linecap="round" ${ex}/>`);
+const tp=id=>[cards[id].x+W/2,cards[id].y], bot=id=>[cards[id].x+W/2,cards[id].y+H];
+function link(a,b){const [x1,y1]=bot(a),[x2,y2]=tp(b);cur(x1,y1+9,x2,y2+3,C.open);}
+function arrowBar(x,y,dir,c){// arrow pointing dir ('up','left','right') ending at bar at x,y
+ const a={up:[0,1],left:[1,0],right:[-1,0]}[dir];const [ax,ay]=a;const px=-ay,py=ax;
+ O.push(`<path d="M${x+ax*3+px*7},${y+ay*3+py*7} L${x+ax*3-px*7},${y+ay*3-py*7}" stroke="${C.end}" stroke-width="3.5" stroke-linecap="round"/><path d="M${x+ax*5},${y+ay*5} L${x+ax*15+px*6},${y+ay*15+py*6} L${x+ax*15-px*6},${y+ay*15-py*6} Z" fill="${C.end}"/>`);}
+function rail(a,b){const [x1,y1]=bot(a),[x2,y2]=tp(b);const o=15;L.push(`<path d="M${x2+o},${y2} C${x2+o},${(y1+y2)/2} ${x1+o},${(y1+y2)/2} ${x1+o},${y1+20}" stroke="${C.end}" stroke-width="2" fill="none" stroke-dasharray="6 5"/>`);O.push(`<circle cx="${x2+o}" cy="${y2}" r="4" fill="${C.end}"/>`);arrowBar(x1+o,y1+3,'up');}
+function junc(x,y,t,c=C.open){O.push(`<circle cx="${x}" cy="${y}" r="13" fill="${C.bg}" stroke="${c}" stroke-width="2.5"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="10" font-weight="700" fill="${c}">${t}</text>`);}
+function pill(x,y,txt,c,icon){const w=txt.length*6.6+30;O.push(`<rect x="${x}" y="${y-11}" width="${w}" height="22" rx="11" fill="#202126" stroke="${c}" stroke-width="1.5"/>${icon(x+13,y,c)}<text x="${x+24}" y="${y+4}" font-size="11.5" font-weight="600" fill="${c}">${txt}</text>`);return w;}
+const lockI=(x,y,c)=>`<rect x="${x-5}" y="${y-2}" width="10" height="8" rx="2" fill="${c}"/><path d="M${x-3},${y-2} v-3 a3 3 0 0 1 6 0 v3" stroke="${c}" stroke-width="1.6" fill="none"/>`;
+const clockI=(x,y,c)=>`<circle cx="${x}" cy="${y}" r="5.5" stroke="${c}" stroke-width="1.6" fill="none"/><path d="M${x},${y-3} V${y} H${x+3}" stroke="${c}" stroke-width="1.6" fill="none"/>`;
+function frame(x,y,w,h,name){O.unshift(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="14" fill="rgba(207,204,194,.04)" stroke="${C.pack}" stroke-width="1.5" stroke-dasharray="6 5"/><text x="${x+14}" y="${y+20}" font-size="12" font-weight="700" fill="${C.pack}"># ${name}</text><path d="M${x+w/2-N},${y} A${N} ${N} 0 0 0 ${x+w/2+N},${y}" fill="${C.bg}" stroke="${C.open}" stroke-width="2.5"/>`);}
+// ---- layout
+card('road','Road','road',300,30,{knob:1});
+card('mill','Mill','mill',300,140,{sock:1,knob:1});
+card('storm','Storm','holds until “calm”',70,280,{sock:1,hold:1,kc:C.glue});
+card('tunnel','Tunnel','tunnel',530,280,{sock:1,knob:1});
+card('echo','Thunder echo','rides with Storm',70,420,{});
+card('gh','Gatehouse','gate, guard',530,460,{sock:1,knob:1});
+card('marsh','Marsh path','marsh',420,600,{sock:1,knob:1});card('ridge','Ridge path','ridge',610,600,{sock:1,knob:1});
+card('tower','Tower','tower',520,770,{sock:1,mask:2});
+// pack
+frame(30,560,220,300,'town');
+card('inn','Inn','inn',65,595,{knob:1});card('market','Market','market',65,700,{sock:1});card('smithy','Smithy','smith',65,790,{});
+card('finale','Finale','crown',300,930,{sock:1});
+card('hermit','Old hermit','hermit',560,930,{badges:['by you','1×']});
+card('ferry','Ferry','off',560,1040,{off:1});card('lore','Weather lore','permanent',70,1040,{st:'perm'});card('crows','Crows','crow + meaning',300,1040,{st:'vec'});
+// links
+link('road','mill');link('mill','storm');link('mill','tunnel');
+rail('road','mill');rail('mill','tunnel');
+// gatehouse: Tunnel AND lock
+{const [jx,jy]=[cards.gh.x+W/2,cards.gh.y-36];const [x1,y1]=bot('tunnel');cur(x1,y1+9,jx,jy-13,C.open);L.push(`<path d="M${jx},${jy+13} V${cards.gh.y+3}" stroke="${C.open}" stroke-width="2.5"/>`);
+ L.push(`<path d="M${jx-110},${jy} H${jx-13}" stroke="${C.open}" stroke-width="2.5"/>`);junc(jx,jy,'and');pill(jx-205,jy,'“red beard” +1',C.open,lockI);}
+// switch
+{const [cx,y]=bot('gh');O.push(`<circle cx="${cx}" cy="${y+12}" r="5" fill="${C.end}"/><path d="M${cx},${y} v10" stroke="${C.end}" stroke-width="4" stroke-linecap="round"/>`);for(const t of ['marsh','ridge']){const [x2,y2]=tp(t);cur(cx,y+12,x2,y2+3,C.end,'stroke-width="3"');}}
+// gates for #town from Gatehouse? Gatehouse bottom is switch; use a side knob: from gh left
+{const g=cards.gh;O.push(`<path d="M${g.x},${g.y+H/2+N} A${N} ${N} 0 0 1 ${g.x},${g.y+H/2-N}" fill="${C.open}"/>`);L.push(`<path d="M${g.x-9},${g.y+H/2} C${g.x-140},${g.y+H/2} ${140},${500} ${140},${560}" stroke="${C.open}" stroke-width="2.5" fill="none"/>`);T.push(['gates for',g.x-120,g.y+H/2-8,C.open]);}
+// tower OR
+{const T2=cards.tower,jx=T2.x+W/2,jy=T2.y-36;for(const t of ['marsh','ridge']){const [x1,y1]=bot(t);cur(x1,y1+9,jx,jy-13,C.open);}L.push(`<path d="M${jx},${jy+13} V${T2.y+3}" stroke="${C.open}" stroke-width="2.5"/>`);junc(jx,jy,'or');}
+// mask "ruined" gated by Storm? use Thunder echo... use Ridge? -> mask gated by Market (pink dotted into pink half)
+{const m=cards.market,t=cards.tower;L.push(`<path d="M${m.x+W},${m.y+H/2} C${m.x+W+200},${m.y+H/2} ${t.x+W*.8},${t.y+H+90} ${t.x+W*.8},${t.y+H+2}" stroke="${C.mask}" stroke-width="2.5" fill="none" stroke-dasharray="2 6" stroke-linecap="round"/>`);O.push(`<circle cx="${m.x+W}" cy="${m.y+H/2}" r="4.5" fill="${C.mask}"/>`);T.push(['mask “rebuilt”',t.x+60,t.y+H+40,C.mask]);}
+// market waits: Inn + wait 3 AND
+{const jx=cards.market.x+W/2,jy=cards.market.y-24;const [x1,y1]=bot('inn');L.push(`<path d="M${x1},${y1+9} V${jy-13} M${jx},${jy+13} V${cards.market.y+3}" stroke="${C.open}" stroke-width="2.5"/>`);junc(jx,jy,'and');L.push(`<path d="M${jx+13},${jy} H${jx+50}" stroke="${C.open}" stroke-width="2.5"/>`);pill(jx+48,jy,'3 msgs',C.open,clockI);}
+// finale: Tower AND #town:all
+{const f=cards.finale,jx=f.x+W/2,jy=f.y-36;const t=cards.tower;L.push(`<path d="M${t.x+W/2},${t.y+H} C${t.x+W/2},${t.y+H+50} ${jx+40},${jy-40} ${jx+11},${jy-8}" stroke="${C.open}" stroke-width="2.5" fill="none"/>`);
+ L.push(`<path d="M${140},${860} C${140},${900} ${jx-40},${jy-40} ${jx-11},${jy-8}" stroke="${C.open}" stroke-width="2.5" fill="none"/>`);O.push(`<rect x="114" y="850" width="52" height="20" rx="10" fill="#202126" stroke="${C.open}" stroke-width="1.5"/><text x="140" y="864" text-anchor="middle" font-size="11" font-weight="700" fill="${C.open}">all ▸</text>`);
+ L.push(`<path d="M${jx},${jy+13} V${f.y+3}" stroke="${C.open}" stroke-width="2.5"/>`);junc(jx,jy,'and');}
+// closes: Finale closes Storm (dashed, arrow)
+{const f=cards.finale,s=cards.storm;const x1=f.x,y1=f.y+H/2,x2=s.x+W+4,y2=s.y+H/2;L.push(`<path d="M${x1},${y1} C${x1-40},${y1} ${x2+40},${y1-300} ${x2+60},${y2+60} S${x2+30},${y2} ${x2+18},${y2}" stroke="${C.end}" stroke-width="2.5" fill="none" stroke-dasharray="7 6"/>`);O.push(`<circle cx="${x1}" cy="${y1}" r="5" fill="${C.end}"/>`);arrowBar(x2+2,y2,'left');}
+// glue: ride along Storm -> echo; hold until words: lock pill on hold bar
+{const A=cards.storm,B=cards.echo,x=A.x+55;L.push(`<path d="M${x},${A.y+H} V${B.y-10}" stroke="${C.glue}" stroke-width="3"/>`);O.push(`<path d="M${x-7},${B.y-13} L${x},${B.y-1} L${x+7},${B.y-13} Z" fill="${C.glue}"/>`);T.push(['rides along',x+10,A.y+H+46,C.glue]);
+ L.push(`<path d="M${A.x-5},${A.y+H/2} H${A.x-30}" stroke="${C.glue}" stroke-width="2.5" stroke-dasharray="2 5" stroke-linecap="round"/>`);}
+const defs='<defs><filter id=sh x=-20% y=-20% width=140% height=160%><feDropShadow dx=0 dy=2 stdDeviation=2 flood-opacity=.45/></filter></defs>';
+document.getElementById('s').innerHTML=defs+L.join('')+O.join('')+T.map(([t,x,y,c])=>`<text x="${x}" y="${y}" font-size="11" font-weight="600" fill="${c}">${t}</text>`).join('');
+document.getElementById('leg').innerHTML=`
+<h4>Opening (teal)</h4><p><b>Socket</b> on top = has a gate. <b>Knob</b> on the bottom = something waits for it. Links run knob to socket.</p>
+<p><b>and / or</b> junctions only where a gate has more than one item: Gatehouse needs Tunnel <i>and</i> a lock phrase; Tower needs Marsh <i>or</i> Ridge.</p>
+<p><b>Lock</b> and <b>wait</b> are pills that plug into a junction, since they have no entry to come from.</p>
+<p><b>Gates for</b> leaves from a side knob, here into the #town frame's socket.</p>
+<h4>Ending (red)</h4><p><b>Switch</b>: bead under the card, smooth branches.</p><p><b>Closes</b>: dashed, bead on the closer, arrow and bar on the closed entry (Finale closes Storm).</p><p><b>Story moves on</b>: the same Closes, running back beside the gate link (Road, Mill).</p>
+<h4>Glue (yellow)</h4><p><b>Ride along</b>: solid arrow host to rider. <b>Hold</b>: bar on the held entry; its release words are written on the card.</p>
+<h4>Mask (pink)</h4><p>Tinted half, one slash per mask. A mask's own gate comes in as a dotted pink link (Market turns on "rebuilt").</p>
+<h4>Pack (light gray)</h4><p>Dashed frame with # name and its own socket. A reading leaves from its bottom edge as a chip: <b>all ▸</b>, <b>2+ ▸</b>, or plain for any.</p>
+<h4>Entry settings</h4><p>Small badges on the top edge: <b>1×</b> (once), <b>by you</b> / <b>by char</b> (who triggers). Off entries are dimmed.</p>`;
+</script>
