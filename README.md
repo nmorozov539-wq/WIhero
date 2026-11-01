@@ -10,7 +10,8 @@ git history; this phase redesigns the editor before it is built again.
 
 ## Docs
 
-- [UX spec](docs/UX_SPEC.md): what every screen does, in normal mode and Hero mode
+- [Concepts](docs/CONCEPTS.md): story logic, pieces and the rules they follow
+- [Layout](docs/LAYOUT.md): every screen and control, in normal mode and Hero mode
 - [Design](docs/DESIGN.md): the original story-gating design
 - [Technical notes](docs/TECHNICAL_NOTES.md): how the design maps onto ST's World Info hooks
 - [Roadmap](docs/ROADMAP.md)

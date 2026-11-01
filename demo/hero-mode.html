@@ -1108,7 +1108,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
   const icon = d => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
   function renderEntry() {
     const e = byId(state.active); if (!e) { state.active = 'canvas'; showActive(); return; }
-    const pg = $('epage'), ed = state.editing, strat = e.strategy || 'keywords';
+    const pg = $('epage'), ed = true, strat = e.strategy || 'keywords';
     const keep = pg.querySelector('details.hero')?.open;
     pg.innerHTML = '';
     const head = el('div', 'ehead');
@@ -1122,7 +1122,7 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     const md = el('button', 'ib'); md.innerHTML = ed ? icon('<path d="M2 12 C5 6 9 4 12 4 C15 4 19 6 22 12 C19 18 15 20 12 20 C9 20 5 18 2 12 Z"/><circle cx="12" cy="12" r="3"/>') : icon('<path d="M4 20 L8 19 L19 8 L16 5 L5 16 Z M14 7 L17 10"/>');
     md.setAttribute('aria-label', ed ? 'Reading mode' : 'Editing mode'); md.addEventListener('click', () => { state.editing = !ed; renderEntry(); });
     const more = el('button', 'ib'); more.innerHTML = icon('<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>'); more.setAttribute('aria-label', 'More'); more.addEventListener('click', () => openEntryMenu(e, true));
-    bub.append(md, more); head.appendChild(bub); pg.appendChild(head);
+    bub.append(more); head.appendChild(bub); pg.appendChild(head);
 
     const body = el('div', 'ebody');
     const st = el('div', 'strat');
@@ -1135,9 +1135,12 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     st.appendChild(sw); body.appendChild(st);
     if (strat !== 'permanent') {
       const ks = el('div', 'keys');
-      if (ed) { const inp = el('input'); inp.placeholder = 'key words, comma separated list'; inp.value = e.keys.join(', '); inp.addEventListener('change', () => { e.keys = inp.value.split(',').map(x => x.trim()).filter(Boolean); render(); }); ks.appendChild(inp); }
-      else if (e.keys.length) e.keys.forEach(k => ks.appendChild(el('span', 'kb', k)));
-      else { const n = el('span', '', 'No key words'); n.style.color = 'var(--muted)'; n.style.fontSize = '13px'; ks.appendChild(n); }
+      // keywords: bubbles until tapped, then plain text to edit
+      const inp = el('input'); inp.placeholder = 'key words, comma separated list'; inp.value = e.keys.join(', ');
+      inp.addEventListener('change', () => { e.keys = inp.value.split(',').map(x => x.trim()).filter(Boolean); });
+      inp.addEventListener('blur', () => { e.keys = inp.value.split(',').map(x => x.trim()).filter(Boolean); render(); });
+      if (!e.keys.length) ks.appendChild(inp);
+      else { e.keys.forEach(k => ks.appendChild(el('span', 'kb', k))); ks.style.cursor = 'text'; ks.addEventListener('click', () => { ks.innerHTML = ''; ks.appendChild(inp); inp.focus(); }, { once: true }); }
       body.appendChild(ks);
       if (ed) { const ac = el('button', 'addc', '+ Add condition'); ac.addEventListener('click', () => toast('Secondary key words, same as the base editor')); body.appendChild(ac); }
     }
@@ -1149,11 +1152,11 @@ pre.json { background: var(--app); border-radius: 10px; padding: 12px; font-size
     const hero = el('details', 'sec hero'); hero.open = keep ?? true;
     hero.innerHTML = `<summary>${chev}Hero<small></small></summary>`;
     hero.querySelector('small').textContent = lines.length ? `${lines.length} rule${lines.length > 1 ? 's' : ''}` : 'no story logic';
-    if (ed) { const pre = el('pre', 'json'); pre.textContent = '"wihero": ' + wihero(e); hero.appendChild(pre); }
-    else if (lines.length) lines.forEach(([c, a, b]) => { const l = el('div', 'hl'); l.style.color = c; l.innerHTML = '<i></i>'; const s = el('span'); s.appendChild(el('b', '', a + ': ')); s.appendChild(document.createTextNode(b)); l.appendChild(s); hero.appendChild(l); });
+    if (lines.length) lines.forEach(([c, a, b]) => { const l = el('div', 'hl'); l.style.color = c; l.innerHTML = '<i></i>'; const s = el('span'); s.appendChild(el('b', '', a + ': ')); s.appendChild(document.createTextNode(b)); l.appendChild(s); hero.appendChild(l); });
     else hero.appendChild(el('p', 'hnone', 'No story logic yet. Put it on the canvas to give it some.'));
     const sc = el('button', 'hbtn', placedSet().has(e.id) ? 'Show on canvas' : 'Put on canvas');
     sc.addEventListener('click', () => showOnCanvas(e.id)); hero.appendChild(sc);
+    const dt = el('button', 'hbtn', '{ } Data'); dt.style.marginLeft = '8px'; dt.addEventListener('click', () => showData(e)); hero.appendChild(dt);
     body.appendChild(hero);
 
     if (ed) { const ta = el('textarea', 'content'); ta.placeholder = 'Type here'; ta.value = e.content || ''; ta.addEventListener('input', () => { e.content = ta.value; }); body.appendChild(ta); }
