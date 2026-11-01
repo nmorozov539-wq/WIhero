@@ -1,5 +1,9 @@
 # SillyTavern WI Extension — System Design (v2)
 
+> **Historical.** This is the original design, kept for the record. The current
+> spec is [CONCEPTS.md](CONCEPTS.md), [LAYOUT.md](LAYOUT.md) and
+> [VISUAL.md](VISUAL.md); where they disagree with this page, they win.
+
 A personal-use SillyTavern extension for advanced World Info (WI) control, focused on narrative-driven conditional triggering ("gating"), bulk organization ("grouping"), and cleaner visuals.
 
 **Changes from v1:** config moved from `extensions` to a top-level `wihero` field; Integration Notes verified against ST 1.19.0; added Turn Semantics (2.0), clarified glue and closing behavior, replaced UID references with stable ids, replaced flat chat-metadata state with per-message snapshots (which also replaces the railway-only message-ID rule), added Integration Notes (6) and v1 Scope (7), moved cross-book gates to Future Ideas, noted Showrunner as a future consumer.

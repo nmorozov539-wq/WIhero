@@ -139,3 +139,36 @@ How the folder filter hooks in:
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.
 - 2.6 Masks: content is swapped after activation (`WORLDINFO_SCAN_DONE`), not at load time. Masks don't feed recursion by default.
 - 3 Data model: config lives in a top-level `wihero` field, not `extensions`.
+
+## 12. The new model (CONCEPTS.md)
+
+What the redesigned story logic needs from the engine, on top of sections 1–8.
+
+- **Fields**: `gates` becomes `gate`; `closes` becomes `closesFor`; new
+  `closeGate` (rows) on entries and on masks; `glue` becomes
+  `{mode: 'ride', host}` or `{mode: 'hold'}`. The `closeGates` boolean is gone.
+- **Reading old books**: on load, `gates` is read as `gate` and `closes` as
+  `closesFor`. `closeGates: true` (the old default) is turned into `closesFor`
+  links to the entries in the gate, the same links the Story moves on shortcut
+  writes. Old glue end conditions become a hold plus a close gate: "until one
+  of these fires" as one row per item, "until all of these" as one row, "until
+  these words" as a lock row. Masks' `gateMode` is dropped (rows already carry
+  AND and OR). The book is only rewritten when it is next saved from WI Hero.
+- **Closing** is worked out in `WORLDINFO_SCAN_DONE`, after the scan: entries
+  closed by a Closes for or by a close gate met this turn are dropped from the
+  activated list (closing beats opening), and recorded as closed in the
+  pending state. `WORLDINFO_ENTRIES_LOADED` keeps removing entries that were
+  already closed.
+- **Glue**: ride-along entries are force-activated in `WORLDINFO_SCAN_DONE`
+  when their host is in the activated list (the host is only known after the
+  scan). Holds keep the force-activation path of section 3. Glued entries are
+  no longer exempt from closing.
+- **Close gates on masks**: a mask whose close gate is met is closed for good
+  in the state, like an entry, and skipped when picking the text.
+- **Locks in close gates** are checked the same way as gate locks, against the
+  newest user message and reply, and armed only once the rest of the row has
+  fired.
+- **Once and Switch** stay their own fields and are expanded into close rules
+  when the book is loaded, so the closing code has one path.
+- **Canvas settings**: port sides and the shown mask layer join canvas
+  positions in the extension settings, keyed by book and entry id.

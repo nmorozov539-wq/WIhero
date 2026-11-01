@@ -102,7 +102,49 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 ## Next — New editor and Hero mode
 
-UX agreed in [CONCEPTS.md](CONCEPTS.md) and [LAYOUT.md](LAYOUT.md): the tabbed phone-first editor that replaces ST's drawer, and Hero mode with puzzle pieces, gate rows, packs and locks.
+The spec is [CONCEPTS.md](CONCEPTS.md), [LAYOUT.md](LAYOUT.md) and
+[VISUAL.md](VISUAL.md); the [demo](../demo/wihero-demo.html) shows it working.
+The earlier build is the starting point, rebuilt in these steps:
+
+### N1 — Engine on the new model
+- Data model: `gate`, `gatesFor`, `closeGate`, `closesFor`, glue modes, masks
+  with close gates, `once`, `by`; reading the old fields on load (see
+  TECHNICAL_NOTES 12).
+- The three rules: closed stays closed, closing beats opening, glue not exempt.
+- Locks and waits in both gate kinds; ride-along glue.
+
+**Done when:** unit tests cover every rule in CONCEPTS 2.2 and 3, and an old
+book loads with the same behavior.
+
+### N2 — The editor shell and normal mode
+- WI Hero opens instead of ST's drawer. Tabs, ⌄ menu, sheets, Undo toasts.
+- Home, book page, search, selection, the shared entry page.
+- Theme tokens from SmartTheme, the type scale, the icon set.
+
+**Done when:** a book can be made, filled and organized at 390px wide without
+ST's own editor, in more than one ST theme.
+
+### N3 — Hero mode canvas
+- Cards, ports, junctions, links routed around cards, mask stacks, pack frames.
+- Gestures, Fit and zoom, Tidy, port dragging, the entry panel.
+
+**Done when:** the sample book draws as in the demo, and positions and port
+sides survive a reload.
+
+### N4 — Inspector
+- Every piece editable, + Add piece, target picker with pack readings and
+  locks, the Story moves on shortcut.
+
+**Done when:** every piece in CONCEPTS 3 can be added, edited and removed on a
+phone, and lands in the book.
+
+### N5 — Preview
+- The pretend exchange with highlights, Also active, the report page, seeded
+  from the open chat.
+
+**Done when:** every block reason in CONCEPTS 7 shows up for the sample book.
 
 ## Later
-Timeline scrubber across branches, a book-level starting state.
+Reopen and the problem list in the new layout, a canvas state filter, Preview
+over several turns, desktop layout, a book-level starting state, a timeline
+scrubber across branches.
