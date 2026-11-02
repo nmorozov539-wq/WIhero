@@ -1,0 +1,48 @@
+/* N1: only the old settings panel, kept for testing. The real UI comes in N2–N4. */
+.wihero-panel-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.wihero-issues {
+    margin: 4px 0 0;
+    padding-left: 1.2em;
+    font-size: 0.9em;
+    color: var(--warning);
+}
+
+.wihero-issues .wihero-warning {
+    color: var(--SmartThemeQuoteColor);
+}
+
+.wihero-table {
+    width: 100%;
+    margin-top: 6px;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.wihero-table th,
+.wihero-table td {
+    text-align: left;
+    padding: 2px 4px;
+    vertical-align: top;
+    overflow-wrap: break-word;
+}
+
+.wihero-last-round td:first-child {
+    font-weight: bold;
+}
+
+.wihero-status-waiting,
+.wihero-status-closed,
+.wihero-status-blocked {
+    opacity: 0.6;
+}
+
+.wihero-reopen {
+    cursor: pointer;
+    text-decoration: underline;
+}
