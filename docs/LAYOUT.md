@@ -3,9 +3,9 @@
 Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). The
-[demo](../demo/wihero-demo.html) follows this map; the few parts it leaves out
+demo (in the git history) follows this map; the few parts it leaves out
 are listed at the end. Parts decided after the demo are drawn in
-[sketch 7](sketches/7-new-pieces.html), and every decision is listed in
+sketch 7 (in the git history), and every decision is listed in
 [BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop comes later and mostly lays the same screens side by side.
@@ -354,7 +354,7 @@ Specified here but left out of the demo, or only stubbed, to keep it small:
 Invert and Export in selection, Edit… for bulk parameters, New entry defaults,
 book ⋯ menus, Duplicate and Move to another book, waits (CONCEPTS 3.11).
 
-Decided after the demo and drawn in [sketch 7](sketches/7-new-pieces.html)
+Decided after the demo and drawn in sketch 7 (in the git history)
 instead: the half-height inspector, the Reopen line, mask chips, greeting
 cards, "Show chat state", problem badges and the color vision modes. Not drawn
 anywhere yet, built from the tables above: the Problems and Snapshots sheets.

@@ -5,8 +5,8 @@ Part 1 of the spec: what WI Hero's story logic does and the rules it follows.
 says how it all looks. None of them says how anything is built; that is
 [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) and, for the build,
 [BUILD_SPEC.md](BUILD_SPEC.md), which records every decision (D1–D23). Where they disagree with
-[DESIGN.md](DESIGN.md) (the original design), these win. The
-[demo](../demo/wihero-demo.html) follows this model.
+DESIGN.md (in the git history) (the original design), these win. The
+demo (in the git history) follows this model.
 
 ## 1. What WI Hero is
 

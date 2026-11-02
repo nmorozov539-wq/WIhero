@@ -12,7 +12,7 @@ that building needs as few decisions as possible.
   CONCEPTS, LAYOUT, VISUAL and TECHNICAL_NOTES (section 14).
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
-  [sketch 7](sketches/7-new-pieces.html).
+  sketch 7 (in the git history).
 - Status: complete for review (2026-11-02). Decisions D1–D26 agreed with the owner (D24–D26 added with N6).
 - Building follows the roadmap's N1–N5 (section 13).
 
@@ -566,7 +566,7 @@ Accepted for now, listed so nobody rediscovers them:
 ## 12. Screens
 
 LAYOUT.md is the map and stays it; VISUAL.md sets the look. The demo
-(`demo/wihero-demo.html`) is the reference for anything drawn: lift its code
+(`demo/wihero-demo.html`, in the git history) is the reference for anything drawn: lift its code
 for ports, the grid link router (D12), AND/OR pills and lock tags, mask
 stacks, pack frames and the Preview highlights, rather than redrawing them.
 Its built-in rule checker is **not** reused (D13).

@@ -2,8 +2,8 @@
 
 Part 3 of the spec: how WI Hero looks. What things do is in
 [CONCEPTS.md](CONCEPTS.md), where they sit is in [LAYOUT.md](LAYOUT.md). The
-[demo](../demo/wihero-demo.html) is built to this page, and the
-[sketches](sketches/README.md) record how it was reached; where a sketch
+demo (in the git history) is built to this page, and the
+sketches (in the git history) record how it was reached; where a sketch
 disagrees with this page, this page wins.
 
 ## 1. Direction
@@ -130,7 +130,7 @@ Who triggers has no color of its own; it uses `--muted`.
 ⌄ Display → Colors. Each mode swaps the piece colors (and, when built, the
 strategy colors) for a set that stays apart under one kind of color blindness.
 The surfaces, the accent and the shapes don't change. There is no other color
-customizing. Drawn in [sketch 7](sketches/7-new-pieces.html).
+customizing. Drawn in sketch 7 (in the git history).
 
 | Mode | Opens | Closes | Glue | Mask | Pack |
 |------|-------|--------|------|------|------|
@@ -204,7 +204,7 @@ built.
 
 ### 7.5 Chat state, problems and greetings
 
-Drawn in [sketch 7](sketches/7-new-pieces.html).
+Drawn in sketch 7 (in the git history).
 
 - **Show chat state** (⌄, off by default) marks each card with the open chat's
   state at its latest message: a small "2×" fired count top right; closed cards
