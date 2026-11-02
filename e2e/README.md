@@ -1,0 +1,13 @@
+# End-to-end tests
+
+`n1.mjs` plays a chat in a real SillyTavern 1.19.0 with a mock model and checks what reaches the prompt and the saved snapshots (BUILD_SPEC 13, N1): a chain advancing, a swipe and a delete rewinding it, a rider riding with its host, a lock in the user message opening in the same reply, a hold, a mask with a macro, the off switch, an old-build book, and a card round trip.
+
+Run it against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebooks, and creates (then deletes) a character.
+
+1. A SillyTavern 1.19.0 with fresh data (default Seraphina character), with this repo linked as `data/default-user/extensions/st-wihero`.
+2. Copy `examples/WIHero-N1.json` and `examples/WIHero-Sample.json` to that SillyTavern's `data/default-user/worlds/`.
+3. Start it (`node server.js --port 8000`, or set `ST_URL`).
+4. `node e2e/mock.mjs &` (OpenAI-compatible mock on port 5001, logs prompts to `e2e/log/`).
+5. `npm i --no-save playwright@1.55.0`, then `node e2e/n1.mjs`. Set `CHROMIUM=/path/to/chrome` if Playwright's own browser isn't installed.
+
+The older scripts (gating, editor, labels, folders, visuals, workspace, phone, branches) test the old UI and are in the git history; the N2–N5 checks will be built from them.

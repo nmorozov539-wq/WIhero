@@ -4,9 +4,10 @@ A SillyTavern extension that replaces the World Info editor, with a second side
 for story logic: entries that only become eligible once the story reaches a
 point, and retire once it moves past.
 
-Status: specification complete and ready to build. The earlier working build
-(gates, glue, switches, masks, labels and the workspace, for SillyTavern 1.19.0)
-lives in the git history and is the starting point.
+Status: building. **N1, the engine, is in** (`src/engine/`, with its SillyTavern
+wiring in `src/st-hooks.js`): story logic works in chats, with the old settings
+panel in the Extensions drawer for testing. The new UI comes in N2–N5.
+Run the tests with `node --test`; the in-ST checks are in [e2e/](e2e/README.md).
 
 **Building it?** Start at [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md): its "Start
 here" section, the decisions (D1–D23), and the build order N1–N5.
