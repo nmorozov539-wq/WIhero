@@ -96,12 +96,51 @@ export function createApp(deps) {
     const linkText = name => { const l = library.links(name); return l.length ? `${l[0].name}${l.length > 1 ? ` +${l.length - 1}` : ''}` : ''; };
     const entryFolder = (book, e) => folderOf(settings, book, e);
 
-    /** Loads a book, then redraws once it is in. */
-    function need(book) {
+    /**
+     * Loads a book, then redraws once it is in. One redraw per book, however many draws asked for it while it
+     * loaded (each draw used to add its own, and a list of books snowballed into thousands of redraws).
+     * A page that opens a book also asks for its As imported copy (library.seen).
+     */
+    const waiting = new Set();
+    function need(book, { open = true } = {}) {
         const data = library.peek(book);
-        if (data) return data;
-        library.get(book).then(d => { if (d) render(); });
+        if (data) { if (open) library.seen(book); return data; }
+        if (!waiting.has(book)) {
+            waiting.add(book);
+            library.get(book).then(d => { waiting.delete(book); if (d) scheduleRender(); }, () => waiting.delete(book));
+        }
         return null;
+    }
+
+    /**
+     * Home's entry counts: books load in the background, a few at a time, and each count is written into its row
+     * as it comes in. Nothing is redrawn, so the list scrolls and taps while books are still loading.
+     */
+    const counting = [];
+    let countsRunning = 0;
+    const countSpans = new Map(); // book → the span showing its count now
+    function countInto(name, span) {
+        countSpans.set(name, span);
+        if (!counting.includes(name)) counting.push(name);
+        pumpCounts();
+    }
+    function pumpCounts() {
+        while (countsRunning < 3 && counting.length) {
+            const name = counting.shift();
+            countsRunning++;
+            library.get(name).then(d => {
+                const span = countSpans.get(name);
+                if (d && span?.isConnected) span.textContent = `${entriesShown(name, d).length} entries`;
+            }, () => {}).finally(() => { countsRunning--; pumpCounts(); });
+        }
+    }
+
+    /** One redraw on the next frame, however many things asked for it. */
+    let renderQueued = false;
+    function scheduleRender() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => { renderQueued = false; refresh(); });
     }
 
     // ---------------------------------------------------------------- render
@@ -177,7 +216,17 @@ export function createApp(deps) {
             }
             strip.append(b);
         }
-        strip.querySelector('.tab.active')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+        revealActiveTab();
+    }
+
+    /** Scrolls the active tab into view, only when it changed: on every draw it forced a layout each time. */
+    let shownTab = null;
+    function revealActiveTab() {
+        const a = strip.querySelector('.tab.active');
+        const key = `${S.mode}:${S.mode === 'hero' ? H.active : S.active}`;
+        if (!a || key === shownTab) return;
+        shownTab = key;
+        a.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
     }
 
     // ---------------------------------------------------------------- navigation
@@ -305,8 +354,10 @@ export function createApp(deps) {
         const tx = el('div', 'txt');
         tx.append(el('div', 't', name));
         const m = el('div', 'm');
-        const data = need(name);
-        m.append(el('span', '', data ? `${entriesShown(name, data).length} entries` : '…'));
+        const data = library.peek(name);
+        const count = el('span', '', data ? `${entriesShown(name, data).length} entries` : '…');
+        if (!data) countInto(name, count);
+        m.append(count);
         const global = library.isGlobal(name);
         const lt = linkText(name);
         if (global) m.append(el('span', 'badge g', 'Global'));
@@ -551,7 +602,7 @@ export function createApp(deps) {
         s.append(bar, res);
         main.append(s);
         const names = visibleNames();
-        for (const n of names) need(n);
+        for (const n of names) need(n, { open: false });
         const run = () => {
             S.search.query = input.value;
             res.innerHTML = '';
@@ -787,7 +838,7 @@ export function createApp(deps) {
             const e = library.peek(t.book)?.entries[t.uid];
             mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
         });
-        strip.querySelector('.tab.active')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });
+        revealActiveTab();
     }
 
     function closeHeroTab(i) {
@@ -1145,6 +1196,14 @@ export function createApp(deps) {
         H.insp = { book, key, open, full: keep?.full ?? false, scroll: 0 };
         H.panel = false;
         if (S.mode !== 'hero' || H.active !== 'canvas' || H.book !== book) { S.mode = 'hero'; H.active = 'canvas'; H.book = book; }
+        else if (heroCanvas && data && main.dataset.page === 'hero:canvas' && !renderQueued) {
+            // Already on this canvas: only the inspector changes, so leave the cards and links as they are.
+            panelState();
+            main.querySelector('.insp')?.remove();
+            inspectorFor(book, data);
+            heroCanvas.reveal(key, 0.5);
+            return;
+        }
         render();
         heroCanvas?.reveal?.(key, 0.5);
     }

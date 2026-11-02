@@ -1,5 +1,5 @@
 // Snapshots (BUILD_SPEC 11, D21): named copies of a whole book, kept as files in the user's files folder, with
-// their index in WI Hero's settings. One "As imported" copy is taken the first time WI Hero sees a book.
+// their index in WI Hero's settings. One "As imported" copy is taken the first time WI Hero opens or changes a book.
 import { slugify } from '../engine/util.js';
 import { bookSettings } from './data.js';
 

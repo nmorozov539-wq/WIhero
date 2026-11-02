@@ -13,6 +13,15 @@ import { checkHealth, createHealth, standDownText, stVersion } from './src/compa
 import * as st from './src/st.js';
 
 const ctx = () => SillyTavern.getContext();
+/**
+ * The editor's view of getContext(): ST builds a new, large object on every call, and a draw asks dozens of times.
+ * One object serves until the current task ends (fields like chat and characterId can change between tasks).
+ */
+let ctxNow = null;
+const uiCtx = () => {
+    if (!ctxNow) { ctxNow = SillyTavern.getContext(); setTimeout(() => { ctxNow = null; }, 0); }
+    return ctxNow;
+};
 const { eventSource, eventTypes, extensionSettings, saveSettingsDebounced } = ctx();
 const settings = ensureSettings(getSettings(extensionSettings));
 
@@ -152,7 +161,7 @@ eventSource.on(eventTypes.CHAT_CHANGED, () => setTimeout(offerCatchUp, 300));
 // ---- The editor (N2)
 let snapshots = null;
 const library = createLibrary({
-    ctx, WI: st.WI, powerUser: ctx().powerUserSettings, settings, saveSettings: saveSettingsDebounced,
+    ctx: uiCtx, WI: st.WI, powerUser: ctx().powerUserSettings, settings, saveSettings: saveSettingsDebounced,
     onFirstSeen: (name, data, o) => snapshots.seed(name, data, o),
     onChange: () => app?.refresh(),
 });
@@ -172,7 +181,7 @@ stVersion().then(v => health.setVersion(v));
 if (!health.ok) showHealth(health);
 
 app = createApp({
-    ctx, library, snapshots, hooks, settings, saveSettings: saveSettingsDebounced,
+    ctx: uiCtx, library, snapshots, hooks, settings, saveSettings: saveSettingsDebounced,
     entryTemplate: st.newWorldInfoEntryTemplate,
     cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
     openStEditor,

@@ -50,6 +50,12 @@ export function arrange(m, memory, center) {
  * @param {object} d { book() → { m, memory, status(key) → card state | null, problems:Set, chatState, legend },
  *   save(), open(key, piece), pack(name), toast(text), onFirstFit? }
  */
+/**
+ * Routed links, kept across draws while nothing on the canvas moved: Hero mode redraws the canvas on every tap
+ * (open the inspector, pick a piece), and routing every link again was most of a tap's time on a phone.
+ */
+const ROUTES = { sig: '', map: new Map() };
+
 export function mountCanvas(vp, d) {
     const world = el('div', 'world');
     vp.append(world);
@@ -118,6 +124,14 @@ export function mountCanvas(vp, d) {
             extra.push(r.nav);
         }
         const grid = makeGrid(R, extra);
+        const sig = [...R.values()].map(r => `${r.key}:${r.x},${r.y},${r.w},${r.h}`).join('|') + extra.map(r => `${r.x},${r.y},${r.w},${r.h}`).join('|');
+        if (sig !== ROUTES.sig) { ROUTES.sig = sig; ROUTES.map.clear(); }
+        const routeOnce = (sx, sy, ex, ey, al) => {
+            const k = `${sx},${sy},${ex},${ey}|${[...al].sort().join(',')}`;
+            if (!ROUTES.map.has(k)) ROUTES.map.set(k, route(grid, sx, sy, ex, ey, al));
+            const pts = ROUTES.map.get(k);
+            return pts && pts.map(q => [...q]);
+        };
 
         for (const r of R.values()) {
             if (!r.pack) continue;
@@ -225,7 +239,7 @@ export function mountCanvas(vp, d) {
             if (!a) return;
             const s0 = tip(a, 7); const s1 = tip(a, G);
             const e1 = [endPt[0] + endN[0] * G, endPt[1] + endN[1] * G];
-            const mid = route(grid, snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
+            const mid = routeOnce(snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
             path(mid ? [s0, ...mid, rawEnd ?? endPt] : [s0, s1, e1, rawEnd ?? endPt], x.kind);
             if (x.mode) {
                 const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);

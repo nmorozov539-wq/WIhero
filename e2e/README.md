@@ -12,6 +12,8 @@
 
 `n6.mjs` checks N6 at 390px wide (BUILD_SPEC 17): the chat bubble's count and names against the prompt; two replies with WI Hero off caught up oldest first from the popup; Not now leaving the choice on the bubble, and Keep as is from there; the bubble's switch; an untested version named, and a missing thread standing the engine down to plain World Info. It starts a new Seraphina chat and reloads at the end.
 
+`perf.mjs` is a profile, not a check: at 6x CPU throttle and 390 × 844 it times Home settling, opening a book and an entry, scrolling, Hero mode, a card tap and a pan, and prints the long tasks. It makes 40 "Stress" books of 150 entries if they aren't there.
+
 Run them against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebooks, and creates (then deletes) a character.
 
 1. A SillyTavern 1.19.0 with fresh data (default Seraphina character), with this repo linked as `data/default-user/extensions/st-wihero`.

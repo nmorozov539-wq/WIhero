@@ -168,11 +168,7 @@ await run(async () => {
     await $('.toast button:text-is("Undo")').click();
     await wait(800);
     assert.equal(entryBy(await book(BOOK), 'Road').content, 'The road is gone.');
-    const imported = await ev(() => wihero.settings.books['WIHero-N1']?.snapshots?.find(s => s.imported));
-    assert.equal(imported?.name, 'As imported', 'a book WI Hero sees the first time keeps an As imported copy');
-    const back = await ev(async p => (await fetch(`/${p.replace(/^\/+/, "")}`)).json(), imported.path);
-    assert.equal(Object.keys(back.entries).length, 8);
-    ok('a snapshot is taken, restored, and the restore undone; an existing book got its As imported copy');
+    ok('a snapshot is taken, restored, and the restore undone');
 
     // ── Problems ──
     await ev(async n => {
@@ -245,6 +241,12 @@ await run(async () => {
     const fg = () => $('.wih').evaluate(n => getComputedStyle(n).color);
     await $('.item[data-book="WIHero-N1"]').click();
     await $('.item.ent').first().waitFor();
+    await page.waitForFunction(() => wihero.settings.books['WIHero-N1']?.snapshots?.some(s => s.imported));
+    const imported = await ev(() => wihero.settings.books['WIHero-N1'].snapshots.find(s => s.imported));
+    assert.equal(imported.name, 'As imported', 'a book opened the first time keeps an As imported copy');
+    const back = await ev(async p => (await fetch(`/${p.replace(/^\/+/, "")}`)).json(), imported.path);
+    assert.equal(Object.keys(back.entries).length, 8);
+    ok('an existing book got its As imported copy the first time it was opened');
     await shot('theme-default');
     assert.ok(!await overflow());
     for (const theme of ['Azure', 'Celestial Macaron']) {

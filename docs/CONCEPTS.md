@@ -326,7 +326,7 @@ For story changes WI Hero can't see, such as a hand-edited old message.
   the way back.
 - **Snapshots**: a manual "Snapshot" saves a named copy of the whole book, and
   Restore puts it back (with Undo), leaving the chat's state alone. One
-  "As imported" copy is kept automatically the first time WI Hero sees a book.
+  "As imported" copy is kept automatically the first time WI Hero opens or changes a book.
 
 ## 7. Preview
 
