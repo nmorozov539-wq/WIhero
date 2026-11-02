@@ -13,7 +13,8 @@ const SAVE_DELAY = 350;
  * @param {object} deps.powerUser power_user
  * @param {object} deps.settings WI Hero's extension settings
  * @param {() => void} deps.saveSettings
- * @param {(name: string, data: object) => Promise<void>} [deps.onFirstSeen] called before a book is first used (As imported)
+ * @param {(name: string, data: object) => Promise<void>} [deps.onFirstSeen] called before a book is first opened or
+ *   changed (As imported). Listing books (Home) doesn't count: it would upload a copy of every book at once.
  * @param {() => void} [deps.onChange]
  */
 export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {} }) {
@@ -23,6 +24,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     /** Objects WI Hero handed to saveWorldInfo, to tell its own saves from other ones. */
     const ours = new WeakSet();
     const loading = new Map();
+    /** Books whose As imported copy was asked for this session (onFirstSeen itself remembers it across sessions). */
+    const seeded = new Set();
 
     const names = () => ctx().getWorldInfoNames();
 
@@ -33,7 +36,6 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
                 const data = await ctx().loadWorldInfo(name);
                 if (!data) return null;
                 data.entries ??= {};
-                await onFirstSeen(name, data);
                 if (!copies.has(name)) copies.set(name, data);
                 return copies.get(name);
             })().finally(() => loading.delete(name)));
@@ -42,10 +44,21 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     }
     const peek = name => copies.get(name) ?? null;
 
+    /**
+     * The book is being opened or changed: keep its As imported copy first, once. The copy is taken synchronously
+     * (serialized before the first await), so a change made right after doesn't reach it.
+     */
+    function seen(name, data = copies.get(name)) {
+        if (!data || seeded.has(name)) return;
+        seeded.add(name);
+        onFirstSeen(name, data).catch(e => console.warn('[WI Hero] Could not keep the "As imported" copy of', name, e));
+    }
+
     /** Changes the working copy and saves it a moment later. `quiet`: the screen already shows it (typing). */
     function change(name, fn, { quiet = false } = {}) {
         const data = copies.get(name);
         if (!data) return undefined;
+        seen(name, data);
         const out = fn(data);
         schedule(name);
         if (!quiet) onChange();
@@ -98,6 +111,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     async function create(name) {
         const clean = await sanitize(name.trim());
         const data = { entries: {} };
+        seeded.add(clean);
         await onFirstSeen(clean, data, { fresh: true });
         await ctx().saveWorldInfo(clean, data, true);
         await ctx().updateWorldInfoList();
@@ -107,6 +121,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     /** Writes a whole new content over a book (Restore), keeping the old one for Undo. */
     async function replace(name, data) {
         const old = copies.get(name) ?? await ctx().loadWorldInfo(name);
+        seen(name, old);
         copies.set(name, structuredClone(data));
         await save(name);
         onChange();
@@ -255,7 +270,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     }
 
     return {
-        names, get, peek, change, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
+        names, get, peek, seen, change, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }

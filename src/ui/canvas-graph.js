@@ -338,20 +338,45 @@ export function makeGrid(R, extra) {
     return { x0, y0, W, H, wall, frame, frames, used };
 }
 
+/** A binary min-heap of (state, priority), on flat arrays: a phone's garbage collector was a large share of routing. */
 function heap() {
-    const a = [];
+    let xs = [];
+    let ps = [];
+    let n = 0;
     return {
-        push(x, p) { a.push([p, x]); let i = a.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (a[q][0] <= a[i][0]) break; [a[q], a[i]] = [a[i], a[q]]; i = q; } },
-        pop() {
-            const top = a[0]; const last = a.pop();
-            if (a.length) {
-                a[0] = last; let i = 0;
-                for (;;) { const l = 2 * i + 1; const r = l + 1; let m = i; if (l < a.length && a[l][0] < a[m][0]) m = l; if (r < a.length && a[r][0] < a[m][0]) m = r; if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m; }
-            }
-            return top[1];
+        push(x, p) {
+            let i = n++;
+            while (i > 0) { const q = (i - 1) >> 1; if (ps[q] <= p) break; xs[i] = xs[q]; ps[i] = ps[q]; i = q; }
+            xs[i] = x; ps[i] = p;
         },
-        get size() { return a.length; },
+        pop() {
+            const top = xs[0];
+            const x = xs[--n]; const p = ps[n];
+            let i = 0;
+            for (;;) {
+                const l = 2 * i + 1; if (l >= n) break;
+                const r = l + 1; const m = r < n && ps[r] < ps[l] ? r : l;
+                if (ps[m] >= p) break;
+                xs[i] = xs[m]; ps[i] = ps[m]; i = m;
+            }
+            if (n) { xs[i] = x; ps[i] = p; }
+            return top;
+        },
+        get size() { return n; },
+        clear() { n = 0; },
     };
+}
+
+/** Search buffers kept on the grid between routes; `stamp` says which entries belong to the current search. */
+function buffers(grid) {
+    if (!grid.search) {
+        const size = grid.W * grid.H * 4;
+        grid.search = { cost: new Float32Array(size), prev: new Int32Array(size), stamp: new Uint32Array(size), gen: 0, h: heap() };
+    }
+    const b = grid.search;
+    if (++b.gen === 0xffffffff) { b.stamp.fill(0); b.gen = 1; }
+    b.h.clear();
+    return b;
 }
 
 /** A path of points from (sx, sy) to (ex, ey) that never passes through a card, or null. */
@@ -364,10 +389,8 @@ export function route(grid, sx, sy, ex, ey, allow) {
     const blocked = k => wall[k] || (frame[k] >= 0 && !allow.has(frames[frame[k]]));
     const S0 = sj * W + si; const E0 = ej * W + ei;
     const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    const cost = new Float32Array(W * H * 4).fill(Infinity);
-    const prev = new Int32Array(W * H * 4).fill(-1);
-    const h = heap();
-    for (let d = 0; d < 4; d++) { cost[S0 * 4 + d] = 0; h.push(S0 * 4 + d, 0); }
+    const { cost, prev, stamp, gen, h } = buffers(grid);
+    for (let d = 0; d < 4; d++) { const s = S0 * 4 + d; stamp[s] = gen; cost[s] = 0; prev[s] = -1; h.push(s, 0); }
     let found = -1;
     let n = 0;
     while (h.size && n++ < 60000) {
@@ -380,7 +403,7 @@ export function route(grid, sx, sy, ex, ey, allow) {
             const k = nj * W + ni;
             if (k !== E0 && blocked(k)) continue;
             const nc = cc + 1 + (nd !== d ? 2.5 : 0) + (used[k] ? 0.6 : 0); const ns = k * 4 + nd;
-            if (nc < cost[ns]) { cost[ns] = nc; prev[ns] = s; h.push(ns, nc + Math.abs(ni - ei) + Math.abs(nj - ej)); }
+            if (stamp[ns] !== gen || nc < cost[ns]) { stamp[ns] = gen; cost[ns] = nc; prev[ns] = s; h.push(ns, nc + Math.abs(ni - ei) + Math.abs(nj - ej)); }
         }
     }
     if (found < 0) return null;
