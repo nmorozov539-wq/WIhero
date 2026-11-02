@@ -1,0 +1,182 @@
+// The editor's pure parts (N2): book and entry helpers, folders and settings, search, the Story logic sentences
+// and the snapshot helpers.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { buildModel } from '../src/engine/model.js';
+import {
+    MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings,
+    duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
+    rekeyEntry, renameBookSettings, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
+} from '../src/ui/data.js';
+import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
+import { defaultSnapshotName, snapshotFileName, sortSnapshots, toBase64 } from '../src/ui/snapshots.js';
+import { e } from './sim.js';
+
+const TEMPLATE = { key: [], keysecondary: [], comment: '', content: '', constant: false, vectorized: false, selective: true, selectiveLogic: 0, order: 100, position: 0, disable: false, probability: 100, useProbability: true, depth: 4, sticky: null, cooldown: null, delay: null, scanDepth: null, caseSensitive: null, matchWholeWords: null, group: '' };
+const book = (...entries) => ({ entries: Object.fromEntries(entries.map(x => [x.uid, x])) });
+const by = name => PARAM_LIST.find(p => p.field === name);
+
+test('strategy: keys, permanent, vectorized, off', () => {
+    const x = { ...TEMPLATE };
+    assert.equal(strategyOf(x), 'keys');
+    setStrategy(x, 'perm');
+    assert.equal(strategyOf(x), 'perm');
+    setStrategy(x, 'vec');
+    assert.deepEqual([x.constant, x.vectorized, strategyOf(x)], [false, true, 'vec']);
+    x.disable = true;
+    assert.equal(strategyOf(x), 'off');
+});
+
+test('a new entry takes the template, then the book\'s defaults, at a free uid', () => {
+    const data = book(e(0, 'road'), e(2, 'mill'));
+    const x = addEntry(data, TEMPLATE, { order: 50 });
+    assert.equal(x.uid, 1);
+    assert.equal(x.order, 50);
+    assert.equal(data.entries[1], x);
+    assert.ok(isBlank(x));
+    x.content = 'Something';
+    assert.ok(!isBlank(x));
+});
+
+test('duplicating gives the copy a fresh id; moving keeps it unless the target has it', () => {
+    const data = book(e(0, 'mill', { id: 'mill', gate: [['road']] }));
+    const copy = duplicateEntry(data, 0);
+    assert.equal(copy.uid, 1);
+    assert.equal(copy.comment, 'mill copy');
+    assert.equal(idOf(copy), 'mill-copy');
+    assert.deepEqual(copy.extensions.wihero.gate, [['road']]);
+
+    const target = book(e(0, 'other', { id: 'mill' }));
+    const moved = moveEntry(data, 0, target);
+    assert.equal(data.entries[0], undefined);
+    assert.equal(moved.uid, 1);
+    assert.equal(idOf(moved), 'mill-2');
+    const free = book();
+    const moved2 = moveEntry(data, 1, free);
+    assert.equal(idOf(moved2), 'mill-copy');
+});
+
+test('parameters: text, summary, and Who triggers stored in the story logic', () => {
+    const data = book({ ...TEMPLATE, uid: 0, comment: 'Wolf', key: ['wolf'] });
+    const x = data.entries[0];
+    assert.equal(paramSummary(x), 'Defaults');
+    assert.equal(paramText(x, by('sticky')), '0 messages', 'ST\'s null shows as the default');
+    setParam(data, 0, by('probability'), 40);
+    setParam(data, 0, by('position'), 4);
+    assert.equal(paramSummary(x), 'Position At depth, Probability 40%');
+    setParam(data, 0, by('by'), 'user');
+    assert.equal(x.extensions.wihero.by, 'user');
+    assert.equal(idOf(x), 'wolf', 'the first piece gives the entry an id');
+    setParam(data, 0, by('by'), null);
+    assert.equal(x.extensions.wihero.by, undefined);
+    assert.equal(paramText(x, by('caseSensitive')), 'Use global');
+});
+
+test('bulk Edit: a value the selected entries share, or Mixed', () => {
+    const a = { ...TEMPLATE, uid: 0, order: 100 };
+    const b = { ...TEMPLATE, uid: 1, order: 120 };
+    assert.equal(commonValue([a, b], by('order')), MIXED);
+    assert.equal(commonValue([a, b], by('probability')), 100);
+});
+
+test('settings: folders by id or uid, and a first id moves them', () => {
+    const s = ensureSettings({});
+    assert.equal(s.colorMode, 'standard');
+    const x = e(3, 'inn');
+    setFolder(s, 'Town', x, ' Places / Town ');
+    assert.equal(s.books.Town.folders['uid:3'], 'Places/Town');
+    assert.equal(folderOf(s, 'Town', x), 'Places/Town');
+    rekeyEntry(s, 'Town', 3, 'inn');
+    assert.deepEqual(s.books.Town.folders, { 'id:inn': 'Places/Town' });
+    const y = e(3, 'inn', { id: 'inn' });
+    assert.equal(cardKey(y), 'id:inn');
+    assert.equal(folderOf(s, 'Town', y), 'Places/Town');
+    setFolder(s, 'Town', y, '');
+    assert.deepEqual(s.books.Town.folders, {});
+});
+
+test('settings: renaming, duplicating and deleting a book carry its settings', () => {
+    const s = ensureSettings({});
+    bookSettings(s, 'Old').snapshots = [{ name: 'x', at: 1 }];
+    setBookFolder(s, 'Old', 'Drafts');
+    renameBookSettings(s, 'Old', 'New');
+    assert.equal(s.books.Old, undefined);
+    assert.equal(s.books.New.snapshots.length, 1);
+    assert.equal(bookFolderOf(s, 'New'), 'Drafts');
+    assert.equal(s.renamed.Old, 'New');
+    renameBookSettings(s, 'New', 'Newer');
+    assert.deepEqual(s.renamed, { Old: 'Newer', New: 'Newer' }, 'chats saved under either old name still find the book');
+    copyBookSettings(s, 'Newer', 'Copy');
+    assert.deepEqual(s.books.Copy.snapshots, [], 'a copy has no snapshots of its own');
+    assert.equal(bookFolderOf(s, 'Copy'), 'Drafts');
+    deleteBookSettings(s, 'Newer');
+    assert.equal(s.books.Newer, undefined);
+    assert.deepEqual(s.bookFolders, { Drafts: ['Copy'] });
+});
+
+test('grouping by folder (no folder first), by strategy, or not at all', () => {
+    const list = [e(0, 'road'), e(1, 'inn', undefined, { constant: true }), e(2, 'mill', undefined, { disable: true })];
+    const folders = { 0: 'Places', 2: 'Places' };
+    assert.deepEqual(groupEntries(list, 'folder', x => folders[x.uid] ?? '').map(([g, l]) => [g, l.map(x => x.uid)]), [['', [1]], ['Places', [0, 2]]]);
+    assert.deepEqual(groupEntries(list, 'strategy', () => '').map(([g]) => g), ['Keywords', 'Permanent', 'Off']);
+    assert.deepEqual(groupEntries(list, 'none', () => '').length, 1);
+});
+
+test('search: the open book\'s entries first, then other books\', books and folders', () => {
+    const books = [
+        { name: 'Eldoria', folder: 'Fantasy', entries: [e(0, 'river'), e(1, 'King', undefined, { key: ['king'] })], folderOf: x => (x.uid === 0 ? 'Rivers' : '') },
+        { name: 'River tales', folder: '', entries: [e(0, 'riverbank')], folderOf: () => '' },
+    ];
+    const hits = search(books, 'river', 'River tales');
+    assert.deepEqual(hits.map(h => `${h.kind}:${h.book ?? ''}:${h.entry?.comment ?? h.folder ?? ''}`), [
+        'entry:River tales:riverbank', 'entry:Eldoria:river', 'book:River tales:', 'folder:Eldoria:Rivers',
+    ]);
+    assert.deepEqual(search(books, 'fantasy', null).map(h => h.kind), ['folder']);
+    assert.deepEqual(search(books, '  ', null), []);
+});
+
+test('copy as text', () => {
+    assert.equal(entryAsText({ comment: 'Mill', key: ['mill', 'wheel'], content: 'An old mill.' }), 'Mill\nKey words: mill, wheel\n\nAn old mill.');
+});
+
+test('Story logic sentences, with the rules other entries put on this one', () => {
+    const entries = [
+        e(0, 'road', { id: 'road' }, { comment: 'Road' }),
+        e(1, 'mill', { id: 'mill', gate: [['road']], closesFor: ['road'] }, { comment: 'Mill' }),
+        e(2, 'tunnel', { id: 'tunnel', gate: [['mill', { lock: ['red beard'], by: 'user' }]], closesFor: ['mill'] }, { comment: 'Tunnel' }),
+        e(3, 'echo', { id: 'echo', glue: { mode: 'ride', host: 'tunnel' }, once: true, by: 'char' }, { comment: 'Echo' }),
+        e(4, 'storm', { id: 'storm', glue: { mode: 'hold' }, closeGate: [[{ lock: ['calm', 'the rain stops'] }], [{ wait: 3 }]], packs: ['weather'] }, { comment: 'Storm' }),
+        e(5, 'fork', { id: 'fork', switch: ['road', 'storm'], gatesFor: ['#weather'] }, { comment: 'Fork' }),
+    ];
+    const model = buildModel(entries);
+    const lines = key => logicLines(model.nodes.get(`Book/${key}`), model).map(l => `${l.label}: ${l.text}`);
+    assert.deepEqual(lines('mill'), ['Gate: Opens when Road has fired', 'Closed by: Tunnel when it fires', 'Closes for: When it fires, closes Road']);
+    assert.deepEqual(lines('tunnel'), ['Gate: Opens when Mill has fired and you say "red beard"', 'Closes for: When it fires, closes Mill', 'Ridden by: Echo rides along when it fires']);
+    assert.deepEqual(lines('echo'), ['Glue: Rides along with Tunnel: fires when it fires', 'Once: Fires one time, then closes', 'Who triggers: Only the character\'s replies trigger it']);
+    assert.deepEqual(lines('storm'), [
+        'Held back by: Waits until Fork has fired',
+        'Close gate: Closes when "calm" or "the rain stops" is said; or when 3 messages have passed',
+        'Glue: Holds: once fired it stays on until its close gate',
+        'Switch path: Closes when Road fires: only one path of the fork can follow',
+        'Packs: In #weather',
+    ]);
+    assert.ok(lines('fork').includes('Gates for: Holds back #weather until this fires'));
+    assert.equal(logicSummary(logicLines(model.nodes.get('Book/mill'), model)), 'Gate, Closed by, Closes for');
+    assert.deepEqual(logicLines(null, model), []);
+});
+
+test('closed in this chat by …', () => {
+    const name = key => ({ 'Book/tunnel': 'Tunnel' })[key] ?? null;
+    assert.equal(closedText('closesFor:Book/tunnel', name), 'Tunnel');
+    assert.equal(closedText('switch:Book/gone', name), 'a rule that no longer exists');
+    assert.equal(closedText('closeGate', name), 'its close gate');
+    assert.equal(closedText('once', name), 'Once, after it fired');
+});
+
+test('snapshot helpers', () => {
+    assert.equal(snapshotFileName('Eldoria Tales', 1700000000000), 'wihero-snap-eldoria-tales-1700000000000.json');
+    assert.match(snapshotFileName('Сказки', 5), /^wihero-snap-book-[a-z0-9]+-5\.json$/, 'a name with no ASCII letters still makes a valid file name');
+    assert.equal(defaultSnapshotName(new Date(2026, 10, 2, 9, 5)), '2026-11-02 09:05');
+    assert.deepEqual(sortSnapshots([{ at: 1, imported: true }, { at: 2 }, { at: 3 }]).map(s => s.at), [3, 2, 1]);
+    assert.equal(Buffer.from(toBase64('Ünïcode ✓'), 'base64').toString('utf8'), 'Ünïcode ✓');
+});

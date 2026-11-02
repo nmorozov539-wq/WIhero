@@ -1,0 +1,252 @@
+// The entry page (LAYOUT "Entry page"), as normal mode shows it: title, book line, strategy and on/off, key words
+// and the secondary condition, the read-only Story logic, Parameters, and Content. Saving is automatic.
+import { btn, el, swEl } from './dom.js';
+import { ic } from './icons.js';
+import {
+    LOGIC, PARAMS, STRATEGY_HELP, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
+} from './data.js';
+import { FAMILY_COLOR, logicSummary } from './logic-text.js';
+
+const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
+export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
+
+/** The strategy dot; vectorized is a chain icon, so shape carries it too (VISUAL 6.1). */
+export function sdot(e) {
+    const s = strategyOf(e);
+    const d = el('i', `sdot ${s}`);
+    if (s === 'vec') d.innerHTML = ic('chain');
+    return d;
+}
+
+/**
+ * Asks for a parameter's new value: a sheet of choices, a switch, or a number or text box.
+ * @param {object} layer createLayer's result
+ * @param {object} p a PARAMS row
+ * @param {*} current the current value (or MIXED)
+ * @param {(value) => void} set
+ */
+export function editParam(layer, p, current, set) {
+    if (p.type === 'enum') {
+        layer.sheet(p.label, sh => {
+            for (const [value, label] of p.options) {
+                sh.append(layer.opt(label, () => { layer.close(); set(value); }, { cur: value === current || (value !== null && current !== null && String(value) === String(current)) }));
+            }
+        });
+    } else if (p.type === 'bool') {
+        set(!current);
+    } else {
+        const isNum = p.type === 'int';
+        layer.askText({
+            title: p.label,
+            placeholder: isNum ? (p.optional ? 'Use global' : String(p.def)) : 'None',
+            value: current === null || current === undefined || typeof current === 'symbol' ? '' : String(current),
+            type: isNum ? 'number' : 'text',
+            allowEmpty: true,
+            check: v => {
+                if (!isNum || v === '') return null;
+                const n = Number(v);
+                if (!Number.isInteger(n)) return 'Type a whole number';
+                if (p.min !== undefined && n < p.min) return `At least ${p.min}`;
+                if (p.max !== undefined && n > p.max) return `At most ${p.max}`;
+                return null;
+            },
+            done: v => set(isNum ? (v === '' ? (p.optional ? null : p.def) : Number(v)) : v),
+        });
+    }
+}
+
+/** A row of the Parameters list. */
+export function paramRow(p, text, changed, onTap) {
+    const r = el('button', 'prm');
+    r.type = 'button';
+    r.append(el('span', '', p.label), el('em', changed ? 'ch' : '', text));
+    r.addEventListener('click', onTap);
+    return r;
+}
+
+/**
+ * Draws the entry page into `main`.
+ * @param {HTMLElement} main
+ * @param {object} o
+ *   { entry, bookName, folder, layer, ui (folds), problems: string[], lines, closed: { by, reopen } | null,
+ *     change(fn, quiet), setParam(p, value), up(), drawer(), menu(), retitle(), tokens(text) → Promise<number>, fresh }
+ */
+export function renderEntryPage(main, o) {
+    const { entry: e, layer, ui } = o;
+    const v = el('div', 'view');
+    main.append(v);
+    const top = el('div', 'en-top');
+    top.append(btn('round', ic('back'), o.up, 'Up to the book'), el('div', 'sp'));
+    const pill = el('div', 'pill');
+    pill.append(btn('round', ic('drawer'), o.drawer, 'Entries in this book'), btn('round', ic('more'), o.menu, 'Entry actions'));
+    top.append(pill);
+    v.append(top);
+
+    const en = el('div', `en${e.disable ? ' off' : ''}`);
+    v.append(en);
+
+    const h1 = el('h1', '', e.comment ?? '');
+    h1.contentEditable = 'true';
+    h1.spellcheck = false;
+    h1.setAttribute('aria-label', 'Entry name');
+    h1.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); h1.blur(); } });
+    h1.addEventListener('input', () => o.change(x => { x.comment = h1.textContent.trim(); }, true));
+    h1.addEventListener('blur', () => { h1.textContent = e.comment ?? ''; o.retitle(); });
+    en.append(h1);
+
+    const bl = btn('bookline', `${ic('book', 's')}<span></span>`, o.up, 'Up to the book');
+    bl.querySelector('span').textContent = o.bookName + (o.folder ? ` · ${o.folder}` : '');
+    en.append(bl);
+
+    if (o.problems.length) {
+        const pr = el('div', 'prob');
+        pr.innerHTML = ic('alert', 's');
+        pr.append(el('span', '', o.problems.join('. ')));
+        en.append(pr);
+    }
+
+    // Strategy line, with the on/off switch at its right end.
+    const sr = el('div', 'srow');
+    const th = el('button', 'thin');
+    th.type = 'button';
+    th.append(sdot(e), el('span', '', 'Strategy:'), el('b', '', STRATEGY_NAME[e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys']), el('span', 'car', '▾'));
+    th.addEventListener('click', () => layer.sheet('Strategy', sh => {
+        const cur = e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys';
+        for (const k of ['keys', 'perm', 'vec']) {
+            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k] }));
+        }
+    }));
+    sr.append(th, swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on'));
+    en.append(sr);
+
+    if (!e.constant) {
+        en.append(keyBox(e.key ?? [], 'Key words, separated by commas', list => o.change(x => { x.key = list; })));
+        const second = e.keysecondary ?? [];
+        if (second.length || ui.condition) {
+            const cl = el('div', 'condline');
+            const lt = el('button', 'thin');
+            lt.type = 'button';
+            lt.append(el('b', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
+            lt.addEventListener('click', () => layer.sheet('Condition', sh => {
+                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); ui.condition = false; o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; }); }, { icon: 'trash' }));
+            }));
+            cl.append(lt);
+            en.append(cl, keyBox(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
+        } else {
+            const ac = btn('linkish', `${ic('plus', 's')} Add condition`, () => {
+                ui.condition = true;
+                o.change(x => { x.selective = true; x.selectiveLogic ??= 0; });
+                setTimeout(() => main.querySelectorAll('.kbox')[1]?.click(), 0);
+            });
+            en.append(ac);
+        }
+    }
+
+    // Story logic: read-only here, folded in normal mode.
+    if (o.lines.length) {
+        const d = el('button', `disc${ui.logic ? ' open' : ''}`);
+        d.type = 'button';
+        d.innerHTML = `${ic('right', 'chev')}<h2>Story logic</h2>`;
+        if (!ui.logic) d.append(el('span', 'sum', logicSummary(o.lines)));
+        d.addEventListener('click', () => { ui.logic = !ui.logic; o.redraw(); });
+        en.append(d);
+        if (ui.logic) {
+            const box = el('div', 'logic');
+            for (const line of o.lines) {
+                const r = el('div', 'hl');
+                const i = el('i');
+                i.style.background = FAMILY_COLOR[line.family];
+                const t = el('div');
+                t.append(el('b', '', line.label), el('span', '', line.text));
+                r.append(i, t);
+                box.append(r);
+            }
+            if (o.closed) {
+                const r = el('div', 'closedline');
+                r.append(el('span', '', 'Closed in this chat by '), el('em', '', o.closed.by));
+                r.append(btn('linkish acc', 'Reopen', o.closed.reopen));
+                box.append(r);
+            }
+            en.append(box);
+        }
+    }
+
+    // Parameters, in groups.
+    const pd = el('button', `disc${ui.params ? ' open' : ''}`);
+    pd.type = 'button';
+    pd.innerHTML = `${ic('right', 'chev')}<h2>Parameters</h2>`;
+    pd.append(el('span', 'sum', paramSummary(e)));
+    pd.addEventListener('click', () => { ui.params = !ui.params; o.redraw(); });
+    en.append(pd);
+    if (ui.params) {
+        for (const [group, list] of PARAMS) {
+            en.append(el('div', 'plbl', group));
+            for (const p of list) {
+                if (p.when && !p.when(e)) continue;
+                const value = paramValue(e, p);
+                const changed = !(value === p.def || (value === null && p.def === null) || (!value && !p.def));
+                en.append(paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x))));
+            }
+        }
+    }
+
+    // Content.
+    const ch = el('div', 'content-h');
+    const tk = el('small', '', `${tokenGuess(e.content)} tokens`);
+    ch.append(el('h2', '', 'Content'), tk);
+    en.append(ch);
+    const count = text => o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
+    let countTimer = null;
+    en.append(autoText(e.content ?? '', 'Type here', text => {
+        o.change(x => { x.content = text; }, true);
+        tk.textContent = `${tokenGuess(text)} tokens`;
+        clearTimeout(countTimer);
+        countTimer = setTimeout(() => count(text), 500);
+    }));
+    count(e.content ?? '');
+
+    if (o.fresh) setTimeout(() => { if (!h1.textContent) h1.focus(); }, 30);
+    return v;
+}
+
+function autoText(value, placeholder, onInput) {
+    const ta = el('textarea');
+    ta.value = value;
+    ta.placeholder = placeholder;
+    ta.setAttribute('aria-label', 'Content');
+    const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.max(ta.scrollHeight, 200)}px`; };
+    ta.addEventListener('input', () => { onInput(ta.value); fit(); });
+    requestAnimationFrame(fit);
+    return ta;
+}
+
+/** The key word box: chips, tapped into a comma-separated line. */
+function keyBox(list, placeholder, done) {
+    const box = el('div', 'kbox');
+    box.tabIndex = 0;
+    box.setAttribute('role', 'button');
+    box.setAttribute('aria-label', placeholder);
+    if (list.length) for (const k of list) box.append(el('span', 'kchip', k));
+    else box.append(el('span', 'ph', placeholder));
+    const edit = () => {
+        const input = el('input', 'kbox');
+        input.value = list.join(', ');
+        input.placeholder = placeholder;
+        input.setAttribute('aria-label', placeholder);
+        box.replaceWith(input);
+        input.focus();
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            finished = true;
+            done(input.value.split(',').map(s => s.trim()).filter(Boolean));
+        };
+        input.addEventListener('blur', finish);
+        input.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); } });
+    };
+    box.addEventListener('click', edit);
+    box.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); edit(); } });
+    return box;
+}
+

@@ -6,7 +6,10 @@ point, and retire once it moves past.
 
 Status: building. **N1, the engine, is in** (`src/engine/`, with its SillyTavern
 wiring in `src/st-hooks.js`): story logic works in chats, with the old settings
-panel in the Extensions drawer for testing. The new UI comes in N2–N5.
+panel in the Extensions drawer for testing. **N2, the editor shell and normal
+mode, is in** (`src/ui/`): ST's World Info button opens WI Hero, where books are
+made, filled, organized and snapshotted. Hero mode's canvas, the inspector and
+Preview come in N3–N5.
 Run the tests with `node --test`; the in-ST checks are in [e2e/](e2e/README.md).
 
 **Building it?** Start at [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md): its "Start

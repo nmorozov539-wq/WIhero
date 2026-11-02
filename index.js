@@ -1,20 +1,26 @@
 // WI Hero: story logic for SillyTavern's World Info. Entries open as the story reaches them and close once it
-// moves past. N1: the engine and its ST wiring, with the old panel for testing. See docs/BUILD_SPEC.md.
+// moves past. The engine and its ST wiring (N1), and the editor that opens from ST's World Info button (N2).
+// See docs/BUILD_SPEC.md.
 import { MODULE, getSettings } from './src/settings.js';
+import { ensureSettings } from './src/ui/data.js';
+import { createLibrary } from './src/ui/st-books.js';
+import { createSnapshots } from './src/ui/snapshots.js';
+import { createApp } from './src/ui/app.js';
 import { mountPanel, render } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
 import * as st from './src/st.js';
 
 const ctx = () => SillyTavern.getContext();
 const { eventSource, eventTypes, extensionSettings, saveSettingsDebounced } = ctx();
-const settings = getSettings(extensionSettings);
+const settings = ensureSettings(getSettings(extensionSettings));
 
 let refreshTimer = null;
 /** ST refreshes often during a generation, so the panel is redrawn at most every 150 ms. */
 function refresh() {
     clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => render(hooks.view()), 150);
+    refreshTimer = setTimeout(() => { render(hooks.view()); app?.refresh(); }, 150);
 }
+let app = null;
 
 const hooks = createHooks({
     ctx,
@@ -79,7 +85,53 @@ eventSource.on(eventTypes.GENERATION_STOPPED, hooks.dropPending);
 eventSource.on(eventTypes.CHAT_CHANGED, hooks.dropPending);
 for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED']) eventSource.on(eventTypes[type], refresh);
 
+// ---- The editor (N2)
+let snapshots = null;
+const library = createLibrary({
+    ctx, WI: st.WI, powerUser: ctx().powerUserSettings, settings, saveSettings: saveSettingsDebounced,
+    onFirstSeen: (name, data, o) => snapshots.seed(name, data, o),
+    onChange: () => app?.refresh(),
+});
+snapshots = createSnapshots({ ctx, settings, saveSettings: saveSettingsDebounced, library });
+
+/** ST's own World Info drawer, for the settings WI Hero doesn't show ("More settings ›"). */
+let bypass = false;
+function openStEditor() {
+    const $ = globalThis.jQuery;
+    if ($('#WorldInfo').hasClass('openDrawer')) return;
+    bypass = true;
+    try { $('#WI-SP-button .drawer-toggle').trigger('click'); } finally { bypass = false; }
+}
+
+app = createApp({
+    ctx, library, snapshots, hooks, settings, saveSettings: saveSettingsDebounced,
+    entryTemplate: st.newWorldInfoEntryTemplate,
+    cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
+    openStEditor,
+});
+
+// ST's World Info button opens WI Hero instead of ST's drawer (LAYOUT "Opening the editor"). Any other top bar
+// drawer hides it, as ST's drawers close each other.
+document.getElementById('top-settings-holder')?.addEventListener('click', e => {
+    const toggle = e.target.closest?.('.drawer-toggle');
+    if (!toggle || bypass) return;
+    if (toggle.closest('#WI-SP-button')) {
+        if (globalThis.jQuery?.('#WorldInfo').hasClass('openDrawer')) return; // ST's own drawer is open: the button closes it
+        e.stopPropagation();
+        e.preventDefault();
+        app.toggle();
+    } else {
+        app.hide();
+    }
+}, true);
+
+eventSource.on(eventTypes.WORLDINFO_UPDATED, library.onWorldInfoUpdated);
+for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
+
 globalThis.wihero = {
+    app,
+    library,
+    snapshots,
     get model() { return hooks.model; },
     get state() { return hooks.state(); },
     get pending() { return hooks.pending; },

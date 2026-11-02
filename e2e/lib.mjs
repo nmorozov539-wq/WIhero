@@ -93,7 +93,7 @@ export async function run(steps) {
         console.log(`\n${step} passed`);
     } catch (error) {
         console.log(`not ok ${step + 1} - ${error.message}`);
-        if (prompts().length) console.log('last prompt (tail):\n' + lastPrompt().slice(-1200));
+        try { if (prompts().length) console.log('last prompt (tail):\n' + lastPrompt().slice(-1200)); } catch { /* not a prompt log */ }
         console.log('state:', JSON.stringify(await state().catch(() => null)));
         console.log('panel:', JSON.stringify(await status().catch(() => null)));
         await page.screenshot({ path: `${LOG}failure.png` }).catch(() => {});
