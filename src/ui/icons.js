@@ -25,6 +25,11 @@ export const ICON = {
     snap: '<path d="M4 8 H8 L10 5 H14 L16 8 H20 V19 H4 Z M12 10.5 a3 3 0 1 0 0.01 0"/>',
     copy: '<path d="M8 8 H19 V20 H8 Z M5 16 V4 H16"/>',
     alert: '<path d="M12 7 V13 M12 17 h.01"/>',
+    // Added for N4: the greeting card's chat bubble, and help.
+    chat: '<path d="M5 5 H19 V15 H10 L5 19 Z"/>',
+    clock: '<path d="M12 4 a8 8 0 1 0 0.01 0 M12 8 V12 L15 14"/>',
+    tag: '<path d="M4 4 H11 L20 13 L13 20 L4 11 Z M8 8 h.01"/>',
+    help: '<path d="M9.5 9 a2.5 2.5 0 1 1 3.5 2.3 C12.4 11.6 12 12.2 12 13 M12 16.5 h.01"/>',
 };
 
 /** An icon as markup. `cls` 's' makes the 16px inline size. */

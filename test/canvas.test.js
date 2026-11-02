@@ -142,3 +142,24 @@ test('a card placed by hand never lands inside a pack frame it isn\'t in', () =>
     const p = pos[lone];
     assert.ok(p.x >= frame.x + frame.w || p.x + CW <= frame.x || p.y >= frame.y + frame.h || p.y + CH <= frame.y, JSON.stringify([p, frame]));
 });
+
+test('an empty canvas still makes a grid', () => {
+    const grid = makeGrid(new Map(), []);
+    assert.ok(grid.W > 0 && grid.H > 0);
+});
+
+test('the open chat\'s greetings are start cards; their rules on entries become links (BUILD_SPEC 15.4)', () => {
+    const data = sample();
+    const g = { greeting: 0, char: 'Sera.png', name: 'Sera', fp: 'f' };
+    const road = Object.values(data.entries).find(e => e.wihero?.id === 'road');
+    road.wihero.gatedBy = [g];
+    const tavern = Object.values(data.entries).find(e => e.wihero?.id === 'tavern');
+    tavern.wihero.closeGate = [[{ ...g, via: '#town' }]];
+    const greetings = [{ key: 'greet:Sera.png:0', title: 'Greeting', text: 'Hello', ref: g }];
+    const m = canvasBook(data, { greetings });
+    assert.ok(m.byId('greet:Sera.png:0').greeting);
+    const gr = buildGraph(m);
+    assert.ok(gr.edges.some(x => x.from === 'greet:Sera.png:0' && x.to === 'id:road' && x.kind === 'open'));
+    assert.ok(gr.edges.some(x => x.from === 'greet:Sera.png:0' && x.to === 'pack:town' && x.kind === 'close'));
+    assert.equal(buildGraph(canvasBook(data)).edges.filter(x => x.from.startsWith('greet:')).length, 0, 'with no chat open, none are drawn');
+});

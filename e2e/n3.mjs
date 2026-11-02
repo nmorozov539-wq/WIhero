@@ -132,7 +132,9 @@ await run(async () => {
     await card('id:ferry').waitFor();
     assert.ok(await card('id:ferry').evaluate(n => n.classList.contains('hit')));
     assert.equal(await $('.tab').count(), 2, 'the Ferry tab stays open');
-    await card('id:mill').click();
+    await card('id:mill').locator('.t').click();
+    await $('.insp .ihead h2:text-is("Mill: arrival")').waitFor();
+    await $('.insp .ifoot button:has-text("Open entry")').click();
     await $('.en h1:text-is("Mill: arrival")').waitFor();
     assert.equal(await $('.tab').count(), 3);
     await page.keyboard.press('Escape');
@@ -140,7 +142,7 @@ await run(async () => {
     await page.keyboard.press('Escape');
     await card('id:mill').waitFor();
     assert.equal(await $('.tab').count(), 1, 'Back closes the entry tabs one by one, then shows the canvas');
-    ok('a card opens its entry in a tab; Show on canvas finds it again; Back closes the tabs');
+    ok('the inspector\'s Open entry opens a tab; Show on canvas finds it again; Back closes the tabs');
 
     await $('.packframe').click({ position: { x: 6, y: 30 } });
     await $('.sheet h2:text-is("#town")').waitFor();

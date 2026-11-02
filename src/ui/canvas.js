@@ -131,6 +131,21 @@ export function mountCanvas(vp, d) {
         for (const r of R.values()) {
             const e = r.e;
             if (!e) continue;
+            if (e.greeting) {
+                // A start card (VISUAL 7.5): rounded on the left, a chat icon, START over its name, the opening words.
+                const c = el('div', `card greet${e.greeting.missing ? ' missing' : ''}${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}`);
+                c.dataset.id = e.id;
+                Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
+                const gr = el('div', 'grip gicon');
+                gr.innerHTML = ic('chat');
+                gr.dataset.grip = e.id;
+                gr.setAttribute('aria-label', `Move ${e.title}`);
+                c.append(gr, el('div', 'tag', e.greeting.missing ? 'START · MISSING' : 'START'), el('div', 't', e.title),
+                    el('div', 'k gk', e.greeting.changed ? 'Re-pick: the text changed' : e.text || '(empty)'));
+                if (e.problem) { const b = el('span', 'cbang', '!'); b.title = 'This greeting changed'; c.append(b); }
+                world.append(c);
+                continue;
+            }
             const si = layerOf(e);
             const st = chatState ? status(e.id) : null;
             for (let i = Math.min(2, e.masks.length); i >= 1; i--) {
@@ -501,5 +516,23 @@ export function mountCanvas(vp, d) {
         };
     }
 
-    return { render, fit, centerOn, tidy, flip, get view() { return CV; }, get camera() { return camera(); } };
+    /** Pans just enough for a card to sit in the top `frac` of the view (above the inspector). */
+    function reveal(key, frac = 1) {
+        const p = memory().cards[key];
+        const v = camera();
+        if (!p || !Number.isFinite(p.x) || !v || !vp.clientWidth) return;
+        const W = vp.clientWidth;
+        const Hh = vp.clientHeight * frac;
+        const sx = p.x * v.scale + v.tx;
+        const sy = p.y * v.scale + v.ty;
+        const w = CW * v.scale;
+        const h = CH * v.scale;
+        if (sx >= 8 && sx + w <= W - 8 && sy >= 8 && sy + h <= Hh - 8) return;
+        v.tx = W / 2 - (p.x + CW / 2) * v.scale;
+        v.ty = Hh / 2 - (p.y + CH / 2) * v.scale;
+        applyView();
+        saveCamera();
+    }
+
+    return { render, fit, centerOn, reveal, tidy, flip, get view() { return CV; }, get camera() { return camera(); } };
 }

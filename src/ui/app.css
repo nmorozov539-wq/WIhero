@@ -358,5 +358,87 @@ svg.lk path.head { stroke-width: 0; }
 .logic .links { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-top: 4px; }
 pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: var(--surface); font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; max-height: 50vh; overflow: auto; }
 
+/* ---------- The inspector (D14) ---------- */
+.insp { position: absolute; left: 0; right: 0; bottom: 0; height: 50%; z-index: 14; display: flex; flex-direction: column;
+  background: linear-gradient(var(--surface), var(--surface)), var(--canvas); border-radius: 18px 18px 0 0; border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 28px var(--shadow); animation: up .18s ease-out; }
+.insp.full { height: calc(100% - 8px); }
+.igrab { flex-shrink: 0; height: 22px; display: flex; align-items: center; justify-content: center; cursor: ns-resize; touch-action: none; }
+.igrab i { width: 40px; height: 4px; border-radius: 2px; background: var(--line); }
+.ibody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 20px; }
+.ihead { display: flex; align-items: center; gap: 10px; padding: 0 6px 4px 16px; }
+.ihead h2 { margin: 0; flex: 1; min-width: 0; font-size: var(--t-l); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ihead .sd { width: 10px; height: 10px; border-radius: 5px; flex-shrink: 0; }
+.ihead .gicon, .card.greet .gicon { display: flex; align-items: center; justify-content: center; }
+.ipre { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 2px 16px 6px; text-align: left;
+  font-family: var(--content-font, var(--serif)); font-size: var(--t-s); line-height: 1.5; color: var(--muted); width: calc(100% - 32px); }
+.ipre.empty { font-family: var(--sans); font-style: italic; }
+.ipre:hover { color: var(--fg); }
+.ireopen, .iprob { margin: 4px 16px; }
+.ireopen { padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--p-close) 10%, transparent); }
+.pc { margin: 8px 12px 0; border-radius: 12px; background: var(--surface); border: 1px solid var(--line2); border-left: 3px solid var(--c); padding: 4px 6px 4px 10px; }
+.pc.open { padding-bottom: 12px; }
+.pch { display: flex; align-items: center; gap: 2px; min-height: 40px; }
+.pct { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 6px 0; text-align: left; }
+.pct b { font-size: var(--t-s); color: var(--c); font-weight: 700; }
+.pct .pcs { font-size: var(--t-s); line-height: 1.4; }
+.pc:not(.open) .pct .pcs { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pq { width: 34px; height: 34px; border-radius: 17px; color: var(--muted); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pq:hover { background: var(--raised); color: var(--fg); }
+.pq svg { width: 17px; height: 17px; }
+.ped { display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 0 0; }
+.phelp { color: var(--muted); font-size: var(--t-xs); line-height: 1.45; margin: 2px 0; }
+.rowbox { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.orsep { text-align: center; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.chip { display: inline-flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 2px 0 10px; border-radius: 15px; background: var(--raised); font-size: var(--t-s); max-width: 100%; }
+.chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.chip > span svg { width: 13px; height: 13px; }
+.chip button { width: 28px; height: 28px; border-radius: 14px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.chip button svg { width: 12px; height: 12px; }
+.chip.pack { color: var(--p-pack); }
+.chip.lock, .chip.wait { color: var(--c, var(--fg)); }
+.chip.bad { color: var(--bad); }
+.addb { min-height: 30px; padding: 0 10px; border-radius: 15px; border: 1px dashed var(--line); color: var(--muted); font-size: var(--t-s); }
+.addb:hover { color: var(--fg); border-color: var(--muted); }
+.addb.mo { align-self: flex-start; border-style: solid; border-color: color-mix(in srgb, var(--p-close) 50%, transparent); color: var(--p-close); text-align: left; padding: 6px 12px; }
+.seg { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--surface); }
+.seg button { flex: 1; height: 34px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: var(--t-s); text-align: center; }
+.seg button.on { background: var(--raised); color: var(--fg); }
+.mlayer { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.mlayer .mlh { display: flex; align-items: center; gap: 2px; font-weight: 600; }
+.mlayer .mlh span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--p-mask); }
+.mlayer .mlh button { width: 32px; height: 32px; border-radius: 16px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.mlayer .mlh button.up svg { transform: rotate(180deg); }
+.mlayer .mlh svg { width: 17px; height: 17px; }
+.mlayer .linkish { align-self: flex-start; padding: 2px 0; }
+.mlayer .sub { font-size: var(--t-xs); color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.addpiece { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 24px); margin: 12px 12px 0; height: 46px; border-radius: 12px; border: 1px dashed var(--line); font-weight: 600; }
+.ifoot { display: flex; gap: 6px 18px; padding: 10px 16px 0; flex-wrap: wrap; }
+.insp .lbl { padding-top: 14px; }
+.gnote { margin: 12px 16px 0; }
+.gfull { margin: 0 16px 10px; white-space: pre-wrap; font-family: var(--content-font, var(--serif)); line-height: 1.6; user-select: text; -webkit-user-select: text; }
+.kin { width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 12px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
+.kin:focus { border-color: var(--accent); }
+.pickq { padding: 0 16px 6px; }
+.sheet.pick { height: 78%; }
+
+/* Mask chips on the entry page (D15) */
+.mchips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.mchip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--line); color: var(--muted); font-size: var(--t-s); }
+.mchip.on { border-color: var(--p-mask); color: var(--p-mask); background: color-mix(in srgb, var(--p-mask) 10%, transparent); }
+.mchip .mdot { width: 6px; height: 6px; border-radius: 3px; background: var(--accent); }
+
+/* Greeting start cards (VISUAL 7.5) and their panel rows */
+.card.greet { padding: 6px 10px 0 40px; border-radius: 30px 10px 10px 30px; background: var(--card); }
+.card.greet .grip.gicon { left: 8px; width: 26px; height: 26px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); display: flex; color: var(--fg); }
+.card.greet .grip.gicon svg { width: 15px; height: 15px; }
+.card.greet .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.card.greet .t { line-height: 1.2; }
+.card.greet .k.gk { font-family: var(--content-font, var(--serif)); font-style: italic; display: block; margin-top: 0; }
+.card.greet.missing { background: none; border: 1.5px dashed var(--line); }
+.prow.greet::before { background: var(--muted); }
+.prow.greet .nm { display: flex; flex-direction: column; }
+.prow.greet .nm small { color: var(--muted); font-size: var(--t-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--content-font, var(--serif)); font-style: italic; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 @media (min-width: 700px) { .en { max-width: 760px; } }
