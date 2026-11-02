@@ -11,8 +11,9 @@ const tags = () => injected(['N1-0', 'N1-1', 'N1-2', 'N1-3', 'N1-4', 'N1-5', 'N1
 
 await run(async () => {
     await start(BOOK);
+    await slash('/world state=off silent=true WIHero-Sample'); // a run before may have left it on
     ok('setup');
-    assert.deepEqual((await ev(() => wihero.model.issues)), []);
+    assert.deepEqual((await ev(() => wihero.model.issues)).filter(i => i.book === 'WIHero-N1'), []);
     ok('the N1 book loads without problems');
 
     // ── A chain advances ──
@@ -109,6 +110,7 @@ await run(async () => {
         const original = await c.loadWorldInfo('WIHero-N1');
         return { back: Object.values(book.entries).map(e => e.extensions?.wihero ?? null), original: Object.values(original.entries).map(e => e.extensions?.wihero ?? null) };
     });
+    assert.equal(trip.original.filter(Boolean).length, 7, 'seven entries carry story logic');
     assert.deepEqual(trip.back, trip.original);
     ok('a book embedded in a card and imported back keeps its story logic');
 });
