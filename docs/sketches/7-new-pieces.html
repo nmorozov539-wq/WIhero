@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WI Hero sketch 7: new pieces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Noto+Serif&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --fs: 15px;
+  --t-xs: 12px; --t-s: 13px; --t-m: 15px; --t-l: 17px; --t-xl: 24px;
+  --sans: 'Noto Sans', system-ui, sans-serif; --serif: 'Noto Serif', Georgia, serif;
+  --ground: #121315; --app: #1d1e22; --bar: #191a1e; --surface: #26282d; --raised: #2f3238;
+  --line: #3a3d44; --line2: #2a2c31; --fg: #e4e2da; --muted: #a3a49d; --accent: #e3913a;
+  --canvas: #16171b; --canvas-dot: #2a2c33;
+  --s-key: #6fd09a; --s-perm: #6fa8ff; --s-vec: #b48cff; --s-off: #6b6d72;
+  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--ground); color: var(--fg); font-family: var(--sans); font-size: var(--t-m); line-height: 1.45; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: var(--t-xl); margin: 0 0 4px; }
+h2 { font-size: var(--t-l); margin: 40px 0 4px; }
+p.lead, p.note { color: var(--muted); font-size: var(--t-s); margin: 0 0 12px; max-width: 640px; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.cap { font-size: var(--t-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin: 8px 0 6px; }
+
+/* canvas */
+.cv { position: relative; background: var(--canvas); background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px); background-size: 16px 16px; border: 1px solid var(--line2); border-radius: 14px; overflow: hidden; }
+.cv svg.links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.card { position: absolute; width: 164px; height: 60px; padding: 9px 10px 0 30px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.card .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.card .grip { position: absolute; left: 7px; top: 17px; display: grid; grid-template-columns: 5px 5px; gap: 4px; }
+.card .grip i { width: 5px; height: 5px; border-radius: 3px; background: var(--c, var(--s-key)); }
+.card .hold { position: absolute; right: -1px; top: 9px; bottom: 9px; width: 4px; border-radius: 2px; background: var(--p-glue); }
+.knob { position: absolute; width: 12px; height: 7px; border-radius: 7px 7px 0 0; }
+.knob.b { bottom: -7px; transform: rotate(180deg); }
+.knob.r { right: -9px; top: 26px; width: 7px; height: 12px; border-radius: 0 7px 7px 0; }
+
+/* greeting card */
+.greet { position: absolute; width: 176px; height: 64px; padding: 8px 12px 0 40px; border-radius: 32px 10px 10px 32px; background: var(--raised); border: 1px solid #555a64; }
+.greet .ic { position: absolute; left: 9px; top: 15px; width: 26px; height: 26px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; color: var(--fg); }
+.greet .ic svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.greet .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.greet .t { font-weight: 600; font-size: 14px; }
+.greet .k { font-size: 12px; color: var(--muted); font-family: var(--serif); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.greet.missing { background: none; border: 1.5px dashed #555a64; }
+.greet.missing .t, .greet.missing .ic { opacity: .6; }
+
+/* states */
+.st { position: relative; width: 164px; height: 60px; }
+.st .card { position: relative; }
+.cnt { position: absolute; right: 6px; top: 6px; font-size: 10px; font-weight: 700; color: var(--fg); background: var(--raised); border-radius: 6px; padding: 0 5px; line-height: 15px; }
+.card.closed { opacity: .55; }
+.card.closed .t { text-decoration: line-through; text-decoration-color: var(--p-close); text-decoration-thickness: 2px; }
+.card.closed .cnt { color: var(--p-close); background: none; border: 1.5px solid var(--p-close); }
+.card.holding { box-shadow: 0 0 0 1px var(--p-glue), 0 0 14px color-mix(in srgb, var(--p-glue) 30%, transparent); }
+.card.waiting { background: none; border-style: dashed; }
+.card.waiting .grip i { background: none; border: 1.5px solid var(--c, var(--s-key)); width: 6px; height: 6px; }
+.bang { position: absolute; left: -8px; top: -8px; width: 18px; height: 18px; border-radius: 9px; background: var(--p-close); color: #1a0d0b; font-weight: 800; font-size: 12px; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--canvas); }
+.stlabel { font-size: var(--t-xs); color: var(--muted); margin-top: 6px; width: 164px; }
+
+/* phone */
+.phone { position: relative; width: 390px; max-width: 100%; height: 760px; background: var(--app); border: 1px solid var(--line); border-radius: 28px; overflow: hidden; }
+.top { height: 50px; display: flex; align-items: center; gap: 22px; padding: 0 16px; background: var(--bar); border-bottom: 1px solid var(--line2); color: var(--muted); font-size: var(--t-s); }
+.top b { color: var(--fg); border-bottom: 2px solid var(--accent); padding: 14px 4px; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.4); overflow: hidden; }
+.grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 10px auto 6px; }
+.sh { display: flex; align-items: center; gap: 10px; padding: 0 16px; }
+.sh .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--s-key); }
+.sh b { flex: 1; font-size: var(--t-l); }
+.sh .x { color: var(--muted); font-size: 20px; }
+.tog { width: 40px; height: 22px; border-radius: 11px; background: color-mix(in srgb, var(--accent) 50%, var(--surface)); position: relative; }
+.tog::after { content: ''; position: absolute; right: 3px; top: 3px; width: 16px; height: 16px; border-radius: 8px; background: #eee; }
+.prev { margin: 8px 16px 0; font-family: var(--serif); color: var(--muted); font-size: var(--t-s); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.reopen { margin: 10px 16px 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--p-close) 12%, transparent); border: 1px solid color-mix(in srgb, var(--p-close) 40%, transparent); font-size: var(--t-s); display: flex; align-items: center; gap: 8px; }
+.reopen span { flex: 1; }
+.reopen a { color: var(--fg); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.rows { margin: 10px 0 0; }
+.lr { display: flex; gap: 10px; align-items: flex-start; padding: 9px 16px; border-top: 1px solid var(--line2); }
+.lr i { width: 3px; align-self: stretch; border-radius: 2px; background: var(--c); }
+.lr div { flex: 1; }
+.lr small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; color: var(--muted); text-transform: uppercase; }
+.lr .chev { color: var(--muted); }
+.lr.open { background: var(--app); }
+.ed { margin-top: 6px; }
+.box { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 14px; background: var(--raised); font-size: var(--t-s); }
+.chip .d { width: 7px; height: 7px; border-radius: 4px; background: var(--s-key); }
+.add { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 14px; border: 1px dashed var(--line); color: var(--muted); font-size: var(--t-s); }
+.q { width: 18px; height: 18px; border-radius: 9px; border: 1px solid var(--line); color: var(--muted); font-size: 11px; display: inline-grid; place-items: center; margin-left: 6px; vertical-align: 1px; }
+
+/* entry page */
+.page { padding: 16px; }
+.page h3 { font-size: var(--t-xl); margin: 4px 0 12px; }
+.ch { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; }
+.ch b { font-size: var(--t-l); }
+.ch span { margin-left: auto; color: var(--muted); font-size: var(--t-s); }
+.mchips { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.mc { height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-s); color: var(--muted); }
+.mc.on { color: var(--fg); border-color: var(--p-mask); background: color-mix(in srgb, var(--p-mask) 14%, transparent); }
+.mc.on.main { border-color: var(--fg); background: var(--raised); }
+.mc .live { width: 7px; height: 7px; border-radius: 4px; background: var(--s-key); }
+.txt { font-family: var(--serif); font-size: var(--t-m); line-height: 1.6; }
+.hint { color: var(--muted); font-size: var(--t-xs); margin-top: 14px; }
+
+/* colors */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.mode { background: var(--app); border: 1px solid var(--line2); border-radius: 12px; padding: 12px; }
+.mode b { font-size: var(--t-m); }
+.sw { display: flex; gap: 6px; margin: 10px 0; }
+.sw span { flex: 1; height: 26px; border-radius: 6px; }
+.lk { display: flex; flex-direction: column; gap: 6px; font-size: var(--t-xs); color: var(--muted); }
+.lk div { display: flex; align-items: center; gap: 8px; }
+.lk svg { width: 60px; height: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sketch 7: the new pieces</h1>
+  <p class="lead">Visuals the demo doesn't have yet, from the planning thread's decisions (BUILD_SPEC D14, D15, D17–D19, D22, D23). Static: nothing here is clickable. Everything else keeps the demo's look.</p>
+
+  <h2>1. Greeting cards (D23)</h2>
+  <p class="note">A start card: rounded on the left like a speech bubble, a chat icon, "START" above the name, the greeting's opening words in the content font. It has out ports only. No color of its own: the links carry the meaning, so it adds nothing to the color vision modes.</p>
+  <div class="cv" style="height:300px; max-width:560px">
+    <svg class="links" viewBox="0 0 560 300" preserveAspectRatio="none">
+      <path d="M104 84 V150 H96 V196" stroke="#45c9bd" stroke-width="2" fill="none"/>
+      <path d="M104 84 V150 H300 V196" stroke="#45c9bd" stroke-width="2" fill="none"/>
+      <path d="M200 52 H470 V196" stroke="#ff6f61" stroke-width="2" stroke-dasharray="5 4" fill="none"/>
+    </svg>
+    <div class="greet" style="left:16px; top:20px">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg></div>
+      <div class="tag">START</div>
+      <div class="t">Alt 2</div>
+      <div class="k">The tavern erupts as a chair…</div>
+      <span class="knob b" style="left:82px; background:var(--p-open)"></span>
+      <span class="knob r" style="background:var(--p-close)"></span>
+    </div>
+    <div class="card" style="left:16px; top:200px"><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Brawl</div><div class="k">brawl, fight</div></div>
+    <div class="card" style="left:220px; top:200px"><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Guards</div><div class="k">guard, watch</div></div>
+    <div class="card" style="left:388px; top:200px"><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Harbor</div><div class="k">harbor, docks</div></div>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <div>
+      <div class="cap">Character missing</div>
+      <div class="cv" style="width:220px; height:100px"><div class="greet missing" style="left:20px; top:18px"><div class="ic"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg></div><div class="tag">START · MISSING</div><div class="t">Bob · Greeting</div><div class="k">Character not found</div></div></div>
+    </div>
+    <div>
+      <div class="cap">Greeting changed (problem)</div>
+      <div class="cv" style="width:220px; height:100px"><div class="greet" style="left:20px; top:18px"><span class="bang">!</span><div class="ic"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H10l-5 4z"/></svg></div><div class="tag">START</div><div class="t">Alt 3</div><div class="k">Re-pick: the text changed</div></div></div>
+    </div>
+  </div>
+
+  <h2>2. Cards with "Show chat state" on (D17) and problems (D19)</h2>
+  <p class="note">The open chat at its latest message. Off by default; the plain card is what you see when it's off.</p>
+  <div class="cv" style="padding:24px 20px 20px">
+    <div class="row">
+      <div><div class="st"><div class="card"><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Road</div><div class="k">road</div></div></div><div class="stlabel">Plain (chat state off, or never fired)</div></div>
+      <div><div class="st"><div class="card"><span class="cnt">2×</span><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Mill</div><div class="k">mill</div></div></div><div class="stlabel">Fired twice</div></div>
+      <div><div class="st"><div class="card closed"><span class="cnt">CLOSED</span><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Road</div><div class="k">by Mill</div></div></div><div class="stlabel">Closed: dimmed, struck in red, says by what</div></div>
+      <div><div class="st"><div class="card holding"><span class="cnt">1×</span><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Storm</div><div class="k">storm, thunder</div><span class="hold"></span></div></div><div class="stlabel">Holding: the glue bar glows</div></div>
+      <div><div class="st"><div class="card waiting"><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Gatehouse</div><div class="k">waiting for Tunnel</div></div></div><div class="stlabel">Waiting on its gate: hollow</div></div>
+      <div><div class="st"><div class="card"><span class="bang">!</span><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Ferry</div><div class="k">ferry, ferryman</div></div></div><div class="stlabel">Problem: red "!" (shown whether chat state is on or off)</div></div>
+    </div>
+  </div>
+
+  <h2>3. The inspector (D14, D18)</h2>
+  <p class="note">Opens at half height so the card stays in view. Two lines of the entry's text, then one sentence per piece. One piece open at a time; the "?" shows its help. A closed entry starts with the Reopen line.</p>
+  <div class="row">
+    <div class="phone">
+      <div class="top"><span>⌄</span><b>Canvas</b><span>Preview</span></div>
+      <div class="cv" style="position:absolute; top:51px; left:0; right:0; bottom:0; border:none; border-radius:0">
+        <div class="card closed" style="left:113px; top:120px; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); border-color:var(--accent); opacity:.8"><span class="cnt">CLOSED</span><div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="t">Storm</div><div class="k">by Tower</div><span class="hold"></span></div>
+      </div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sh"><span class="dot"></span><b>Storm</b><span class="tog"></span><span class="x">×</span></div>
+        <div class="prev">Rain lashes sideways; thunder rolls over the valley and the river climbs its banks…</div>
+        <div class="reopen"><span>Closed in this chat by <b>Tower</b></span><a>Reopen</a></div>
+        <div class="rows">
+          <div class="lr" style="--c:var(--p-open)"><i></i><div><small>Gate</small>Opens when Mill has fired</div><span class="chev">›</span></div>
+          <div class="lr open" style="--c:var(--p-close)"><i></i><div><small>Close gate <span class="q">?</span></small>Closes when Tower fires, or someone says "calm" +1
+            <div class="ed"><div class="box"><span class="chip"><span class="d"></span>Tower ×</span><span class="add">+ and</span></div><div style="text-align:center; font-size:11px; color:var(--muted); font-weight:700; margin:4px 0">OR</div><div class="box"><span class="chip" style="color:var(--p-close)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11 H18 V20 H6 Z M8.5 11 V8 a3.5 3.5 0 0 1 7 0 V11"/></svg> calm, the rain stops ×</span><span class="add">+ and</span></div><div style="margin-top:6px"><span class="add">+ or</span></div></div>
+          </div><span class="chev">⌄</span></div>
+          <div class="lr" style="--c:var(--p-glue)"><i></i><div><small>Glue</small>Holds: on once fired, until its close gate</div><span class="chev">›</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:330px">
+      <div class="cap">Notes</div>
+      <p class="note">The sentences are the same ones the entry page uses, so the two never describe a piece differently.</p>
+      <p class="note">Drag the sheet up for full height. Below the pieces (not visible here): "From other entries", + Add piece, and Open entry · Data, as in the demo.</p>
+      <p class="note">The Reopen line only appears with a chat open in which the entry is closed. If the rule that closed it was deleted, it reads "Closed by a rule that no longer exists".</p>
+    </div>
+  </div>
+
+  <h2>4. Mask text on the entry page (D15)</h2>
+  <p class="note">One text box, switched by chips above it. The green dot marks the version the open chat is using right now. Hero mode only; normal mode shows Main.</p>
+  <div class="row">
+    <div class="phone" style="height:470px">
+      <div class="top"><span>⌄</span><span>Canvas</span><span>Preview</span><b>Tower</b></div>
+      <div class="page">
+        <h3>Tower</h3>
+        <div class="ch"><b>Content</b><span>14 tokens</span></div>
+        <div class="mchips"><span class="mc">Main</span><span class="mc on"><span class="live"></span>ruined</span><span class="mc">rebuilt</span></div>
+        <div class="txt">The tower is a broken shell after the storm. Its stairs end in open air, and crows nest in the bell frame.</div>
+        <div class="hint">Mask "ruined": on when Storm has fired, off when Smithy fires. Edit when it's on in the inspector.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>5. Color vision modes (D22)</h2>
+  <p class="note">⌄ Display → Colors. Swatches in order: opens, closes, glue, mask, pack. Checked with a color-blindness simulation (Machado 2009): in Standard, opens and masks become nearly the same for red-green color blindness, which is why the modes exist. In each mode's own target, every pair stays clearly apart. Dashes and arrows still mark closes in every mode.</p>
+  <div class="modes">
+    <div class="mode"><b>Standard</b><div class="sw"><span style="background:#45c9bd"></span><span style="background:#ff6f61"></span><span style="background:#f2cf4a"></span><span style="background:#f07cc8"></span><span style="background:#cfccc2"></span></div>
+      <div class="lk"><div><svg viewBox="0 0 60 10"><path d="M0 5H60" stroke="#45c9bd" stroke-width="2.5"/></svg>opens</div><div><svg viewBox="0 0 60 10"><path d="M0 5H60" stroke="#ff6f61" stroke-width="2.5" stroke-dasharray="5 4"/></svg>closes</div></div></div>
+    <div class="mode"><b>Red-green safe</b><div class="sw"><span style="background:#56b4e9"></span><span style="background:#e8681a"></span><span style="background:#f0e442"></span><span style="background:#cc79a7"></span><span style="background:#cfccc2"></span></div>
+      <div class="lk"><div><svg viewBox="0 0 60 10"><path d="M0 5H60" stroke="#56b4e9" stroke-width="2.5"/></svg>opens</div><div><svg viewBox="0 0 60 10"><path d="M0 5H60" stroke="#e8681a" stroke-width="2.5" stroke-dasharray="5 4"/></svg>closes</div></div></div>
+    <div class="mode"><b>Blue-yellow safe</b><div class="sw"><span style="background:#2fc4c4"></span><span style="background:#ff4a4a"></span><span style="background:#f5f5f5"></span><span style="background:#ff9ad5"></span><span style="background:#8a8f99"></span></div>
+      <div class="lk"><div><svg viewBox="0 0 60 10"><path d="M0 5H60" stroke="#2fc4c4" stroke-width="2.5"/></svg>opens</div><div><svg viewBox="0 0 60 10"><path d="M0 5H60" stroke="#ff4a4a" stroke-width="2.5" stroke-dasharray="5 4"/></svg>closes</div></div></div>
+  </div>
+  <p class="note" style="margin-top:12px">Strategy colors (keywords green, permanent blue, vectorized purple) get the same treatment when the modes are built.</p>
+</main>
+</body>
+</html>

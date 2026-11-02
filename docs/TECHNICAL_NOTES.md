@@ -78,7 +78,8 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 ## 8. Storing config on entries
 
 - Native lorebook entries are **flat objects**. There's no `extensions` sub-object. The `extensions.*` paths in ST (2688–2711) belong to `originalData`, the character-card book format.
-- Unknown top-level fields survive saving and the editor (entries are saved whole). So we store config as a top-level `wihero` field on the entry.
+- Unknown top-level fields survive saving and the editor (entries are saved whole). The old build stored config as a top-level `wihero` field on the entry.
+- **Superseded** ([BUILD_SPEC](BUILD_SPEC.md) 2.1): embedding a book in a card (`convertWorldInfoToCharacterBook`, `src/endpoints/characters.js` 663) keeps only ST's own fields plus `...entry.extensions`, and importing it back (`convertCharacterBook`, 5617) keeps `extensions` too. So config now lives at `entry.extensions.wihero`, which survives both ways; the top-level field is read on load and moved on the next save.
 - Duplicating an entry (`duplicateWorldInfoEntry`, 4019) copies every field, including our stable id. The duplicate check in the design is needed.
 - Embedding a book in a character card (`convertCharacterBook`, 5617) probably drops unknown fields. Not a v1 concern for a personal tool, but worth knowing.
 
@@ -143,6 +144,10 @@ How the folder filter hooks in:
 ## 12. The new model (CONCEPTS.md)
 
 What the redesigned story logic needs from the engine, on top of sections 1–8.
+The full turn order (with the closing rules, the extra scan pass that brings in
+ride-along entries, macros in mask text, greetings and per-book state keys) is
+in [BUILD_SPEC.md](BUILD_SPEC.md) sections 4–6; it wins where this section is
+shorter or older.
 
 - **Fields**: `gates` becomes `gate`; `closes` becomes `closesFor`; new
   `closeGate` (rows) on entries and on masks; `glue` becomes

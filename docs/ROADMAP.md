@@ -104,7 +104,9 @@ Each milestone ends with something testable. See [DESIGN.md](DESIGN.md) and [TEC
 
 The spec is [CONCEPTS.md](CONCEPTS.md), [LAYOUT.md](LAYOUT.md) and
 [VISUAL.md](VISUAL.md); the [demo](../demo/wihero-demo.html) shows it working.
-The earlier build is the starting point, rebuilt in these steps:
+**[BUILD_SPEC.md](BUILD_SPEC.md) is how to build it**: every decision, the
+engine, the ST wiring, and what each step below includes (its section 13). The
+earlier build is the starting point, rebuilt in these steps:
 
 ### N1 — Engine on the new model
 - Data model: `gate`, `gatesFor`, `closeGate`, `closesFor`, glue modes, masks
@@ -145,6 +147,6 @@ phone, and lands in the book.
 **Done when:** every block reason in CONCEPTS 7 shows up for the sample book.
 
 ## Later
-Reopen and the problem list in the new layout, a canvas state filter, Preview
-over several turns, desktop layout, a book-level starting state, a timeline
-scrubber across branches.
+Preview over several turns, desktop layout, greetings in group chats, a
+timeline scrubber across branches. (Reopen, the problem list, the canvas
+state view and per-greeting starting states are now part of N1–N5.)

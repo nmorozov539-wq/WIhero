@@ -3,7 +3,8 @@
 Part 1 of the spec: what WI Hero's story logic does and the rules it follows.
 [LAYOUT.md](LAYOUT.md) maps every screen and control, and [VISUAL.md](VISUAL.md)
 says how it all looks. None of them says how anything is built; that is
-[TECHNICAL_NOTES.md](TECHNICAL_NOTES.md). Where they disagree with
+[TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) and, for the build,
+[BUILD_SPEC.md](BUILD_SPEC.md), which records every decision (D1–D23). Where they disagree with
 [DESIGN.md](DESIGN.md) (the original design), these win. The
 [demo](../demo/wihero-demo.html) follows this model.
 
@@ -30,9 +31,12 @@ says how it all looks. None of them says how anything is built; that is
   recursion, permanent, vector match, or forced on by glue.
 - **Changes take effect from the next message.** Story state is read once,
   before the scan. Anything that fires this turn opens or closes things for the
-  following generation, never inside the same scan or recursion pass. The one
-  exception is 2.2's "closing beats opening", which settles conflicts inside the
-  turn.
+  following generation, never inside the same scan or recursion pass, so a
+  chain can't run ahead of the chat. Two exceptions: 2.2's "closing beats
+  opening", which settles conflicts inside the turn, and **locks in the user's
+  message** (3.10), which open in the reply to that same message. A lock phrase
+  in the character's reply counts from the next message, since the lore is
+  chosen before the reply is written.
 - **Only chat generations count.** A generation moves the story only if its
   result lands in the chat: normal replies, swipes, regenerations, continues.
   Quiet prompts, summaries, impersonation, dry runs and other extensions' calls
@@ -54,6 +58,14 @@ says how it all looks. None of them says how anything is built; that is
   2. **Closing beats opening.** If, on the same turn, one thing would let an
      entry fire and another would close it, it closes and does not fire.
   3. **Glue is not exempt.** Any close ends glue, in either mode.
+- **An entry closed this turn didn't happen.** It doesn't fire, opens nothing
+  and closes nothing. If Tunnel closes Mill and Mill closes Bridge, and all
+  three are mentioned in one message, Mill closes and Bridge stays open.
+  Entries that close each other in a loop all close.
+- **The on/off switch is a pause**, not a story event. An off entry injects
+  nothing, glue included, but its story state is untouched: a hold carries on
+  when it's turned back on. The switch belongs to the book, so rewinding the
+  chat never touches it.
 
 ### 2.3 Story state lives in the chat
 
@@ -66,7 +78,10 @@ says how it all looks. None of them says how anything is built; that is
   messages, so the story **rewinds by itself**. No replay, no global flags.
 - State is per chat, not per character: two playthroughs of the same book never
   share progress.
-- A new chat starts fresh: every gate shut, nothing fired.
+- A new chat starts fresh: every gate shut, nothing fired, except the greeting
+  it opened with (3.12).
+- State is kept per book, so two active books that both have a "mill" never
+  mix.
 
 ## 3. Pieces
 
@@ -231,6 +246,29 @@ A row item that counts messages: `{"wait": 3}`.
 - In a close gate it gives timed endings: "close three messages after the
   storm starts".
 
+### 3.12 Greeting
+
+A node point for one of a character's greetings. It is not an entry: nothing
+is added to the book or the card, nothing is copied, nothing reaches the
+model.
+
+- It **counts as fired from the chat's first message** when that is the
+  greeting the chat opened with (ST's first message, with the alternate
+  greetings as its swipes). It never fires again.
+- Other entries use it like an entry: in gate and close-gate rows and in mask
+  rows. It can carry **Gates for** and **Closes for**, so each greeting can
+  start its own scenario: open a pack, close what doesn't apply, start a
+  Permanent entry, pick a mask.
+- It takes no gate, close gate, glue, mask, Once or Who triggers.
+- Named like ST: Greeting, Alt 1, Alt 2… Swiping the greeting before the first
+  reply switches the scenario, with the usual rewind.
+- Only the open chat's character's greetings show (in the entry panel and on
+  the canvas). With no chat open, or in a group chat, none show; rules aimed
+  at them stay on the entries and are listed in words.
+- Stored in the book only, on the entries its rules touch, with the
+  character, the greeting's number and a fingerprint of its opening words.
+- Single-character chats only, for now.
+
 ## 4. Linking and the canvas
 
 - **Anything with a link is on the canvas.** Linking to an entry that isn't
@@ -257,6 +295,8 @@ These are reported while editing. An entry with a problem never fires.
 - A switch with fewer than two paths, or a pack used as a switch path.
 - A ride-along host that is missing, or a pack.
 - A malformed mask (reported, skipped, not blocking the entry).
+- A greeting that changed (edited or reordered since it was linked): it doesn't
+  fire until it is re-picked.
 
 Warnings, which don't block:
 
@@ -265,14 +305,28 @@ Warnings, which don't block:
 - A hold with nothing that can close it.
 - A gate row that the entry's own close gate always meets first, so the entry
   could never fire.
+- A greeting whose character is missing (it never fires).
 
-## 6. Manual overrides
+Problems put a red "!" on the card and on the entry's row; ⌄ lists them all
+under "Problems".
+
+## 6. Manual overrides and safety
 
 For story changes WI Hero can't see, such as a hand-edited old message.
 
-- **Reopen** a closed entry. It applies from the current message on and rewinds
-  like everything else.
+- **Reopen** a closed entry, from its inspector ("Closed in this chat by
+  *X* · Reopen"). It restores the entry as it was just before it closed:
+  holding again if it was holding, waiting if it was waiting. Its close gate
+  counts afresh from the Reopen. It rewinds like everything else.
 - **Pick a mask** by hand (3.7).
+- **Editing story logic mid-play is safe.** The chat's state is mostly history
+  (what fired, and when); after an edit, the next message is worked out with
+  the new rules on the same history. Deleted entries' history is ignored.
+  Closed stays closed even when the rule that closed it is removed; Reopen is
+  the way back.
+- **Snapshots**: a manual "Snapshot" saves a named copy of the whole book, and
+  Restore puts it back (with Undo), leaving the chat's state alone. One
+  "As imported" copy is kept automatically the first time WI Hero sees a book.
 
 ## 7. Preview
 
@@ -292,19 +346,25 @@ Nothing in it is saved to the chat or the book.
 
 ## 8. Where things are stored
 
-- **Story logic**: a `wihero` field on each entry, inside the lorebook file. No
+- **Story logic**: `extensions.wihero` on each entry, inside the lorebook file
+  (the `extensions` box survives ST's card embedding and import both ways; a
+  top-level field would not). Mask text is stored there too. No
   separate file; the book stays a normal ST lorebook. Without the extension,
   entries simply behave as plain World Info.
 - **Entry ids**: entries are referred to by a stable id kept in `wihero`, not
   ST's uid, so copying entries or merging books doesn't break links.
 - **Story state**: on each chat message, per swipe (2.3).
 - **WI Hero's own settings**: canvas positions, port sides, the mask layer
-  shown on each card, entry folders, book folders and each book's New entry
-  defaults live in the extension settings, not in the books.
+  shown on each card, each canvas's camera, entry folders, book folders, each
+  book's New entry defaults, the snapshot list and the color vision mode live
+  in the extension settings, not in the books. Layout is local: a book
+  exported elsewhere gets the automatic arrangement there.
+- **Snapshots**: full copies of a book as files in ST's user files folder.
 
 A **ref** is an entry id (`"mill"`), a pack reading (`"#town"`, `"#town:all"`,
-`"#town:2"`), a lock (`{"lock": [...]}`) or a wait (`{"wait": 3}`). Rows are
-lists of refs.
+`"#town:2"`), a lock (`{"lock": [...]}`), a wait (`{"wait": 3}`) or a greeting
+(`{"greeting": 2, "char": "Seraphina.png", "name": "Seraphina", "fp": "9f3a1c"}`).
+Rows are lists of refs.
 
 `wihero` fields:
 
@@ -321,6 +381,7 @@ lists of refs.
 | `packs`     | `["town/inn"]`                                                 |
 | `once`      | Close after the first firing                                   |
 | `by`        | `"user"` or `"char"`; left out means both                      |
+| `gatedBy`   | Greetings whose Gates for target this entry (3.12)             |
 
 Example:
 
@@ -335,14 +396,17 @@ Changes from the earlier model, for anyone reading the old build in the git
 history: `gates` is now `gate`; the boolean `closeGates` ("the story moves on")
 is gone, replaced by real `closesFor` links that the shortcut writes; `closes`
 is now `closesFor`; `glue` end conditions are replaced by the two modes plus
-the close gate; masks gain `closeGate` and lose `gateMode`.
+the close gate; masks gain `closeGate` and lose `gateMode`; the data moves from
+a top-level `wihero` field to `extensions.wihero` (read from either on load).
 
-## 9. Open questions and later
+## 9. Later
 
-- Where Reopen and the problem list live in the new layout.
-- A canvas state filter (fired, armed, closed), possibly as part of Preview.
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
+- Greetings in group chats.
 - Out of scope for now: several books on one canvas, cross-book links,
   variables, loops or math in story logic, endings as a separate system (gates
   and close gates already cover them).
+
+Decided since the first version (see BUILD_SPEC): where Reopen and the problem
+list live (6, 5), and the canvas state view ("Show chat state" in ⌄).

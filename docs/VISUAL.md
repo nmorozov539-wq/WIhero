@@ -116,11 +116,30 @@ Who triggers has no color of its own; it uses `--muted`.
 
 ### 6.3 Checks
 
-- Every pair of piece colors stays more than ΔE 20 apart under deutan, protan
-  and tritan simulation ([sketch 1](sketches/1-piece-colors.html)).
+- Sketch 1 checked an earlier set (with a blue for opens). Rechecked for the
+  current set (Machado 2009 simulation, ΔE in CIELAB): under deutan and protan,
+  opens (teal) comes within about ΔE 7 of masks and packs. That is what the
+  color vision modes (6.4) are for. Each mode keeps every pair at least ΔE 20
+  apart under its own kind of color blindness.
 - Color never carries meaning alone: closes are dashed, vectorized is dashed,
   in and out are told apart by shape, locks have an icon, blocked Preview
   highlights are struck through.
+
+### 6.4 Color vision modes
+
+⌄ Display → Colors. Each mode swaps the piece colors (and, when built, the
+strategy colors) for a set that stays apart under one kind of color blindness.
+The surfaces, the accent and the shapes don't change. There is no other color
+customizing. Drawn in [sketch 7](sketches/7-new-pieces.html).
+
+| Mode | Opens | Closes | Glue | Mask | Pack |
+|------|-------|--------|------|------|------|
+| Standard | #45c9bd | #ff6f61 | #f2cf4a | #f07cc8 | #cfccc2 |
+| Red-green safe | #56b4e9 | #e8681a | #f0e442 | #cc79a7 | #cfccc2 |
+| Blue-yellow safe | #2fc4c4 | #ff4a4a | #f5f5f5 | #ff9ad5 | #8a8f99 |
+
+Strategy sets for the modes are chosen and checked the same way when they are
+built.
 
 ## 7. The canvas
 
@@ -183,7 +202,23 @@ Who triggers has no color of its own; it uses `--muted`.
 - The mask that is active in the open chat gets a dot after its number
   ("‹ 1/2 • ›").
 
-### 7.5 Layout and view
+### 7.5 Chat state, problems and greetings
+
+Drawn in [sketch 7](sketches/7-new-pieces.html).
+
+- **Show chat state** (⌄, off by default) marks each card with the open chat's
+  state at its latest message: a small "2×" fired count top right; closed cards
+  dimmed, the title struck through in red, "CLOSED" and "by *X*"; a holding
+  card's glue bar glows; a card still waiting on its gate is hollow (dashed
+  border, hollow grip dots).
+- **Problems**: a red round "!" on the card's top left corner, whether chat
+  state is on or not.
+- **Greeting cards** are start cards: rounded on the left like a speech bubble,
+  a chat icon, "START" above the name ("Greeting", "Alt 2"), the greeting's
+  opening words in the content font, in italics. No color of their own; out
+  ports only. A missing character's greeting is drawn dashed and faded.
+
+### 7.6 Layout and view
 
 - Layered automatic layout, top to bottom, from the links. Tidy reruns it.
 - The canvas fits itself to the screen on first open. Fit, + and − sit on the
@@ -199,6 +234,8 @@ Who triggers has no color of its own; it uses `--muted`.
 - Blocked highlights are struck through.
 
 ## 9. Still open
+
+- The strategy colors for the color vision modes (6.4).
 
 - Mapping the surface tokens onto ST's SmartTheme colors (section 2), and a
   light-theme pass.

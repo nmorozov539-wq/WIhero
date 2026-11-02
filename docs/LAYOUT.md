@@ -4,7 +4,9 @@ Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). The
 [demo](../demo/wihero-demo.html) follows this map; the few parts it leaves out
-are listed at the end.
+are listed at the end. Parts decided after the demo are drawn in
+[sketch 7](sketches/7-new-pieces.html), and every decision is listed in
+[BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop comes later and mostly lays the same screens side by side.
 
@@ -20,6 +22,9 @@ Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-
 ### Opening the editor
 
 - ST's World Info button opens WI Hero instead of ST's drawer.
+- Closing WI Hero only hides it: while ST stays open, it comes back exactly as
+  it was left. After a page reload it starts on Home, and tabs are not
+  restored (like ST, which starts on its main screen).
 - It opens in normal mode, or in Hero mode when "Open books in Hero mode" is on.
 
 ### Top row
@@ -44,12 +49,25 @@ each row showing its current value at the right.
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
-| View / Book | Home: World Info settings. Book page: Group by (Folders, Strategy, Nothing) · Show disabled entries (Shown, Hidden) | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › |
-| Canvas | | Tidy layout · Legend (Shown, Hidden) |
-| Display | Content font (Serif, Sans) | Content font |
+| View / Book | Home: World Info settings. Book page: Group by (Folders, Strategy, Nothing) · Show disabled entries (Shown, Hidden) · Problems (n) › when there are any · Snapshots › | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Snapshots › |
+| Canvas | | Tidy layout · Legend (Shown, Hidden) · Show chat state (switch, off by default) |
+| Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) | Content font · Colors |
 | Tabs | New tab · Close other tabs | Close other tabs |
 
 The View section is left out on the entry page.
+
+### Problems sheet
+
+From "Problems (n) ›": every problem in the book (red), then warnings
+(yellow), one line each with the entry's name. Tap one to open that entry
+(its inspector in Hero mode, its page in normal mode).
+
+### Snapshots sheet
+
+From "Snapshots ›": **Take snapshot** (asks for a name, prefilled with the
+date and time), then the snapshots, newest first, with "As imported" pinned
+at the bottom. Each row shows name, date and entry count; tap it for Restore
+(with an Undo toast) · Rename · Delete.
 
 ### Mode switch
 
@@ -85,7 +103,7 @@ The same page in both modes. Top to bottom:
 | Story logic | Only when the entry has pieces. Read-only in both modes (below) |
 | Parameters | Folded. The header sums up what isn't default, or "Defaults" |
 | Content | A "Content" heading with a token estimate, then borderless text in the content font, "Type here" when empty |
-| Mask content | Hero mode only: one block per mask, "Mask: *name*", with its own text |
+| Mask chips | Hero mode only, for entries with masks: chips above Content, "Main · *mask* · …". A chip switches the Content box to that version, with its own token count. A dot marks the version active in the open chat |
 
 - There is no reading mode and no bottom bar on this page. Saving is automatic.
 - **Parameters**, in groups:
@@ -103,6 +121,8 @@ The same page in both modes. Top to bottom:
   - Hero mode: always open. Under the rules, muted links "Show on canvas" and
     "Data" (the raw `wihero` field).
   - Story logic is never edited here. It is edited in the inspector.
+  - An entry closed in the open chat adds "Closed in this chat by *X*" with
+    Reopen, as in the inspector.
 
 ---
 
@@ -225,17 +245,20 @@ and puts every port back on its default side.
 
 ### Inspector
 
-Tapping a card opens the inspector: a tall sheet with every piece of the entry
-expanded and editable.
+Tapping a card opens the inspector, a sheet at **half height**, so the card
+stays in view above it. Drag it up for full height.
 
 | Part | What it shows or does |
 |------|-----------------------|
 | Header | Strategy dot, the entry's name, its on/off switch, × |
-| Meta line | Strategy and keywords |
-| Piece cards | One card per piece the entry has, in matrix order: Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Once, Who triggers. Each has a colored edge, its name, a one-line help and a remove button |
+| Text preview | The first two lines of the entry's content, in the content font. Tap to open the entry |
+| Reopen line | Only for an entry closed in the open chat: "Closed in this chat by *Tunnel* · Reopen" (or "by a rule that no longer exists") |
+| Piece rows | One row per piece, in matrix order (Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Once, Who triggers): a stripe in the piece's color, its name, and the same plain sentence as the entry page. Tap a row to expand it into its editor; one is open at a time. A "?" by the name shows the piece's help line |
 | From other entries | Rules other entries aim at this one: "Gates for this", "Closes this", "Rides along with this". Tap one to inspect that entry |
 | + Add piece | A sheet of the pieces the entry doesn't have yet, each with its help line |
 | Footer | Open entry (in a tab) · Take off canvas (only for placed, unlinked entries) · Data |
+
+Tapping a port opens the inspector with that piece's row already expanded.
 
 Piece cards:
 
@@ -245,7 +268,7 @@ Piece cards:
 | Gates for, Closes for | One list of entries and packs |
 | Switch | Its paths, entries only |
 | Glue | Ride along / Hold. Ride shows its host as a chip. Hold says what ends it ("Ends through its close gate: …") or "Nothing ends it yet" with "+ Close gate" |
-| Masks | One block per mask: number and name, show on canvas, rename, move up (lower priority), remove; then "On when" rows and "Off when (close gate)" rows. "+ Mask". Mask text is edited on the entry page |
+| Masks | One block per mask: number and name, show on canvas, rename, move up (lower priority), remove, **Edit text** (opens the entry on that mask's chip); then "On when" rows and "Off when (close gate)" rows. "+ Mask" |
 | Packs | The entry's packs as chips, "+ add" |
 | Once | "On. *Name* closes right after it fires" |
 | Who triggers | Your messages / Character's replies |
@@ -253,6 +276,11 @@ Piece cards:
 **Choosing a target** (any "+ add"): a search box, then entries, then packs.
 Picking a pack asks for the reading: Any of them, All of them, or a number.
 Where a lock is allowed there is a "Lock phrase…" row.
+
+**Greeting inspector** (tap a greeting card): its name ("Greeting", "Alt 2"),
+the greeting's opening words (tap to read it all, read only), Gates for,
+Closes for, "Used by" (entries that read it), and **Re-pick** when the
+greeting changed since it was linked.
 
 **Pack sheet** (tap a frame): "In this pack" and "Used by" (the entries whose
 rules read or target it). Tap a row to inspect it.
@@ -267,7 +295,8 @@ style: a list first, the book at the bottom.
 | Filter box | "Filter entries", matching names |
 | + | New entry: asks for a name and places it in the middle of the view |
 | Folder header | Name, count, collapse arrow |
-| Entry row | Strategy stripe, name, dot. Off entries are dimmed |
+| Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
+| Greetings group | Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |
 | Tap a row | Opens the entry in a tab |
 | Dot, filled | The entry is on the canvas; tap to jump to it |
 | Dot, hollow | Tap to place it in the middle of the view |
@@ -284,7 +313,7 @@ A pretend exchange checked against the book. Nothing is saved.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "Preview", and a chip with where it starts from: the open chat ("Road trip chat · after 12 messages") or "Fresh start". Tap to choose |
+| Header | "Preview", and a chip with where it starts from: the open chat ("Road trip chat · after 12 messages"), "Fresh start", or, with a single-character chat open, one of its greetings ("Start at Alt 2"). Tap to choose |
 | Note | "A pretend exchange checked against *book*. Nothing is saved. Tap a highlight to see why." |
 | You slot | The user message. Edit and clear buttons; tap the text to edit |
 | Character slot | The reply, same controls |
@@ -323,5 +352,11 @@ Back never switches between the two modes.
 
 Specified here but left out of the demo, or only stubbed, to keep it small:
 Invert and Export in selection, Edit… for bulk parameters, New entry defaults,
-book ⋯ menus, Duplicate and Move to another book, waits (CONCEPTS 3.11), Reopen
-and the problem list (CONCEPTS 9), and selection in the entry panel.
+book ⋯ menus, Duplicate and Move to another book, waits (CONCEPTS 3.11).
+
+Decided after the demo and drawn in [sketch 7](sketches/7-new-pieces.html)
+instead: the half-height inspector, the Reopen line, mask chips, greeting
+cards, "Show chat state", problem badges and the color vision modes. Not drawn
+anywhere yet, built from the tables above: the Problems and Snapshots sheets.
+In the demo's Preview, a lock phrase in the pretend reply opens its gate in the
+same turn; the build shows it as "from the next message" (CONCEPTS 2.1).

@@ -12,3 +12,4 @@ where they disagree with [VISUAL.md](../VISUAL.md), VISUAL.md wins.
 | [4-piece-shapes-v3](4-piece-shapes-v3.html) | Glue modes: ride along and hold |
 | [5-piece-shapes-v4](5-piece-shapes-v4.html) | Every piece in combination |
 | [6-piece-shapes-v5](6-piece-shapes-v5.html) | Masks as a stack of layers, close gates |
+| [7-new-pieces](7-new-pieces.html) | After the demo: greeting cards, chat state on cards, problem badges, the half-height inspector, mask chips, color vision modes |

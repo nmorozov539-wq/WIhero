@@ -4,10 +4,12 @@ A SillyTavern extension that replaces the World Info editor, with a second side
 for story logic: entries that only become eligible once the story reaches a
 point, and retire once it moves past.
 
-Status: specification and an interactive demo. The earlier working build
+Status: specification complete and ready to build. The earlier working build
 (gates, glue, switches, masks, labels and the workspace, for SillyTavern 1.19.0)
-lives in the git history; this phase redesigns the editor and the story-logic
-model before it is built again.
+lives in the git history and is the starting point.
+
+**Building it?** Start at [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md): its "Start
+here" section, the decisions (D1–D23), and the build order N1–N5.
 
 ## Demo
 
@@ -22,6 +24,7 @@ The spec, in reading order:
 - [Concepts](docs/CONCEPTS.md): story logic, the pieces and the rules they follow
 - [Layout](docs/LAYOUT.md): every screen and control, in normal mode and Hero mode
 - [Visual language](docs/VISUAL.md): type, color, icons, and how pieces are drawn on the canvas
+- [Build spec](docs/BUILD_SPEC.md): every decision and how to build it, step by step
 - [Technical notes](docs/TECHNICAL_NOTES.md): how the design maps onto ST's World Info hooks
 - [Roadmap](docs/ROADMAP.md)
 
