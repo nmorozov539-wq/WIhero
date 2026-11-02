@@ -6,8 +6,10 @@ import { ensureSettings } from './src/ui/data.js';
 import { createLibrary } from './src/ui/st-books.js';
 import { createSnapshots } from './src/ui/snapshots.js';
 import { createApp } from './src/ui/app.js';
-import { mountPanel, render } from './src/panel.js';
+import { mountPanel, render, renderNotice } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
+import { createBubble } from './src/bubble.js';
+import { checkHealth, createHealth, standDownText, stVersion } from './src/compat.js';
 import * as st from './src/st.js';
 
 const ctx = () => SillyTavern.getContext();
@@ -18,16 +20,34 @@ let refreshTimer = null;
 /** ST refreshes often during a generation, so the panel is redrawn at most every 150 ms. */
 function refresh() {
     clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => { render(hooks.view()); app?.refresh(); }, 150);
+    refreshTimer = setTimeout(() => { render(hooks.view()); app?.refresh(); bubble?.render(); }, 150);
 }
 let app = null;
+let bubble = null;
+
+// ---- Compatibility (BUILD_SPEC 17.2): the ST version, and every thread WI Hero pulls. A problem stands the engine
+// down (World Info runs as plain ST); a version WI Hero isn't tested on is only a warning.
+const warned = new Set();
+function showHealth(h) {
+    const lines = [h.versionText, h.ok ? null : standDownText(h.problems)];
+    renderNotice(lines);
+    for (const line of lines) {
+        if (!line || warned.has(line)) continue;
+        warned.add(line);
+        globalThis.toastr?.warning(line, 'WI Hero', { timeOut: 12000 });
+    }
+    refresh();
+}
+const health = createHealth(showHealth);
+for (const problem of checkHealth(ctx(), st.internals())) health.problems.push(problem);
 
 /** ST's World Info scan settings, read live (they change in ST's settings). */
-const scanGlobals = () => ({ depth: st.world_info_depth, caseSensitive: st.world_info_case_sensitive, matchWholeWords: st.world_info_match_whole_words });
+const { scanGlobals } = st;
 
 const hooks = createHooks({
     ctx,
     settings,
+    health,
     onChange: refresh,
     st: {
         getSortedEntries: st.getSortedEntries,
@@ -45,8 +65,15 @@ mountPanel({
             settings.enabled = value;
             saveSettingsDebounced();
             refresh();
+            if (value) offerCatchUp();
+        },
+        onBubble(value) {
+            settings.bubble = value;
+            saveSettingsDebounced();
+            refresh();
         },
         onReopen: key => hooks.reopenEntry(key),
+        onFixGap: how => fixGap(how),
     },
 });
 
@@ -86,7 +113,41 @@ eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, hooks.onWorldInfoActivated);
 eventSource.on(eventTypes.MESSAGE_RECEIVED, hooks.onMessageReceived);
 eventSource.on(eventTypes.GENERATION_STOPPED, hooks.dropPending);
 eventSource.on(eventTypes.CHAT_CHANGED, hooks.dropPending);
-for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED']) eventSource.on(eventTypes[type], refresh);
+for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_RECEIVED']) eventSource.on(eventTypes[type], refresh);
+
+// ---- Catch-up (BUILD_SPEC 17.1): replies that ran with WI Hero off leave the story state behind.
+const FIXED = { catchUp: n => `Caught up on ${n} ${n === 1 ? 'reply' : 'replies'}, oldest first.`, keep: () => 'Kept the old story state.', fresh: () => 'The story state starts again from the newest reply.' };
+async function fixGap(how) {
+    const n = await hooks.fixGap(how);
+    if (n) globalThis.toastr?.success(FIXED[how](n), 'WI Hero');
+    refresh();
+}
+const asked = new Set();
+/** Asks once per chat and gap what to do about replies that ran without WI Hero. */
+async function offerCatchUp() {
+    if (!hooks.active()) return;
+    try { await hooks.loadModel(); } catch { return; }
+    const g = hooks.gap();
+    refresh();
+    if (!g) return;
+    const c = ctx();
+    const sig = `${c.getCurrentChatId?.() ?? c.chatId}|${g.skipped.join(',')}`;
+    if (asked.has(sig)) return;
+    asked.add(sig);
+    const n = g.skipped.length;
+    const text = `<h3>WI Hero was off for ${n} ${n === 1 ? 'reply' : 'replies'}</h3>`
+        + `<p>Its story state is from ${g.from < 0 ? 'the start of this chat' : `message #${g.from}`}, so gates the story has passed may still be shut.</p>`
+        + '<p><b>Catch up</b> replays the skipped replies one by one, oldest first, matching key words as Preview does. '
+        + '<b>Keep as is</b> carries the old state on. <b>Start from here</b> starts the story state again.</p>';
+    const { POPUP_TYPE, POPUP_RESULT } = c;
+    const result = await c.callGenericPopup(text, POPUP_TYPE.TEXT, '', {
+        okButton: 'Catch up', cancelButton: 'Not now',
+        customButtons: [{ text: 'Keep as is', result: POPUP_RESULT.CUSTOM1 }, { text: 'Start from here', result: POPUP_RESULT.CUSTOM2 }],
+    });
+    const how = { [POPUP_RESULT.AFFIRMATIVE]: 'catchUp', [POPUP_RESULT.CUSTOM1]: 'keep', [POPUP_RESULT.CUSTOM2]: 'fresh' }[result];
+    if (how) await fixGap(how);
+}
+eventSource.on(eventTypes.CHAT_CHANGED, () => setTimeout(offerCatchUp, 300));
 
 // ---- The editor (N2)
 let snapshots = null;
@@ -105,6 +166,10 @@ function openStEditor() {
     bypass = true;
     try { $('#WI-SP-button .drawer-toggle').trigger('click'); } finally { bypass = false; }
 }
+
+bubble = createBubble({ ctx, settings, gap: () => (hooks.active() ? hooks.gap() : null), onFixGap: fixGap });
+stVersion().then(v => health.setVersion(v));
+if (!health.ok) showHealth(health);
 
 app = createApp({
     ctx, library, snapshots, hooks, settings, saveSettings: saveSettingsDebounced,
@@ -139,6 +204,9 @@ globalThis.wihero = {
     get model() { return hooks.model; },
     get state() { return hooks.state(); },
     get pending() { return hooks.pending; },
+    health,
+    bubble,
+    hooks,
     settings,
     module: MODULE,
 };

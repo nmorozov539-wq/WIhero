@@ -19,11 +19,16 @@ character's greetings, and explains every phrase that fires or is blocked and
 what would change after the turn. Nothing it does is saved. Its keyword matching
 is its own (regex keys, secondary keys and scan depth are approximated, and
 recursion, sticky, cooldown, probability and vectors aren't run), and the
-reply's key words count from the next message, as in a chat.
+reply's key words count from the next message, as in a chat. **N6 is in**: a
+chat that ran with WI Hero off is caught up on request (replayed oldest first),
+WI Hero names an ST version it isn't tested on and stands down to plain World
+Info if a hook it needs is gone, and a book bubble in the chat shows how many
+entries reached the model with the last reply (tap it for their names; switch
+it off in the extension settings).
 Run the tests with `node --test`; the in-ST checks are in [e2e/](e2e/README.md).
 
 **Building it?** Start at [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md): its "Start
-here" section, the decisions (D1–D23), and the build order N1–N5.
+here" section, the decisions (D1–D26), and the build order N1–N6.
 
 ## Demo
 

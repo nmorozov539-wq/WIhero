@@ -4,6 +4,7 @@ export const MODULE = 'wihero';
 
 export const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
+    bubble: true,
 });
 
 export function getSettings(extensionSettings) {
