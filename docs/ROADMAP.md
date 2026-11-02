@@ -146,6 +146,14 @@ phone, and lands in the book.
 
 **Done when:** every block reason in CONCEPTS 7 shows up for the sample book.
 
+### N6 — Safety and the chat bubble
+- Catch-up for replies written with WI Hero off, a check of the ST version and
+  of every hook WI Hero uses, and a chat bubble with what reached the model.
+
+**Done when:** a chat played partly with WI Hero off catches up to where
+always-on play would be, a missing hook stands the engine down to plain World
+Info, and the bubble names what the prompt got.
+
 ## Later
 Preview over several turns, desktop layout, greetings in group chats, a
 timeline scrubber across branches. (Reopen, the problem list, the canvas

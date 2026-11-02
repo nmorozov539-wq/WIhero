@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import { createHooks } from '../src/st-hooks.js';
 import { getStringHash } from '../src/engine/util.js';
 import { e } from './sim.js';
+import { createHealth } from '../src/compat.js';
+import { bubbleData } from '../src/bubble.js';
 
 const scan_state = { NONE: 0, INITIAL: 1, RECURSION: 2, MIN_ACTIVATIONS: 3 };
 
@@ -28,9 +30,12 @@ class FakeST {
             eventTypes: { WORLDINFO_FORCE_ACTIVATE: 'force' },
             eventSource: { emit: async (type, list) => { if (type === 'force') for (const x of list) this.forced.set(`${x.world}.${x.uid}`, x); } },
         };
+        this.settings = { enabled: true };
+        this.health = createHealth();
         this.hooks = createHooks({
             ctx: () => context,
-            settings: { enabled: true },
+            settings: this.settings,
+            health: this.health,
             st: {
                 getSortedEntries: async () => this.sorted(),
                 getStringHash,
@@ -142,4 +147,68 @@ test('greetings: the chat\'s opening greeting opens its scenario', async () => {
     st.chat[0] = { is_user: false, mes: 'Alt.', swipe_id: 1, swipes: ['Main.', 'Alt.'] };
     assert.deepEqual(await st.send('forest'), [0]);
     assert.deepEqual(st.hooks.model.issues, []);
+});
+
+// ---- N6 (BUILD_SPEC 17)
+
+const chain = () => [
+    e(0, 'road', { id: 'road' }),
+    e(1, 'mill', { id: 'mill', gate: [['road']], closesFor: ['road'] }),
+    e(2, 'tunnel', { id: 'tunnel', gate: [['mill']], closesFor: ['mill'] }),
+    e(3, 'storm', { id: 'storm', glue: { mode: 'hold' }, closeGate: [[{ lock: ['storm passes'] }]] }),
+];
+const play = [['road'], ['storm'], ['mill'], ['quiet'], ['tunnel'], ['the storm passes'], ['road mill']];
+
+test('off for some turns, then Catch up replays them oldest first and lands where always-on play would', async () => {
+    const on = new FakeST(chain());
+    for (const [t] of play) await on.send(t);
+    const off = new FakeST(chain());
+    await off.send(play[0][0]);
+    off.settings.enabled = false;
+    for (const [t] of play.slice(1, 5)) await off.send(t);
+    off.settings.enabled = true;
+    const gap = off.hooks.gap();
+    assert.deepEqual(gap.skipped, [4, 6, 8, 10], 'the four replies written with WI Hero off');
+    assert.equal(gap.from, 2);
+    assert.equal(await off.hooks.fixGap('catchUp'), 4);
+    assert.equal(off.hooks.gap(), null);
+    for (const [t] of play.slice(5)) await off.send(t);
+    const strip = s => ({ ...s, round: [...s.round].sort() });
+    assert.deepEqual(strip(off.state), strip(on.state));
+});
+
+test('Keep as is carries the old state on; Start from here starts it again', async () => {
+    const st = new FakeST(chain());
+    await st.send('road');
+    st.settings.enabled = false;
+    await st.send('mill');
+    st.settings.enabled = true;
+    await st.hooks.fixGap('keep');
+    assert.equal(st.hooks.gap(), null);
+    assert.equal(st.state.fired['Book/mill'], undefined, 'the skipped mill never counted');
+    assert.equal(st.state.fired['Book/road'], 1);
+    st.settings.enabled = false;
+    await st.send('quiet');
+    st.settings.enabled = true;
+    await st.hooks.fixGap('fresh');
+    assert.deepEqual(Object.keys(st.state.fired), ['@Char.png:0'], 'only the opening greeting');
+});
+
+test('what reached the model is stored on each reply, also with the engine off; a continue adds to it', async () => {
+    const st = new FakeST(chain());
+    assert.deepEqual(bubbleData(st.chat), { count: null, sent: null }, 'a greeting alone has nothing to show');
+    await st.send('road and storm');
+    assert.deepEqual(bubbleData(st.chat).sent.map(x => x.title), ['road', 'storm']);
+    st.settings.enabled = false;
+    await st.send('mill');
+    assert.deepEqual(bubbleData(st.chat).sent.map(x => x.title), ['mill'], 'off: plain ST sends the mill, and the bubble says so');
+});
+
+test('a scan that no longer looks as expected stands the engine down: entries are left to plain ST', async () => {
+    const st = new FakeST(chain());
+    st.hooks.onEntriesLoaded('nonsense');
+    assert.equal(st.health.ok, false);
+    assert.match(st.health.problems[0], /WORLDINFO_ENTRIES_LOADED/);
+    assert.deepEqual(await st.send('mill'), [1], 'the mill fires though its gate is shut: WI Hero stood down');
+    assert.equal(st.chat.at(-1).extra.wihero, undefined, 'and writes no snapshot');
 });

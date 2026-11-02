@@ -13,7 +13,7 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   [sketch 7](sketches/7-new-pieces.html).
-- Status: complete for review (2026-11-02). Decisions D1–D23 agreed with the owner.
+- Status: complete for review (2026-11-02). Decisions D1–D26 agreed with the owner (D24–D26 added with N6).
 - Building follows the roadmap's N1–N5 (section 13).
 
 ### Start here (for the coding thread)
@@ -65,6 +65,9 @@ to be changed while building.
 | D20 | **Editing story logic mid-play is safe.** The chat's state is mostly history (what fired and when); after an edit, the next message is worked out with the new rules on the same history. Deleted entries' history is ignored. Closed stays closed even when the rule that closed it is removed; Reopen (D18) is the way back. |
 | D21 | **Snapshots are manual.** A "Snapshot" button saves a named copy of the whole book; nothing is copied automatically except one "As imported" copy, kept the first time WI Hero sees a book. Restore puts the book back (with Undo) and leaves the chat's story state alone. Saving stays automatic. Details in section 11. |
 | D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ⌄ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
+| D24 | **A chat that ran without WI Hero is caught up on request.** Replies with no snapshot after the last one that has one (WI Hero switched off, or not yet installed) leave the story behind. When WI Hero is switched on or the chat opens, it asks once: **Catch up** replays the skipped turns through the engine, oldest first, each starting from the one before, with Preview's keyword matching (ST doesn't save what it sent); **Keep as is** carries the old state on; **Start from here** starts the state again; **Not now** leaves the choice on the chat bubble and the panel. Details in section 17.1. |
+| D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and internal WI Hero pulls) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
+| D26 | **A chat bubble shows what reached the model.** A book in a circle over the chat, with how many World Info entries were sent with the last reply (from WORLD_INFO_ACTIVATED, all books, also with the engine off). Tap it for their names (and mask). Stored per reply and swipe; on by default, with a "Chat bubble" switch in the extension settings. Details in section 17.3. |
 | D23 | **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
 
 ---
@@ -601,6 +604,7 @@ something testable, as in ROADMAP.md.
 | **N3 Canvas** | Canvas drawing lifted from the demo, 8.3 placement, D7 memory, D17 chat state, problem badges. | As ROADMAP N3, plus: camera and mask layers survive a reload, and chat state matches the open chat. |
 | **N4 Inspector** | D14, D15 (entry page chips), D18 Reopen, D19 Problems sheet, target picker, Story moves on, greeting cards and their inspector (15.4). Greeting refs in the engine (15.1–15.3) go in N1. | As ROADMAP N4, plus: Reopen works and rewinds, and mask text is edited through the chips. |
 | **N5 Preview** | LAYOUT's Preview on the real engine (D13). | As ROADMAP N5, plus: Preview and a real chat agree on the sample book. |
+| **N6 Safety and the bubble** | Section 17: catch-up (D24), compatibility and health (D25), the chat bubble (D26). | Replies written with WI Hero off are caught up oldest first and land where always-on play would; an untested ST version is named; a missing thread stands the engine down to plain World Info; the bubble counts and names what reached the prompt. |
 
 ---
 
@@ -704,3 +708,52 @@ written on the entries:
 ### 15.6 Later
 
 Group chats (several characters' greetings mixed in one chat).
+
+## 17. Safety and the chat bubble (N6)
+
+### 17.1 Catch-up (D24)
+
+- **The gap**: the replies after the last message with a snapshot that have
+  none, not counting a greeting before the first user message
+  (`src/catch-up.js` `findGap`). Only shown when the loaded books have story
+  logic, and only while the engine runs.
+- **Asked once** per chat and gap, in an ST popup, when WI Hero is switched on
+  or a chat opens. The panel and the chat bubble keep the same three actions
+  until the gap is resolved.
+- **Catch up**: for each skipped reply j, oldest first, the generation's chat
+  is `chat[0..j-1]`; the turn is simulated as Preview runs it
+  (`simulateTurn`: keyword matches, permanent, holds, Who triggers, settling,
+  riders), then `advance` writes the snapshot on reply j. Each turn reads the
+  snapshot the one before wrote, so the order is the order of play. Approximate
+  where Preview is (10): regex and secondary keys, scan depth, no recursion,
+  sticky, cooldown, probability or vectors.
+- **Keep as is** writes the last snapshot's state on the newest reply; **Start
+  from here** writes the initial state there. Either way the gap is closed.
+- WI Hero reads the books itself (`getSortedEntries`) for this; its own
+  WORLDINFO_ENTRIES_LOADED handler leaves those reads alone, so no entry is
+  dropped from them.
+
+### 17.2 Compatibility and health (D25)
+
+- `TESTED_ST` in `src/compat.js` lists the versions the e2e checks pass on
+  (now 1.19.0). Add a version only after running them on it.
+- At load, `checkHealth` looks for the events (GENERATION_STARTED,
+  GENERATION_AFTER_COMMANDS, WORLDINFO_ENTRIES_LOADED, WORLDINFO_SCAN_DONE,
+  WORLD_INFO_ACTIVATED, MESSAGE_RECEIVED, GENERATION_STOPPED, CHAT_CHANGED,
+  WORLDINFO_FORCE_ACTIVATE), the context members (eventSource, eventTypes,
+  chat, saveChat, substituteParams, characters, chatMetadata) and the
+  internals of `src/st.js`. At runtime, the first argument of
+  WORLDINFO_ENTRIES_LOADED and WORLDINFO_SCAN_DONE is checked on every call.
+- Any problem stands the engine down for the session (`active()` is false):
+  nothing is removed from the scan, nothing forced, no snapshots written, and a
+  warning says what is missing. The editor and the bubble keep working.
+- The lines show as a toast once per session and stay in the extension panel.
+
+### 17.3 The chat bubble (D26)
+
+- On each counted reply, `message.extra.wiheroSent` (and its swipe's) holds
+  `[{ world, uid, title, mask? }]` from WORLD_INFO_ACTIVATED; a continue adds
+  to the list. Older replies have none, and the bubble shows "–".
+- The bubble sits at the bottom right of the chat, above the input. A dot on it
+  means a gap (17.1); its menu then starts with the three actions.
+

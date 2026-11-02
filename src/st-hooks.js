@@ -7,6 +7,22 @@ import { pickMask, reopen } from './engine/manual.js';
 import { greetingFingerprint, greetingsOf, openingGreeting, writeSnapshot } from './chat-state.js';
 import { isCounted, scanChat } from './generation.js';
 import { entryHash, scanLength, stickyHeld } from './timers.js';
+import { probeEntriesLoaded, probeScanDone } from './compat.js';
+import { findGap, resolveGap } from './catch-up.js';
+
+/** Where the entries sent with a reply are kept: message.extra.wiheroSent, and on its swipe (the chat bubble). */
+export const SENT_FIELD = 'wiheroSent';
+
+/** Stores what was sent with a reply on the message and its current swipe. */
+export function writeSent(message, sent) {
+    message.extra ??= {};
+    message.extra[SENT_FIELD] = sent;
+    const swipe = message.swipe_info?.[message.swipe_id ?? 0];
+    if (swipe) {
+        swipe.extra ??= {};
+        swipe.extra[SENT_FIELD] = sent;
+    }
+}
 
 /**
  * @param {object} deps
@@ -14,8 +30,11 @@ import { entryHash, scanLength, stickyHeld } from './timers.js';
  * @param {object} deps.st { getSortedEntries, getStringHash, parseRegexFromString, scan_state, globals() }
  * @param {object} deps.settings extension_settings.wihero
  * @param {() => void} [deps.onChange] Called when the panel should refresh.
+ * @param {object} [deps.health] src/compat.js createHealth(): runtime problems stand the engine down.
  */
-export function createHooks({ ctx, st, settings, onChange = () => {} }) {
+export function createHooks({ ctx, st, settings, onChange = () => {}, health = null }) {
+    /** Whether the engine runs: switched on, and SillyTavern still has everything it needs (BUILD_SPEC 17.2). */
+    const active = () => settings.enabled && (health?.ok ?? true);
     /** Model of the books ST loaded last, and its signature to skip rebuilding. */
     let model = buildModel([]);
     let signature = '';
@@ -61,12 +80,12 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
     function onGenerationStarted(type, _options, dryRun) {
         if (dryRun) return;
         // An uncounted generation (quiet, impersonate) still gets the rules; it just never writes a snapshot.
-        pending = { type, uncounted: !isCounted(type), working: null, chat: null, sticky: new Set(), forced: new Set(), victims: new Map(), fired: [] };
+        pending = { type, uncounted: !isCounted(type), working: null, chat: null, sticky: new Set(), forced: new Set(), victims: new Map(), fired: [], sent: [], masks: new Map() };
     }
 
     // 6.2, glue: force-activate holds before the scan. ST clears forced entries after every scan.
     async function onAfterCommands(type, _options, dryRun) {
-        if (!settings.enabled || dryRun) return;
+        if (!active() || dryRun) return;
         const entries = await st.getSortedEntries();
         if (!hashWarned && entries.some(e => hashes.has(stKey(e)) && hashes.get(stKey(e)) !== e.hash)) {
             hashWarned = true;
@@ -81,10 +100,13 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
 
     // 6.3: only ever remove entries, never edit them (ST hashes them right after this event).
     function onEntriesLoaded(lore) {
+        const bad = probeEntriesLoaded(lore);
+        if (bad) { health?.fail(bad); return; }
+        if (selfLoading) return; // our own read of the books (loadModel): they must all stay in
         loaded = Object.values(lore ?? {}).filter(Array.isArray).flat();
         hashes = new Map(loaded.map(e => [stKey(e), entryHash(e, st.getStringHash)]));
         rebuild(loaded);
-        if (!settings.enabled) return onChange();
+        if (!active()) return onChange();
         const chat = scanChat(ctx().chat ?? [], pending?.type);
         const working = stateForScan(chat, model, stateOptions(chat));
         // ST skips timed effects on dry runs, and a dry run never has a pending turn.
@@ -101,8 +123,10 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
 
     // 6.4: settle the turn after every scan loop, from the whole Map each time.
     async function onScanDone(args) {
-        const map = args?.activated?.entries;
-        if (!settings.enabled || !(map instanceof Map)) return;
+        if (!active()) return;
+        const bad = probeScanDone(args);
+        if (bad) { health?.fail(bad); return; }
+        const map = args.activated.entries;
         const chat = pending?.chat ?? scanChat(ctx().chat ?? [], pending?.type);
         const working = pending?.working ?? stateForScan(chat, model, stateOptions(chat));
         const held = pending?.sticky ?? new Set();
@@ -117,7 +141,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
         }
         const out = settleScan(model, working, { activated: [...map.keys()], byDropped, sticky: held, chat });
         for (const k of out.drop) map.delete(k);
-        if (pending) pending.victims = out.victims;
+        if (pending) { pending.victims = out.victims; pending.masks = out.masks; }
         // 4. Ride-along: force the riders in and ask ST for one more pass.
         const riders = out.force.map(k => args.sortedEntries?.find?.(e => stKey(e) === k)).filter(e => e && !e.disable);
         if (riders.length) {
@@ -137,16 +161,30 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
 
     // 6.5
     function onWorldInfoActivated(entries) {
-        if (pending && !pending.uncounted) pending.fired = (entries ?? []).map(stKey);
+        if (!pending || pending.uncounted) return;
+        const list = Array.isArray(entries) ? entries : [];
+        pending.fired = list.map(stKey);
+        // What reached the model, for the chat bubble. Recorded whether or not the engine runs.
+        pending.sent = list.map(e => {
+            const mask = pending.masks?.get(stKey(e));
+            return { world: e.world, uid: e.uid, title: e.comment || e.key?.[0] || `uid ${e.uid}`, ...(mask ? { mask } : {}) };
+        });
     }
 
     // 6.6
     function onMessageReceived(mesId) {
         const turn = pending;
-        if (!turn || turn.uncounted || !turn.working || !settings.enabled) return;
+        if (!turn || turn.uncounted) return;
         const chat = ctx().chat ?? [];
         const message = chat[mesId];
         if (!message || message.is_user) return;
+        let sent = turn.sent;
+        if (turn.type === 'continue') {
+            const before = message.extra?.[SENT_FIELD] ?? [];
+            sent = [...new Map([...before, ...sent].map(x => [`${x.world}.${x.uid}`, x])).values()];
+        }
+        writeSent(message, sent);
+        if (!turn.working || !active()) { pending = null; onChange(); return; }
         pending = null;
         let fired = turn.fired;
         if (turn.type === 'continue') fired = [...new Set([...(message.extra?.[FIELD]?.round ?? []), ...fired])];
@@ -180,6 +218,37 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
         return found.length === 1 ? found[0] : null;
     }
 
+    /** Rebuilds the model from the books ST would load now (for a chat just opened, before any generation). */
+    let selfLoading = false;
+    async function loadModel() {
+        let entries;
+        selfLoading = true;
+        try { entries = await st.getSortedEntries(); } finally { selfLoading = false; }
+        if (Array.isArray(entries)) rebuild(entries);
+        return entries ?? [];
+    }
+
+    /** Replies of the open chat that ran without WI Hero, when the loaded books have story logic; else null. */
+    function gap() {
+        const chat = ctx().chat ?? [];
+        if (!model.nodes.size || !chat.length) return null;
+        const g = findGap(chat);
+        return g.skipped.length ? g : null;
+    }
+
+    /**
+     * Resolves the open chat's gap (BUILD_SPEC 17.1) and saves the chat.
+     * @param {'catchUp' | 'keep' | 'fresh'} how
+     */
+    async function fixGap(how) {
+        const entries = await loadModel();
+        const chat = ctx().chat ?? [];
+        const n = resolveGap(how, { chat, entries, model, options: stateOptions, globals: { ...st.globals(), parseRegexFromString: st.parseRegexFromString } });
+        if (n) await ctx().saveChat();
+        onChange();
+        return n;
+    }
+
     /** What the panel shows: the state the next generation starts from. */
     function view() {
         if (!loaded.length && !model.nodes.size) return null;
@@ -195,12 +264,12 @@ export function createHooks({ ctx, st, settings, onChange = () => {} }) {
                 lastRound: state.round.includes(node.stKey),
             };
         });
-        return { rows, issues: model.issues, enabled: settings.enabled, from: index, roundSize: state.round.length };
+        return { rows, issues: model.issues, enabled: settings.enabled, from: index, roundSize: state.round.length, gap: gap() };
     }
 
     return {
         onGenerationStarted, onAfterCommands, onEntriesLoaded, onScanDone, onWorldInfoActivated, onMessageReceived, dropPending,
-        reopenEntry, pickEntryMask, findNode, view,
+        reopenEntry, pickEntryMask, findNode, view, loadModel, gap, fixGap, active,
         get model() { return model; },
         get pending() { return pending; },
         get loaded() { return loaded; },

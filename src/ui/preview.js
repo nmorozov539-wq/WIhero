@@ -267,6 +267,17 @@ function scanTurn({ entries, model, chat, opts, globals, words, current = chat.l
     return { state, results, fired: [...map], victims, masks };
 }
 
+/**
+ * One generation's scan simulated over `chat` (ending with the user's message), as Preview runs it: what fires, what
+ * closed this turn, and the masks. Catch-up (src/catch-up.js) replays skipped turns with it.
+ * @returns {{ state: object, fired: string[], victims: Map<string, string>, masks: Map<string, string | null> }}
+ */
+export function simulateTurn({ entries, model, chat, opts = {}, globals = {} }) {
+    const g = { depth: 2, caseSensitive: false, matchWholeWords: false, ...globals };
+    const t = scanTurn({ entries, model, chat, opts, globals: g, words: namer(model) });
+    return { state: t.state, fired: t.fired, victims: t.victims, masks: t.masks };
+}
+
 /** Every lock phrase of the loaded rules: { node, row, lock, what: 'gate'|'close gate'|'mask', mask }. */
 function locksOf(model) {
     const out = [];
