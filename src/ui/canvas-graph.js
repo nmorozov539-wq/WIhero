@@ -36,18 +36,31 @@ export function parseRef(r) {
  * story logic name ids, so they become `id:` keys; waits and greetings are not drawn here.
  * @returns {{ E: object[], byId: (key) => object, packMembers: (name) => object[] }}
  */
-export function canvasBook(data, { folderOf = () => '', problems = new Set() } = {}) {
-    const ref = r => (typeof r === 'string' ? (r.startsWith('#') ? r : `id:${r}`) : isLock(r) ? { lock: r.lock } : null);
+export function canvasBook(data, { folderOf = () => '', problems = new Set(), greetings = [] } = {}) {
+    const greetKey = r => `greet:${r.char}:${r.greeting}`;
+    const shown = new Set(greetings.map(g => g.key));
+    const greet = r => (isObject(r) && 'greeting' in r && shown.has(greetKey(r)) ? greetKey(r) : null);
+    const ref = r => (typeof r === 'string' ? (r.startsWith('#') ? r : `id:${r}`) : isLock(r) ? { lock: r.lock } : greet(r));
     const rows = rs => (Array.isArray(rs) ? rs.filter(Array.isArray).map(row => row.map(ref).filter(Boolean)).filter(row => row.length) : []);
     const list = (xs) => (Array.isArray(xs) ? xs.filter(x => typeof x === 'string').map(ref) : []);
     const E = Object.values(data?.entries ?? {}).sort((a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid).map(entry => {
         const c = rawConfig(entry) ? (configOf(entry) ?? {}) : {};
         const s = strategyOf(entry);
+        // Greeting rules stored on this entry (BUILD_SPEC 15.3); `via` aims them at a pack.
+        const self = cardKey(entry);
+        const aim = r => (typeof r.via === 'string' && r.via.startsWith('#') ? `pack:${r.via.slice(1)}` : self);
+        const fromGreetings = [];
+        for (const r of Array.isArray(c.gatedBy) ? c.gatedBy : []) if (greet(r)) fromGreetings.push({ from: greet(r), to: aim(r), kind: 'open' });
+        const closeRows = Array.isArray(c.closeGate) ? c.closeGate.filter(row => {
+            if (!(Array.isArray(row) && row.length === 1 && isObject(row[0]) && 'greeting' in row[0] && typeof row[0].via === 'string')) return true;
+            if (greet(row[0])) fromGreetings.push({ from: greet(row[0]), to: aim(row[0]), kind: 'close' });
+            return false;
+        }) : c.closeGate;
         return {
             id: cardKey(entry), uid: entry.uid, entry, title: titleOf(entry), keys: entry.key ?? [],
             strategy: s === 'off' ? (entry.constant ? 'perm' : entry.vectorized ? 'vec' : 'keys') : s, off: !!entry.disable,
             folder: folderOf(entry), problem: problems.has(entry.uid),
-            gate: rows(c.gate), gatesFor: list(c.gatesFor), closeGate: rows(c.closeGate), closesFor: list(c.closesFor),
+            gate: rows(c.gate), gatesFor: list(c.gatesFor), closeGate: rows(closeRows), closesFor: list(c.closesFor), fromGreetings,
             glue: c.glue?.mode === 'ride' && typeof c.glue.host === 'string' ? { mode: 'ride', host: `id:${c.glue.host}` } : c.glue?.mode === 'hold' ? { mode: 'hold' } : null,
             switch: list(c.switch),
             masks: Array.isArray(c.masks) ? c.masks.filter(isObject).map(m => ({ name: m.name, content: m.content, gate: rows(m.gate), closeGate: rows(m.closeGate) })) : [],
@@ -55,6 +68,14 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set() } =
             once: c.once === true, by: c.by ?? null,
         };
     });
+    // The open chat's character's greetings: start cards with out ports only (VISUAL 7.5).
+    for (const g of greetings) {
+        E.push({
+            id: g.key, uid: null, entry: null, greeting: g, title: g.title, text: g.text, keys: [], strategy: 'keys', off: false,
+            folder: '', problem: !!g.changed, gate: [], gatesFor: [], closeGate: [], closesFor: [], fromGreetings: [], glue: null,
+            switch: [], masks: [], packs: [], once: false, by: null,
+        });
+    }
     const byKey = new Map(E.map(e => [e.id, e]));
     const byId = key => byKey.get(key);
     const packMembers = name => E.filter(e => e.packs.some(p => p === name || p.startsWith(`${name}/`)));
@@ -87,6 +108,14 @@ export function buildGraph(m) {
             if (x) addRow(to, 'cin', [x]);
         });
         if (e.glue?.mode === 'ride' && m.byId(e.glue.host)) ref(e.glue.host, e.id, 'glin', 'glout', 'ride', { direct: true });
+        for (const x of e.fromGreetings ?? []) {
+            const [port, fromPort] = x.kind === 'open' ? ['gin', 'gout'] : ['cin', 'cout'];
+            if (x.to.startsWith('pack:') && !m.packMembers(x.to.slice(5)).length) continue;
+            if (edges.some(y => y.from === x.from && y.to === x.to && y.port === port)) continue;
+            const made = { from: x.from, fromPort, to: x.to, port, kind: x.kind, mode: null, direct: true };
+            edges.push(made);
+            if (x.kind === 'close') addRow(x.to, 'cin', [made]);
+        }
         e.masks.forEach((mk, i) => {
             mk.gate.forEach(row => { const it = row.map(r => ref(r, e.id, 'mgin', 'gout', 'open', { mask: i })).filter(Boolean); if (it.length) addRow(e.id, 'mgin', it); });
             mk.closeGate.forEach(row => { const it = row.map(r => ref(r, e.id, 'mcin', 'cout', 'close', { mask: i })).filter(Boolean); if (it.length) addRow(e.id, 'mcin', it); });
@@ -289,6 +318,7 @@ export function makeGrid(R, extra) {
     let x1 = -Infinity;
     let y1 = -Infinity;
     for (const r of [...R.values(), ...extra]) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
+    if (!Number.isFinite(x0)) { x0 = 0; y0 = 0; x1 = 0; y1 = 0; } // nothing on the canvas
     x0 = snap(x0 - 240); y0 = snap(y0 - 240); x1 = snap(x1 + 240); y1 = snap(y1 + 240);
     const W = (x1 - x0) / G + 1;
     const H = (y1 - y0) / G + 1;

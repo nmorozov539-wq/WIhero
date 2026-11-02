@@ -200,20 +200,34 @@ export function renderEntryPage(main, o) {
         }
     }
 
-    // Content.
+    // Content. In Hero mode an entry with masks gets a chip per version (D15): Main · mask · …
+    const masks = o.hero ? (o.masks ?? []) : [];
+    const version = masks.find(m => m.name === o.mask) ?? null;
+    const text0 = version ? version.content : (e.content ?? '');
     const ch = el('div', 'content-h');
-    const tk = el('small', '', `${tokenGuess(e.content)} tokens`);
+    const tk = el('small', '', `${tokenGuess(text0)} tokens`);
     ch.append(el('h2', '', 'Content'), tk);
     en.append(ch);
+    if (masks.length) {
+        const row = el('div', 'mchips');
+        for (const m of [{ name: null, label: 'Main' }, ...masks.map(x => ({ name: x.name, label: x.name }))]) {
+            const b = btn(`mchip${(version?.name ?? null) === m.name ? ' on' : ''}`, '', () => o.setMask(m.name), m.name ? `Mask ${m.label}` : 'Main text');
+            b.append(el('span', '', m.label));
+            if ((o.activeMask ?? null) === m.name && o.chatOpen) { const dot = el('i', 'mdot'); dot.title = 'Active in the open chat'; b.append(dot); }
+            row.append(b);
+        }
+        en.append(row);
+    }
     const count = text => o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
     let countTimer = null;
-    en.append(autoText(e.content ?? '', 'Type here', text => {
-        o.change(x => { x.content = text; }, true);
+    en.append(autoText(text0, 'Type here', text => {
+        if (version) o.changeMask(version.name, text);
+        else o.change(x => { x.content = text; }, true);
         tk.textContent = `${tokenGuess(text)} tokens`;
         clearTimeout(countTimer);
         countTimer = setTimeout(() => count(text), 500);
     }));
-    count(e.content ?? '');
+    count(text0);
 
     if (o.fresh) setTimeout(() => { if (!h1.textContent) h1.focus(); }, 30);
     return v;
