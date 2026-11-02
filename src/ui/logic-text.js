@@ -8,17 +8,15 @@ const READING = /^#([^:]+)(?::(all|\d+))?$/;
 /** Piece families (VISUAL 6.2) → CSS color variable. */
 export const FAMILY_COLOR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)', by: 'var(--muted)' };
 
-const and = (list, word = 'and') => list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} ${word} ${list.at(-1)}`;
+export const and = (list, word = 'and') => list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} ${word} ${list.at(-1)}`;
 const greetingName = n => n === 0 ? 'Greeting' : `Alt ${n}`;
 
 /**
+ * Names and row sentences for one entry's rules: `nameOf(stateKey)`, `idName(id)`, `rowText(raw row)`.
  * @param {object} node a model node
  * @param {object} model buildModel's result for the node's book
- * @returns {{ family: string, label: string, text: string }[]}
  */
-export function logicLines(node, model) {
-    if (!node?.key) return [];
-    const c = node.config ?? {};
+export function wording(node, model) {
     const nameOf = key => {
         if (key.startsWith('@')) {
             const g = model.greetings?.get(key);
@@ -54,6 +52,18 @@ export function logicLines(node, model) {
         parts.push(...rest);
         return and(parts);
     };
+    return { nameOf, idName, rowText };
+}
+
+/**
+ * @param {object} node a model node
+ * @param {object} model buildModel's result for the node's book
+ * @returns {{ family: string, label: string, text: string }[]}
+ */
+export function logicLines(node, model) {
+    if (!node?.key) return [];
+    const c = node.config ?? {};
+    const { nameOf, idName, rowText } = wording(node, model);
     const rowsText = rows => (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r) && r.length).map(rowText).join('; or when ');
     const targets = list => and((Array.isArray(list) ? list : []).map(t => (t.startsWith('#') ? `#${t.slice(1)}` : idName(t))));
 

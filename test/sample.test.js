@@ -15,7 +15,7 @@ test('the sample book loads without problems', () => {
 
 test('the chain advances: road, mill, tunnel, each closing the one before', () => {
     const s = new Sim(entries());
-    assert.deepEqual(s.send('mill'), [], 'the mill waits for the road');
+    assert.deepEqual(s.send('mill').filter(u => u !== 23), [], 'the mill waits for the road (Sky is permanent)');
     assert.ok(s.send('road').includes(0));
     assert.ok(s.send('mill').includes(1));
     assert.ok(s.state.closed[K('road')]);

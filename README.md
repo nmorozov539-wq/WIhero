@@ -12,7 +12,14 @@ made, filled, organized and snapshotted. **N3, Hero mode's canvas, is in**: a
 book's story logic as cards and links, arranged once and then kept where you
 leave them, with the open chat's state on the cards when you want it. **N4, the
 inspector, is in**: tap a card to add, edit and remove every piece, aim rules at
-the open chat's greetings, and Reopen a closed entry. Preview comes in N5.
+the open chat's greetings, and Reopen a closed entry. **N5, Preview, is in**:
+the eye tab next to the Canvas checks a pretend exchange against the book on the
+real engine, starting from the open chat, a fresh start or one of its
+character's greetings, and explains every phrase that fires or is blocked and
+what would change after the turn. Nothing it does is saved. Its keyword matching
+is its own (regex keys, secondary keys and scan depth are approximated, and
+recursion, sticky, cooldown, probability and vectors aren't run), and the
+reply's key words count from the next message, as in a chat.
 Run the tests with `node --test`; the in-ST checks are in [e2e/](e2e/README.md).
 
 **Building it?** Start at [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md): its "Start
