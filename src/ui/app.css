@@ -245,5 +245,118 @@ input.kbox:focus { border-color: var(--accent); }
 .search input { flex: 1; min-width: 0; height: 44px; border-radius: 22px; border: 1px solid var(--accent); background: var(--surface); color: var(--fg); padding: 0 16px; user-select: text; -webkit-user-select: text; }
 .search .res { flex: 1; overflow-y: auto; }
 
+/* ---------- Hero mode: the canvas (VISUAL 7) ---------- */
+.wih {
+  --canvas: var(--tint);
+  --card: color-mix(in srgb, var(--fg) 9%, var(--canvas));
+  --card-under: color-mix(in srgb, var(--fg) 5%, var(--canvas));
+  --canvas-dot: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+@supports (color: rgb(from red r g b)) {
+  .wih { --canvas: rgb(from var(--tint) r g b); }
+}
+.modebtn { display: flex; align-items: center; gap: 12px; width: calc(100% - 20px); margin: 4px 10px 6px; min-height: 50px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; transition: background .15s, border-color .15s; }
+.modebtn span { flex: 1; }
+.modebtn.arm { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 500; font-size: var(--t-s); }
+
+.vp { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: grab;
+  background-color: var(--canvas); background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px); background-size: 22px 22px; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+svg.lk, svg.pt { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+svg.pt { z-index: 3; }
+svg.pt .port { pointer-events: all; cursor: pointer; }
+svg.lk path { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+svg.lk path.head { stroke-width: 0; }
+.card { position: absolute; padding: 9px 10px 0 30px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); cursor: pointer; z-index: 2; }
+.card:hover { border-color: color-mix(in srgb, var(--fg) 34%, transparent); }
+.card .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
+.card .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; display: flex; gap: 5px; align-items: center; }
+.card .k > span { overflow: hidden; text-overflow: ellipsis; }
+.card .k svg { width: 12px; height: 12px; flex-shrink: 0; }
+.card.off { opacity: .5; }
+.card.hit { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.card.moving { box-shadow: 0 12px 30px var(--shadow); border-color: var(--accent); cursor: grabbing; z-index: 4; }
+.card .grip { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 24px; height: 44px; display: grid; grid-template-columns: 6px 6px; grid-template-rows: repeat(3, 6px); gap: 4px; align-content: center; justify-content: center; cursor: grab; touch-action: none; border-radius: 6px; }
+.card .grip:hover { background: var(--raised); }
+.card .grip i { width: 5px; height: 5px; border-radius: 3px; background: var(--c); }
+.card .grip.ring i { background: none; border: 1.5px solid var(--c); }
+.card .hold { position: absolute; right: -1px; top: 9px; bottom: 9px; width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--p-glue) 45%, transparent); }
+.card.holding .hold { background: var(--p-glue); box-shadow: 0 0 8px var(--p-glue); }
+.card .badge1, .card .fired { position: absolute; right: 6px; top: 5px; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 0 3px; line-height: 13px; }
+.card .badge1 { color: var(--p-close); border: 1.5px solid var(--p-close); }
+.card .fired { color: var(--fg); background: var(--raised); }
+.card .cbang { position: absolute; left: -7px; top: -7px; width: 18px; height: 18px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; z-index: 3; }
+.card.masked .k { color: var(--p-mask); }
+.card.closed { opacity: .55; }
+.card.closed .t { text-decoration: line-through; }
+.card .k .cl { color: var(--p-close); font-weight: 600; letter-spacing: .02em; }
+.card.waiting { background: var(--canvas); border-style: dashed; }
+.layercard { position: absolute; width: 168px; height: 60px; border-radius: 10px; background: var(--card-under); border: 1px solid color-mix(in srgb, var(--p-mask) 55%, var(--line)); z-index: 1; }
+.mnav { position: absolute; z-index: 3; display: flex; align-items: center; background: var(--canvas); border: 1.5px solid var(--p-mask); border-radius: 12px; color: var(--p-mask); font-size: 11px; font-weight: 700; overflow: hidden; }
+.mnav button { color: inherit; width: 24px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.mnav button:hover { background: color-mix(in srgb, var(--p-mask) 18%, transparent); }
+.mnav svg { width: 12px; height: 12px; stroke-width: 2.6; }
+.mnav span { min-width: 34px; text-align: center; white-space: nowrap; }
+.mnav.v { flex-direction: column; }
+.mnav.v span { min-width: 0; padding: 2px 3px; writing-mode: vertical-rl; }
+.mnav.v button svg { transform: rotate(90deg); }
+.packframe { position: absolute; border: 1.5px dashed color-mix(in srgb, var(--p-pack) 60%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--p-pack) 4%, transparent); z-index: 0; cursor: pointer; }
+.packframe .pn { position: absolute; left: 12px; top: 5px; font-size: 12px; font-weight: 700; color: var(--p-pack); }
+.junc { position: absolute; z-index: 3; transform: translate(-50%, -50%); height: 18px; padding: 0 6px; border-radius: 9px; font-size: 10px; font-weight: 700; letter-spacing: .04em; display: flex; align-items: center; background: var(--canvas); border: 1.5px solid currentColor; pointer-events: none; text-transform: uppercase; }
+.lockp { position: absolute; z-index: 3; transform: translate(-50%, -50%); height: 22px; padding: 0 8px 0 6px; border-radius: 11px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; background: var(--canvas); border: 1.5px solid currentColor; white-space: nowrap; max-width: 140px; cursor: pointer; }
+.lockp svg { width: 12px; height: 12px; stroke-width: 2.4; }
+.lockp span { overflow: hidden; text-overflow: ellipsis; }
+.plabel { position: absolute; z-index: 3; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: var(--p-pack); background: var(--canvas); padding: 0 4px; border-radius: 4px; pointer-events: none; text-transform: uppercase; letter-spacing: .04em; }
+.canvas-tools { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
+.canvas-tools button, .panelBtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
+.panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: left .22s ease; }
+.panelBtn.open { left: calc(100% - 54px); }
+.zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; }
+.cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
+.legend { position: absolute; left: 62px; top: 14px; right: 10px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); pointer-events: none; }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; background: currentColor; }
+.legend i.d { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px); }
+
+/* The entry panel (Obsidian style) */
+.panel { position: absolute; left: 0; top: 0; bottom: 0; width: calc(100% - 64px); max-width: 420px; z-index: 10; background: linear-gradient(var(--bar), var(--bar)), var(--canvas); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; transition: transform .22s ease; box-shadow: 8px 0 30px var(--shadow); }
+.panelBtn.open { left: min(calc(100% - 54px), 430px); }
+.panel.closed { transform: translateX(-102%); box-shadow: none; }
+.panel .phead { display: flex; align-items: center; gap: 6px; padding: 10px 8px 4px 16px; min-height: 64px; }
+.panel .phead input { flex: 1; min-width: 0; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
+.panel .phead input:focus { border-color: var(--accent); }
+.plist { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+.pnone { color: var(--muted); font-size: var(--t-s); padding: 16px 10px; }
+.phdr { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 36px; padding: 0 8px; font-size: var(--t-s); color: var(--muted); }
+.phdr svg { width: 14px; height: 14px; transition: transform .15s; }
+.phdr.open svg { transform: rotate(90deg); }
+.phdr span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phdr small { margin-left: auto; padding-right: 10px; }
+.pgrp { margin-left: 14px; border-left: 1px solid var(--line); padding-left: 6px; }
+.prow { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 0 0 10px; border-radius: 6px; cursor: pointer; font-size: var(--t-m); margin: 2px 0; position: relative; }
+.prow::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--s-key); }
+.prow.st-perm::before { background: var(--s-perm); }
+.prow.st-vec::before { background: repeating-linear-gradient(var(--s-vec) 0 5px, transparent 5px 8px); }
+.prow.st-off::before { background: var(--s-off); }
+.prow.st-off .nm { opacity: .45; }
+.prow:hover { background: var(--hover); }
+.prow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .pbang { color: var(--bad); font-weight: 800; }
+.dotc { width: 40px; height: 38px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.dotc i { width: 12px; height: 12px; border-radius: 6px; border: 2px solid var(--muted); }
+.dotc.in i { background: var(--accent); border-color: var(--accent); }
+.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 4px; margin: 6px 8px 10px 12px; }
+.bookpick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 12px; border-radius: 14px; background: var(--surface); text-align: left; }
+.bookpick b { font-size: var(--t-m); display: flex; align-items: center; gap: 4px; max-width: 100%; }
+.bookpick b span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookpick .bchips { display: flex; gap: 6px; }
+
+/* Entry page bits that belong to Hero mode */
+.disc.fixed { cursor: default; }
+.disc.fixed .chev { display: none; }
+.logic .links { display: flex; flex-wrap: wrap; gap: 4px 16px; padding-top: 4px; }
+pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: var(--surface); font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; max-height: 50vh; overflow: auto; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 @media (min-width: 700px) { .en { max-width: 760px; } }

@@ -76,7 +76,7 @@ export function renderEntryPage(main, o) {
     const v = el('div', 'view');
     main.append(v);
     const top = el('div', 'en-top');
-    top.append(btn('round', ic('back'), o.up, 'Up to the book'), el('div', 'sp'));
+    top.append(btn('round', ic('back'), o.up, o.hero ? 'Close the entry tab' : 'Up to the book'), el('div', 'sp'));
     const pill = el('div', 'pill');
     pill.append(btn('round', ic('drawer'), o.drawer, 'Entries in this book'), btn('round', ic('more'), o.menu, 'Entry actions'));
     top.append(pill);
@@ -143,15 +143,17 @@ export function renderEntryPage(main, o) {
         }
     }
 
-    // Story logic: read-only here, folded in normal mode.
+    // Story logic: read-only here; folded in normal mode, always open in Hero mode.
     if (o.lines.length) {
-        const d = el('button', `disc${ui.logic ? ' open' : ''}`);
+        const open = o.hero || ui.logic;
+        const d = el('button', `disc${open ? ' open' : ''}`);
         d.type = 'button';
         d.innerHTML = `${ic('right', 'chev')}<h2>Story logic</h2>`;
-        if (!ui.logic) d.append(el('span', 'sum', logicSummary(o.lines)));
-        d.addEventListener('click', () => { ui.logic = !ui.logic; o.redraw(); });
+        if (!open) d.append(el('span', 'sum', logicSummary(o.lines)));
+        if (o.hero) d.classList.add('fixed');
+        else d.addEventListener('click', () => { ui.logic = !ui.logic; o.redraw(); });
         en.append(d);
-        if (ui.logic) {
+        if (open) {
             const box = el('div', 'logic');
             for (const line of o.lines) {
                 const r = el('div', 'hl');
@@ -168,6 +170,13 @@ export function renderEntryPage(main, o) {
                 r.append(btn('linkish acc', 'Reopen', o.closed.reopen));
                 box.append(r);
             }
+            const links = el('div', 'links');
+            if (o.hero) {
+                links.append(btn('linkish', `${ic('canvas', 's')} Show on canvas`, o.showOnCanvas), btn('linkish', `${ic('code', 's')} Data`, o.data));
+            } else {
+                links.append(btn('linkish', 'Open in Hero mode ›', o.openInHero));
+            }
+            box.append(links);
             en.append(box);
         }
     }

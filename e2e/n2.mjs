@@ -48,6 +48,7 @@ await run(async () => {
         for (const n of names) if (world_names.includes(n)) await deleteWorldInfo(n);
         for (const n of names) delete wihero.settings.books[n];
         wihero.settings.colorMode = 'standard';
+        wihero.settings.openInHero = false;
         wihero.settings.contentFont = 'serif';
     }, [BOOK, SHELF, `${SHELF} copy`]);
     ok('setup at 390 × 844');
