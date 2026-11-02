@@ -8,8 +8,11 @@ Status: building. **N1, the engine, is in** (`src/engine/`, with its SillyTavern
 wiring in `src/st-hooks.js`): story logic works in chats, with the old settings
 panel in the Extensions drawer for testing. **N2, the editor shell and normal
 mode, is in** (`src/ui/`): ST's World Info button opens WI Hero, where books are
-made, filled, organized and snapshotted. Hero mode's canvas, the inspector and
-Preview come in N3–N5.
+made, filled, organized and snapshotted. **N3, Hero mode's canvas, is in**: a
+book's story logic as cards and links, arranged once and then kept where you
+leave them, with the open chat's state on the cards when you want it. Until the
+inspector (N4), tapping a card opens its entry in a tab. The inspector and
+Preview come in N4–N5.
 Run the tests with `node --test`; the in-ST checks are in [e2e/](e2e/README.md).
 
 **Building it?** Start at [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md): its "Start
