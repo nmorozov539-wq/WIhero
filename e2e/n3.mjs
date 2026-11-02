@@ -52,7 +52,7 @@ await run(async () => {
     const mem0 = await memory();
     assert.equal(mem0.placed, true);
     const cards = await drawn();
-    assert.equal(cards.length, 15, 'every linked entry is a card; Village, Lantern and Bell aren\'t linked');
+    assert.equal(cards.length, 17, 'every linked entry is a card; Village, Lantern, Bell and the N5 extras without links aren\'t');
     for (const [key, x, y] of cards) assert.deepEqual([x, y], [mem0.cards[key].x, mem0.cards[key].y], key);
     assert.equal(await $('.packframe .pn').textContent(), '#town');
     assert.equal(await $('.junc').first().textContent(), 'or');
@@ -131,17 +131,17 @@ await run(async () => {
     await $('.logic .linkish:has-text("Show on canvas")').click();
     await card('id:ferry').waitFor();
     assert.ok(await card('id:ferry').evaluate(n => n.classList.contains('hit')));
-    assert.equal(await $('.tab').count(), 2, 'the Ferry tab stays open');
+    assert.equal(await $('.tab').count(), 3, 'the Ferry tab stays open, after Canvas and Preview');
     await card('id:mill').locator('.t').click();
     await $('.insp .ihead h2:text-is("Mill: arrival")').waitFor();
     await $('.insp .ifoot button:has-text("Open entry")').click();
     await $('.en h1:text-is("Mill: arrival")').waitFor();
-    assert.equal(await $('.tab').count(), 3);
+    assert.equal(await $('.tab').count(), 4);
     await page.keyboard.press('Escape');
     await $('.en h1:text-is("Ferry (sticky 7)")').waitFor();
     await page.keyboard.press('Escape');
     await card('id:mill').waitFor();
-    assert.equal(await $('.tab').count(), 1, 'Back closes the entry tabs one by one, then shows the canvas');
+    assert.equal(await $('.tab').count(), 2, 'Back closes the entry tabs one by one, then shows the canvas');
     ok('the inspector\'s Open entry opens a tab; Show on canvas finds it again; Back closes the tabs');
 
     await $('.packframe').click({ position: { x: 6, y: 30 } });

@@ -18,9 +18,11 @@ import { buildGraph, canvasBook, canvasSet } from './canvas-graph.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { entryStatus } from '../engine/turn.js';
 import { getStringHash, isObject } from '../engine/util.js';
-import { greetingFingerprint, greetingsOf } from '../chat-state.js';
+import { greetingFingerprint, greetingsOf, openingGreeting } from '../chat-state.js';
 import { bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
+import { runPreview } from './preview.js';
+import { renderPreviewPage } from './preview-page.js';
 
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
 const GROUP_NAMES = { folder: 'Folders', strategy: 'Strategy', none: 'Nothing' };
@@ -80,7 +82,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null },
+        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null },
     };
     const tab = () => S.tabs.find(t => t.id === S.active) ?? S.tabs[0];
     const page = (t = tab()) => t.history.at(-1);
@@ -780,6 +782,7 @@ export function createApp(deps) {
             strip.append(b);
         };
         mk('Canvas', H.active === 'canvas', () => { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } }, null, { icon: 'canvas' });
+        mk('Preview', H.active === 'preview', () => { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } }, null, { icon: 'eye' });
         H.tabs.forEach((t, i) => {
             const e = library.peek(t.book)?.entries[t.uid];
             mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
@@ -808,6 +811,12 @@ export function createApp(deps) {
         if (H.insp && H.active === 'canvas') { H.insp = null; render(); return true; }
         if (H.panel) { H.panel = false; render(); return true; }
         if (typeof H.active === 'number') { closeHeroTab(H.active); return true; }
+        if (H.active === 'preview') {
+            if (H.pv?.page) H.pv.page = null;
+            else H.active = 'canvas';
+            render();
+            return true;
+        }
         hide();
         return false;
     }
@@ -823,6 +832,7 @@ export function createApp(deps) {
             renderEntry({ type: 'entry', book: t.book, uid: t.uid }, { up: () => closeHeroTab(H.active), go: uid => { t.uid = uid; t.mask = null; render(); }, tab: t });
             return;
         }
+        if (H.active === 'preview') { renderPreviewTab(); return; }
         main.dataset.page = 'hero:canvas';
         const book = heroBook();
         if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
@@ -857,6 +867,74 @@ export function createApp(deps) {
         heroCanvas.render();
         heroPanel(book, data);
         if (H.insp?.book === book) inspectorFor(book, data);
+    }
+
+    // ---------------------------------------------------------------- Preview (N5, LAYOUT "Preview tab")
+    /** Where Preview can start from (BUILD_SPEC 15.5): the open chat, Fresh start, and each greeting of its character. */
+    function previewSeeds() {
+        const c = ctx();
+        const chat = library.chatOpen() ? c.chat ?? [] : [];
+        const ch = !c.groupId && c.characterId !== undefined ? c.characters?.[c.characterId] : null;
+        const seeds = [];
+        if (chat.length) {
+            const u = chat.findLastIndex(m => m?.is_user && !m.is_system);
+            const base = u < 0 ? chat : chat.slice(0, u);
+            const reply = u < 0 ? null : chat.slice(u + 1).find(m => m && !m.is_user && !m.is_system);
+            const name = c.groupId ? 'Group chat' : `${ch?.name ?? 'Open'} chat`;
+            seeds.push({
+                id: 'chat', label: `${name} · after ${base.length} message${base.length === 1 ? '' : 's'}`, sub: 'The open chat\'s latest exchange and how far its story has got',
+                base, greeting: openingGreeting(chat, ch), user: u < 0 ? '' : chat[u].mes ?? '', reply: reply?.mes ?? '',
+            });
+        }
+        seeds.push({ id: 'fresh', label: 'Fresh start', sub: 'From the beginning, nothing fired yet', base: [], greeting: null, user: '', reply: '' });
+        if (ch?.avatar && library.chatOpen()) {
+            greetingsOf(ch).forEach((text, n) => {
+                if (!String(text ?? '').trim()) return;
+                const mes = c.substituteParams ? c.substituteParams(text) : text;
+                seeds.push({
+                    id: `greet:${n}`, label: `Start at ${greetingName(n)}`, sub: String(mes).replace(/\s+/g, ' ').trim().slice(0, 80),
+                    base: [{ is_user: false, name: ch.name, mes }], greeting: `@${ch.avatar}:${n}`, user: '', reply: '',
+                });
+            });
+        }
+        return seeds;
+    }
+
+    function seedPreview(seed) {
+        H.pv = { seed: seed.id, user: seed.user, reply: seed.reply, edit: null, page: null };
+    }
+
+    function renderPreviewTab() {
+        main.dataset.page = 'hero:preview';
+        const book = heroBook();
+        if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
+        const data = need(book);
+        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'Loading…')); main.append(v); return; }
+        const seeds = previewSeeds();
+        let seed = seeds.find(x => x.id === H.pv?.seed);
+        if (!seed) { seed = seeds[0]; seedPreview(seed); }
+        const shown = entriesShown(book, data);
+        const entries = shown.map(e => ({ ...e, world: book }));
+        const model = buildModel(entries);
+        const g = deps.scan?.globals?.() ?? {};
+        const run = runPreview({
+            entries, model, base: seed.base, greeting: seed.greeting, renamed: settings.renamed ?? {},
+            user: H.pv.user, reply: H.pv.reply, globals: { ...g, parseRegexFromString: deps.scan?.parseRegexFromString },
+        });
+        const byStKey = new Map(shown.map(e => [`${book}.${e.uid}`, e]));
+        renderPreviewPage(main, {
+            run, pv: H.pv, book, seedLabel: seed.label, layer,
+            info: k => {
+                const e = byStKey.get(k);
+                return e ? { title: titleOf(e), color: strategyColor(e), logic: !!model.byStKey.get(k), uid: e.uid } : null;
+            },
+            set: patch => { Object.assign(H.pv, patch); render(); },
+            pickSeed: () => layer.sheet('Start from', sh => {
+                for (const x of seeds) sh.append(layer.opt(x.label, () => { layer.close(); seedPreview(x); render(); }, { cur: x.id === seed.id, sub: x.sub }));
+            }, { help: 'Preview reads the open chat\'s latest exchange and how far its story has got, or starts from the beginning.' }),
+            openEntry: k => { const e = byStKey.get(k); if (e) openHeroTab(book, e.uid); },
+            showOnCanvas: k => { const e = byStKey.get(k); if (e) showOnCanvas(book, cardKey(e)); },
+        });
     }
 
     // The entry panel (LAYOUT "Entry panel"): every entry of the book, a dot that places it on the canvas or finds it.

@@ -442,3 +442,41 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 @media (min-width: 700px) { .en { max-width: 760px; } }
+
+/* Preview (N5, LAYOUT "Preview tab", VISUAL 8) */
+.ppage { position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.pvhead { display: flex; align-items: center; gap: 6px; padding: 12px 12px 2px 16px; }
+.pvhead h2 { margin: 0; font-size: var(--t-l); flex: 1; }
+.srcchip { height: 34px; border-radius: 17px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: var(--t-s); display: flex; align-items: center; gap: 6px; max-width: 64%; }
+.srcchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pnote { color: var(--muted); font-size: var(--t-xs); padding: 4px 16px 10px; line-height: 1.45; }
+.pbody { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.slot { border-radius: 14px; background: var(--surface); border: 1px solid var(--line); padding: 2px 6px 12px 14px; }
+.slot .sh { display: flex; align-items: center; gap: 4px; min-height: 40px; }
+.slot .sh b { flex: 1; font-size: var(--t-xs); color: var(--muted); font-weight: 600; letter-spacing: .06em; }
+.slot .sh .round { width: 36px; height: 36px; background: none; }
+.htext { font-size: var(--t-m); line-height: 1.7; padding-right: 8px; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 26px; cursor: text; font-family: var(--content-font, var(--serif)); }
+.htext .ph { color: var(--muted); font-family: var(--sans); }
+.slot textarea { width: 100%; box-sizing: border-box; min-height: 110px; resize: vertical; border: none; background: none; color: var(--fg); font-family: var(--content-font, var(--serif)); font-size: var(--t-m); line-height: 1.7; padding: 0 8px 0 0; outline: none; user-select: text; -webkit-user-select: text; }
+.hlx { display: inline; font: inherit; color: inherit; border: none; margin: 0; padding: 1px 3px; border-radius: 4px; cursor: pointer; background: color-mix(in srgb, var(--c) 26%, transparent); box-shadow: inset 0 -2px 0 var(--c); }
+.hlx.plain { background: none; box-shadow: none; padding: 1px; border-bottom: 2px dotted var(--c); border-radius: 0; }
+.hlx.no { text-decoration: line-through; text-decoration-color: var(--p-close); text-decoration-thickness: 2px; opacity: .75; }
+.hlx svg { width: 11px; height: 11px; stroke-width: 2.6; margin-right: 2px; vertical-align: -1px; }
+.also { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 0 2px; }
+.also small { color: var(--muted); font-size: var(--t-xs); margin-right: 2px; }
+.achip { height: 32px; border-radius: 16px; border: 1px solid var(--c); padding: 0 12px; font-size: var(--t-s); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.achip.no { opacity: .6; text-decoration: line-through; }
+.pkey { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: var(--t-xs); padding: 0 4px; }
+.pfoot { position: sticky; bottom: 0; padding: 10px 12px 12px; background: linear-gradient(transparent, var(--tint) 30%); margin-top: auto; }
+.pfoot button { width: 100%; height: 48px; border-radius: 12px; background: var(--accent); color: var(--tint); font-weight: 600; text-align: center; }
+.sheet .why { font-size: var(--t-m); line-height: 1.5; margin: 0 16px 12px; }
+.rstate { color: var(--muted); font-size: var(--t-s); line-height: 1.5; margin: 0 16px 12px; }
+.rtitle { margin: 0 0 0 8px; font-size: var(--t-l); }
+.rbody { padding: 0 16px 40px; }
+.rbody .rstate { margin: 8px 0 0; }
+.rbody .rstate.none { margin: 0; }
+.rbody h3 { font-size: var(--t-xs); color: var(--muted); font-weight: 600; margin: 18px 0 6px; letter-spacing: .06em; text-transform: uppercase; }
+.rrow { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: var(--surface); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; border-left: 3px solid var(--c); box-sizing: border-box; }
+.rrow div { flex: 1; min-width: 0; }
+.rrow b { display: block; font-size: var(--t-s); }
+.rrow small { display: block; color: var(--muted); font-size: var(--t-s); margin-top: 2px; line-height: 1.4; }

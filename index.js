@@ -22,6 +22,9 @@ function refresh() {
 }
 let app = null;
 
+/** ST's World Info scan settings, read live (they change in ST's settings). */
+const scanGlobals = () => ({ depth: st.world_info_depth, caseSensitive: st.world_info_case_sensitive, matchWholeWords: st.world_info_match_whole_words });
+
 const hooks = createHooks({
     ctx,
     settings,
@@ -31,7 +34,7 @@ const hooks = createHooks({
         getStringHash: st.getStringHash,
         parseRegexFromString: st.parseRegexFromString,
         scan_state: st.scan_state,
-        globals: () => ({ depth: st.world_info_depth, caseSensitive: st.world_info_case_sensitive, matchWholeWords: st.world_info_match_whole_words }),
+        globals: scanGlobals,
     },
 });
 
@@ -108,6 +111,7 @@ app = createApp({
     entryTemplate: st.newWorldInfoEntryTemplate,
     cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
     openStEditor,
+    scan: { globals: scanGlobals, parseRegexFromString: st.parseRegexFromString },
 });
 
 // ST's World Info button opens WI Hero instead of ST's drawer (LAYOUT "Opening the editor"). Any other top bar
