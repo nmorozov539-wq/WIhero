@@ -37,6 +37,7 @@ scroll sideways. There is no tab list.
 | ⌄             | Opens the menu sheet (contents per mode, below) |
 | Permanent tabs | Icon only, first in the row, can't be closed. Normal mode: Home. Hero mode: Canvas and Preview |
 | Other tabs    | Tap to switch. The active tab has a thin accent underline; × shows only on it. Closing a tab shows the one to its right (the one to its left when it was the last) |
+| Pull right    | Normal mode: pulling the tab row right past its start opens a new tab; a + grows under the finger and turns the accent color when letting go will open it |
 
 Anything opened from a permanent tab opens in a new tab. Long press opens it in
 a background tab.
@@ -51,7 +52,7 @@ pick shows its effect behind it.
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
-| View / Book | Home: World Info settings. Book page: Group by (Folders, Strategy, Nothing) · Show disabled entries (Shown, Hidden) · Problems (n) › when there are any · Snapshots › | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Snapshots › |
+| View / Book | Home: Open books in (Normal mode, Hero mode). Book page: Sort by (Order, A–Z, Key words first, Permanent first, Vectorized first; inside each folder) · Show disabled entries (Shown, Hidden) · Problems (n) › when there are any · Snapshots › | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Snapshots › |
 | Canvas | | Tidy layout · Legend (Shown, Hidden) · Show chat state (switch, off by default) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) | Content font · Colors |
 | Tabs | New tab · Close other tabs | Close other tabs |
@@ -153,7 +154,7 @@ Shown on Home and the book page, hidden on the entry page.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "World Info", and ⋮ for ST's World Info settings |
+| Header | "World Info", and a gear for ST's World Info settings |
 | Book folders | Collapsible groups of books (WI Hero's own, not ST's) |
 | Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯ |
 | Tap a book | Opens it in a new tab |
@@ -161,9 +162,17 @@ Shown on Home and the book page, hidden on the entry page.
 | Book ⋯ | Open in new tab · Rename · Move to folder · Export · Delete |
 | + New (bottom bar) | Asks for a name, then opens the new book in a new tab |
 
-**World Info settings** (sheet): Budget, Scan depth and Recursive scan, then
-"More settings ›" for the rest of ST's World Info settings. These are ST's own
-and apply to every book.
+**World Info settings** (sheet): every one of ST's World Info settings, so ST's
+own panel is never needed. They are ST's own and apply to every book.
+- Scanning: Scan depth · Recursive scan · Recursion steps (0 is no limit) · Min
+  activations (0 is off; ST turns Recursion steps off with it) · Min
+  activations: max depth (0 is the whole chat)
+- Matching: Case-sensitive · Match whole words · Include names · Group scoring
+- Budget: Budget, in percent of the context, with what that is in tokens ·
+  Token cap (0 is no cap; when it is lower, the cap wins) · Alert on overflow
+- Order: Book order (Sorted evenly, Character books first, Global books first)
+
+Switches flip in place; numbers ask in a small form.
 
 **Selection on Home**: top bar ✕, count, All/None, Invert, Delete. Bottom bar:
 Move (to a folder, No folder, + New folder) and Export.
@@ -176,7 +185,7 @@ Move (to a folder, No folder, + New folder) and Export.
 | Global chip | Tap to make the book active globally or not |
 | Linked chip | First linked character or chat plus a count ("Seraphina +2"). Tap for the links sheet |
 | New entry defaults | Folded. The header sums up what isn't default. What new entries in this book start with |
-| Folder header | Name, count, collapse arrow, + for a new entry in that folder |
+| Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (⌄) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe, name, keywords, on/off switch, ⋯ |
 | Tap a row | Opens the entry page in this tab (from Home's tab, in a new tab) |
 | Entry ⋯ | Open in new tab · Duplicate · Move to another book · Copy as text · Delete |
@@ -230,6 +239,7 @@ little darker and cooler than the app, with a faint dot grid.
 | Drag a card's grip | Moves the card. Links reroute as it moves |
 | Drag a port | Moves it to another free side of its card |
 | Tap empty canvas | With the panel open, closes the panel |
+| Long press empty canvas | "Place here": a search box, New entry here, and the entries not on the canvas yet; the one picked is placed at that spot |
 
 Cards move only by the grip (the six dots), so a drag anywhere else pans.
 
@@ -295,8 +305,8 @@ style: a list first, the book at the bottom.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Filter box | "Filter entries", matching names |
-| + | New entry: asks for a name and places it in the middle of the view |
+| Search box | "Search entries", matching names |
+| + | New entry: asks for a name and makes it, without placing it: it waits in the panel with a hollow dot |
 | Folder header | Name, count, collapse arrow |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
 | Greetings group | Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |

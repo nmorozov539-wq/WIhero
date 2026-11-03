@@ -245,17 +245,31 @@ export function copyBookSettings(s, from, to) {
  * Groups a book's entries for the book page: by folder (nested names kept whole, "" first), by strategy, or none.
  * @returns {[string, object[]][]}
  */
+/** The orders entries can be sorted in, inside each folder (LAYOUT "Book page"). */
+export const SORT_NAMES = { order: 'Order', az: 'A–Z', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
+
+/** Sorts entries: ST's order (displayIndex), A–Z, or one strategy first (then the rest in order, off entries last). */
+export function sortEntries(entries, by = 'order') {
+    const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
+    const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
+    const cmp = by === 'az' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || order(a, b)
+        : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
+        : order;
+    return [...entries].sort(cmp);
+}
+
+/**
+ * Folders are containers: entries are grouped by folder (no folder first, then folders A–Z) and sorted inside each.
+ * @returns {[string, object[]][]}
+ */
 export function groupEntries(entries, by, folder) {
-    const key = e => by === 'folder' ? folder(e) : by === 'strategy' ? STRATEGY_NAME[strategyOf(e)] : '';
     const groups = new Map();
-    const sorted = [...entries].sort((a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid);
-    for (const e of sorted) {
-        const k = key(e);
+    for (const e of sortEntries(entries, by)) {
+        const k = folder(e);
         if (!groups.has(k)) groups.set(k, []);
         groups.get(k).push(e);
     }
-    const order = by === 'strategy' ? ['Keywords', 'Permanent', 'Vectorized', 'Off'] : null;
-    return [...groups.entries()].sort(([a], [b]) => order ? order.indexOf(a) - order.indexOf(b) : (a !== '') - (b !== '') || a.localeCompare(b));
+    return [...groups.entries()].sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
 }
 
 /**

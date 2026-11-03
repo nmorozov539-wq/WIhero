@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings,
-    duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
+    duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
     rekeyEntry, renameBookSettings, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
 } from '../src/ui/data.js';
 import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
@@ -114,12 +114,16 @@ test('settings: renaming, duplicating and deleting a book carry its settings', (
     assert.deepEqual(s.bookFolders, { Drafts: ['Copy'] });
 });
 
-test('grouping by folder (no folder first), by strategy, or not at all', () => {
-    const list = [e(0, 'road'), e(1, 'inn', undefined, { constant: true }), e(2, 'mill', undefined, { disable: true })];
+test('folders are containers; entries sort inside them by order, A–Z or a strategy first', () => {
+    const list = [e(0, 'road'), e(1, 'inn', undefined, { constant: true }), e(2, 'mill', undefined, { disable: true }), e(3, 'Bell', undefined, { vectorized: true })];
     const folders = { 0: 'Places', 2: 'Places' };
-    assert.deepEqual(groupEntries(list, 'folder', x => folders[x.uid] ?? '').map(([g, l]) => [g, l.map(x => x.uid)]), [['', [1]], ['Places', [0, 2]]]);
-    assert.deepEqual(groupEntries(list, 'strategy', () => '').map(([g]) => g), ['Keywords', 'Permanent', 'Off']);
-    assert.deepEqual(groupEntries(list, 'none', () => '').length, 1);
+    assert.deepEqual(groupEntries(list, 'order', x => folders[x.uid] ?? '').map(([g, l]) => [g, l.map(x => x.uid)]), [['', [1, 3]], ['Places', [0, 2]]]);
+    const uids = by => sortEntries(list, by).map(x => x.uid);
+    assert.deepEqual(uids('order'), [0, 1, 2, 3]);
+    assert.deepEqual(uids('az'), [3, 1, 2, 0]);
+    assert.deepEqual(uids('perm'), [1, 0, 3, 2], 'permanent first, off last');
+    assert.deepEqual(uids('vec'), [3, 0, 1, 2]);
+    assert.deepEqual(uids('keys'), [0, 1, 3, 2]);
 });
 
 test('search: the open book\'s entries first, then other books\', books and folders', () => {

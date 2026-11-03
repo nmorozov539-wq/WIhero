@@ -181,13 +181,24 @@ export function createLayer(layer, toastBox) {
         toastBox.innerHTML = '';
         toastBox.append(el('span', '', text));
         current = { onEnd: o.onEnd };
+        const ms = o.ms ?? (o.action ? 5000 : 2200);
         if (o.action) {
             const [label, fn] = o.action;
             toastBox.append(btn('', label, () => { endToast(true); fn(); }));
             toastBox.classList.add('act');
+            // The outline drains around the toast while Undo is still possible.
+            const ns = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(ns, 'svg');
+            svg.setAttribute('class', 'ttimer');
+            svg.setAttribute('aria-hidden', 'true');
+            const r = document.createElementNS(ns, 'rect');
+            r.setAttribute('pathLength', '100');
+            r.style.animationDuration = `${ms}ms`;
+            svg.append(r);
+            toastBox.append(svg);
         }
         toastBox.classList.add('show');
-        timer = setTimeout(() => endToast(false), o.ms ?? (o.action ? 5000 : 2200));
+        timer = setTimeout(() => endToast(false), ms);
     }
 
     /** Ends a waiting Undo toast now, so its delayed change happens (when WI Hero is closed, for example). */

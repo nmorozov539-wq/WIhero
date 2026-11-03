@@ -7,7 +7,7 @@ import { btn, createLayer, el, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
-    deleteBookSettings, duplicateEntry, entriesOf, entryAsText, folderOf, groupEntries, idOf, isBlank, moveEntry,
+    deleteBookSettings, duplicateEntry, entriesOf, entryAsText, folderOf, groupEntries, SORT_NAMES, sortEntries, idOf, isBlank, moveEntry,
     paramSummary, paramText, paramValue, rekeyEntry, renameBookSettings, search, setBookFolder, setFolder, setParam,
     strategyOf, titleOf,
 } from './data.js';
@@ -25,7 +25,6 @@ import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
 
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
-const GROUP_NAMES = { folder: 'Folders', strategy: 'Strategy', none: 'Nothing' };
 
 /**
  * @param {object} deps
@@ -72,7 +71,6 @@ export function createApp(deps) {
     const S = {
         tabs: [{ id: ++tabUid, home: true, history: [{ type: 'home' }] }],
         active: 1,
-        groupBy: 'folder',
         showOff: true,
         select: null, // Set of uids (book page) or names (Home)
         collapsed: new Set(),
@@ -331,7 +329,7 @@ export function createApp(deps) {
         if (S.select) v.append(selHead(names, 'books'));
         else {
             const h = el('div', 'head');
-            h.append(el('h1', '', 'World Info'), btn('round flat', ic('more'), wiSettingsSheet, 'World Info settings'));
+            h.append(el('h1', '', 'World Info'), btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
             v.append(h);
         }
         const folders = Object.keys(settings.bookFolders).filter(f => settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
@@ -414,21 +412,19 @@ export function createApp(deps) {
             v.append(...defaultsBlock(book));
         }
 
-        const groups = groupEntries(shown, S.groupBy, e => entryFolder(book, e));
-        if (S.groupBy === 'folder') {
-            for (const f of bookSettings(settings, book).folderList ?? []) if (!groups.some(([g]) => g === f)) groups.push([f, []]);
-            groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
-        }
+        const groups = groupEntries(shown, sortBy(), e => entryFolder(book, e));
+        for (const f of bookSettings(settings, book).folderList ?? []) if (!groups.some(([g]) => g === f)) groups.push([f, []]);
+        groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
         for (const [g, list] of groups) {
-            const key = `${book}:${S.groupBy}:${g}`;
+            const key = `${book}:folder:${g}`;
             const open = !S.collapsed.has(key);
             if (g) {
                 const head = sectionHead(`${g} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list.map(e => e.uid) : null);
-                if (S.groupBy === 'folder' && !S.select) head.append(btn('add', ic('plus', 's'), () => newEntry(book, g), `New entry in ${g}`));
+                if (!S.select) head.append(btn('add', ic('plus', 's'), () => newEntry(book, g), `New entry in ${g}`));
                 v.append(head);
                 if (!open) continue;
             } else if (groups.length > 1) {
-                v.append(el('div', 'section', S.groupBy === 'folder' ? 'No folder' : 'Entries'));
+                v.append(el('div', 'section', 'No folder'));
             }
             for (const e of list) v.append(entryRow(book, e, model));
         }
@@ -627,7 +623,7 @@ export function createApp(deps) {
                 pressable(it, () => {
                     if (h.kind === 'entry') openIn({ type: 'entry', book: h.book, uid: h.entry.uid }, { newTab: true });
                     else if (h.kind === 'book') openIn({ type: 'book', book: h.book }, { newTab: true });
-                    else if (h.book) { S.groupBy = 'folder'; S.collapsed.delete(`${h.book}:folder:${h.folder}`); openIn({ type: 'book', book: h.book }, { newTab: true }); }
+                    else if (h.book) { S.collapsed.delete(`${h.book}:folder:${h.folder}`); openIn({ type: 'book', book: h.book }, { newTab: true }); }
                     else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); }
                 }, behind && (() => openIn(behind, { newTab: true, background: true })));
                 res.append(it);
@@ -687,13 +683,13 @@ export function createApp(deps) {
             retitle: renderTabs,
             // In the book page's grouping and order; long press opens one in a background tab.
             drawer: () => layer.sheet(book, sh => {
-                const groups = groupEntries(entriesShown(book, data), S.groupBy, x => entryFolder(book, x));
+                const groups = groupEntries(entriesShown(book, data), sortBy(), x => entryFolder(book, x));
                 for (const [g, list] of groups) {
                     if (g) sh.append(el('div', 'lbl', g));
-                    else if (groups.length > 1) sh.append(el('div', 'lbl', S.groupBy === 'folder' ? 'No folder' : 'Entries'));
+                    else if (groups.length > 1) sh.append(el('div', 'lbl', 'No folder'));
                     for (const x of list) {
                         const o = layer.opt(titleOf(x), () => { layer.close(); if (nav) { nav.go(x.uid); return; } leave(); tab().history[tab().history.length - 1] = { type: 'entry', book, uid: x.uid }; render(); },
-                            { cur: x.uid === e.uid, dot: strategyColor(x), sub: S.groupBy === 'folder' ? undefined : entryFolder(book, x) || undefined });
+                            { cur: x.uid === e.uid, dot: strategyColor(x) });
                         longPress(o, () => {
                             if (nav) { if (!H.tabs.some(t => t.book === book && t.uid === x.uid)) H.tabs.push({ book, uid: x.uid }); renderTabs(); layer.toast('Opened in a background tab'); }
                             else openIn({ type: 'entry', book, uid: x.uid }, { newTab: true, background: true });
@@ -925,6 +921,7 @@ export function createApp(deps) {
             open: (key, piece) => inspect(book, key, piece),
             pack: name => packSheet(book, data, name),
             toast: text => layer.toast(text),
+            holdEmpty: at => placePicker(book, data, at),
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
@@ -933,6 +930,51 @@ export function createApp(deps) {
         heroCanvas.render();
         heroPanel(book, data);
         if (H.insp?.book === book) inspectorFor(book, data);
+    }
+
+    /** A new entry in a book, with the book's defaults for new entries. */
+    function createEntry(book, name) {
+        const defaults = { ...(bookSettings(settings, book).defaults ?? {}) };
+        const by = defaults.by;
+        delete defaults.by;
+        return library.change(book, d => {
+            const n = addEntry(d, deps.entryTemplate, defaults);
+            n.comment = name;
+            if (by) setParam(d, n.uid, PARAM_LIST.find(z => z.field === 'by'), by);
+            return n;
+        });
+    }
+
+    /** A long press on the canvas: pick an entry not on it yet, and it is placed there (or make a new one there). */
+    function placePicker(book, data, at) {
+        const on = heroCanvas?.view?.ids ?? new Set();
+        const place = (key, title) => {
+            const mem = canvasMemory(bookSettings(settings, book));
+            mem.cards[key] = { ...(mem.cards[key] ?? {}), placed: true, ...(at ?? {}) };
+            delete mem.cards[key].ports;
+            saveSettings();
+            render();
+            layer.toast(`${title} placed`);
+        };
+        layer.sheet('Place here', sh => {
+            const q = el('input', 'pick-q');
+            q.placeholder = 'Search entries';
+            q.setAttribute('aria-label', 'Search entries');
+            const list = el('div');
+            const fill = () => {
+                list.replaceChildren();
+                const needle = q.value.trim().toLowerCase();
+                const free = sortEntries(entriesShown(book, data), sortBy()).filter(e => !on.has(cardKey(e)) && (!needle || titleOf(e).toLowerCase().includes(needle)));
+                for (const e of free.slice(0, 60)) list.append(layer.opt(titleOf(e), () => { layer.close(); place(cardKey(e), titleOf(e)); }, { dot: strategyColor(e), sub: entryFolder(book, e) || undefined }));
+                if (!free.length) list.append(el('p', 'help', needle ? 'Nothing matches.' : 'Every entry is on the canvas already.'));
+            };
+            q.addEventListener('input', fill);
+            sh.append(q, layer.opt('New entry here', () => layer.askText({
+                title: 'New entry', placeholder: 'Entry name', ok: 'Create',
+                done: name => { const x = createEntry(book, name); place(cardKey(x), name); },
+            }), { icon: 'plus' }), list);
+            fill();
+        }, { help: 'Entries that aren\'t on the canvas yet.' });
     }
 
     // ---------------------------------------------------------------- Preview (N5, LAYOUT "Preview tab")
@@ -1018,28 +1060,14 @@ export function createApp(deps) {
         };
         const ph = el('div', 'phead');
         const q = el('input');
-        q.placeholder = 'Filter entries';
-        q.setAttribute('aria-label', 'Filter entries');
+        q.placeholder = 'Search entries';
+        q.setAttribute('aria-label', 'Search entries');
         q.value = H.q;
         q.addEventListener('input', () => { H.q = q.value; fill(); });
         ph.append(q, btn('round flat', ic('plus'), () => layer.askText({
             title: 'New entry', placeholder: 'Entry name', ok: 'Create',
-            done: name => {
-                const defaults = { ...(bookSettings(settings, book).defaults ?? {}) };
-                const by = defaults.by;
-                delete defaults.by;
-                const x = library.change(book, d => {
-                    const n = addEntry(d, deps.entryTemplate, defaults);
-                    n.comment = name;
-                    if (by) setParam(d, n.uid, PARAM_LIST.find(z => z.field === 'by'), by);
-                    return n;
-                });
-                const key = cardKey(x);
-                canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true };
-                saveSettings();
-                showOnCanvas(book, key);
-                layer.toast(`${name} placed on the canvas`);
-            },
+            // Made, not placed: it waits in the panel with a hollow dot until it is placed.
+            done: name => { createEntry(book, name); H.panel = true; H.q = ''; render(); layer.toast(`${name} made. Drag or tap its dot to place it`); },
         }), 'New entry'));
         p.append(ph);
         const list = el('div', 'plist');
@@ -1109,7 +1137,7 @@ export function createApp(deps) {
             const on = view?.ids ?? new Set();
             const needle = H.q.trim().toLowerCase();
             const groups = new Map();
-            for (const e of entriesShown(book, data)) {
+            for (const e of sortEntries(entriesShown(book, data), sortBy())) {
                 if (needle && !titleOf(e).toLowerCase().includes(needle)) continue;
                 const f = entryFolder(book, e).split('/')[0];
                 if (!groups.has(f)) groups.set(f, []);
@@ -1447,6 +1475,42 @@ export function createApp(deps) {
         }, { help: 'The story logic as it is stored in the entry. It travels with the book.' });
     }
 
+    function newTab() {
+        const t = { id: ++tabUid, history: [{ type: 'home' }], fresh: true };
+        S.tabs.push(t);
+        leave();
+        S.active = t.id;
+        S.select = null;
+        render();
+    }
+
+    // Pulling the tab row right past its start opens a new tab (Normal mode): a + grows under the finger.
+    {
+        const pull = el('div', 'pullnew');
+        pull.innerHTML = ic('plus');
+        tabbar.insertBefore(pull, strip);
+        let x0 = null;
+        let dx = 0;
+        const show = w => { pull.style.width = `${w}px`; pull.classList.toggle('ready', w >= 64); };
+        strip.addEventListener('touchstart', e => { x0 = S.mode === 'normal' && !S.select && strip.scrollLeft <= 0 ? e.touches[0].clientX : null; dx = 0; }, { passive: true });
+        strip.addEventListener('touchmove', e => {
+            if (x0 === null) return;
+            dx = e.touches[0].clientX - x0;
+            if (strip.scrollLeft > 0 || dx <= 0) { show(0); return; }
+            show(Math.min(dx * 0.6, 80));
+        }, { passive: true });
+        const done = () => {
+            const go = x0 !== null && pull.classList.contains('ready');
+            x0 = null;
+            show(0);
+            if (go) newTab();
+        };
+        strip.addEventListener('touchend', done);
+        strip.addEventListener('touchcancel', () => { x0 = null; show(0); });
+    }
+
+    const sortBy = () => (SORT_NAMES[settings.sortBy] ? settings.sortBy : 'order');
+
     // ---------------------------------------------------------------- menus
     /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
     function choiceRow(sh, label, choices, cur, pick) {
@@ -1490,12 +1554,11 @@ export function createApp(deps) {
             if (p.type === 'hero') heroMenu(sh);
             else if (p.type === 'home') {
                 sh.append(el('div', 'lbl', 'View'));
-                sh.append(layer.opt('World Info settings', wiSettingsSheet, { icon: 'gear', val: '›' }));
                 choiceRow(sh, 'Open books in', [['normal', 'Normal mode'], ['hero', 'Hero mode']], settings.openInHero ? 'hero' : 'normal', k => { settings.openInHero = k === 'hero'; saveSettings(); });
             } else if (p.type === 'book') {
                 const data = library.peek(p.book);
                 sh.append(el('div', 'lbl', 'View'));
-                choiceRow(sh, 'Group by', Object.entries(GROUP_NAMES), S.groupBy, k => { S.groupBy = k; render(); });
+                choiceRow(sh, 'Sort by', Object.entries(SORT_NAMES), sortBy(), k => { settings.sortBy = k; saveSettings(); render(); });
                 switchRow(sh, 'Show disabled entries', S.showOff, v => { S.showOff = v; render(); });
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
@@ -1511,15 +1574,7 @@ export function createApp(deps) {
             });
             sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard' }));
             sh.append(el('div', 'lbl', 'Tabs'));
-            if (S.mode !== 'hero') sh.append(layer.opt('New tab', () => {
-                layer.close();
-                const t = { id: ++tabUid, history: [{ type: 'home' }], fresh: true };
-                S.tabs.push(t);
-                leave();
-                S.active = t.id;
-                S.select = null;
-                render();
-            }, { icon: 'tab' }));
+            if (S.mode !== 'hero') sh.append(layer.opt('New tab', () => { layer.close(); newTab(); }, { icon: 'tab' }));
             sh.append(layer.opt('Close other tabs', () => {
                 layer.close();
                 if (S.mode === 'hero') {
@@ -1620,7 +1675,6 @@ export function createApp(deps) {
                         const b = bookSettings(settings, book);
                         b.folderList = [...new Set([...(b.folderList ?? []), f.split('/').map(x => x.trim()).filter(Boolean).join('/')])];
                         saveSettings();
-                        S.groupBy = 'folder';
                         render();
                     },
                 }), { icon: 'folder' }));
@@ -1745,22 +1799,55 @@ export function createApp(deps) {
         }, { help: 'Characters and chats that turn this book on. Unlinking is how you turn a linked book off.' });
     }
 
+    /** SillyTavern's World Info settings, all of them, in groups (they apply to every book). */
     function wiSettingsSheet() {
-        const draw = () => layer.sheet('World Info settings', sh => {
-            const s = library.wiSettings();
-            const num = (key, label, sub, min, max) => sh.append(layer.opt(label, () => layer.askText({
-                title: label, value: String(s[key]), type: 'number',
-                check: v => (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max ? null : `A whole number from ${min} to ${max}`),
-                done: v => { library.setWiSetting(key, Number(v)); draw(); },
-            }), { sub, val: key === 'budget' ? `${s[key]}%` : String(s[key]) }));
-            num('budget', 'Budget', 'How much of the context World Info may use', 1, 100);
-            num('depth', 'Scan depth', 'How many recent messages are scanned', 0, 1000);
-            const r = layer.opt('Recursive scan', () => sw.click(), { sub: 'Entries can trigger other entries' });
-            const sw = swEl(s.recursive, v => { library.setWiSetting('recursive', v); draw(); }, 'Recursive scan');
-            r.append(sw);
-            sh.append(r);
-            sh.append(layer.opt('More settings', () => { layer.close(); hide(); deps.openStEditor(); }, { val: '›', sub: 'The rest, in SillyTavern\'s own World Info panel' }));
-        }, { help: 'SillyTavern\'s own settings. They apply to every book.' });
+        let scroll = 0;
+        const n = v => Number(v).toLocaleString();
+        const draw = () => {
+            const sh = layer.sheet('World Info settings', sh => {
+                const s = library.wiSettings();
+                const num = (key, label, sub, min, max, shown = v => String(v)) => sh.append(layer.opt(label, () => layer.askText({
+                    title: label, value: String(s[key]), type: 'number',
+                    check: v => (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max ? null : `A whole number from ${min} to ${max}`),
+                    done: v => { library.setWiSetting(key, Number(v)); draw(); },
+                }), { sub, val: shown(s[key]) }));
+                const flag = (key, label, sub) => switchRow(sh, label, !!s[key], v => library.setWiSetting(key, v), { sub });
+
+                sh.append(el('div', 'lbl', 'Scanning'));
+                num('depth', 'Scan depth', 'How many recent messages are searched for key words', 0, 1000);
+                flag('recursive', 'Recursive scan', 'Entries that fire can trigger other entries with their text');
+                num('maxRecursion', 'Recursion steps', 'How many rounds of entries triggering entries. 0 is no limit. Can\'t be used with Min activations', 0, 10,
+                    v => (v ? String(v) : 'No limit'));
+                num('minActivations', 'Min activations', 'Keeps scanning older messages until this many entries fire. 0 is off. Turns off Recursion steps', 0, 100,
+                    v => (v ? String(v) : 'Off'));
+                num('minActivationsDepth', 'Min activations: max depth', 'How far back Min activations may look. 0 is the whole chat', 0, 100,
+                    v => (v ? String(v) : 'Whole chat'));
+
+                sh.append(el('div', 'lbl', 'Matching'));
+                flag('caseSensitive', 'Case-sensitive', 'Key words match only with the same capitals');
+                flag('wholeWords', 'Match whole words', 'A key word must stand as a word: "inn" won\'t match "inner"');
+                flag('includeNames', 'Include names', 'Speaker names are part of the text that is scanned');
+                flag('groupScoring', 'Group scoring', 'In an inclusion group, the entry matching the most key words wins');
+
+                sh.append(el('div', 'lbl', 'Budget'));
+                const tokens = s.maxContext ? Math.round(s.budget * s.maxContext / 100) : null;
+                num('budget', 'Budget', tokens === null ? 'How much of the context World Info may use'
+                    : `About ${n(tokens)} tokens of your ${n(s.maxContext)}-token context`, 1, 100, v => `${v}%`);
+                num('budgetCap', 'Token cap', 'The most tokens World Info may use, whatever the percent says. 0 is no cap', 0, 65536,
+                    v => (v ? `${n(v)} tokens` : 'No cap'));
+                if (s.budgetCap && tokens !== null && s.budgetCap < tokens) sh.append(el('p', 'help', `The cap wins: World Info gets at most ${n(s.budgetCap)} tokens.`));
+                flag('overflowAlert', 'Alert on overflow', 'A notice when entries are left out because the budget ran out');
+
+                sh.append(el('div', 'lbl', 'Order'));
+                const order = [['0', 'Sorted evenly', 'Every book\'s entries by their order'], ['1', 'Character books first'], ['2', 'Global books first']];
+                const cur = order.find(([k]) => k === String(s.bookOrder)) ?? order[1];
+                sh.append(layer.opt('Book order', () => layer.sheet('Book order', o => {
+                    for (const [k, label, sub] of order) o.append(layer.opt(label, () => { library.setWiSetting('bookOrder', Number(k)); draw(); }, { cur: k === cur[0], sub }));
+                }, { help: 'Which books\' entries go into the prompt first when several books are on.' }), { sub: 'Whose entries go in first', val: `${cur[1]} ›` }));
+            }, { help: 'SillyTavern\'s own settings. They apply to every book.' });
+            sh.scrollTop = scroll;
+            sh.addEventListener('scroll', () => { scroll = sh.scrollTop; });
+        };
         draw();
     }
 

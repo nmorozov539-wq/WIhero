@@ -267,14 +267,34 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
 
     // ---- ST's World Info settings (they apply to every book), through ST's own controls so they save as usual
 
+    /** ST's own World Info settings (they apply to every book), read live. */
     function wiSettings() {
-        return { budget: WI.world_info_budget, depth: WI.world_info_depth, recursive: WI.world_info_recursive };
+        return {
+            depth: WI.world_info_depth, recursive: WI.world_info_recursive, maxRecursion: WI.world_info_max_recursion_steps,
+            minActivations: WI.world_info_min_activations, minActivationsDepth: WI.world_info_min_activations_depth_max,
+            caseSensitive: WI.world_info_case_sensitive, wholeWords: WI.world_info_match_whole_words,
+            includeNames: WI.world_info_include_names, groupScoring: WI.world_info_use_group_scoring,
+            budget: WI.world_info_budget, budgetCap: WI.world_info_budget_cap, overflowAlert: WI.world_info_overflow_alert,
+            bookOrder: WI.world_info_character_strategy, maxContext: Number(ctx().maxContext) || null,
+        };
     }
+    /** Each setting's control in ST's World Info panel, and the event ST listens to on it. */
+    const WI_CONTROLS = {
+        depth: ['#world_info_depth', 'input'], recursive: ['#world_info_recursive', 'input', true], maxRecursion: ['#world_info_max_recursion_steps', 'input'],
+        minActivations: ['#world_info_min_activations', 'input'], minActivationsDepth: ['#world_info_min_activations_depth_max', 'input'],
+        caseSensitive: ['#world_info_case_sensitive', 'input', true], wholeWords: ['#world_info_match_whole_words', 'input', true],
+        includeNames: ['#world_info_include_names', 'input', true], groupScoring: ['#world_info_use_group_scoring', 'change', true],
+        budget: ['#world_info_budget', 'input'], budgetCap: ['#world_info_budget_cap', 'input'], overflowAlert: ['#world_info_overflow_alert', 'change', true],
+        bookOrder: ['#world_info_character_strategy', 'change'],
+    };
+    /** Changes a setting through ST's own control, so ST saves it and keeps its rules (min activations vs. max recursion). */
     function setWiSetting(key, value) {
         const $ = globalThis.jQuery;
-        if (!$) return;
-        if (key === 'recursive') $('#world_info_recursive').prop('checked', !!value).trigger('input');
-        else $(`#world_info_${key}`).val(value).trigger('input');
+        const c = WI_CONTROLS[key];
+        if (!$ || !c) return;
+        const [sel, event, check] = c;
+        if (check) $(sel).prop('checked', !!value).trigger(event);
+        else $(sel).val(value).trigger(event);
     }
 
     return {
