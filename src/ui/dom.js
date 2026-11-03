@@ -53,6 +53,25 @@ export function pressable(node, onTap, onLong) {
     node.addEventListener('contextmenu', e => { if (onLong) e.preventDefault(); });
 }
 
+/** Long press (480 ms) on any node, a sheet row included; the tap that ends a long press goes nowhere. */
+export function longPress(node, fn) {
+    let timer = null;
+    let fired = false;
+    let sx = 0;
+    let sy = 0;
+    const end = () => { clearTimeout(timer); timer = null; node.classList.remove('pressing'); };
+    node.addEventListener('pointerdown', e => {
+        if (e.button) return;
+        fired = false; sx = e.clientX; sy = e.clientY;
+        node.classList.add('pressing');
+        timer = setTimeout(() => { fired = true; node.classList.remove('pressing'); fn(); }, 480);
+    });
+    node.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) end(); });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) node.addEventListener(type, end);
+    node.addEventListener('click', e => { if (fired) { fired = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+    node.addEventListener('contextmenu', e => e.preventDefault());
+}
+
 /**
  * The overlay layer of one WI Hero root.
  * @param {HTMLElement} layer where sheets go

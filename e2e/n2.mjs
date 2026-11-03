@@ -21,8 +21,10 @@ async function ask(value) {
     await wait(300);
 }
 async function menu(...path) {
+    if (await $('.scrim').count()) { await page.keyboard.press('Escape'); await wait(100); } // menus stay open after a pick
     await $('.tabbar .iconbtn').click();
     for (const p of path) { await opt(p).click(); await wait(200); }
+    if (path.length && await $('.sheet.menu').count()) { await page.keyboard.press('Escape'); await wait(100); }
 }
 /** Types into the open entry page: title, then key words, then content. */
 async function fillEntry(title, keys, content) {
@@ -114,10 +116,13 @@ await run(async () => {
     await ask('Places');
     await $('.section button:has-text("Places · 2")').waitFor();
     assert.deepEqual(await ev(n => Object.values(wihero.settings.books[n].folders), BOOK), ['Places', 'Places']);
-    await menu('Group by');
+    await $('.tabbar .iconbtn').click();
+    await opt('Group by').click();
+    await opt('Strategy').click();
+    assert.equal(await $('.sheet.menu .opt.has-choices:has(.lab:text-is("Group by")) .val').textContent(), 'Strategy', 'the menu stays open, showing the pick');
+    await page.keyboard.press('Escape');
     assert.deepEqual(await $('.view .section').allTextContents(), ['Keywords · 2', 'Permanent · 1']);
-    await menu('Group by');
-    await menu('Group by');
+    await menu('Group by', 'Folders');
     await $('.item.ent:has(.nm:text-is("Weather lore")) .switch').click();
     await wait(100);
     assert.equal((await book(BOOK)).entries[entryBy(data, 'Weather lore').uid].disable, true);
@@ -190,9 +195,9 @@ await run(async () => {
     assert.equal(await ev(() => wihero.settings.colorMode), 'red-green');
     assert.equal(await $('.wih').evaluate(n => getComputedStyle(n).getPropertyValue('--p-open').trim()), '#56b4e9');
     await menu('Colors', 'Standard');
-    await menu('Content font');
+    await menu('Content font', 'Sans');
     assert.equal(await ev(() => wihero.settings.contentFont), 'sans');
-    await menu('Content font');
+    await menu('Content font', 'Serif');
     ok('Colors switches the piece colors (D22) and Content font the entries\' font, both saved');
 
     // ── Book actions ──
@@ -206,7 +211,15 @@ await run(async () => {
     assert.equal(await ev(n => wihero.settings.books[n]?.snapshots?.length, SHELF), 1, 'its snapshots came along');
     assert.equal(await ev(([a]) => wihero.settings.renamed[a], [BOOK]), SHELF);
     await $('.chip2[aria-label="Active globally"]').click();
-    ok('Global turns the book on everywhere; Rename keeps it global, its snapshots and the chats\' state');
+    // A name with a comma: ST's slash command would split it in two.
+    const comma = await ev(() => wihero.library.create('N2, Comma'));
+    const isOn = n => ev(async x => (await import('/scripts/world-info.js')).selected_world_info.includes(x), n);
+    await ev(n => wihero.library.setGlobal(n, true), comma);
+    assert.ok(await isOn(comma), 'a book with a comma in its name turns global');
+    await ev(n => wihero.library.setGlobal(n, false), comma);
+    assert.ok(!await isOn(comma));
+    await ev(n => wihero.library.remove(n), comma);
+    ok('Global turns the book on everywhere, a comma in its name too; Rename keeps it global, its snapshots and the chats\' state');
 
     // ── Back and hiding ──
     await $('.bkname').click();

@@ -281,6 +281,8 @@ export function search(books, query, currentBook) {
             if (has(titleOf(e)) || (e.key ?? []).some(has)) (b.name === currentBook ? mine : others).push({ kind: 'entry', book: b.name, entry: e, current: b.name === currentBook });
         }
     }
+    // In a book, its entries come first; with no book open, the books do.
+    if (!currentBook) return [...bookHits, ...folders.values(), ...others];
     return [...mine, ...others, ...bookHits, ...folders.values()];
 }
 

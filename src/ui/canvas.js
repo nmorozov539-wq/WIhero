@@ -548,5 +548,13 @@ export function mountCanvas(vp, d) {
         saveCamera();
     }
 
-    return { render, fit, centerOn, reveal, tidy, flip, get view() { return CV; }, get camera() { return camera(); } };
+    /** The canvas point under a screen point, or null when the point is outside the view. */
+    function pointAt(cx, cy) {
+        const r = vp.getBoundingClientRect();
+        if (!camera() || cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+        const [x, y] = toWorld(cx, cy);
+        return { x: snap(x - CW / 2), y: snap(y - CH / 2) };
+    }
+
+    return { render, fit, centerOn, reveal, tidy, flip, pointAt, get view() { return CV; }, get camera() { return camera(); } };
 }

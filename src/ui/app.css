@@ -480,3 +480,15 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .rrow div { flex: 1; min-width: 0; }
 .rrow b { display: block; font-size: var(--t-s); }
 .rrow small { display: block; color: var(--muted); font-size: var(--t-s); margin-top: 2px; line-height: 1.4; }
+/* A menu row's choices, unfolded under it */
+.opt.has-choices .val::after { content: ' ›'; display: inline-block; transition: transform .12s; }
+.opt.has-choices.unfolded .val::after { transform: rotate(90deg); }
+.choices { background: var(--raised); }
+.choices .opt { min-height: 42px; padding-left: 32px; font-size: var(--t-s); }
+/* A card being dragged out of the entry panel */
+.dragghost { position: absolute; left: 0; top: 0; z-index: 60; pointer-events: none; width: 168px; min-height: 44px; margin: -22px 0 0 -84px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--accent); background: var(--surface); color: var(--fg); box-shadow: 0 10px 28px var(--shadow); font-size: var(--t-s); opacity: .92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dragghost.off { opacity: .45; border-color: var(--bad); }
+/* Drop here to cancel a drag from the entry panel */
+.dropcancel { position: absolute; left: 50%; top: 78%; z-index: 59; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: color-mix(in srgb, var(--bad) 75%, transparent); box-shadow: 0 6px 20px var(--shadow); transition: transform .12s, background .12s; }
+.dropcancel svg { width: 28px; height: 28px; }
+.dropcancel.over { transform: scale(1.18); background: var(--bad); }

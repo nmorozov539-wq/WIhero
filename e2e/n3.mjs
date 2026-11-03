@@ -15,8 +15,10 @@ const shot = name => page.screenshot({ path: `${LOG}n3-${name}.png` });
 const transform = () => $('.world').evaluate(n => n.style.transform);
 
 async function menu(...path) {
+    if (await $('.scrim').count()) { await page.keyboard.press('Escape'); await wait(100); } // menus stay open after a pick
     await $('.tabbar .iconbtn').click();
     for (const p of path) { await opt(p).click(); await wait(200); }
+    if (path.length && await $('.sheet.menu').count()) { await page.keyboard.press('Escape'); await wait(100); }
 }
 async function drag(locator, dx, dy) {
     const b = await locator.boundingBox();
@@ -44,7 +46,7 @@ await run(async () => {
     // ── First open: arranged once (D8) ──
     await toggleEditor();
     await $('.view h1:text-is("World Info")').waitFor();
-    await menu('Open books in');
+    await menu('Open books in', 'Hero mode');
     assert.equal(await ev(() => wihero.settings.openInHero), true);
     await $(`.item[data-book="${BOOK}"]`).click();
     await $('.card').first().waitFor();
@@ -121,9 +123,51 @@ await run(async () => {
     await $('.panel .phead input').fill('');
     assert.equal(await $('.prow:has(.nm:text-is("Lantern (sticky 5)")) .dotc.in').count(), 0);
     assert.equal(await $('.prow:has(.nm:text-is("Village (not gated)")) .dotc.in').count(), 1);
-    await $('.prow:has(.nm:text-is("Ferry (sticky 7)"))').click();
+    // Dragging a dot out of the panel places the card where it is dropped.
+    const lantern = $('.prow:has(.nm:text-is("Lantern (sticky 5)"))');
+    const lkey = await lantern.getAttribute('data-key');
+    await lantern.scrollIntoViewIfNeeded();
+    await wait(400); // the panel's slide
+    const vpBox = await $('.vp').boundingBox();
+    let dot = await lantern.locator('.dotc').boundingBox();
+    // Dropped on the red ×, nothing is placed.
+    await page.mouse.move(dot.x + dot.width / 2, dot.y + dot.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(dot.x - 20, dot.y + 20);
+    await $('.dropcancel').waitFor();
+    const x = await $('.dropcancel').boundingBox();
+    for (let i = 1; i <= 6; i++) await page.mouse.move(dot.x + (x.x + 32 - dot.x) * i / 6, dot.y + (x.y + 32 - dot.y) * i / 6);
+    assert.ok(await $('.dropcancel.over').count(), 'the × lights up under the finger');
+    await page.mouse.up();
+    await wait(300);
+    assert.equal(await $('.dropcancel').count(), 0);
+    assert.equal((await memory()).cards[lkey]?.placed, undefined, 'dropped on the ×: not placed');
+    assert.ok(await $('.panel:not(.closed)').count(), 'and the panel comes back');
+    await wait(400);
+    dot = await lantern.locator('.dotc').boundingBox();
+    const [tx, ty] = [vpBox.x + vpBox.width - 100, vpBox.y + vpBox.height - 140];
+    await page.mouse.move(dot.x + dot.width / 2, dot.y + dot.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(dot.x + (tx - dot.x) * i / 10, dot.y + (ty - dot.y) * i / 10);
+    await page.mouse.up();
+    await card(lkey).waitFor();
+    const lc = await card(lkey).boundingBox();
+    assert.ok(Math.abs(lc.x + lc.width / 2 - tx) < 40 && Math.abs(lc.y + lc.height / 2 - ty) < 40, `dropped at ${tx},${ty}, drawn at ${lc.x + lc.width / 2},${lc.y + lc.height / 2}`);
+    assert.equal((await memory()).cards[lkey].placed, true);
+    // A long press on a row opens its menu.
+    await $('.panelBtn').click();
+    await $('.panel:not(.closed)').waitFor();
+    await $('.prow:has(.nm:text-is("Ferry (sticky 7)"))').scrollIntoViewIfNeeded();
+    await wait(400);
+    const ferry = await $('.prow:has(.nm:text-is("Ferry (sticky 7)"))').boundingBox();
+    await page.mouse.move(ferry.x + 40, ferry.y + ferry.height / 2);
+    await page.mouse.down();
+    await wait(650);
+    await page.mouse.up();
+    await $('.sheet h2:text-is("Ferry (sticky 7)")').waitFor();
+    await opt('Open entry').click();
     await $('.en h1:text-is("Ferry (sticky 7)")').waitFor();
-    ok('the panel filters, places an unlinked entry beside the view with its dot, and opens an entry in a tab');
+    ok('the panel filters, places an unlinked entry beside the view with its dot or where its dot is dropped, and opens an entry in a tab (tap or long press)');
 
     // ── Entry tabs ──
     assert.equal(await $('.tab.active .name').textContent(), 'Ferry (sticky 7)');

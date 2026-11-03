@@ -3,7 +3,7 @@
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
 import { buildModel } from '../engine/model.js';
-import { btn, createLayer, el, pressable, swEl } from './dom.js';
+import { btn, createLayer, el, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
@@ -236,7 +236,10 @@ export function createApp(deps) {
         if (p?.type !== 'entry' || !p.fresh) return;
         delete p.fresh;
         const e = library.peek(p.book)?.entries[p.uid];
-        if (e && isBlank(e)) library.change(p.book, d => { delete d.entries[p.uid]; }, { quiet: true });
+        if (e && isBlank(e)) {
+            library.change(p.book, d => { delete d.entries[p.uid]; }, { quiet: true });
+            layer.toast('Empty entry removed');
+        }
     }
 
     /** Opens a page: from Home's tab (or with `newTab`) in a new tab, otherwise in this tab's history. */
@@ -265,7 +268,7 @@ export function createApp(deps) {
         if (i < 0 || S.tabs[i].home) return;
         if (id === S.active) leave();
         S.tabs.splice(i, 1);
-        if (S.active === id) S.active = (S.tabs[i - 1] ?? S.tabs[0]).id;
+        if (S.active === id) S.active = (S.tabs[i] ?? S.tabs[i - 1] ?? S.tabs[0]).id; // the next tab slides into its place
         S.select = null;
         render();
     }
@@ -608,7 +611,7 @@ export function createApp(deps) {
             res.innerHTML = '';
             const books = names.map(n => ({ name: n, folder: bookFolderOf(settings, n), entries: library.peek(n) ? entriesShown(n, library.peek(n)) : [], folderOf: e => entryFolder(n, e) }));
             const hits = search(books, input.value, page().book);
-            if (!input.value.trim()) { res.append(el('div', 'empty-note', 'Type to search every book: names, folders and key words. Entries of the open book come first.')); return; }
+            if (!input.value.trim()) { res.append(el('div', 'empty-note', page().book ? 'Type to search every book: names, folders and key words. Entries of the open book come first.' : 'Type to search every book: names, folders and key words. Books come first.')); return; }
             if (!hits.length) { res.append(el('div', 'empty-note', 'Nothing found.')); return; }
             for (const h of hits.slice(0, 80)) {
                 const it = el('div', `item${h.kind === 'entry' ? ` ent st-${strategyOf(h.entry)}` : ''}`);
@@ -620,12 +623,13 @@ export function createApp(deps) {
                     : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
                 tx.append(el('div', 't', title), el('div', 'm', meta));
                 it.append(i, tx);
-                it.addEventListener('click', () => {
+                const behind = h.kind === 'entry' ? { type: 'entry', book: h.book, uid: h.entry.uid } : h.kind === 'book' ? { type: 'book', book: h.book } : null;
+                pressable(it, () => {
                     if (h.kind === 'entry') openIn({ type: 'entry', book: h.book, uid: h.entry.uid }, { newTab: true });
                     else if (h.kind === 'book') openIn({ type: 'book', book: h.book }, { newTab: true });
                     else if (h.book) { S.groupBy = 'folder'; S.collapsed.delete(`${h.book}:folder:${h.folder}`); openIn({ type: 'book', book: h.book }, { newTab: true }); }
                     else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); }
-                });
+                }, behind && (() => openIn(behind, { newTab: true, background: true })));
                 res.append(it);
             }
         };
@@ -681,10 +685,21 @@ export function createApp(deps) {
             activeMask: (() => { try { return node?.key && hooks.model.nodes.has(node.key) && ctx().chat?.length ? entryStatus(hooks.model.nodes.get(node.key), hooks.state(), ctx().chat, hooks.model).mask : null; } catch { return null; } })(),
             redraw: render,
             retitle: renderTabs,
+            // In the book page's grouping and order; long press opens one in a background tab.
             drawer: () => layer.sheet(book, sh => {
-                for (const x of entriesShown(book, data)) {
-                    sh.append(layer.opt(titleOf(x), () => { layer.close(); if (nav) { nav.go(x.uid); return; } leave(); tab().history[tab().history.length - 1] = { type: 'entry', book, uid: x.uid }; render(); },
-                        { cur: x.uid === e.uid, dot: strategyColor(x), sub: entryFolder(book, x) || undefined }));
+                const groups = groupEntries(entriesShown(book, data), S.groupBy, x => entryFolder(book, x));
+                for (const [g, list] of groups) {
+                    if (g) sh.append(el('div', 'lbl', g));
+                    else if (groups.length > 1) sh.append(el('div', 'lbl', S.groupBy === 'folder' ? 'No folder' : 'Entries'));
+                    for (const x of list) {
+                        const o = layer.opt(titleOf(x), () => { layer.close(); if (nav) { nav.go(x.uid); return; } leave(); tab().history[tab().history.length - 1] = { type: 'entry', book, uid: x.uid }; render(); },
+                            { cur: x.uid === e.uid, dot: strategyColor(x), sub: S.groupBy === 'folder' ? undefined : entryFolder(book, x) || undefined });
+                        longPress(o, () => {
+                            if (nav) { if (!H.tabs.some(t => t.book === book && t.uid === x.uid)) H.tabs.push({ book, uid: x.uid }); renderTabs(); layer.toast('Opened in a background tab'); }
+                            else openIn({ type: 'entry', book, uid: x.uid }, { newTab: true, background: true });
+                        });
+                        sh.append(o);
+                    }
                 }
             }),
             menu: () => entryMenu(book, e.uid, { onPage: !nav, heroTab: nav }),
@@ -843,7 +858,7 @@ export function createApp(deps) {
 
     function closeHeroTab(i) {
         H.tabs.splice(i, 1);
-        if (H.active === i) H.active = i > 0 ? i - 1 : 'canvas';
+        if (H.active === i) H.active = i < H.tabs.length ? i : i > 0 ? i - 1 : 'canvas'; // the next tab slides into its place
         else if (typeof H.active === 'number' && H.active > i) H.active--;
         render();
     }
@@ -1030,6 +1045,65 @@ export function createApp(deps) {
         const list = el('div', 'plist');
         p.append(list);
         const view = heroCanvas.view;
+        // Dragging a dot out of the panel places the card where it is dropped (or moves it there). The panel slides
+        // away once the drag starts, so the whole canvas is a drop target; dropping on the red × cancels.
+        const dropped = new WeakSet();
+        const dragged = ev => { if (!dropped.has(ev.currentTarget)) return false; dropped.delete(ev.currentTarget); return true; };
+        const dotDrag = (dot, key, title) => {
+            let start = null;
+            let ghost = null;
+            let cancel = null;
+            const overCancel = ev => {
+                const r = cancel?.getBoundingClientRect();
+                return !!r && Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)) <= r.width / 2 + 16;
+            };
+            dot.style.touchAction = 'none';
+            dot.addEventListener('pointerdown', ev => {
+                if (ev.button) return;
+                start = { x: ev.clientX, y: ev.clientY };
+                dot.setPointerCapture?.(ev.pointerId);
+            });
+            dot.addEventListener('pointermove', ev => {
+                if (!start) return;
+                if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 8) return;
+                if (!ghost) {
+                    ghost = el('div', 'dragghost', title);
+                    cancel = el('div', 'dropcancel');
+                    cancel.innerHTML = ic('x');
+                    cancel.setAttribute('aria-label', 'Drop here to cancel');
+                    root.append(cancel, ghost);
+                    p.classList.add('closed', 'dragging');
+                }
+                const r = root.getBoundingClientRect();
+                ghost.style.transform = `translate(${ev.clientX - r.left}px, ${ev.clientY - r.top}px)`;
+                const off = overCancel(ev);
+                cancel.classList.toggle('over', off);
+                ghost.classList.toggle('off', off);
+            });
+            const finish = (ev, drop) => {
+                const g = ghost;
+                const off = overCancel(ev);
+                start = null;
+                ghost = null;
+                if (!g) return;
+                g.remove();
+                cancel.remove();
+                cancel = null;
+                dropped.add(dot);
+                p.classList.remove('dragging');
+                const at = drop && !off ? heroCanvas?.pointAt(ev.clientX, ev.clientY) : null;
+                if (!at) { panelState(); return; }
+                const mem = canvasMemory(bookSettings(settings, book));
+                mem.cards[key] = { ...(mem.cards[key] ?? {}), placed: true, x: at.x, y: at.y };
+                delete mem.cards[key].ports;
+                saveSettings();
+                H.panel = false;
+                render();
+                layer.toast(`${title} placed`);
+            };
+            dot.addEventListener('pointerup', ev => finish(ev, true));
+            dot.addEventListener('pointercancel', ev => finish(ev, false));
+        };
         const fill = () => {
             list.innerHTML = '';
             const on = view?.ids ?? new Set();
@@ -1062,13 +1136,16 @@ export function createApp(deps) {
                     const model = heroCanvas?.view?.m;
                     if (model?.byId(key)?.problem) { const b = el('span', 'pbang', '!'); b.title = 'This entry has a problem'; r.append(b); }
                     const placed = on.has(key);
-                    const d = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => {
-                        ev.stopPropagation();
-                        if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); }
-                        showOnCanvas(book, key);
-                    }, placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas`);
+                    const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
+                    const d = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => { ev.stopPropagation(); if (!dragged(ev)) place(); },
+                        placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas`);
+                    dotDrag(d, key, titleOf(e));
                     r.append(d);
-                    r.addEventListener('click', () => openHeroTab(book, e.uid));
+                    pressable(r, () => openHeroTab(book, e.uid), () => layer.sheet(titleOf(e), sh => {
+                        sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab' }));
+                        sh.append(layer.opt(placed ? 'Show on canvas' : 'Place on canvas', () => { layer.close(); place(); }, { icon: 'canvas' }));
+                        if (placed) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye' }));
+                    }, { help: 'Or drag its dot onto the canvas to place it where you drop it.' }));
                     box.append(r);
                 }
             }
@@ -1089,11 +1166,14 @@ export function createApp(deps) {
                         r.append(nm);
                         if (g.changed) r.append(el('span', 'pbang', '!'));
                         const placed = on.has(g.key);
-                        r.append(btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => {
+                        const gd = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => {
                             ev.stopPropagation();
+                            if (dragged(ev)) return;
                             if (!placed) { canvasMemory(bookSettings(settings, book)).cards[g.key] = { placed: true }; saveSettings(); }
                             showOnCanvas(book, g.key);
-                        }, placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas`));
+                        }, placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas`);
+                        dotDrag(gd, g.key, g.title);
+                        r.append(gd);
                         r.addEventListener('click', () => inspect(book, g.key));
                         box.append(r);
                     }
@@ -1331,15 +1411,11 @@ export function createApp(deps) {
         const book = H.book;
         if (book) {
             sh.append(el('div', 'lbl', 'Book'));
-            const g = layer.opt('Active globally', () => s.click());
-            const s = swEl(library.isGlobal(book), v => {
+            switchRow(sh, 'Active globally', library.isGlobal(book), v => {
                 library.setGlobal(book, v);
-                layer.close();
                 render();
                 layer.toast(v ? `${book} is active everywhere` : `${book} is no longer global`);
-            }, 'Active globally');
-            g.append(s);
-            sh.append(g);
+            });
             sh.append(layer.opt('Linked to', () => linksSheet(book), { val: `${linkText(book) || 'Nothing'} ›` }));
             sh.append(layer.opt('Switch book', bookPicker, { val: `${book} ›` }));
             const data = library.peek(book);
@@ -1356,11 +1432,8 @@ export function createApp(deps) {
             const undo = heroCanvas?.tidy();
             if (undo) layer.toast('Tidied', { action: ['Undo', () => { undo(); layer.toast('Layout put back'); }] });
         }, { icon: 'tidy' }));
-        sh.append(layer.opt('Legend', () => { H.legend = !H.legend; layer.close(); render(); }, { val: H.legend ? 'Shown' : 'Hidden' }));
-        const cs = layer.opt('Show chat state', () => sw.click(), { sub: library.chatOpen() ? 'The open chat, at its latest message' : 'Open a chat to see it' });
-        const sw = swEl(H.chatState, v => { H.chatState = v; layer.close(); render(); }, 'Show chat state');
-        cs.append(sw);
-        sh.append(cs);
+        switchRow(sh, 'Legend', H.legend, v => { H.legend = v; render(); });
+        switchRow(sh, 'Show chat state', H.chatState, v => { H.chatState = v; render(); }, { sub: library.chatOpen() ? 'The open chat, at its latest message' : 'Open a chat to see it' });
     }
 
     /** The entry's story logic as stored (extensions.wihero), read-only. */
@@ -1375,6 +1448,41 @@ export function createApp(deps) {
     }
 
     // ---------------------------------------------------------------- menus
+    /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
+    function choiceRow(sh, label, choices, cur, pick) {
+        const name = k => choices.find(c => c[0] === k)?.[1] ?? '';
+        const list = el('div', 'choices');
+        list.hidden = true;
+        const fold = open => { list.hidden = !open; row.classList.toggle('unfolded', open); row.setAttribute('aria-expanded', String(open)); };
+        const row = layer.opt(label, () => fold(list.hidden), { val: name(cur), cls: 'has-choices' });
+        row.setAttribute('aria-expanded', 'false');
+        for (const [k, lab, sub] of choices) {
+            const o = layer.opt(lab, () => {
+                pick(k);
+                row.querySelector('.val').textContent = name(k);
+                for (const x of list.children) x.classList.toggle('cur', x.dataset.k === k);
+                fold(false);
+            }, { cur: k === cur, sub });
+            o.dataset.k = k;
+            list.append(o);
+        }
+        sh.append(row, list);
+        return row;
+    }
+
+    /** A menu row with a switch that flips in place; the menu stays open. */
+    function switchRow(sh, label, on, flip, { sub } = {}) {
+        const r = layer.opt(label, () => s.click(), { sub });
+        const s = swEl(on, v => {
+            flip(v);
+            s.classList.toggle('on', v);
+            s.setAttribute('aria-checked', String(v));
+        }, label);
+        r.append(s);
+        sh.append(r);
+        return r;
+    }
+
     function openMenu() {
         const p = S.mode === 'hero' ? { type: 'hero' } : page();
         layer.sheet(null, sh => {
@@ -1383,12 +1491,12 @@ export function createApp(deps) {
             else if (p.type === 'home') {
                 sh.append(el('div', 'lbl', 'View'));
                 sh.append(layer.opt('World Info settings', wiSettingsSheet, { icon: 'gear', val: '›' }));
-                sh.append(layer.opt('Open books in', () => { settings.openInHero = !settings.openInHero; saveSettings(); layer.close(); }, { val: settings.openInHero ? 'Hero mode' : 'Normal mode' }));
+                choiceRow(sh, 'Open books in', [['normal', 'Normal mode'], ['hero', 'Hero mode']], settings.openInHero ? 'hero' : 'normal', k => { settings.openInHero = k === 'hero'; saveSettings(); });
             } else if (p.type === 'book') {
                 const data = library.peek(p.book);
                 sh.append(el('div', 'lbl', 'View'));
-                sh.append(layer.opt('Group by', () => { S.groupBy = { folder: 'strategy', strategy: 'none', none: 'folder' }[S.groupBy]; layer.close(); render(); }, { val: GROUP_NAMES[S.groupBy] }));
-                sh.append(layer.opt('Show disabled entries', () => { S.showOff = !S.showOff; layer.close(); render(); }, { val: S.showOff ? 'Shown' : 'Hidden' }));
+                choiceRow(sh, 'Group by', Object.entries(GROUP_NAMES), S.groupBy, k => { S.groupBy = k; render(); });
+                switchRow(sh, 'Show disabled entries', S.showOff, v => { S.showOff = v; render(); });
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
                     if (issues.length) sh.append(layer.opt(`Problems (${issues.length})`, () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
@@ -1396,13 +1504,11 @@ export function createApp(deps) {
                 sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›' }));
             }
             sh.append(el('div', 'lbl', 'Display'));
-            sh.append(layer.opt('Content font', () => {
-                settings.contentFont = settings.contentFont === 'sans' ? 'serif' : 'sans';
+            choiceRow(sh, 'Content font', [['serif', 'Serif'], ['sans', 'Sans']], settings.contentFont === 'sans' ? 'sans' : 'serif', k => {
+                settings.contentFont = k;
                 saveSettings();
-                layer.close();
                 render();
-                layer.toast(settings.contentFont === 'serif' ? 'Content in the serif font' : 'Content in the sans font');
-            }, { val: settings.contentFont === 'sans' ? 'Sans' : 'Serif' }));
+            });
             sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard' }));
             sh.append(el('div', 'lbl', 'Tabs'));
             if (S.mode !== 'hero') sh.append(layer.opt('New tab', () => {
@@ -1429,7 +1535,12 @@ export function createApp(deps) {
     function colorsSheet() {
         layer.sheet('Colors', sh => {
             for (const [k, label] of COLOR_MODES) {
-                sh.append(layer.opt(label, () => { settings.colorMode = k; saveSettings(); layer.close(); render(); }, {
+                sh.append(layer.opt(label, e => {
+                    settings.colorMode = k;
+                    saveSettings();
+                    render();
+                    for (const x of sh.querySelectorAll('.opt')) x.classList.toggle('cur', x === e.currentTarget);
+                }, {
                     cur: (settings.colorMode ?? 'standard') === k,
                     sub: k === 'standard' ? 'WI Hero\'s own colors' : k === 'red-green' ? 'Stay apart with red-green color blindness' : 'Stay apart with blue-yellow color blindness',
                 }));

@@ -36,7 +36,7 @@ scroll sideways. There is no tab list.
 |---------------|--------------|
 | ⌄             | Opens the menu sheet (contents per mode, below) |
 | Permanent tabs | Icon only, first in the row, can't be closed. Normal mode: Home. Hero mode: Canvas and Preview |
-| Other tabs    | Tap to switch. The active tab has a thin accent underline; × shows only on it |
+| Other tabs    | Tap to switch. The active tab has a thin accent underline; × shows only on it. Closing a tab shows the one to its right (the one to its left when it was the last) |
 
 Anything opened from a permanent tab opens in a new tab. Long press opens it in
 a background tab.
@@ -44,7 +44,9 @@ a background tab.
 ### ⌄ menu
 
 One style in both modes: a sheet of labelled sections with one row per item,
-each row showing its current value at the right.
+each row showing its current value at the right. A row with choices unfolds
+them under it; a switch flips in place. Either way the menu stays open, so a
+pick shows its effect behind it.
 
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
@@ -94,7 +96,7 @@ The same page in both modes. Top to bottom:
 | Part | What it shows or does |
 |------|-----------------------|
 | ← (round bubble) | Up to the book (normal mode) or closes the entry tab (Hero mode) |
-| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, tap one to switch to it. ⋮: Open in new tab · Duplicate · Move to another book · Copy as text · Delete |
+| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · Duplicate · Move to another book · Copy as text · Delete |
 | Title | Big, edited in place. Not sticky; the tab already shows the name |
 | Book line | Book icon, the book's name and folder; tap goes up to the book |
 | Strategy line | A strategy-colored dot, "Strategy: Keywords ▾" (or Permanent, Vectorized), tap for the strategy sheet. The entry's on/off switch sits at its right end. An off entry dims |
@@ -143,8 +145,9 @@ Shown on Home and the book page, hidden on the entry page.
 - One box. It searches book names, folder names, entry names and keywords, in
   every book.
 - Results are grouped: the current book's entries first, then other books'
-  entries, books and folders.
-- Tapping a result opens it in a new tab. No commands.
+  entries, books and folders. With no book open, books and folders come first.
+- Tapping a result opens it in a new tab; a long press opens it in a background
+  tab. No commands.
 
 ### Home
 
@@ -298,8 +301,10 @@ style: a list first, the book at the bottom.
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
 | Greetings group | Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |
 | Tap a row | Opens the entry in a tab |
+| Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
 | Dot, filled | The entry is on the canvas; tap to jump to it |
 | Dot, hollow | Tap to place it in the middle of the view |
+| Drag a dot | The panel slides away and the card follows the finger; it is placed (or moved) where it is dropped. A red × in the lower middle of the screen cancels: drop on it and nothing changes |
 | Book picker (bottom) | The book's name ▾ with its status badges. Tap for the book list |
 
 ### Entry tabs
