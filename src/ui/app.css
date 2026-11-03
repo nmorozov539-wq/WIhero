@@ -304,7 +304,7 @@ svg.lk path.head { stroke-width: 0; }
 .packframe { position: absolute; border: 1.5px dashed color-mix(in srgb, var(--p-pack) 60%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--p-pack) 4%, transparent); z-index: 0; cursor: pointer; }
 .packframe .pn { position: absolute; left: 12px; top: 5px; font-size: 12px; font-weight: 700; color: var(--p-pack); }
 .junc { position: absolute; z-index: 3; transform: translate(-50%, -50%); height: 18px; padding: 0 6px; border-radius: 9px; font-size: 10px; font-weight: 700; letter-spacing: .04em; display: flex; align-items: center; background: var(--canvas); border: 1.5px solid currentColor; pointer-events: none; text-transform: uppercase; }
-.lockp { position: absolute; z-index: 3; transform: translate(-50%, -50%); height: 22px; padding: 0 8px 0 6px; border-radius: 11px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; background: var(--canvas); border: 1.5px solid currentColor; white-space: nowrap; max-width: 140px; cursor: pointer; }
+.lockp { position: absolute; z-index: 1; transform: translate(-50%, -50%); height: 22px; padding: 0 8px 0 6px; border-radius: 11px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; background: var(--canvas); border: 1.5px solid currentColor; white-space: nowrap; max-width: 140px; cursor: pointer; }
 .lockp svg { width: 12px; height: 12px; stroke-width: 2.4; }
 .lockp span { overflow: hidden; text-overflow: ellipsis; }
 .plabel { position: absolute; z-index: 3; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: var(--p-pack); background: var(--canvas); padding: 0 4px; border-radius: 4px; pointer-events: none; text-transform: uppercase; letter-spacing: .04em; }
@@ -513,7 +513,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .storychip.on { color: var(--fg); border-color: color-mix(in srgb, var(--p-open) 55%, var(--line)); background: color-mix(in srgb, var(--p-open) 10%, transparent); }
 
 /* The piece bar under the canvas (LAYOUT "Piece bar"): chips, or the strip of the piece being set up. */
-.pbar { position: relative; flex-shrink: 0; z-index: 12; border-top: 1px solid var(--line); background: linear-gradient(var(--bar), var(--bar)), var(--tint); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pbar { position: relative; flex-shrink: 0; z-index: 9; border-top: 1px solid var(--line); background: linear-gradient(var(--bar), var(--bar)), var(--tint); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .pbar.folded { border-top-color: transparent; }
 .pfold { position: absolute; left: 50%; top: -23px; transform: translateX(-50%); width: 48px; height: 22px; border-radius: 10px 10px 0 0; border: 1px solid var(--line); border-bottom: none; background: linear-gradient(var(--bar), var(--bar)), var(--tint); color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .pfold svg { width: 14px; height: 14px; transition: transform .15s; }

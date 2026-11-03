@@ -230,7 +230,8 @@ export function mountCanvas(vp, d) {
         const color = kind => (kind === 'close' ? FAMILY_VAR.close : kind === 'ride' ? FAMILY_VAR.glue : FAMILY_VAR.open);
         const path = (pts, kind, dashed) => {
             lk.append(sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`));
-            if (kind === 'close' || kind === 'ride') arrow(pts, kind);
+            // Only Closes has a head (the bar of a stop); Opens and ride-along lines run knob to socket without one.
+            if (kind === 'close') arrow(pts, kind);
         };
         // Arrowheads are drawn as paths (no SVG markers, which don't resolve reliably inside a shadow root).
         const arrow = (pts, kind) => {
@@ -261,6 +262,17 @@ export function mountCanvas(vp, d) {
                 Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
                 world.append(lb);
             }
+            return pts;
+        };
+        /** The point `d` back from the end of a line. */
+        const along = (pts, d) => {
+            for (let k = pts.length - 1; k > 0; k--) {
+                const [b, a] = [pts[k], pts[k - 1]];
+                const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                if (d <= len) return [b[0] + (a[0] - b[0]) * d / len, b[1] + (a[1] - b[1]) * d / len];
+                d -= len;
+            }
+            return pts[0];
         };
         const handled = new Set();
         for (const [rk, rowsAll] of Object.entries(g.rows)) {
@@ -277,45 +289,77 @@ export function mountCanvas(vp, d) {
             const t = [-p.n[1], p.n[0]];
             const socketPt = tip(p, 2);
             const rowAt = row => CV.rowsAt.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null }) - 1;
-            if (rows.length === 1 && rows[0].length === 1 && !rows[0][0].cond) { const x = rows[0][0]; drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt); continue; }
-            const J0 = [snap(p.x + p.n[0] * 36), snap(p.y + p.n[1] * 36)];
+            const linksOf = row => row.filter(x => !x.cond);
+            const condsOf = row => row.filter(x => x.cond);
+            // Locks and waits sit on the line of their row: on the link itself when the row has one, else on the
+            // short line from the row's junction to the card.
+            const pill = (x, row, at) => {
+                const n = el('div', 'lockp');
+                n.style.color = col;
+                n.innerHTML = ic(x.lock ? 'lock' : 'clock');
+                n.append(el('span', '', x.lock ? x.lock[0] : `${x.wait} msg${x.wait === 1 ? '' : 's'}`));
+                Object.assign(n.style, { left: `${at[0]}px`, top: `${at[1]}px` });
+                n.dataset.open = key;
+                n.dataset.piece = PORT[kind].piece;
+                n.dataset.cond = CV.conds.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null, cond: x.lock ? { lock: x.lock, ...(x.by ? { by: x.by } : {}) } : { wait: x.wait, ...(x.by ? { by: x.by } : {}) } }) - 1;
+                world.append(n);
+            };
+            const STEP = 30;
+            if (rows.length === 1 && linksOf(rows[0]).length === 1) {
+                const x = linksOf(rows[0])[0];
+                const pts = drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt);
+                if (pts) condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP)));
+                continue;
+            }
+            const out = d => [snap(p.x + p.n[0] * d), snap(p.y + p.n[1] * d)];
+            if (rows.length === 1 && !linksOf(rows[0]).length) {
+                // Only locks and waits: a short line out of the socket with the pills on it.
+                const cs = condsOf(rows[0]);
+                path([out(14 + cs.length * STEP), socketPt], closeKind ? 'close' : 'open');
+                cs.forEach((c, li) => pill(c, rows[0], [p.x + p.n[0] * (26 + li * STEP), p.y + p.n[1] * (26 + li * STEP)]));
+                continue;
+            }
+            const own = rows.length === 1 ? condsOf(rows[0]).length : 0;
+            const J0 = out(36 + own * STEP);
             path([J0, socketPt], closeKind ? 'close' : 'open');
+            if (own) condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], [p.x + p.n[0] * (22 + li * STEP), p.y + p.n[1] * (22 + li * STEP)]));
             const jl = el('div', 'junc', rows.length > 1 ? 'or' : 'and');
             jl.style.color = col;
             if (rows.length === 1 && rows[0].ri !== undefined) { jl.dataset.row = rowAt(rows[0]); jl.classList.add('jhit'); }
             Object.assign(jl.style, { left: `${J0[0]}px`, top: `${J0[1]}px` });
             world.append(jl);
-            const multi = rows.filter(r => r.length > 1);
-            rows.forEach(row => {
-                let target = J0;
-                if (row.length > 1 && rows.length > 1) {
+            if (rows.length === 1) { linksOf(rows[0]).forEach(x => drawEdge(x, J0, p.n, J0)); continue; }
+            const multi = rows.filter(r => linksOf(r).length > 1);
+            rows.forEach((row, ri) => {
+                const links = linksOf(row);
+                const cs = condsOf(row);
+                if (links.length > 1) {
+                    // Several links: their own AND junction, with the pills on its line to the OR junction.
                     const mi = multi.indexOf(row);
                     const off = (mi - (multi.length - 1) / 2) * 84;
-                    target = [snap(J0[0] + p.n[0] * 40 + t[0] * off), snap(J0[1] + p.n[1] * 40 + t[1] * off)];
+                    const reach = 40 + cs.length * STEP;
+                    const target = [snap(J0[0] + p.n[0] * reach + t[0] * off), snap(J0[1] + p.n[1] * reach + t[1] * off)];
                     path([target, J0], 'open', null);
                     lk.lastChild.setAttribute('style', `stroke:${col}`);
+                    cs.forEach((c, li) => pill(c, row, along([target, J0], 18 + li * STEP)));
                     const jr = el('div', 'junc', 'and');
                     jr.style.color = col;
                     if (row.ri !== undefined) { jr.dataset.row = rowAt(row); jr.classList.add('jhit'); }
                     Object.assign(jr.style, { left: `${target[0]}px`, top: `${target[1]}px` });
                     world.append(jr);
+                    links.forEach(x => drawEdge(x, target, p.n, target));
+                } else if (links.length === 1) {
+                    const pts = drawEdge(links[0], J0, p.n, J0);
+                    if (pts) cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP)));
+                } else {
+                    // Only locks and waits, as one of several rows: a stub off the OR junction.
+                    const kk = ri - (rows.length - 1) / 2;
+                    cs.forEach((c, li) => {
+                        const lp = [J0[0] + p.n[0] * (30 + li * STEP) + t[0] * kk * 80, J0[1] + p.n[1] * (30 + li * STEP) + t[1] * kk * 80];
+                        lk.append(sv('path', { d: rounded([lp, J0]) }, `stroke:${col};stroke-dasharray:2 4`));
+                        pill(c, row, lp);
+                    });
                 }
-                row.filter(x => x.cond).forEach((x, li) => {
-                    const side = row.length === 1 && rows.length > 1 ? 0 : 1;
-                    const lp = [target[0] + t[0] * (side ? 70 + li * 30 : 0) + p.n[0] * (side ? 6 : 30), target[1] + t[1] * (side ? 70 + li * 30 : 0) + p.n[1] * (side ? 6 : 30)];
-                    if (!side && rows.length > 1) { const kk = rows.indexOf(row) - (rows.length - 1) / 2; lp[0] += t[0] * kk * 80; lp[1] += t[1] * kk * 80; }
-                    lk.append(sv('path', { d: rounded([lp, target]) }, `stroke:${col};stroke-dasharray:2 4`));
-                    const pill = el('div', 'lockp');
-                    pill.style.color = col;
-                    pill.innerHTML = ic(x.lock ? 'lock' : 'clock');
-                    pill.append(el('span', '', x.lock ? x.lock[0] : `${x.wait} msg${x.wait === 1 ? '' : 's'}`));
-                    Object.assign(pill.style, { left: `${lp[0]}px`, top: `${lp[1]}px` });
-                    pill.dataset.open = key;
-                    pill.dataset.piece = PORT[kind].piece;
-                    pill.dataset.cond = CV.conds.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null, cond: x.lock ? { lock: x.lock, ...(x.by ? { by: x.by } : {}) } : { wait: x.wait, ...(x.by ? { by: x.by } : {}) } }) - 1;
-                    world.append(pill);
-                });
-                row.filter(x => !x.cond).forEach(x => drawEdge(x, target, p.n, target));
             });
         }
         for (const x of g.edges) {

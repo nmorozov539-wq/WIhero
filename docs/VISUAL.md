@@ -176,9 +176,9 @@ built.
 | Close gate, Closes for | Dashed red, ending in an arrow and a bar at the closed entry's red socket |
 | The story moves on | Nothing of its own: its Closes for links, which run back alongside the gate links |
 | Switch | The fork's solid red knob; its paths' gate links leave from it |
-| Glue, ride along | Solid yellow arrow, host to rider |
+| Glue, ride along | Solid yellow line from the host's knob to the rider's socket, no arrowhead (like Opens) |
 | Glue, hold | A yellow bar along the held card's right edge; it ends through the red close gate |
-| Lock | A chip with the lock icon and the phrase, joined to its row by a short dotted line |
+| Lock, Wait | A chip (lock icon and phrase, or clock and message count) sitting on its row's line: on the link when the row has one, on the line from the AND junction to the card when it has several, on a short line out of the socket when it has none |
 | Pack | A dashed light-gray frame around the members, `#name` on it. A link that reads the pack carries its reading by the frame's knob: "any", "all", "2+" |
 
 - **Junctions**: where a gate (or close gate) has more than one item, its
