@@ -314,13 +314,13 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $('.view h1:text-is("World Info")').waitFor();
     assert.equal(await $('.tab').count(), 1, 'after a reload: Home, no tabs (D6)');
-    // Pulling the tab row right, past its start, opens a new tab.
+    // Pulling the tab row left, past its end, opens a new tab.
     await $('.strip').evaluate(async s => {
         const t = x => [new Touch({ identifier: 1, target: s, clientX: x, clientY: 25 })];
         const fire = (type, x) => s.dispatchEvent(new TouchEvent(type, { touches: type === 'touchend' ? [] : t(x), changedTouches: t(x), bubbles: true }));
-        fire('touchstart', 100);
-        for (let x = 110; x <= 260; x += 15) { fire('touchmove', x); await new Promise(r => setTimeout(r, 16)); }
-        fire('touchend', 260);
+        fire('touchstart', 300);
+        for (let x = 285; x >= 140; x -= 15) { fire('touchmove', x); await new Promise(r => setTimeout(r, 16)); }
+        fire('touchend', 140);
     });
     await wait(300);
     assert.equal(await $('.tab').count(), 2, 'a pull on the tab row opens a new tab');
