@@ -12,6 +12,8 @@
 
 `n6.mjs` checks N6 at 390px wide (BUILD_SPEC 17): the chat bubble's count and names against the prompt; two replies with WI Hero off caught up oldest first from the popup; Not now leaving the choice on the bubble, and Keep as is from there; the bubble's switch; an untested version named, and a missing thread standing the engine down to plain World Info. It starts a new Seraphina chat and reloads at the end.
 
+`n7.mjs` checks the piece bar at 390px wide (LAYOUT "Piece bar"): on a new book "N7 Test", the bar's chips, divider and fold; Opens by a tap and by a drag, its loose end dragged or picked, both or either; a line reopening its strip, ⇄ turning it around out of a shared row and Cancel putting the book back; "Road closes when Mill fires"; a loop and a self-close refused; a lock dropped on a line and a wait on its junction (ahead of the lock); a wait on a card and its pill's Remove; Glue Hold and Ride along; a switch's paths in order, waiting for the fork; a mask's name, on when and off when; a new nested pack and a link into it; and "+ Add logic". It deletes "N7 Test" at the end.
+
 `perf.mjs` is a profile, not a check: at 6x CPU throttle and 390 × 844 it times Home settling, opening a book and an entry, scrolling, Hero mode, a card tap and a pan, and prints the long tasks. It makes 40 "Stress" books of 150 entries if they aren't there.
 
 Run them against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebooks, and creates (then deletes) a character.
@@ -20,6 +22,6 @@ Run them against a throwaway SillyTavern, never your own: it changes the connect
 2. Copy `examples/WIHero-N1.json` and `examples/WIHero-Sample.json` to that SillyTavern's `data/default-user/worlds/`.
 3. Start it (`node server.js --port 8000`, or set `ST_URL`).
 4. `node e2e/mock.mjs &` (OpenAI-compatible mock on port 5001, logs prompts to `e2e/log/`).
-5. `npm i --no-save playwright@1.55.0`, then `node e2e/n1.mjs`, `node e2e/n2.mjs`, `node e2e/n3.mjs`, `node e2e/n4.mjs`, `node e2e/n5.mjs` and `node e2e/n6.mjs`. Set `CHROMIUM=/path/to/chrome` if Playwright's own browser isn't installed.
+5. `npm i --no-save playwright@1.55.0`, then `node e2e/n1.mjs`, `node e2e/n2.mjs`, `node e2e/n3.mjs`, `node e2e/n4.mjs`, `node e2e/n5.mjs`, `node e2e/n6.mjs` and `node e2e/n7.mjs`. Set `CHROMIUM=/path/to/chrome` if Playwright's own browser isn't installed.
 
 The older scripts (gating, editor, labels, folders, visuals, workspace, phone, branches) test the old UI and are in the git history; their checks now live in n1–n6.

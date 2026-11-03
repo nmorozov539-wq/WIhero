@@ -24,8 +24,10 @@ export const SIDE_OF = { top: 't', bottom: 'b', left: 'l', right: 'r' };
 
 const isPackRef = r => typeof r === 'string' && r.startsWith('#');
 const isLock = r => isObject(r) && Array.isArray(r.lock);
+const isWait = r => isObject(r) && Number.isInteger(r.wait);
 export function parseRef(r) {
-    if (isLock(r)) return { lock: r.lock };
+    if (isLock(r)) return { lock: r.lock, by: r.by };
+    if (isWait(r)) return { wait: r.wait, by: r.by };
     if (!isPackRef(r)) return { id: r };
     const [n, m] = r.slice(1).split(':');
     return { pack: n, mode: m || 'any' };
@@ -40,8 +42,9 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set(), gr
     const greetKey = r => `greet:${r.char}:${r.greeting}`;
     const shown = new Set(greetings.map(g => g.key));
     const greet = r => (isObject(r) && 'greeting' in r && shown.has(greetKey(r)) ? greetKey(r) : null);
-    const ref = r => (typeof r === 'string' ? (r.startsWith('#') ? r : `id:${r}`) : isLock(r) ? { lock: r.lock } : greet(r));
-    const rows = rs => (Array.isArray(rs) ? rs.filter(Array.isArray).map(row => row.map(ref).filter(Boolean)).filter(row => row.length) : []);
+    const ref = r => (typeof r === 'string' ? (r.startsWith('#') ? r : `id:${r}`) : isLock(r) ? { lock: r.lock, by: r.by } : isWait(r) ? { wait: r.wait, by: r.by } : greet(r));
+    // Each row keeps its index in the stored gate (`ri`), so a tap on the canvas finds it again.
+    const rows = rs => (Array.isArray(rs) ? rs.map((row, ri) => (Array.isArray(row) ? Object.assign(row.map(ref).filter(Boolean), { ri }) : [])).filter(row => row.length) : []);
     const list = (xs) => (Array.isArray(xs) ? xs.filter(x => typeof x === 'string').map(ref) : []);
     const E = Object.values(data?.entries ?? {}).sort((a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid).map(entry => {
         const c = rawConfig(entry) ? (configOf(entry) ?? {}) : {};
@@ -87,10 +90,10 @@ export function buildGraph(m) {
     const edges = [];
     const rows = {};
     const nodeOf = r => { const p = parseRef(r); return p.pack ? `pack:${p.pack}` : p.id; };
-    const addRow = (key, port, items) => { (rows[`${key}:${port}`] ||= []).push(items); };
+    const addRow = (key, port, items, ri) => { (rows[`${key}:${port}`] ||= []).push(Object.assign(items, { ri })); };
     const ref = (r, to, port, fromPort, kind, extra = {}) => {
         const p = parseRef(r);
-        if (p.lock) return { lock: p.lock, to, port, kind, ...extra };
+        if (p.lock || p.wait !== undefined) return { cond: true, lock: p.lock, wait: p.wait, by: p.by, to, port, kind, ...extra };
         const from = nodeOf(r);
         if (!from || (!p.pack && !m.byId(from)) || (p.pack && !m.packMembers(p.pack).length)) return null;
         const e = { from, fromPort, to, port, kind, mode: p.pack ? p.mode : null, ...extra };
@@ -98,9 +101,9 @@ export function buildGraph(m) {
         return e;
     };
     for (const e of m.E) {
-        e.gate.forEach(row => { const it = row.map(r => ref(r, e.id, 'gin', 'gout', 'open')).filter(Boolean); if (it.length) addRow(e.id, 'gin', it); });
+        e.gate.forEach(row => { const it = row.map(r => ref(r, e.id, 'gin', 'gout', 'open')).filter(Boolean); if (it.length) addRow(e.id, 'gin', it, row.ri); });
         e.gatesFor.forEach(r => { const to = nodeOf(r); if (to && (m.byId(to) || (to.startsWith('pack:') && m.packMembers(to.slice(5)).length))) ref(e.id, to, 'gin', 'gout', 'open', { direct: true }); });
-        e.closeGate.forEach(row => { const it = row.map(r => ref(r, e.id, 'cin', 'cout', 'close')).filter(Boolean); if (it.length) addRow(e.id, 'cin', it); });
+        e.closeGate.forEach(row => { const it = row.map(r => ref(r, e.id, 'cin', 'cout', 'close')).filter(Boolean); if (it.length) addRow(e.id, 'cin', it, row.ri); });
         e.closesFor.forEach(r => {
             const to = nodeOf(r);
             if (!to || !(m.byId(to) || (to.startsWith('pack:') && m.packMembers(to.slice(5)).length))) return;
@@ -117,8 +120,8 @@ export function buildGraph(m) {
             if (x.kind === 'close') addRow(x.to, 'cin', [made]);
         }
         e.masks.forEach((mk, i) => {
-            mk.gate.forEach(row => { const it = row.map(r => ref(r, e.id, 'mgin', 'gout', 'open', { mask: i })).filter(Boolean); if (it.length) addRow(e.id, 'mgin', it); });
-            mk.closeGate.forEach(row => { const it = row.map(r => ref(r, e.id, 'mcin', 'cout', 'close', { mask: i })).filter(Boolean); if (it.length) addRow(e.id, 'mcin', it); });
+            mk.gate.forEach(row => { const it = row.map(r => ref(r, e.id, 'mgin', 'gout', 'open', { mask: i })).filter(Boolean); if (it.length) addRow(e.id, 'mgin', Object.assign(it, { mask: i }), row.ri); });
+            mk.closeGate.forEach(row => { const it = row.map(r => ref(r, e.id, 'mcin', 'cout', 'close', { mask: i })).filter(Boolean); if (it.length) addRow(e.id, 'mcin', Object.assign(it, { mask: i }), row.ri); });
         });
     }
     const switches = new Set(m.E.filter(e => e.switch.length).map(e => e.id));
@@ -273,6 +276,8 @@ export function computePorts(g, R, manual = {}) {
         if (partner && R.has(partner)) p.partners.push(partner);
     };
     for (const x of g.edges) { add(x.from, x.fromPort, x.to); add(x.to, x.port, x.from); }
+    // A row of only locks or waits has no line, but its pill needs a port to hang from.
+    for (const rk of Object.keys(g.rows ?? {})) { const i = rk.lastIndexOf(':'); add(rk.slice(0, i), rk.slice(i + 1)); }
     const ctr = r => [r.x + r.w / 2, r.y + r.h / 2];
     for (const [key, ports] of P) {
         const r = R.get(key);

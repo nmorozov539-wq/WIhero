@@ -1,6 +1,6 @@
 // The inspector (LAYOUT "Inspector", D14): a sheet at half height over the canvas, drag up for full height.
 // The entry's text, the Reopen line (D18), one row per piece with the entry page's sentence, tap one to edit it
-// (one open at a time), rules other entries aim at this one, + Add piece, and the footer. Also the target
+// (one open at a time), rules other entries aim at this one, + Add logic, and the footer. Also the target
 // picker, and the greeting inspector (BUILD_SPEC 15.4). Every change goes through `x.edit`, which wraps
 // pieces.js's bookEditor in the library's change.
 import { btn, el, swEl } from './dom.js';
@@ -186,7 +186,8 @@ export function renderInspector(box, x) {
 
     const missing = missingPieces(c);
     if (missing.length) {
-        body.append(btn('addpiece', `${ic('plus', 's')} Add piece`, () => layer.sheet('Add piece', sh => {
+        // The piece bar under the canvas is the main way to add pieces; this list adds them to this entry directly.
+        body.append(btn('addpiece', `${ic('plus', 's')} Add logic`, () => layer.sheet('Add logic', sh => {
             for (const p of missing) {
                 sh.append(layer.opt(p.label, () => {
                     layer.close();
@@ -195,7 +196,7 @@ export function renderInspector(box, x) {
                     x.setOpen(p.key);
                 }, { sub: p.help, dot: FAMILY_COLOR[p.family] }));
             }
-        })));
+        }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' })));
     }
 
     const foot = el('div', 'ifoot');

@@ -97,6 +97,12 @@ affects, or on the entry that causes it:
 | **Opens**  | Gate                | Gates for                      |
 | **Closes** | Close gate          | Closes for                     |
 
+On the canvas the matrix is two pieces, **Opens** and **Closes**, and the
+side a rule is written on is the link's direction: the piece bar stores it in
+the waiting or closing entry's row, and as Gates for or Closes for only when
+the other end is a pack ([LAYOUT](LAYOUT.md#piece-bar)). Both sides mean the
+same to the engine.
+
 Around them: **Glue** (keeps an entry on), **Switch** (a fork), **Masks**
 (alternate text), **Packs** (tags), and two entry settings, **Once** and **Who
 triggers**. **The story moves on**, **Once** and **Switch** are shortcuts: each
@@ -276,7 +282,8 @@ model.
 - An entry with links can't be taken off the canvas; remove its links first.
   One that loses its last link stays where it was.
 - An entry without links can be placed by hand and taken off again.
-- Pieces pick their targets from a searchable list of entries and packs.
+- Pieces pick their targets from a searchable list of entries and packs, or,
+  from the piece bar, by dragging a link's loose end onto a card.
 - Positions on the canvas, and which side a port sits on, are only for the
   author. Moving a card or a port never edits the entry.
 - How links, ports and masks are drawn is in [VISUAL.md](VISUAL.md#7-the-canvas).

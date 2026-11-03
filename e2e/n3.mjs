@@ -57,7 +57,7 @@ await run(async () => {
     assert.equal(cards.length, 17, 'every linked entry is a card; Village, Lantern, Bell and the N5 extras without links aren\'t');
     for (const [key, x, y] of cards) assert.deepEqual([x, y], [mem0.cards[key].x, mem0.cards[key].y], key);
     assert.equal(await $('.packframe .pn').textContent(), '#town');
-    assert.equal(await $('.junc').first().textContent(), 'or');
+    assert.ok(await $('.junc:text-is("or")').count(), 'an OR junction');
     assert.ok(await $('.layercard').count() >= 2, 'Tower is a stack of mask layers');
     assert.equal(await $('.mnav span').first().textContent(), 'main');
     assert.ok(await $('svg.lk path').count() >= 15);
