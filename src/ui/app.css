@@ -35,6 +35,7 @@
   --s-key: #6fd09a; --s-perm: #6fa8ff; --s-vec: #b48cff; --s-off: #6b6d72;
   /* pieces (VISUAL 6.2), with the color vision modes below (6.4) */
   --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2;
+  --p-cond: #b9b4ff;
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
   background: var(--tint); color: var(--fg);
@@ -510,3 +511,71 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .storychip { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 2px; padding: 4px 10px; border-radius: 13px; border: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
 .storychip svg { width: 14px; height: 14px; }
 .storychip.on { color: var(--fg); border-color: color-mix(in srgb, var(--p-open) 55%, var(--line)); background: color-mix(in srgb, var(--p-open) 10%, transparent); }
+
+/* The piece bar under the canvas (LAYOUT "Piece bar"): chips, or the strip of the piece being set up. */
+.pbar { position: relative; flex-shrink: 0; z-index: 12; border-top: 1px solid var(--line); background: linear-gradient(var(--bar), var(--bar)), var(--tint); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pbar.folded { border-top-color: transparent; }
+.pfold { position: absolute; left: 50%; top: -23px; transform: translateX(-50%); width: 48px; height: 22px; border-radius: 10px 10px 0 0; border: 1px solid var(--line); border-bottom: none; background: linear-gradient(var(--bar), var(--bar)), var(--tint); color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.pfold svg { width: 14px; height: 14px; transition: transform .15s; }
+.pbar.folded .pfold svg { transform: rotate(180deg); }
+.pchips { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 9px max(12px, env(safe-area-inset-left, 0px)) 9px; touch-action: pan-x; }
+.pchips::-webkit-scrollbar { display: none; }
+.pchip, .dragchip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--fg); font-weight: 600; font-size: var(--t-s); touch-action: pan-x; }
+.pchip i, .dragchip i { width: 9px; height: 9px; border-radius: 5px; background: var(--c); }
+.pchip.armed { background: var(--c); border-color: var(--c); color: #16171a; }
+.pchip.armed i { background: #16171a; }
+.pdiv { flex-shrink: 0; width: 1px; height: 26px; background: var(--line); margin: 0 4px; }
+.dragchip { position: absolute; left: 0; top: 0; z-index: 60; pointer-events: none; margin: -19px 0 0 -40px; background: var(--c); color: #16171a; box-shadow: 0 10px 28px var(--shadow); }
+.dragchip i { background: #16171a; }
+.dragchip.off { opacity: .45; }
+.pstrip { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 9px max(12px, env(safe-area-inset-left, 0px)); max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; border-top: 2px solid var(--c); margin-top: -1px; }
+.pmid { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.pmid .say { font-size: var(--t-s); line-height: 1.45; }
+.pmid .say b { font-weight: 700; }
+.phint { color: var(--muted); font-size: var(--t-xs); }
+.pnote { color: var(--warn); font-size: var(--t-xs); }
+.pnote.bad { color: var(--bad); }
+.prow2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pbtn { height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; font-size: var(--t-s); display: inline-flex; align-items: center; gap: 5px; }
+.pbtn.done { background: var(--accent); border-color: var(--accent); color: #16171a; }
+.pbtn:disabled { opacity: .35; }
+.pbtn.sm { height: 30px; padding: 0 11px; font-weight: 500; font-size: var(--t-xs); }
+.pbtn.sm.on { background: var(--c); border-color: var(--c); color: #16171a; }
+.pbtn.bad { color: var(--bad); }
+.pbtn .ri svg { width: 13px; height: 13px; }
+.pbtn.ico { width: 30px; height: 30px; padding: 0; justify-content: center; }
+.pbtn.ico svg { width: 14px; height: 14px; }
+.pbtn.flipb { width: 36px; padding: 0; justify-content: center; font-size: 17px; }
+.pbtn.flipb.no { opacity: .4; }
+.pseg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 15px; overflow: hidden; max-width: 100%; }
+.pseg button { min-height: 28px; padding: 0 10px; color: var(--muted); font-size: var(--t-xs); font-weight: 500; text-align: left; }
+.pseg button.on { background: color-mix(in srgb, var(--c) 22%, transparent); color: var(--fg); font-weight: 600; }
+.pphr { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pphrase { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 10px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 10%, transparent); font-size: var(--t-xs); max-width: 100%; }
+.pphrase span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pphrase .px svg { width: 12px; height: 12px; }
+.pphrase.pk { padding: 0 10px; color: var(--muted); }
+.pphrase.pk.on { color: var(--fg); background: color-mix(in srgb, var(--p-pack) 22%, transparent); }
+.ptext, .pnum, .ppick { height: 30px; min-width: 0; border-radius: 15px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 12px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
+.ptext { flex: 1; min-width: 120px; }
+.pnum { width: 72px; }
+.ppick { max-width: 100%; padding-right: 6px; }
+.ptext:focus, .pnum:focus, .ppick:focus { border-color: var(--accent); outline: none; }
+.plabel2 { font-size: var(--t-s); }
+.ppaths { display: flex; flex-direction: column; gap: 4px; }
+.ppath { display: flex; align-items: center; gap: 6px; }
+.ppath .pn { width: 20px; color: var(--muted); font-size: var(--t-xs); text-align: center; }
+.ppath .pt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-s); font-weight: 600; }
+/* On the canvas: what the armed piece can't go on, what the piece is on, where a drop would land, the loose end. */
+.vp.arming .card.dim, .vp.arming .packframe.dim { opacity: .3; }
+.card.sel { border-color: var(--fg); }
+.card.target, .packframe.target { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+svg.lk path.lhit { stroke: transparent; stroke-width: 18px; pointer-events: stroke; cursor: pointer; }
+.junc.jhit { pointer-events: auto; cursor: pointer; }
+.loosend { position: absolute; z-index: 5; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 14px; border: 2.5px solid currentColor; background: var(--canvas); cursor: grab; touch-action: none; animation: pulse 1.4s ease-in-out infinite; }
+.loosend::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: currentColor; }
+@keyframes pulse { 50% { transform: scale(1.22); } }
+@media (prefers-reduced-motion: reduce) { .loosend { animation: none; } }
+/* Toasts clear the bar, and sit above the canvas while a strip is open. */
+.wih:has(.pchips) .toast { bottom: 128px; }
+.wih:has(.pstrip) .toast { bottom: auto; top: 112px; }

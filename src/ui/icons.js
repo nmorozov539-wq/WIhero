@@ -1,6 +1,6 @@
 // The one line-icon set (VISUAL 4): 24px grid, 2px stroke, round caps, drawn in currentColor. No emoji.
 export const ICON = {
-    down: '<path d="M6 9 L12 15 L18 9"/>', right: '<path d="M9 6 L15 12 L9 18"/>', left: '<path d="M15 6 L9 12 L15 18"/>',
+    down: '<path d="M6 9 L12 15 L18 9"/>', up: '<path d="M6 15 L12 9 L18 15"/>', right: '<path d="M9 6 L15 12 L9 18"/>', left: '<path d="M15 6 L9 12 L15 18"/>',
     back: '<path d="M19 12 H5 M11 6 L5 12 L11 18"/>', x: '<path d="M6 6 L18 18 M18 6 L6 18"/>', check: '<path d="M5 12 L10 17 L19 7"/>',
     home: '<path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/>',
     canvas: '<path d="M4 5 H10 V10 H4 Z M14 14 H20 V19 H14 Z M7 10 V14 Q7 16.5 9.5 16.5 H14"/>',

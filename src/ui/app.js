@@ -14,13 +14,14 @@ import {
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
 import { closedText, logicLines } from './logic-text.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
-import { buildGraph, canvasBook, canvasSet } from './canvas-graph.js';
+import { PORT, buildGraph, canvasBook, canvasSet } from './canvas-graph.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { entryStatus } from '../engine/turn.js';
 import { getStringHash, isObject } from '../engine/util.js';
 import { greetingFingerprint, greetingsOf, openingGreeting } from '../chat-state.js';
 import { bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
+import { editExisting, mountPieceBar, startPiece } from './piecebar.js';
 import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
 
@@ -80,7 +81,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null },
+        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null } },
     };
     const tab = () => S.tabs.find(t => t.id === S.active) ?? S.tabs[0];
     const page = (t = tab()) => t.history.at(-1);
@@ -878,6 +879,15 @@ export function createApp(deps) {
     }
 
     function heroBack() {
+        // Back on an open strip is its Cancel; on an armed chip it disarms.
+        if (H.active === 'canvas' && H.bar.edit) {
+            const e = H.bar.edit;
+            if (e.dirty) barApi(e.book).restore(e.snap);
+            H.bar.edit = null;
+            render();
+            return true;
+        }
+        if (H.active === 'canvas' && H.bar.armed) { H.bar.armed = null; render(); return true; }
         if (H.insp && H.active === 'canvas') { H.insp = null; render(); return true; }
         if (H.panel) { H.panel = false; render(); return true; }
         if (typeof H.active === 'number') { closeHeroTab(H.active); return true; }
@@ -930,6 +940,7 @@ export function createApp(deps) {
             pack: name => packSheet(book, data, name),
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
+            tapTarget: hit => barTap(book, hit),
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
@@ -937,7 +948,140 @@ export function createApp(deps) {
         });
         heroCanvas.render();
         heroPanel(book, data);
+        if (H.bar.edit && H.bar.edit.book !== book) H.bar.edit = null;
+        mountPieceBar(barApi(book));
         if (H.insp?.book === book) inspectorFor(book, data);
+    }
+
+    // ---------------------------------------------------------------- the piece bar (LAYOUT "Piece bar")
+    /** A card key as the bar sees it: an entry by uid, a pack, or a greeting. */
+    function nodeOf(book, key) {
+        const data = library.peek(book);
+        if (!data || !key) return null;
+        if (key.startsWith('pack:')) return { t: 'pack', name: key.slice(5) };
+        if (key.startsWith('greet:')) { const g = chatGreetings(data).find(x => x.key === key); return g ? { t: 'greet', ref: g.ref } : null; }
+        const e = entriesOf(data).find(x => cardKey(x) === key);
+        return e ? { t: 'entry', uid: e.uid } : null;
+    }
+
+    /**
+     * Runs a bar edit: first on a copy, and only when it adds no new problem (a loop, a self-link, a broken
+     * switch) on the book itself. A refused edit says why on the strip.
+     */
+    function barAct(book, fn, quiet = false) {
+        const data = library.peek(book);
+        if (!data) return false;
+        const issues = d => new Map(modelOf(book, d).issues.filter(i => !i.warning && i.blocking !== false).map(i => [`${i.stKey}|${i.message}`, i]));
+        const before = issues(data);
+        const trial = structuredClone(data);
+        let why = null;
+        try {
+            fn(bookEditor(trial), trial);
+            const fresh = [...issues(trial)].filter(([k]) => !before.has(k)).map(([, i]) => i);
+            if (fresh.length) {
+                const uid = Number(String(fresh[0].stKey ?? '').slice(book.length + 1));
+                const who = trial.entries[uid] ? titleOf(trial.entries[uid]) : 'An entry';
+                why = `Not done: ${who} ${fresh[0].message}.`;
+            }
+        } catch (err) { why = err.message; }
+        if (why) {
+            if (H.bar.edit) { H.bar.edit.note = why; H.bar.edit.noteBad = true; if (!quiet) render(); } else layer.toast(why);
+            return false;
+        }
+        let created = [];
+        library.change(book, d => { const ed = bookEditor(d); fn(ed, d); created = ed.created; }, { quiet: true });
+        for (const [uid, id] of created) rekeyEntry(settings, book, uid, id);
+        if (created.length) saveSettings();
+        if (H.bar.edit) { H.bar.edit.note = H.bar.edit.noteBad ? null : H.bar.edit.note; H.bar.edit.noteBad = false; }
+        if (!quiet) render();
+        return true;
+    }
+
+    function barApi(book) {
+        const data = () => library.peek(book);
+        const nameOfId = id => { const x = entriesOf(data()).find(y => idOf(y) === id); return x ? titleOf(x) : id; };
+        return {
+            B: H.bar, main, root, canvas: heroCanvas, layer,
+            data, editor: () => bookEditor(data()),
+            act: (fn, { quiet = false } = {}) => barAct(book, fn, quiet),
+            snapshot: () => ({ book, entries: structuredClone(data().entries), original: data().originalData === undefined ? undefined : structuredClone(data().originalData), settings: structuredClone(bookSettings(settings, book)) }),
+            restore: snap => {
+                library.change(book, d => { d.entries = structuredClone(snap.entries); if (snap.original !== undefined) d.originalData = structuredClone(snap.original); }, { quiet: true });
+                settings.books[book] = structuredClone(snap.settings);
+                saveSettings();
+            },
+            render: () => render(),
+            nodeOf: key => nodeOf(book, key),
+            keyOf: end => (end?.t === 'pack' ? `pack:${end.name}` : end?.t === 'greet' ? `greet:${end.ref.char}:${end.ref.greeting}` : data().entries[end?.uid] ? cardKey(data().entries[end.uid]) : null),
+            nameOf: end => (end?.t === 'pack' ? `#${end.name}` : end?.t === 'greet' ? greetingName(end.ref.greeting) : data().entries[end?.uid] ? titleOf(data().entries[end.uid]) : '?'),
+            nameOfId,
+            candidates: () => {
+                const d = data();
+                const out = sortEntries(entriesShown(book, d), sortBy()).map(e => ({ key: cardKey(e), end: { t: 'entry', uid: e.uid }, title: titleOf(e) }));
+                for (const p of packsOf(d)) out.push({ key: `pack:${p}`, end: { t: 'pack', name: p }, title: `#${p}` });
+                for (const g of chatGreetings(d)) out.push({ key: g.key, end: { t: 'greet', ref: g.ref }, title: `${g.title}: ${g.text.slice(0, 30)}` });
+                return out;
+            },
+            packs: () => packsOf(data()),
+            closersOf: uid => {
+                const model = modelOf(book, data());
+                const node = model.byStKey.get(`${book}.${uid}`);
+                return [...new Set((node?.closes ?? []).map(cl => (cl.kind === 'once' ? 'Once' : model.nodes.get(cl.source)?.label ?? 'a greeting')))];
+            },
+            contentOf: uid => data().entries[uid]?.content,
+            openMask: (uid, name) => openHeroTab(book, uid, name),
+            showMask: (uid, name, from = null) => {
+                const e = data().entries[uid];
+                if (!e) return;
+                const mem = canvasMemory(bookSettings(settings, book));
+                const key = cardKey(e);
+                if (from && mem.cards[key]?.layer !== from) return;
+                (mem.cards[key] ??= {}).layer = name;
+                saveSettings();
+            },
+            folded: () => !!settings.pieceBarFolded,
+            setFolded: v => { settings.pieceBarFolded = v; saveSettings(); },
+            toast: t => layer.toast(t),
+            place: (k, hit) => dropPiece(book, k, hit),
+        };
+    }
+
+    function dropPiece(book, k, hit) {
+        const r = startPiece(k, hit, barApi(book));
+        if (r.why) { render(); layer.toast(r.why); return; }
+        openStrip(book, r.edit);
+    }
+
+    /** Opens a piece's strip: the inspector and the panel make way for it. */
+    function openStrip(book, edit) {
+        H.bar.edit = { ...edit, book };
+        H.bar.armed = null;
+        H.insp = null;
+        H.panel = false;
+        render();
+    }
+
+    /** A tap on the canvas, seen by the bar first: an armed chip lands, a loose end is picked, a line opens its strip. */
+    function barTap(book, hit) {
+        const B = H.bar;
+        const x = barApi(book);
+        if (B.edit) {
+            if (hit?.card && B.loosePick) { const end = nodeOf(book, hit.card); if (end && B.loosePick(end)) return true; }
+            return !!hit;
+        }
+        if (B.armed) {
+            const k = B.armed;
+            B.armed = null;
+            if (!hit) { render(); return false; }
+            dropPiece(book, k, hit);
+            return true;
+        }
+        if (hit?.link || hit?.cond) {
+            const edit = editExisting(hit, x);
+            if (edit) { openStrip(book, edit); return true; }
+        }
+        if (hit?.row) { inspect(book, hit.row.key, PORT[hit.row.port].piece); return true; }
+        return false;
     }
 
     /** A new entry in a book, with the book's defaults for new entries. */

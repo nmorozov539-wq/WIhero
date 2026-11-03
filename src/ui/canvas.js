@@ -101,7 +101,7 @@ export function mountCanvas(vp, d) {
         const before = JSON.stringify(mem);
         const { g, ids, R, P } = arrange(m, mem, viewCenter());
         if (JSON.stringify(mem) !== before) d.save();
-        CV = { m, g, R, P, ids };
+        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [] };
         world.innerHTML = '';
         vp.querySelector('.cv-empty')?.remove();
         if (!ids.size) {
@@ -249,7 +249,13 @@ export function mountCanvas(vp, d) {
             const s0 = tip(a, 7); const s1 = tip(a, G);
             const e1 = [endPt[0] + endN[0] * G, endPt[1] + endN[1] * G];
             const mid = routeOnce(snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
-            path(mid ? [s0, ...mid, rawEnd ?? endPt] : [s0, s1, e1, rawEnd ?? endPt], x.kind);
+            const pts = mid ? [s0, ...mid, rawEnd ?? endPt] : [s0, s1, e1, rawEnd ?? endPt];
+            path(pts, x.kind);
+            // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
+            const hp = sv('path', { d: rounded(pts), class: 'lhit' });
+            hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
+            hp.dataset.ends = `${x.from}>${x.to}`;
+            lk.append(hp);
             if (x.mode) {
                 const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
                 Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
@@ -264,17 +270,19 @@ export function mountCanvas(vp, d) {
             const p = portOf(key, kind);
             rowsAll.flat().forEach(x => handled.add(x));
             if (!p) continue;
-            const rows = rowsAll.filter(row => row.every(x => x.lock ? (x.mask == null || layerOf(m.byId(key)) === x.mask + 1) : visible(x)));
+            const rows = rowsAll.filter(row => row.every(x => x.cond ? (x.mask == null || layerOf(m.byId(key)) === x.mask + 1) : visible(x)));
             if (!rows.length) continue;
             const closeKind = kind === 'cin' || kind === 'mcin';
             const col = FAMILY_VAR[PORT[kind].family];
             const t = [-p.n[1], p.n[0]];
             const socketPt = tip(p, 2);
-            if (rows.length === 1 && rows[0].length === 1 && !rows[0][0].lock) { const x = rows[0][0]; drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt); continue; }
+            const rowAt = row => CV.rowsAt.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null }) - 1;
+            if (rows.length === 1 && rows[0].length === 1 && !rows[0][0].cond) { const x = rows[0][0]; drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt); continue; }
             const J0 = [snap(p.x + p.n[0] * 36), snap(p.y + p.n[1] * 36)];
             path([J0, socketPt], closeKind ? 'close' : 'open');
             const jl = el('div', 'junc', rows.length > 1 ? 'or' : 'and');
             jl.style.color = col;
+            if (rows.length === 1 && rows[0].ri !== undefined) { jl.dataset.row = rowAt(rows[0]); jl.classList.add('jhit'); }
             Object.assign(jl.style, { left: `${J0[0]}px`, top: `${J0[1]}px` });
             world.append(jl);
             const multi = rows.filter(r => r.length > 1);
@@ -288,24 +296,26 @@ export function mountCanvas(vp, d) {
                     lk.lastChild.setAttribute('style', `stroke:${col}`);
                     const jr = el('div', 'junc', 'and');
                     jr.style.color = col;
+                    if (row.ri !== undefined) { jr.dataset.row = rowAt(row); jr.classList.add('jhit'); }
                     Object.assign(jr.style, { left: `${target[0]}px`, top: `${target[1]}px` });
                     world.append(jr);
                 }
-                row.filter(x => x.lock).forEach((x, li) => {
+                row.filter(x => x.cond).forEach((x, li) => {
                     const side = row.length === 1 && rows.length > 1 ? 0 : 1;
                     const lp = [target[0] + t[0] * (side ? 70 + li * 30 : 0) + p.n[0] * (side ? 6 : 30), target[1] + t[1] * (side ? 70 + li * 30 : 0) + p.n[1] * (side ? 6 : 30)];
                     if (!side && rows.length > 1) { const kk = rows.indexOf(row) - (rows.length - 1) / 2; lp[0] += t[0] * kk * 80; lp[1] += t[1] * kk * 80; }
                     lk.append(sv('path', { d: rounded([lp, target]) }, `stroke:${col};stroke-dasharray:2 4`));
                     const pill = el('div', 'lockp');
                     pill.style.color = col;
-                    pill.innerHTML = ic('lock');
-                    pill.append(el('span', '', x.lock[0]));
+                    pill.innerHTML = ic(x.lock ? 'lock' : 'clock');
+                    pill.append(el('span', '', x.lock ? x.lock[0] : `${x.wait} msg${x.wait === 1 ? '' : 's'}`));
                     Object.assign(pill.style, { left: `${lp[0]}px`, top: `${lp[1]}px` });
                     pill.dataset.open = key;
                     pill.dataset.piece = PORT[kind].piece;
+                    pill.dataset.cond = CV.conds.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null, cond: x.lock ? { lock: x.lock, ...(x.by ? { by: x.by } : {}) } : { wait: x.wait, ...(x.by ? { by: x.by } : {}) } }) - 1;
                     world.append(pill);
                 });
-                row.filter(x => !x.lock).forEach(x => drawEdge(x, target, p.n, target));
+                row.filter(x => !x.cond).forEach(x => drawEdge(x, target, p.n, target));
             });
         }
         for (const x of g.edges) {
@@ -350,6 +360,80 @@ export function mountCanvas(vp, d) {
         world.append(pt);
         if (!camera()) fit(true);
         applyView();
+        drawOverlay();
+    }
+
+    // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
+    let OV = null;
+    const keyOf = n => n.dataset.id ?? (n.dataset.pack ? `pack:${n.dataset.pack}` : null);
+    function drawOverlay() {
+        world.querySelectorAll('.ov').forEach(n => n.remove());
+        vp.classList.toggle('arming', !!OV?.dim);
+        for (const n of world.querySelectorAll('.card[data-id], .packframe[data-pack]')) {
+            const k = keyOf(n);
+            const sel = !!OV?.sel?.has(k);
+            // Asked once per card while this overlay stands: a loose end being dragged redraws it on every move.
+            if (OV?.dim && !OV.dims?.has(k)) (OV.dims ??= new Map()).set(k, !!OV.dim(k));
+            n.classList.toggle('dim', !sel && !!OV?.dims?.get(k));
+            n.classList.toggle('sel', sel);
+            n.classList.remove('target');
+        }
+        const lo = OV?.loose;
+        const r = lo && CV?.R.get(lo.from);
+        if (!r) return;
+        const a = [r.x + r.w / 2, r.y + (lo.at[1] < r.y ? 0 : r.h)];
+        const line = sv('svg', { class: 'lk ov', width: 1, height: 1 });
+        line.append(sv('path', { d: `M${a[0]},${a[1]} L${lo.at[0]},${lo.at[1]}` }, `stroke:${lo.color};stroke-dasharray:6 5`));
+        world.append(line);
+        const h = el('div', 'loosend ov');
+        h.style.color = lo.color;
+        Object.assign(h.style, { left: `${lo.at[0]}px`, top: `${lo.at[1]}px` });
+        h.setAttribute('aria-label', 'Loose end: drag it onto another card');
+        world.append(h);
+    }
+    /** Sets the overlay: { dim(key) → bool, sel: Set, loose: { from, at: [x, y], color }, onLoose(hit) }. */
+    function overlay(o) { OV = o; drawOverlay(); }
+    /** Where a loose end starts: below its card. */
+    function looseStart(key) {
+        const r = CV?.R.get(key);
+        return r ? [r.x + r.w / 2 + 24, r.y + r.h + 72] : [0, 0];
+    }
+
+    /** What a node on the canvas stands for: a card, a pack frame, a line, a junction or a lock/wait pill. */
+    function hitOf(n) {
+        if (!n?.closest) return null;
+        if (n.closest('.loosend, .dragghost, .dropcancel')) return null;
+        const cd = n.closest('[data-cond]');
+        if (cd && CV.conds[cd.dataset.cond]) return { cond: CV.conds[cd.dataset.cond] };
+        const rw = n.closest('[data-row]');
+        if (rw && CV.rowsAt[rw.dataset.row]) return { row: CV.rowsAt[rw.dataset.row] };
+        const c = n.closest('.card[data-id]');
+        if (c) return { card: c.dataset.id };
+        const port = n.closest('[data-port]');
+        if (port) return { card: port.dataset.port.split('|')[0] };
+        const ln = n.closest('[data-link]');
+        if (ln && CV.links[ln.dataset.link]) return { link: CV.links[ln.dataset.link] };
+        const pf = n.closest('[data-pack]');
+        if (pf) return { card: `pack:${pf.dataset.pack}` };
+        return null;
+    }
+    /** What is under a screen point. */
+    function hitAt(cx, cy) {
+        const root = vp.getRootNode();
+        const list = (root.elementsFromPoint ? root : document).elementsFromPoint(cx, cy);
+        for (const n of list) {
+            if (n === vp) break;
+            if (!vp.contains(n)) continue;
+            const h = hitOf(n);
+            if (h) return h;
+        }
+        return null;
+    }
+    function markTarget(h) {
+        for (const n of world.querySelectorAll('.target')) n.classList.remove('target');
+        if (!h?.card) return;
+        const n = h.card.startsWith('pack:') ? world.querySelector(`.packframe[data-pack="${CSS.escape(h.card.slice(5))}"]`) : world.querySelector(`.card[data-id="${CSS.escape(h.card)}"]`);
+        n?.classList.add('target');
     }
 
     function zoomAt(f, cx, cy) {
@@ -421,7 +505,7 @@ export function mountCanvas(vp, d) {
         start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: e.target };
         const gr = e.target.closest?.('[data-grip]');
         const port = e.target.closest?.('[data-port]');
-        if (gr) {
+        if (e.target.closest?.('.loosend') && OV?.loose) { mode = 'loose'; drag = {}; } else if (gr) {
             const id = gr.dataset.grip;
             const [wx, wy] = toWorld(e.clientX, e.clientY);
             const c = memory().cards[id];
@@ -430,7 +514,7 @@ export function mountCanvas(vp, d) {
         } else if (port) { mode = 'port'; drag = { port: port.dataset.port }; } else mode = 'pan';
         // A long press on empty canvas picks an entry to place there.
         clearTimeout(holdTimer);
-        if (mode === 'pan' && d.holdEmpty && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open]')) {
+        if (mode === 'pan' && d.holdEmpty && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-link], [data-row]')) {
             const at = { x: e.clientX, y: e.clientY };
             holdTimer = setTimeout(() => {
                 if (moved || mode !== 'pan' || pts.size !== 1) return;
@@ -458,7 +542,12 @@ export function mountCanvas(vp, d) {
             moving = drag.id;
             Object.assign(memory().cards[drag.id], { x: snap(wx - drag.dx), y: snap(wy - drag.dy) });
             later();
-        } else if (mode === 'port') { drag.at = toWorld(e.clientX, e.clientY); vp.style.cursor = 'crosshair'; }
+        } else if (mode === 'port') { drag.at = toWorld(e.clientX, e.clientY); vp.style.cursor = 'crosshair'; } else if (mode === 'loose') {
+            OV.loose.at = toWorld(e.clientX, e.clientY);
+            drawOverlay();
+            const h = hitAt(e.clientX, e.clientY);
+            markTarget(h?.card && !OV.dim?.(h.card) ? h : null);
+        }
     });
     const end = e => {
         clearTimeout(holdTimer);
@@ -467,6 +556,13 @@ export function mountCanvas(vp, d) {
         if (mode === 'pinch') { if (pts.size === 0) mode = null; return; }
         vp.style.cursor = '';
         if (mode === 'pan' && moved) saveCamera();
+        if (mode === 'loose') {
+            const h = moved && e.type === 'pointerup' ? hitAt(e.clientX, e.clientY) : null;
+            markTarget(null);
+            mode = null; start = null; drag = null;
+            OV?.onLoose?.(h, OV?.loose?.at);
+            return;
+        }
         if (mode === 'card' && moved) { moving = null; d.save(); render(); } else if (mode === 'port' && moved && drag.at) {
             const [key, kind] = drag.port.split('|');
             const r = CV.R.get(key);
@@ -502,6 +598,7 @@ export function mountCanvas(vp, d) {
     }
 
     function tapAt(t) {
+        if (d.tapTarget?.(hitOf(t))) return;
         const fl = t.closest?.('[data-flip]');
         if (fl) { flip(fl.dataset.flip, Number(fl.dataset.d)); return; }
         const port = t.closest?.('[data-port]');
@@ -578,5 +675,5 @@ export function mountCanvas(vp, d) {
         return { x: snap(x - CW / 2), y: snap(y - CH / 2) };
     }
 
-    return { render, fit, centerOn, reveal, tidy, flip, pointAt, get view() { return CV; }, get camera() { return camera(); } };
+    return { render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, get view() { return CV; }, get camera() { return camera(); } };
 }

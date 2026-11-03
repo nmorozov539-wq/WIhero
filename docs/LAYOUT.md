@@ -232,7 +232,9 @@ little darker and cooler than the app, with a faint dot grid.
 |---------|--------|
 | Drag empty canvas | Pan |
 | Pinch, or mouse wheel | Zoom around the fingers or pointer |
-| Tap a card | Opens the inspector for that entry |
+| Tap a card | Opens the inspector for that entry (with a piece armed, the piece lands on it instead) |
+| Tap a line, or a lock or wait pill | Opens that piece's strip in the piece bar, with Remove |
+| Tap a junction | Opens the inspector on that card's gate or close gate |
 | Tap a port | Opens the inspector scrolled to that piece. A knob whose links all go to a hidden mask layer flips that card to the layer instead |
 | Tap a pack frame | The pack sheet |
 | Tap ‹ or › under a card | Steps through its mask layers |
@@ -256,6 +258,44 @@ Cards move only by the grip (the six dots), so a drag anywhere else pans.
 **Tidy layout** (⌄) lays everything out again from the links, top to bottom,
 and puts every port back on its default side.
 
+### Piece bar
+
+Under the canvas, always there, with a fold arrow (remembered). One row of chips
+that scrolls sideways: **Opens · Closes · Glue · Switch · Mask · Pack**, a
+divider, then **Lock · Wait**. The bar writes the same story logic as the
+inspector (CONCEPTS 3); it is the quick way to make links.
+
+**Placing.** Tap a chip and then a card (tap the chip again to disarm), or drag
+the chip onto a card; a red × cancels a drag. While a chip is armed or dragged,
+cards that can't take it are dimmed. Lock and Wait also go on a line or a
+junction. The bar then turns into the piece's **strip**: Cancel on the left,
+Done on the right, its settings in between. The canvas still pans and zooms.
+What the strip sets is written straight away, so the canvas shows it; Cancel
+puts the book back as it was when the strip opened. Done stays grayed out until
+the piece is complete. Anything that would be a problem (a loop, a card closing
+itself, a broken switch) is refused with one line saying why.
+
+| Piece | Strip |
+|-------|-------|
+| Opens | A sentence, "*Mill* waits for *Road*", with ⇄ to turn it around. Dropped on a card, that card waits; a loose end goes to the other one: drag it onto a card, or pick one from the list. A second link into the same card asks once: "and *Road* (both)" or "or *Road* (either one)"; later ones follow. A pack source asks any, all or a number. One switch: "*Road* closes when *Mill* fires" (a real Closes link) |
+| Closes | "*Storm* closes *Mill*", the same way. A card closing itself is refused, pointing to Once |
+| Glue | Ride along or Hold. Ride along links a host (one per card; a new host replaces the old one). Hold says what ends it, or in orange "Nothing ends it yet" |
+| Switch | Dropped on the fork: its paths in order with ↑ ↓ and ×, a loose end for the next path, and "Paths wait for the fork" (on by default). Done needs two paths |
+| Lock | On a line or junction it joins that row (armed after the rest of it); on a card it asks "opens" or "closes". Phrases as chips (any one is enough), and who says it: anyone, you, the character |
+| Wait | The same places. 1, 2, 3, 5, 10 or a number of your own, and whose messages count. On a card it counts from the start of the chat |
+| Mask | Its name, **Write its text** (opens the entry on that mask), priority with ↑ ↓, "On when" (a loose end, a list, a phrase, a number of messages), and "Off when ▸" folded |
+| Pack | The book's packs as chips, and "+ New pack". `town/inn` sits inside `town` |
+
+**Turning a link around (⇄).** A link alone in its row moves with its locks
+and waits. One that shared a row leaves it, and the strip says so ("*Road* was
+needed together with *Bridge*. Turned around, it's a rule of its own"). A
+greeting can't wait, so a link from one can't be turned around.
+
+**Where it is stored** (CONCEPTS 3): Opens and Closes go in a row of the
+waiting or closing card's gate or close gate; into a pack, as Gates for or
+Closes for on the source. Once and Who triggers stay in the inspector, and
+greetings take no pieces themselves; they can only start a line.
+
 ### Inspector
 
 Tapping a card opens the inspector, a sheet at **half height**, so the card
@@ -268,7 +308,7 @@ stays in view above it. Drag it up for full height.
 | Reopen line | Only for an entry closed in the open chat: "Closed in this chat by *Tunnel* · Reopen" (or "by a rule that no longer exists") |
 | Piece rows | One row per piece, in matrix order (Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Once, Who triggers): a stripe in the piece's color, its name, and the same plain sentence as the entry page. Tap a row to expand it into its editor; one is open at a time. A "?" by the name shows the piece's help line |
 | From other entries | Rules other entries aim at this one: "Gates for this", "Closes this", "Rides along with this". Tap one to inspect that entry |
-| + Add piece | A sheet of the pieces the entry doesn't have yet, each with its help line |
+| + Add logic | A sheet of the pieces the entry doesn't have yet, each with its help line, and a note that links are quicker from the piece bar |
 | Footer | Open entry (in a tab) · Take off canvas (only for placed, unlinked entries) · Data |
 
 Tapping a port opens the inspector with that piece's row already expanded.
