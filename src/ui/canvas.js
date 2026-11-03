@@ -104,7 +104,16 @@ export function mountCanvas(vp, d) {
         CV = { m, g, R, P, ids };
         world.innerHTML = '';
         vp.querySelector('.cv-empty')?.remove();
-        if (!ids.size) vp.append(el('div', 'cv-empty', 'Nothing on the canvas yet. Open the panel and tap an entry\'s dot to place it.'));
+        if (!ids.size) {
+            const hint = el('div', 'cv-empty');
+            const p = el('p');
+            p.append('Nothing on the canvas yet. Open the ');
+            const icon = el('span', 'cv-ic');
+            icon.innerHTML = ic('panel', 's');
+            p.append(icon, ' panel and drag an entry\'s dot here, or long press the canvas to pick one.');
+            hint.append(p);
+            vp.append(hint);
+        }
         const layerOf = e => {
             const name = mem.cards[e.id]?.layer;
             const i = name ? e.masks.findIndex(x => x.name === name) : -1;
@@ -393,6 +402,7 @@ export function mountCanvas(vp, d) {
     let moved = false;
     let drag = null;
     let pinch = null;
+    let holdTimer = null;
     const toWorld = (cx, cy) => { const r = vp.getBoundingClientRect(); const v = camera(); return [(cx - r.left - v.tx) / v.scale, (cy - r.top - v.ty) / v.scale]; };
     let raf = 0;
     const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
@@ -418,6 +428,17 @@ export function mountCanvas(vp, d) {
             drag = { id, dx: wx - c.x, dy: wy - c.y };
             mode = 'card';
         } else if (port) { mode = 'port'; drag = { port: port.dataset.port }; } else mode = 'pan';
+        // A long press on empty canvas picks an entry to place there.
+        clearTimeout(holdTimer);
+        if (mode === 'pan' && d.holdEmpty && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open]')) {
+            const at = { x: e.clientX, y: e.clientY };
+            holdTimer = setTimeout(() => {
+                if (moved || mode !== 'pan' || pts.size !== 1) return;
+                mode = null; start = null;
+                pts.clear();
+                d.holdEmpty(pointAt(at.x, at.y));
+            }, 520);
+        }
     });
     vp.addEventListener('pointermove', e => {
         if (!pts.has(e.pointerId)) return;
@@ -430,7 +451,7 @@ export function mountCanvas(vp, d) {
             return;
         }
         if (!start) return;
-        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) moved = true;
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) { moved = true; clearTimeout(holdTimer); }
         if (!moved) return;
         if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; applyView(); } else if (mode === 'card') {
             const [wx, wy] = toWorld(e.clientX, e.clientY);
@@ -440,6 +461,7 @@ export function mountCanvas(vp, d) {
         } else if (mode === 'port') { drag.at = toWorld(e.clientX, e.clientY); vp.style.cursor = 'crosshair'; }
     });
     const end = e => {
+        clearTimeout(holdTimer);
         if (!pts.has(e.pointerId)) return;
         pts.delete(e.pointerId);
         if (mode === 'pinch') { if (pts.size === 0) mode = null; return; }

@@ -492,3 +492,17 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .dropcancel { position: absolute; left: 50%; top: 78%; z-index: 59; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: color-mix(in srgb, var(--bad) 75%, transparent); box-shadow: 0 6px 20px var(--shadow); transition: transform .12s, background .12s; }
 .dropcancel svg { width: 28px; height: 28px; }
 .dropcancel.over { transform: scale(1.18); background: var(--bad); }
+/* An Undo toast's time left: its outline drains */
+.toast .ttimer { position: absolute; inset: -2px; width: calc(100% + 4px); height: calc(100% + 4px); pointer-events: none; overflow: visible; }
+.toast .ttimer rect { x: 1px; y: 1px; width: calc(100% - 2px); height: calc(100% - 2px); rx: 11px; fill: none; stroke: var(--accent); stroke-width: 2.5px; stroke-dasharray: 100 100; stroke-dashoffset: 0; animation: tdrain linear forwards; }
+@keyframes tdrain { to { stroke-dashoffset: 100; } }
+.cv-empty p { max-width: 300px; margin: 0; }
+.cv-empty .cv-ic { display: inline-flex; vertical-align: -4px; padding: 2px 4px; margin: 0 1px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.cv-empty .cv-ic svg { width: 16px; height: 16px; }
+/* The entry picker of a long press on the canvas */
+.sheet .pick-q { display: block; width: calc(100% - 32px); margin: 4px 16px 8px; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
+/* Pull the tab row right to open a new tab */
+.pullnew { width: 0; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: width .12s; }
+.pullnew svg { width: 22px; height: 22px; flex-shrink: 0; transition: transform .12s; }
+.pullnew.ready { color: var(--accent); }
+.pullnew.ready svg { transform: scale(1.25); }

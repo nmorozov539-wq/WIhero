@@ -85,7 +85,22 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $(`.item[data-book="${BOOK}"]`).click();
     await $('.cv-empty').waitFor();
-    ok('a book with no pieces opens to an empty canvas (D8)');
+    assert.ok(await $('.cv-empty .cv-ic svg').count(), 'the hint shows the panel\'s icon');
+    // A long press on the empty canvas picks an entry to place there.
+    const vp = await $('.vp').boundingBox();
+    const [hx, hy] = [vp.x + vp.width / 2, vp.y + vp.height / 3];
+    await page.mouse.move(hx, hy);
+    await page.mouse.down();
+    await wait(800);
+    await page.mouse.up();
+    await $('.sheet h2:text-is("Place here")').waitFor();
+    await $('.sheet .pick-q').fill('inn');
+    await $('.sheet .opt:has(.lab:text-is("Inn"))').click();
+    const inn = $('.card:has-text("Inn")');
+    await inn.waitFor();
+    const ib = await inn.boundingBox();
+    assert.ok(Math.abs(ib.x + ib.width / 2 - hx) < 40 && Math.abs(ib.y + ib.height / 2 - hy) < 40, 'placed where the finger was');
+    ok('a book with no pieces opens to an empty canvas (D8); a long press there places an entry on that spot');
 
     // ── Packs ──
     await inspect('Inn');

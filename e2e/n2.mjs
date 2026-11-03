@@ -117,19 +117,20 @@ await run(async () => {
     await $('.section button:has-text("Places · 2")').waitFor();
     assert.deepEqual(await ev(n => Object.values(wihero.settings.books[n].folders), BOOK), ['Places', 'Places']);
     await $('.tabbar .iconbtn').click();
-    await opt('Group by').click();
-    await opt('Strategy').click();
-    assert.equal(await $('.sheet.menu .opt.has-choices:has(.lab:text-is("Group by")) .val').textContent(), 'Strategy', 'the menu stays open, showing the pick');
+    await opt('Sort by').click();
+    await opt('A–Z').click();
+    assert.equal(await $('.sheet.menu .opt.has-choices:has(.lab:text-is("Sort by")) .val').textContent(), 'A–Z', 'the menu stays open, showing the pick');
     await page.keyboard.press('Escape');
-    assert.deepEqual(await $('.view .section').allTextContents(), ['Keywords · 2', 'Permanent · 1']);
-    await menu('Group by', 'Folders');
+    assert.deepEqual(await $('.view .section').allTextContents(), ['No folder', 'Places · 2'], 'folders stay, whatever the order');
+    assert.deepEqual(await rowTitles(), ['Weather lore', 'Mill', 'Road'], 'sorted inside each folder');
+    await menu('Sort by', 'Order');
     await $('.item.ent:has(.nm:text-is("Weather lore")) .switch').click();
     await wait(100);
     assert.equal((await book(BOOK)).entries[entryBy(data, 'Weather lore').uid].disable, true);
     await menu('Show disabled entries');
     assert.deepEqual(await rowTitles(), ['Road', 'Mill']);
     await menu('Show disabled entries');
-    ok('selection moves entries into a new folder; group by strategy; the row switch turns an entry off; off entries can be hidden');
+    ok('selection moves entries into a new folder; sorting happens inside folders; the row switch turns an entry off; off entries can be hidden');
 
     // Duplicate, delete with Undo.
     await $('.item.ent:has(.nm:text-is("Road")) .more').click();
@@ -285,15 +286,27 @@ await run(async () => {
     await ev(() => { const s = document.documentElement.style; for (const k of ['--SmartThemeBodyColor', '--SmartThemeBlurTintColor', '--SmartThemeQuoteColor']) s.removeProperty(k); $('#themes').val('Dark Lite').trigger('change'); });
     ok('it follows ST\'s theme (Dark Lite, Azure, Celestial Macaron, and a light one) at 390px; screenshots in e2e/log');
 
-    // ── More settings, and a reload ──
+    // ── World Info settings, and a reload ──
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await $('.view h1:text-is("World Info")').waitFor();
     await $('.head button[aria-label="World Info settings"]').click();
-    await opt('More settings').click();
-    await page.waitForFunction(() => document.getElementById('WorldInfo').classList.contains('openDrawer'));
-    assert.ok(!await visible());
-    await page.click('#WI-SP-button .drawer-toggle');
+    const wi = () => ev(async () => { const w = await import('/scripts/world-info.js'); return { whole: w.world_info_match_whole_words, cap: w.world_info_budget_cap }; });
+    assert.deepEqual(await $('.sheet .lbl').allTextContents(), ['Scanning', 'Matching', 'Budget', 'Order']);
+    assert.equal(await opt('More settings').count(), 0, 'every setting is here, nothing left in ST\'s panel');
+    const before = await wi();
+    await opt('Match whole words').click();
+    assert.equal((await wi()).whole, !before.whole, 'a switch flips ST\'s own setting');
+    assert.ok(await $('.sheet h2:text-is("World Info settings")').count(), 'and the sheet stays open');
+    await opt('Match whole words').click();
+    await opt('Token cap').click();
+    await ask('1500');
+    assert.equal((await wi()).cap, 1500, 'the token budget can be set');
+    assert.equal(await $('.opt:has(.lab:text-is("Token cap")) .val').textContent(), '1,500 tokens');
+    await opt('Token cap').click();
+    await ask(String(before.cap));
+    assert.deepEqual(await wi(), before);
+    await page.keyboard.press('Escape');
     await wait(500);
     await page.reload();
     await page.waitForFunction(() => window.wihero?.app, null, { timeout: 60000 });
@@ -301,5 +314,18 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $('.view h1:text-is("World Info")').waitFor();
     assert.equal(await $('.tab').count(), 1, 'after a reload: Home, no tabs (D6)');
-    ok('"More settings" opens ST\'s own panel; after a reload WI Hero starts on Home');
+    // Pulling the tab row right, past its start, opens a new tab.
+    await $('.strip').evaluate(async s => {
+        const t = x => [new Touch({ identifier: 1, target: s, clientX: x, clientY: 25 })];
+        const fire = (type, x) => s.dispatchEvent(new TouchEvent(type, { touches: type === 'touchend' ? [] : t(x), changedTouches: t(x), bubbles: true }));
+        fire('touchstart', 100);
+        for (let x = 110; x <= 260; x += 15) { fire('touchmove', x); await new Promise(r => setTimeout(r, 16)); }
+        fire('touchend', 260);
+    });
+    await wait(300);
+    assert.equal(await $('.tab').count(), 2, 'a pull on the tab row opens a new tab');
+    assert.ok(await $('.tab.active .name').count(), 'and shows it');
+    await page.keyboard.press('Escape');
+    await wait(200);
+    ok('World Info settings has all of ST\'s, in groups, and sets them (a token cap too); after a reload WI Hero starts on Home; pulling the tab row opens a tab');
 });
