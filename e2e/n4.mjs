@@ -30,8 +30,10 @@ async function ask(value) {
     await wait(250);
 }
 async function menu(...path) {
+    if (await $('.scrim').count()) { await page.keyboard.press('Escape'); await wait(100); } // menus stay open after a pick
     await $('.tabbar .iconbtn').click();
     for (const p of path) { await opt(p).click(); await wait(200); }
+    if (path.length && await $('.sheet.menu').count()) { await page.keyboard.press('Escape'); await wait(100); }
 }
 /** Finds an entry from the panel (placing it if needed), then taps its card: the inspector opens. */
 async function inspect(title) {

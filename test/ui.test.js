@@ -132,6 +132,8 @@ test('search: the open book\'s entries first, then other books\', books and fold
         'entry:River tales:riverbank', 'entry:Eldoria:river', 'book:River tales:', 'folder:Eldoria:Rivers',
     ]);
     assert.deepEqual(search(books, 'fantasy', null).map(h => h.kind), ['folder']);
+    assert.deepEqual(search(books, 'river', null).map(h => `${h.kind}:${h.book ?? ''}`), ['book:River tales', 'folder:Eldoria', 'entry:Eldoria', 'entry:River tales'],
+        'with no book open, books come first');
     assert.deepEqual(search(books, '  ', null), []);
 });
 

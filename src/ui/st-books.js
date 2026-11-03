@@ -204,9 +204,17 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
 
     const isGlobal = name => (WI.selected_world_info ?? []).includes(name);
 
+    // Through ST's own global list, the way its dropdown does it: the slash-command path splits names on commas and
+    // matches them ignoring case, so a book called "Kingdom, North" could never be turned on.
     function setGlobal(name, on) {
         if (isGlobal(name) === on) return;
-        WI.onWorldInfoChange({ state: on ? 'on' : 'off', silent: 'true' }, name);
+        const i = (WI.world_names ?? []).indexOf(name);
+        const $ = globalThis.jQuery;
+        const option = i < 0 || !$ ? null : $('#world_info').children().filter((_, o) => o.value === String(i));
+        if (option?.length) {
+            option.prop('selected', on);
+            $('#world_info').trigger('change');
+        } else WI.onWorldInfoChange({ state: on ? 'on' : 'off', silent: 'true' }, name);
     }
 
     const fileOf = avatar => String(avatar ?? '').replace(/\.[^/.]+$/, '');
