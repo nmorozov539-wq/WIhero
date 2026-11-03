@@ -37,7 +37,7 @@ scroll sideways. There is no tab list.
 | ⌄             | Opens the menu sheet (contents per mode, below) |
 | Permanent tabs | Icon only, first in the row, can't be closed. Normal mode: Home. Hero mode: Canvas and Preview |
 | Other tabs    | Tap to switch. The active tab has a thin accent underline; × shows only on it. Closing a tab shows the one to its right (the one to its left when it was the last) |
-| Pull right    | Normal mode: pulling the tab row right past its start opens a new tab; a + grows under the finger and turns the accent color when letting go will open it |
+| Pull left     | Normal mode: pulling the tab row left past its end opens a new tab; a + grows at the right end and turns the accent color when letting go will open it |
 
 Anything opened from a permanent tab opens in a new tab. Long press opens it in
 a background tab.

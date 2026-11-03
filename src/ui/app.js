@@ -644,6 +644,13 @@ export function createApp(deps) {
         const model = modelOf(book, data);
         const node = model.byStKey.get(`${book}.${e.uid}`);
         const lines = node ? logicLines(node, model) : [];
+        const incoming = new Set();
+        if (node?.key) {
+            const label = k => model.nodes.get(k)?.label;
+            for (const i of node.opens.all) if (i.source && i.source !== node.key && label(i.source)) incoming.add(label(i.source));
+            for (const cl of node.closes) if (cl.source && cl.source !== node.key && label(cl.source)) incoming.add(label(cl.source));
+            for (const k of model.riders?.get(node.key) ?? []) if (label(k)) incoming.add(label(k));
+        }
         let closed = null;
         const loaded = hooks.model;
         if (node?.key && loaded.nodes.has(node.key) && ctx().chat?.length) {
@@ -664,6 +671,7 @@ export function createApp(deps) {
             ui: new Proxy(S.ui, { set: (t, k, v) => { t[k] = v; if (k === 'condition') p.condition = v; return true; } }),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             lines,
+            incoming: [...incoming],
             closed,
             fresh: !!p.fresh && !e.comment,
             change: (fn, quiet) => library.change(book, d => fn(d.entries[p.uid]), { quiet }),
@@ -1377,7 +1385,15 @@ export function createApp(deps) {
             setOpen: k => { I.open = k; render(); },
             openEntry: mask => openHeroTab(book, e.uid, mask ?? null),
             data: () => dataSheet(e),
-            takeOff: mem.cards[I.key]?.placed && !linked ? () => { delete mem.cards[I.key]; saveSettings(); H.insp = null; render(); layer.toast(`${titleOf(e)} taken off the canvas`); } : null,
+            // A linked card stays on the canvas while it has links: the button says why instead of hiding.
+            takeOff: !linked && mem.cards[I.key]?.placed ? () => { delete mem.cards[I.key]; saveSettings(); H.insp = null; render(); layer.toast(`${titleOf(e)} taken off the canvas`); }
+                : linked ? () => layer.sheet('It stays while it has links', sh => {
+                    const why = [];
+                    if (lines.length) why.push('Remove its own pieces (the rows above).');
+                    if (sources.length) why.push(`Remove the pieces in other entries that point at it: ${[...new Set(sources.map(x => x.name))].join(', ')}.`);
+                    if (view?.m.byId(I.key)?.packs.length) why.push('Take it out of its packs.');
+                    for (const w of why) sh.append(el('p', 'help', w));
+                }, { help: 'A card with story links is always on the canvas, so the links can be seen. Once it has none, it can be taken off.' }) : null,
             showMask: name => { (mem.cards[I.key] ??= {}).layer = name; saveSettings(); render(); heroCanvas?.reveal?.(I.key, 0.5); },
             renamedMask: (from, to) => { if (mem.cards[I.key]?.layer === from) { mem.cards[I.key].layer = to; saveSettings(); } },
         });
@@ -1484,28 +1500,27 @@ export function createApp(deps) {
         render();
     }
 
-    // Pulling the tab row right past its start opens a new tab (Normal mode): a + grows under the finger.
+    // Pulling the tab row left past its end opens a new tab (Normal mode): a + grows at the right, under the finger.
     {
         const pull = el('div', 'pullnew');
         pull.innerHTML = ic('plus');
-        tabbar.insertBefore(pull, strip);
+        tabbar.append(pull);
+        const atEnd = () => strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2;
         let x0 = null;
-        let dx = 0;
         const show = w => { pull.style.width = `${w}px`; pull.classList.toggle('ready', w >= 64); };
-        strip.addEventListener('touchstart', e => { x0 = S.mode === 'normal' && !S.select && strip.scrollLeft <= 0 ? e.touches[0].clientX : null; dx = 0; }, { passive: true });
+        strip.addEventListener('touchstart', e => { x0 = S.mode === 'normal' && !S.select && atEnd() ? e.touches[0].clientX : null; }, { passive: true });
         strip.addEventListener('touchmove', e => {
             if (x0 === null) return;
-            dx = e.touches[0].clientX - x0;
-            if (strip.scrollLeft > 0 || dx <= 0) { show(0); return; }
+            const dx = x0 - e.touches[0].clientX;
+            if (!atEnd() || dx <= 0) { show(0); return; }
             show(Math.min(dx * 0.6, 80));
         }, { passive: true });
-        const done = () => {
+        strip.addEventListener('touchend', () => {
             const go = x0 !== null && pull.classList.contains('ready');
             x0 = null;
             show(0);
             if (go) newTab();
-        };
-        strip.addEventListener('touchend', done);
+        });
         strip.addEventListener('touchcancel', () => { x0 = null; show(0); });
     }
 

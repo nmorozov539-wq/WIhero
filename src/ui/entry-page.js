@@ -98,6 +98,21 @@ export function renderEntryPage(main, o) {
     bl.querySelector('span').textContent = o.bookName + (o.folder ? ` · ${o.folder}` : '');
     en.append(bl);
 
+    // At a glance: whether the entry has story pieces, and whether other entries' pieces point at it.
+    const n = o.lines.length;
+    const inc = o.incoming ?? [];
+    const story = el('button', `storychip${n || inc.length ? ' on' : ''}`);
+    story.type = 'button';
+    story.innerHTML = ic('canvas', 's');
+    story.append(el('span', '', [n ? `${n} story piece${n === 1 ? '' : 's'}` : 'No story pieces',
+        inc.length ? `pointed at by ${inc.length === 1 ? inc[0] : `${inc.length} entries`}` : ''].filter(Boolean).join(' · ')));
+    story.title = inc.length ? `Pointed at by: ${inc.join(', ')}` : '';
+    story.addEventListener('click', () => {
+        if (n && !o.hero && !ui.logic) { ui.logic = true; o.redraw(); }
+        else if (o.showOnCanvas) o.showOnCanvas();
+    });
+    en.append(story);
+
     if (o.problems.length) {
         const pr = el('div', 'prob');
         pr.innerHTML = ic('alert', 's');

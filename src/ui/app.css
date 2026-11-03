@@ -506,3 +506,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .pullnew svg { width: 22px; height: 22px; flex-shrink: 0; transition: transform .12s; }
 .pullnew.ready { color: var(--accent); }
 .pullnew.ready svg { transform: scale(1.25); }
+/* Entry page: whether the entry takes part in the story logic */
+.storychip { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 2px; padding: 4px 10px; border-radius: 13px; border: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
+.storychip svg { width: 14px; height: 14px; }
+.storychip.on { color: var(--fg); border-color: color-mix(in srgb, var(--p-open) 55%, var(--line)); background: color-mix(in srgb, var(--p-open) 10%, transparent); }
