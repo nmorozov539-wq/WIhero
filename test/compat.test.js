@@ -2,12 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EVENTS, checkHealth, probeEntriesLoaded, probeScanDone, standDownText, stVersion, versionStatus } from '../src/compat.js';
+import { getStringHash } from '../src/engine/util.js';
 
 const context = () => ({
     eventSource: { on() {} }, eventTypes: Object.fromEntries(EVENTS.map(e => [e, e.toLowerCase()])),
     chat: [], saveChat() {}, substituteParams() {}, characters: [], chatMetadata: {},
 });
-const internals = () => ({ 'world-info.js getSortedEntries': () => [], 'world-info.js scan_state': { NONE: 0, MIN_ACTIVATIONS: 3 }, 'utils.js getStringHash': () => 1 });
+const internals = () => ({ 'world-info.js getSortedEntries': () => [], 'world-info.js scan_state': { NONE: 0, MIN_ACTIVATIONS: 3 }, 'utils.js getStringHash': getStringHash });
 
 test('a tested version passes quietly; any other says plainly that versions drifted', () => {
     assert.deepEqual(versionStatus('1.19.0'), { tested: true, text: null });
@@ -30,6 +31,14 @@ test('the health check names every missing thread', () => {
     i['world-info.js scan_state'] = {};
     assert.deepEqual(checkHealth(c, i), ['getContext().saveChat', 'the WORLDINFO_SCAN_DONE event', 'world-info.js getSortedEntries', 'scan_state.NONE / MIN_ACTIVATIONS']);
     assert.match(standDownText(['x']), /^WI Hero stood down: SillyTavern no longer has x\. Your World Info works as plain/);
+});
+
+test('the health check stands down when ST\'s getStringHash no longer matches the engine\'s copy', () => {
+    const i = internals();
+    i['utils.js getStringHash'] = s => getStringHash(s) + 1;
+    assert.deepEqual(checkHealth(context(), i), ['utils.js getStringHash as WI Hero knows it (it hashes differently now)']);
+    i['utils.js getStringHash'] = () => { throw new Error('boom'); };
+    assert.equal(checkHealth(context(), i).length, 1);
 });
 
 test('runtime probes of the scan\'s arguments', () => {

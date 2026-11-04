@@ -2,6 +2,11 @@
 // check of every hook and internal it pulls. When something is gone, the engine stands down and World Info runs as
 // plain ST, rather than half-working story logic writing bad snapshots. Pure apart from `stVersion`.
 
+import { getStringHash as engineHash } from './engine/util.js';
+
+/** Text the health check hashes with both ST's getStringHash and the engine's copy: they must agree. */
+const HASH_PROBE = 'WI Hero hash probe: Ünïcödé ✓ {{char}}\n0123456789';
+
 /** SillyTavern versions WI Hero is tested on (the e2e checks run against these). */
 export const TESTED_ST = Object.freeze(['1.19.0']);
 
@@ -57,6 +62,14 @@ export function checkHealth(context, internals) {
     if (scanState && (scanState.NONE === undefined || scanState.MIN_ACTIVATIONS === undefined)) missing.push('scan_state.NONE / MIN_ACTIVATIONS');
     for (const fn of ['world-info.js getSortedEntries', 'world-info.js parseRegexFromString', 'utils.js getStringHash']) {
         if (internals?.[fn] !== undefined && typeof internals[fn] !== 'function') missing.push(`${fn} as a function`);
+    }
+    // The engine keeps a copy of getStringHash, and the editor writes greeting fingerprints with it that the
+    // runtime checks with ST's own. A changed hash would silently mismatch them all.
+    const stHash = internals?.['utils.js getStringHash'];
+    if (typeof stHash === 'function') {
+        let same = false;
+        try { same = stHash(HASH_PROBE) === engineHash(HASH_PROBE); } catch { /* reported below */ }
+        if (!same) missing.push('utils.js getStringHash as WI Hero knows it (it hashes differently now)');
     }
     return missing;
 }

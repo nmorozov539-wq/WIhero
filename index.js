@@ -15,11 +15,12 @@ import * as st from './src/st.js';
 const ctx = () => SillyTavern.getContext();
 /**
  * The editor's view of getContext(): ST builds a new, large object on every call, and a draw asks dozens of times.
- * One object serves until the current task ends (fields like chat and characterId can change between tasks).
+ * One object serves one synchronous run (a draw). It is dropped in a microtask, so code after any await reads a
+ * fresh one (fields like chat and characterId can change while it waits).
  */
 let ctxNow = null;
 const uiCtx = () => {
-    if (!ctxNow) { ctxNow = SillyTavern.getContext(); setTimeout(() => { ctxNow = null; }, 0); }
+    if (!ctxNow) { ctxNow = SillyTavern.getContext(); queueMicrotask(() => { ctxNow = null; }); }
     return ctxNow;
 };
 const { eventSource, eventTypes, extensionSettings, saveSettingsDebounced } = ctx();

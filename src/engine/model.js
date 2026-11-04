@@ -51,7 +51,7 @@ export function normalize(raw) {
     // gates + gateMode → gate rows; closeGates (true by default in the old build) → closesFor the gate's entries.
     if ('gates' in c) {
         legacy = true;
-        const gates = Array.isArray(c.gates) ? c.gates : c.gates;
+        const gates = c.gates;
         if (Array.isArray(gates) && c.gate === undefined && gates.length) {
             c.gate = c.gateMode === 'any' ? gates.map(g => [g]) : [gates];
         } else if (!Array.isArray(gates) && c.gate === undefined) {
