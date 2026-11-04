@@ -436,10 +436,13 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
   run the automatic layout on the linked entries (the old `layout.js`: break
   loops by depth-first search, rank by longest path, four barycentre sweeps,
   stack each column), save every position, set `placed`. If it has no pieces,
-  just set `placed`.
+  just set `placed`. Phone first, the canvas grows down: a layer wider than
+  two cards wraps onto more rows.
 - **A newly linked entry** that has no position: put it at the nearest free
-  spot to the right of the card it was linked from (scan outward on a grid of
-  card-sized cells, right, then below, then above, then left).
+  spot beside the card it was linked with (scan outward on a grid of
+  card-sized cells). A card that card leads to goes below it first (then
+  right, left, above); a card that leads to it goes above it first. A lone
+  card goes in the middle of the view, or below it when that is taken.
 - **Tidy**: rerun the layout on everything on the canvas, keep the old
   positions for Undo.
 - **Link routing** around cards uses the demo's grid router as it is. No
@@ -684,7 +687,7 @@ written on the entries:
 ### 15.4 On the canvas and in the panel
 
 - **Only the open chat's character.** With a single-character chat open, the
-  entry panel has a **Greetings** group listing that character's greetings
+  entry panel has a **Greetings** group, first in the list, with that character's greetings
   (Greeting, Alt 1, …, with their opening words). They are placed like entries
   (hollow dot, tap to place) and stay on the canvas once linked.
 - **No chat open** (or a group chat): no Greetings group and no greeting cards.
