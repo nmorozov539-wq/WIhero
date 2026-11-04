@@ -139,6 +139,7 @@ How the folder filter hooks in:
 - Pan and pinch only move the camera: one transform per frame, with the world on its own GPU layer while a finger is down (`.vp.gesture`), let go at the end so the text is drawn sharp at the new zoom.
 - A card drag doesn't draw the canvas: every node is tagged with the cards it belongs to (`data-of`), the card's own nodes (card, mask layers, ports, its junctions and pills) are moved with `translate`, and its links to other cards are hidden behind straight guide lines. The drop draws once and routes again.
 - Hero mode builds the engine model of a book once per change (`library.version`), and fills the entry panel the first time it opens.
+- A Hero draw on the same book keeps the canvas: the panel, the piece bar and the inspector are drawn again around it, and the cards and links only when what they're drawn from changed (`canvasSig`: the book's version, its settings without the camera, hidden entries, the open chat). Show chat state always draws.
 - The editor's touchstart listener is passive: a listener that could cancel makes the phone wait for the page's script before each scroll starts.
 
 ## Design changes this implies

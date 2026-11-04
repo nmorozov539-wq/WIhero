@@ -930,11 +930,42 @@ export function createApp(deps) {
         return false;
     }
 
+    /**
+     * What the canvas draws from, as one string: when a Hero draw finds it unchanged (a piece bar step that only
+     * changes the strip, the inspector opening, the panel), the cards and links stay as they are. The camera is left
+     * out: it moves without a draw. Show chat state always draws, since the chat moves under it.
+     */
+    function canvasSig(book) {
+        if (H.chatState) return null;
+        const bs = settings.books?.[book] ?? {};
+        const { camera, ...canvas } = bs.canvas ?? {};
+        const top = Object.entries(settings).filter(([k, v]) => k !== 'books' && (v === null || typeof v !== 'object'));
+        const c = ctx();
+        return JSON.stringify([library.version, { ...bs, canvas }, top, [...hiddenIn(book)], c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null]);
+    }
+    /** The canvas kept between Hero draws of the same book: { book, data, vp, sig, data() cache }. */
+    let heroMount = null;
+
     function renderHero() {
         renderTabs();
+        if (typeof H.active === 'number' && !H.tabs[H.active]) H.active = 'canvas';
+        const keepBook = H.active === 'canvas' ? heroBook() : null;
+        const kept = heroMount && heroCanvas && keepBook && heroMount.book === keepBook && library.peek(keepBook) === heroMount.data
+            && main.dataset.page === 'hero:canvas' && heroMount.vp.parentNode === main ? heroMount : null;
+        if (kept) {
+            // Same canvas: everything around it is drawn again (cheap), the cards and links only if they changed.
+            for (const n of [...main.children]) if (n !== kept.vp) n.remove();
+            kept.vp.querySelector('.legend')?.remove();
+            if (H.legend) kept.vp.append(legendBox());
+            const sig = canvasSig(keepBook);
+            heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
+            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); kept.sig = canvasSig(keepBook); } // a draw can place cards
+            heroAround(keepBook, kept.data);
+            return;
+        }
         main.innerHTML = '';
         heroCanvas = null;
-        if (typeof H.active === 'number' && !H.tabs[H.active]) H.active = 'canvas';
+        heroMount = null;
         if (typeof H.active === 'number') {
             const t = H.tabs[H.active];
             main.dataset.page = `hero:${H.active}`;
@@ -951,19 +982,10 @@ export function createApp(deps) {
         const vp = el('div', 'vp');
         vp.tabIndex = -1;
         main.append(vp);
-        if (H.legend) {
-            const lg = el('div', 'legend');
-            for (const [v, label, dashed] of [['open', 'opens'], ['close', 'closes', true], ['glue', 'glue'], ['mask', 'mask'], ['pack', 'pack', true]]) {
-                const s = el('span');
-                s.style.color = `var(--p-${v})`;
-                s.append(el('i', dashed ? 'd' : ''), label);
-                lg.append(s);
-            }
-            vp.append(lg);
-        }
-        let cache = null;
+        if (H.legend) vp.append(legendBox());
+        const mount = { book, data, vp, sig: null, cache: null };
         heroCanvas = mountCanvas(vp, {
-            book: () => (cache ??= heroData(book, data)),
+            book: () => (mount.cache ??= heroData(book, data)),
             save: saveSettings,
             open: (key, piece) => inspect(book, key, piece),
             pack: name => packSheet(book, data, name),
@@ -975,11 +997,27 @@ export function createApp(deps) {
                 if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
             },
         });
+        heroMount = mount;
         heroCanvas.render();
+        mount.sig = canvasSig(book); // after the draw, which can place cards
+        heroAround(book, data);
+    }
+    /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
+    function heroAround(book, data) {
         heroPanel(book, data);
         if (H.bar.edit && H.bar.edit.book !== book) H.bar.edit = null;
         mountPieceBar(barApi(book));
         if (H.insp?.book === book) inspectorFor(book, data);
+    }
+    function legendBox() {
+        const lg = el('div', 'legend');
+        for (const [v, label, dashed] of [['open', 'opens'], ['close', 'closes', true], ['glue', 'glue'], ['mask', 'mask'], ['pack', 'pack', true]]) {
+            const s = el('span');
+            s.style.color = `var(--p-${v})`;
+            s.append(el('i', dashed ? 'd' : ''), label);
+            lg.append(s);
+        }
+        return lg;
     }
 
     // ---------------------------------------------------------------- the piece bar (LAYOUT "Piece bar")
