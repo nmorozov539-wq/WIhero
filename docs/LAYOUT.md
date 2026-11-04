@@ -21,10 +21,13 @@ Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-
 
 ### Opening the editor
 
-- ST's World Info button opens WI Hero instead of ST's drawer, and is lit
-  while WI Hero is open. So does everything else in ST that opens its
-  drawer (a card's lorebook just imported, the character's, chat's and
-  persona's lorebook buttons), on the book it asked for.
+- ST's World Info button opens WI Hero instead of ST's drawer. So does
+  everything else in ST that opens its drawer (a card's lorebook just
+  imported, the character's, chat's and persona's lorebook buttons), on the
+  book it asked for.
+- The button stays ST's: WI Hero shows while ST's drawer is open, with the
+  drawer hidden under it. So ST lights the button while WI Hero is open, and
+  its other top bar drawers close each other and WI Hero as they always do.
 - Closing WI Hero only hides it: while ST stays open, it comes back exactly as
   it was left. After a page reload it starts on Home, and tabs are not
   restored (like ST, which starts on its main screen).
@@ -335,8 +338,10 @@ Where a lock is allowed there is a "Lock phrase…" row.
 
 **Greeting inspector** (tap a greeting card): its name ("Greeting", "Alt 2"),
 the greeting's opening words (tap to read it all, read only), Gates for,
-Closes for, "Used by" (entries that read it), and **Re-pick** when the
-greeting changed since it was linked.
+Closes for, "Used by" (entries that read it), **Re-pick** when the
+greeting changed since it was linked, and **Take off canvas**, which works like
+an entry's: it takes off a greeting with no links, and says what to remove first
+for one that has some.
 
 **Pack sheet** (tap a frame): "In this pack" and "Used by" (the entries whose
 rules read or target it). Tap a row to inspect it.

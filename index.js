@@ -167,14 +167,28 @@ const library = createLibrary({
 });
 snapshots = createSnapshots({ ctx, settings, saveSettings: saveSettingsDebounced, library });
 
-/** ST's own World Info drawer, for the settings WI Hero doesn't show ("More settings ›"). */
-let bypass = false;
+// ---- ST's World Info button (LAYOUT "Opening the editor"). The button and its drawer stay ST's: ST opens and closes
+// the drawer, lights the button, and closes the drawer when another top bar drawer opens, the same for every way in
+// (the button, a card's lorebook just imported, the character's, chat's and persona's lorebook buttons). WI Hero only
+// follows: it shows while the drawer is open, with the drawer itself hidden under it (.wihero-under).
+const wiDrawer = document.getElementById('WorldInfo');
+const drawerOpen = () => !!wiDrawer?.classList.contains('openDrawer');
+const clickWiButton = () => globalThis.jQuery?.('#WI-SP-button .drawer-toggle').trigger('click');
+/** While ST's own editor is asked for ("More settings ›"), the drawer shows as itself until it closes. */
+let native = false;
 function openStEditor() {
-    const $ = globalThis.jQuery;
-    if ($('#WorldInfo').hasClass('openDrawer')) return;
-    bypass = true;
-    try { $('#WI-SP-button .drawer-toggle').trigger('click'); } finally { bypass = false; }
+    native = true;
+    wiDrawer?.classList.remove('wihero-under');
+    app.hide();
+    if (!drawerOpen()) clickWiButton();
 }
+/** WI Hero opened or closed itself (its Back, Escape): ST's drawer goes with it, through ST's own button. */
+function followEditor(open) {
+    if (!native && wiDrawer && open !== drawerOpen()) clickWiButton();
+}
+/** The book ST just picked in its editor's dropdown (it opens the drawer on a book), for WI Hero to open on. */
+let askedBook = null;
+let askedTimer = null;
 
 bubble = createBubble({ ctx, settings, gap: () => (hooks.active() ? hooks.gap() : null), onFixGap: fixGap });
 stVersion().then(v => health.setVersion(v));
@@ -185,51 +199,34 @@ app = createApp({
     entryTemplate: st.newWorldInfoEntryTemplate,
     cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
     openStEditor,
-    onVisible: lightButton,
+    onVisible: followEditor,
     scan: { globals: scanGlobals, parseRegexFromString: st.parseRegexFromString },
 });
 
-// ST's World Info button opens WI Hero instead of ST's drawer (LAYOUT "Opening the editor"). Any other top bar
-// drawer hides it, as ST's drawers close each other.
-document.getElementById('top-settings-holder')?.addEventListener('click', e => {
-    const toggle = e.target.closest?.('.drawer-toggle');
-    if (!toggle || bypass) return;
-    if (toggle.closest('#WI-SP-button')) {
-        if (globalThis.jQuery?.('#WorldInfo').hasClass('openDrawer')) return; // ST's own drawer is open: the button closes it
-        e.stopPropagation();
-        e.preventDefault();
-        app.toggle();
-    } else {
+function syncWithDrawer() {
+    if (!drawerOpen()) {
+        native = false; // the class stays on while the drawer closes, so its closing animation isn't seen
         app.hide();
+        return;
     }
-}, true);
-
-// ST also opens its drawer from its own code: a card's lorebook just imported, the character's and the chat's
-// lorebook buttons, a persona's lorebook. That is `$('#WIDrawerIcon').trigger('click')`, which runs jQuery's
-// handlers itself and never passes the capture listener above. A handler on the icon runs before the toggle's, so
-// it sends those to WI Hero too, on the book ST then picks in its editor's dropdown.
-let askedBook = false;
-globalThis.jQuery?.('#WIDrawerIcon').on('click', e => {
-    if (bypass || globalThis.jQuery('#WorldInfo').hasClass('openDrawer')) return;
-    e.stopPropagation();
-    e.preventDefault();
-    app.show();
-    askedBook = true;
-    setTimeout(() => { askedBook = false; }, 0);
-});
-globalThis.jQuery?.('#world_editor_select').on('change', function () {
-    if (!askedBook) return;
-    askedBook = false;
-    const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];
-    if (name) app.openBook(name);
-});
-
-/** ST's World Info button is lit while WI Hero is open, as it is for ST's own drawer. */
-function lightButton(open) {
-    const $ = globalThis.jQuery;
-    if (!$ || $('#WorldInfo').hasClass('openDrawer')) return; // ST's own drawer owns the button then
-    $('#WIDrawerIcon').toggleClass('openIcon', open).toggleClass('closedIcon', !open);
+    if (native) return;
+    if (!wiDrawer.classList.contains('wihero-under')) wiDrawer.classList.add('wihero-under');
+    if (askedBook) { const name = askedBook; askedBook = null; app.openBook(name); } else app.show();
 }
+if (wiDrawer) {
+    new MutationObserver(syncWithDrawer).observe(wiDrawer, { attributes: true, attributeFilter: ['class'] });
+    syncWithDrawer();
+}
+globalThis.jQuery?.('#world_editor_select').on('change', function () {
+    if (native) return;
+    const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];
+    if (!name) return;
+    if (app.isOpen()) { app.openBook(name); return; }
+    // The drawer can open a moment later (ST waits for another drawer to close first).
+    askedBook = name;
+    clearTimeout(askedTimer);
+    askedTimer = setTimeout(() => { askedBook = null; }, 1500);
+});
 
 eventSource.on(eventTypes.WORLDINFO_UPDATED, library.onWorldInfoUpdated);
 for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);

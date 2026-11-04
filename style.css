@@ -190,3 +190,8 @@
     border-bottom: 1px solid var(--SmartThemeBorderColor);
     color: var(--warning);
 }
+
+/* ST's World Info drawer stays open under WI Hero, so ST keeps its button lit and its drawers in step. */
+#WorldInfo.wihero-under {
+    display: none !important;
+}

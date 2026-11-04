@@ -385,4 +385,9 @@ export function renderGreetingInspector(box, x) {
         for (const u of rules.usedBy) body.append(layer.opt(u.title, () => x.inspect(u.key), { dot: u.dot }));
     }
     body.append(el('p', 'phelp gnote', `${greetingName(g.ref.greeting)} of ${g.ref.name || g.ref.char}. A greeting counts as fired when the chat opened with it.`));
+    if (x.takeOff) {
+        const foot = el('div', 'ifoot');
+        foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+        body.append(foot);
+    }
 }

@@ -1418,6 +1418,21 @@ export function createApp(deps) {
 
     // ---------------------------------------------------------------- the inspector (N4)
 
+    /**
+     * The inspector's "Take off canvas": a card placed by hand comes off; a linked card stays while it has links, and
+     * the button says why (`why`: what to remove first) instead of hiding.
+     */
+    function takeOffFor(book, title, why) {
+        const key = H.insp.key;
+        const view = heroCanvas?.view;
+        const mem = canvasMemory(bookSettings(settings, book));
+        const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
+        if (!linked) return mem.cards[key]?.placed ? () => { delete mem.cards[key]; saveSettings(); H.insp = null; render(); layer.toast(`${title} taken off the canvas`); } : null;
+        return () => layer.sheet('It stays while it has links', sh => {
+            for (const w of why) sh.append(el('p', 'help', w));
+        }, { help: 'A card with story links is always on the canvas, so the links can be seen. Once it has none, it can be taken off.' });
+    }
+
     /** The open chat's character's greetings (BUILD_SPEC 15.4): none with no chat or in a group chat. */
     function chatGreetings(data) {
         const c = ctx();
@@ -1518,8 +1533,12 @@ export function createApp(deps) {
             if (!g) { H.insp = null; return; }
             const r = greetingRules(data, g.ref);
             const byUid = uid => entriesOf(data).find(x => x.uid === uid);
+            const usedBy = r.usedBy.map(byUid).filter(Boolean);
+            const gwhy = [];
+            if (r.gatesFor.length || r.closesFor.length) gwhy.push('Remove its Gates for and Closes for (above).');
+            if (usedBy.length) gwhy.push(`Remove the pieces in other entries that point at it: ${[...new Set(usedBy.map(titleOf))].join(', ')}.`);
             renderGreetingInspector(main, {
-                ...common, g, others: others(null),
+                ...common, g, others: others(null), takeOff: takeOffFor(book, g.title, gwhy),
                 rules: { gatesFor: r.gatesFor, closesFor: r.closesFor, usedBy: r.usedBy.map(byUid).filter(Boolean).map(x => ({ title: titleOf(x), key: cardKey(x), dot: strategyColor(x) })) },
             });
             return;
@@ -1537,7 +1556,6 @@ export function createApp(deps) {
             for (const k of model.riders?.get(node.key) ?? []) sources.push({ name: nameOf(k), key: stateKeyToCard(k), what: 'Rides along with this', family: 'glue' });
         }
         const mem = canvasMemory(bookSettings(settings, book));
-        const linked = view?.g.edges.some(x => x.from === I.key || x.to === I.key) || (view?.m.byId(I.key)?.packs.length ?? 0) > 0;
         renderInspector(main, {
             ...common, entry: e, config: configOf(e) ?? {}, title: titleOf(e), open: I.open, lines, sources,
             others: others(e.uid), greetings: chatGreetings(data),
@@ -1546,15 +1564,11 @@ export function createApp(deps) {
             setOpen: k => { I.open = k; render(); },
             openEntry: mask => openHeroTab(book, e.uid, mask ?? null),
             data: () => dataSheet(e),
-            // A linked card stays on the canvas while it has links: the button says why instead of hiding.
-            takeOff: !linked && mem.cards[I.key]?.placed ? () => { delete mem.cards[I.key]; saveSettings(); H.insp = null; render(); layer.toast(`${titleOf(e)} taken off the canvas`); }
-                : linked ? () => layer.sheet('It stays while it has links', sh => {
-                    const why = [];
-                    if (lines.length) why.push('Remove its own pieces (the rows above).');
-                    if (sources.length) why.push(`Remove the pieces in other entries that point at it: ${[...new Set(sources.map(x => x.name))].join(', ')}.`);
-                    if (view?.m.byId(I.key)?.packs.length) why.push('Take it out of its packs.');
-                    for (const w of why) sh.append(el('p', 'help', w));
-                }, { help: 'A card with story links is always on the canvas, so the links can be seen. Once it has none, it can be taken off.' }) : null,
+            takeOff: takeOffFor(book, titleOf(e), [
+                ...(lines.length ? ['Remove its own pieces (the rows above).'] : []),
+                ...(sources.length ? [`Remove the pieces in other entries that point at it: ${[...new Set(sources.map(x => x.name))].join(', ')}.`] : []),
+                ...(view?.m.byId(I.key)?.packs.length ? ['Take it out of its packs.'] : []),
+            ]),
             showMask: name => { (mem.cards[I.key] ??= {}).layer = name; saveSettings(); render(); heroCanvas?.reveal?.(I.key, 0.5); },
             renamedMask: (from, to) => { if (mem.cards[I.key]?.layer === from) { mem.cards[I.key].layer = to; saveSettings(); } },
         });
