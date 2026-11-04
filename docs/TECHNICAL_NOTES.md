@@ -1,4 +1,4 @@
-# st-wihero — Technical Notes
+# WI Hero — Technical Notes
 
 Checked against SillyTavern **1.19.0** (`release` @ `06bde939f`, 2026-09-14). Line numbers refer to `public/scripts/world-info.js` unless noted.
 
@@ -14,7 +14,7 @@ All four hooks the design needs exist. Two of them don't work the way the design
 | Record what fired | `WORLD_INFO_ACTIVATED` | Works, post-budget |
 | Skip background generations | `GENERATION_STARTED` type + `dryRun` | Works |
 | Per-message state | `message.extra` (copied per swipe) | Works |
-| Config on entries | custom top-level field on the entry | Works (not `extensions`) |
+| Config on entries | `entry.extensions.wihero` (section 8; the old build used a top-level field) | Works |
 
 ## 1. Gating: `WORLDINFO_ENTRIES_LOADED`
 
@@ -85,6 +85,8 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 
 ## 9. Entry editor
 
+*Sections 9–11 describe the old build, which added a block to ST's own editor and a separate workspace (`src/editor.js`, `folders.js`, `workspace.js`, `canvas-model.js`, `graph-view.js`, all gone now). The save path in 9 is still the one WI Hero uses. The current editor is in [BUILD_SPEC.md](BUILD_SPEC.md) 8 and [LAYOUT.md](LAYOUT.md).*
+
 - ST renders an entry's edit area (`WI_ENTRY_EDIT_TEMPLATE`, world-info.js 63) only when its drawer opens (`addEditorDrawerContent`, 3553), into the entry's `.inline-drawer-outlet`, and destroys it a moment after it closes (3532–3550). Pagination and every re-render rebuild the list. No event fires for any of this.
 - So `src/editor.js` watches `#world_popup_entries_list` with a `MutationObserver` and adds the WI Hero block to each `.world_entry_edit` that lacks one. That's idempotent and needs no patching.
 - The editor holds its own copy of the book in a closure (`displayWorldEntries(name, data)`, 2310) and saves that whole object on each field edit (`saveWorldInfo(name, data)` → debounced `_save`, 4163–4190). It isn't reachable from outside. Writing `wihero` anywhere else and leaving the editor alone would be undone by the next vanilla edit.
@@ -139,7 +141,7 @@ How the folder filter hooks in:
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.
 - 2.6 Masks: content is swapped after activation (`WORLDINFO_SCAN_DONE`), not at load time. Masks don't feed recursion by default.
-- 3 Data model: config lives in a top-level `wihero` field, not `extensions`.
+- 3 Data model: config lived in a top-level `wihero` field. Superseded: it now lives at `entry.extensions.wihero` (section 8).
 
 ## 12. The new model (CONCEPTS.md)
 
@@ -177,3 +179,30 @@ shorter or older.
   when the book is loaded, so the closing code has one path.
 - **Canvas settings**: port sides and the shown mask layer join canvas
   positions in the extension settings, keyed by book and entry id.
+
+## 13. Following ST's World Info drawer
+
+- ST opens its World Info drawer (`#WorldInfo`) in several ways: the top bar
+  button, and from code with a jQuery trigger on the button (a card's lorebook
+  just imported, the character's, chat's and persona's lorebook buttons). The
+  jQuery trigger skips capture listeners on the button, so intercepting clicks
+  missed those.
+- So WI Hero doesn't touch the button. A `MutationObserver` on the drawer's
+  `class` shows WI Hero while it has `openDrawer` and hides it otherwise; the
+  drawer gets `.wihero-under` so it stays hidden under WI Hero. ST keeps
+  lighting the button and closing the other top bar drawers as usual.
+- The book: ST picks it in `#world_editor_select` before or just after opening
+  the drawer (it can wait for another drawer to close). A `change` handler
+  keeps the name for 1.5 s, and WI Hero opens on it when the drawer opens.
+- WI Hero closing itself clicks `#WI-SP-button .drawer-toggle`, so ST closes
+  the drawer through its own code.
+- ST closes open drawers on `touchstart` and `mousedown` on `<html>` outside
+  them. WI Hero's host stops both from propagating, or the first touch inside
+  it would close it.
+- ST lights a closed top bar button on `:hover`, and a touch screen keeps
+  `:hover` on the last element tapped. `style.css` sets
+  `.drawer-icon.closedIcon:hover` back to ST's closed opacity under
+  `@media (hover: none)`.
+- The health check (BUILD_SPEC 17.2) also compares ST's `getStringHash` with
+  the engine's copy on a probe text, since greeting fingerprints are written
+  with the copy and checked with ST's.

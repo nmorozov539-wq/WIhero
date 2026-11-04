@@ -21,13 +21,17 @@ Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-
 
 ### Opening the editor
 
-- ST's World Info button opens WI Hero instead of ST's drawer. So does
+- ST's World Info button opens WI Hero in place of ST's editor. So does
   everything else in ST that opens its drawer (a card's lorebook just
   imported, the character's, chat's and persona's lorebook buttons), on the
   book it asked for.
 - The button stays ST's: WI Hero shows while ST's drawer is open, with the
   drawer hidden under it. So ST lights the button while WI Hero is open, and
   its other top bar drawers close each other and WI Hero as they always do.
+  Closing WI Hero closes the drawer too.
+- Touching or clicking inside WI Hero never closes it (ST closes a drawer on a
+  press outside it).
+- On a phone, a closed top bar button doesn't stay lit after it is tapped.
 - Closing WI Hero only hides it: while ST stays open, it comes back exactly as
   it was left. After a page reload it starts on Home, and tabs are not
   restored (like ST, which starts on its main screen).

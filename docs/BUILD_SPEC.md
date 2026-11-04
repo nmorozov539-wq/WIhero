@@ -393,8 +393,21 @@ the current state if it has none), so they rewind like everything else.
 
 ### 8.1 The editor overlay (D6)
 
-- WI Hero is one element on `document.body`. ST's World Info button opens it.
-  Closing **hides** it (`display: none`), keeping all its DOM and in-memory
+- WI Hero is one element on `document.body`. It follows ST's World Info
+  drawer (`#WorldInfo`) instead of taking over its button: a `MutationObserver`
+  on the drawer's class shows WI Hero while the drawer has `openDrawer`, with
+  the drawer hidden under it (`.wihero-under`), and hides it when the drawer
+  closes. So every way ST opens the drawer opens WI Hero (the button, a card's
+  lorebook just imported, the character's, chat's and persona's lorebook
+  buttons), on the book ST picked in `#world_editor_select`, and ST keeps
+  lighting the button and closing its top bar drawers in step.
+- WI Hero closing itself (Back, Escape) clicks ST's own button, so the drawer
+  closes with it.
+- ST closes open drawers on any `touchstart` or `mousedown` outside them.
+  Presses inside WI Hero stop there, so touching it doesn't close it.
+- On screens without hover, a closed top bar button no longer stays lit after a
+  tap (`@media (hover: none)`; ST's own classes still decide which one is lit).
+- Closing **hides** it (`display: none`), keeping all its DOM and in-memory
   state: tabs, scroll positions, open sheets closed.
 - Nothing about the open tabs is saved. On a page reload it starts on Home.
 
@@ -745,7 +758,9 @@ Group chats (several characters' greetings mixed in one chat).
   WORLD_INFO_ACTIVATED, MESSAGE_RECEIVED, GENERATION_STOPPED, CHAT_CHANGED,
   WORLDINFO_FORCE_ACTIVATE), the context members (eventSource, eventTypes,
   chat, saveChat, substituteParams, characters, chatMetadata) and the
-  internals of `src/st.js`. At runtime, the first argument of
+  internals of `src/st.js`. It also hashes a probe text with ST's
+  `getStringHash` and the engine's copy (`src/engine/util.js`, used for
+  greeting fingerprints): if they differ, that is a problem too. At runtime, the first argument of
   WORLDINFO_ENTRIES_LOADED and WORLDINFO_SCAN_DONE is checked on every call.
 - Any problem stands the engine down for the session (`active()` is false):
   nothing is removed from the scan, nothing forced, no snapshots written, and a
