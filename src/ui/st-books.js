@@ -28,6 +28,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     const seeded = new Set();
 
     const names = () => ctx().getWorldInfoNames();
+    /** Goes up on every change to a working copy, so what is worked out from a book can be kept until then. */
+    let version = 0;
 
     async function get(name) {
         if (copies.has(name)) return copies.get(name);
@@ -59,7 +61,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         const data = copies.get(name);
         if (!data) return undefined;
         seen(name, data);
-        const out = fn(data);
+        let out;
+        try { out = fn(data); } finally { version++; }
         schedule(name);
         if (!quiet) onChange();
         return out;
@@ -298,7 +301,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     }
 
     return {
-        names, get, peek, seen, change, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
+        names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }

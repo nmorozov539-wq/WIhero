@@ -90,7 +90,20 @@ export function createApp(deps) {
     const visibleNames = () => library.names().filter(n => !S.hiddenBooks.has(n));
     const hiddenIn = book => S.hiddenEntries.get(book) ?? new Set();
     const entriesShown = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid));
-    const modelOf = (book, data) => buildModel(entriesOf(data).map(e => ({ ...e, world: book })));
+    /**
+     * The engine's model of a book, built once per change: a Hero draw asks for it several times (problems, the
+     * panel, the inspector, the piece bar's checks). Only the library's working copies are kept; a trial copy (the
+     * piece bar tries an edit on one first) is built fresh each time.
+     */
+    const models = new WeakMap();
+    const modelOf = (book, data) => {
+        const own = library.peek(book) === data;
+        const kept = own ? models.get(data) : null;
+        if (kept && kept.book === book && kept.version === library.version) return kept.model;
+        const model = buildModel(entriesOf(data).map(e => ({ ...e, world: book })));
+        if (own) models.set(data, { book, version: library.version, model });
+        return model;
+    };
     const problemsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && !i.warning && i.blocking !== false);
     const linkText = name => { const l = library.links(name); return l.length ? `${l[0].name}${l.length > 1 ? ` +${l.length - 1}` : ''}` : ''; };
     const entryFolder = (book, e) => folderOf(settings, book, e);
@@ -1219,7 +1232,10 @@ export function createApp(deps) {
         const pb = btn('panelBtn', ic('panel'), () => { H.panel = !H.panel; panelState(); }, 'Entries');
         const p = el('aside', 'panel');
         main.append(pb, p);
+        // The list is filled the first time the panel opens: a closed panel costs nothing on each draw.
+        let filled = false;
         panelState = () => {
+            if (H.panel && !filled) fill();
             p.classList.toggle('closed', !H.panel);
             pb.classList.toggle('open', H.panel);
             pb.innerHTML = H.panel ? ic('left') : ic('panel');
@@ -1301,6 +1317,7 @@ export function createApp(deps) {
             dot.addEventListener('pointercancel', ev => finish(ev, false));
         };
         const fill = () => {
+            filled = true;
             list.innerHTML = '';
             const on = view?.ids ?? new Set();
             const needle = H.q.trim().toLowerCase();
@@ -1378,7 +1395,6 @@ export function createApp(deps) {
                 }
             }
         };
-        fill();
         const br = el('div', 'bookrow');
         const bp = btn('bookpick', `<b><span></span>${ic('down', 's')}</b><span class="bchips"></span>`, () => bookPicker(), 'Switch book');
         bp.querySelector('b span').textContent = book;

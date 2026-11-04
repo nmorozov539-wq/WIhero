@@ -263,6 +263,8 @@ input.kbox:focus { border-color: var(--accent); }
 .vp { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: grab;
   background-color: var(--canvas); background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px); background-size: 22px 22px; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* While a finger pans or pinches, the world is its own GPU layer (canvas.js gesture) */
+.vp.gesture .world { will-change: transform; }
 svg.lk, svg.pt { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 svg.pt { z-index: 3; }
 svg.pt .port { pointer-events: all; cursor: pointer; }
@@ -276,7 +278,7 @@ svg.lk path.head { stroke-width: 0; }
 .card .k svg { width: 12px; height: 12px; flex-shrink: 0; }
 .card.off { opacity: .5; }
 .card.hit { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
-.card.moving { box-shadow: 0 12px 30px var(--shadow); border-color: var(--accent); cursor: grabbing; z-index: 4; }
+.card.moving { box-shadow: 0 12px 30px var(--shadow); border-color: var(--accent); cursor: grabbing; z-index: 4; will-change: translate; }
 .card .grip { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 24px; height: 44px; display: grid; grid-template-columns: 6px 6px; grid-template-rows: repeat(3, 6px); gap: 4px; align-content: center; justify-content: center; cursor: grab; touch-action: none; border-radius: 6px; }
 .card .grip:hover { background: var(--raised); }
 .card .grip i { width: 5px; height: 5px; border-radius: 3px; background: var(--c); }

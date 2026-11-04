@@ -66,6 +66,7 @@ export function mountCanvas(vp, d) {
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
     vp.addEventListener('scroll', () => { vp.scrollTop = 0; vp.scrollLeft = 0; });
     let CV = null;
+    let drawn = 0; // full draws so far: a card drag notices one made under it
     let moving = null;
     let hit = null;
     let cam = null;
@@ -103,6 +104,12 @@ export function mountCanvas(vp, d) {
         if (JSON.stringify(mem) !== before) d.save();
         CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [] };
         world.innerHTML = '';
+        drawn++;
+        // Every node is tagged with the cards it belongs to (data-of): a card drag moves a card's own nodes and
+        // hides the links to other cards, without drawing the canvas again (dragFrame).
+        let owner = '';
+        const put = (parent, ...nodes) => { for (const n of nodes) { if (owner) n.dataset.of = owner; parent.append(n); } };
+        const owning = (o, fn) => { const was = owner; owner = o; try { return fn(); } finally { owner = was; } };
         vp.querySelector('.cv-empty')?.remove();
         if (!ids.size) {
             const hint = el('div', 'cv-empty');
@@ -144,16 +151,18 @@ export function mountCanvas(vp, d) {
 
         for (const r of R.values()) {
             if (!r.pack) continue;
+            owner = r.key;
             const f = el('div', 'packframe');
             Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
             f.append(el('span', 'pn', `#${r.pack}`));
             f.dataset.pack = r.pack;
-            world.append(f);
+            put(world, f);
         }
 
         for (const r of R.values()) {
             const e = r.e;
             if (!e) continue;
+            owner = e.id;
             if (e.greeting) {
                 // A start card (VISUAL 7.5): rounded on the left, a chat icon, START over its name, the opening words.
                 const c = el('div', `card greet${e.greeting.missing ? ' missing' : ''}${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}`);
@@ -166,7 +175,7 @@ export function mountCanvas(vp, d) {
                 c.append(gr, el('div', 'tag', e.greeting.missing ? 'START · MISSING' : 'START'), el('div', 't', e.title),
                     el('div', 'k gk', e.greeting.changed ? 'Re-pick: the text changed' : e.text || '(empty)'));
                 if (e.problem) { const b = el('span', 'cbang', '!'); b.title = 'This greeting changed'; c.append(b); }
-                world.append(c);
+                put(world, c);
                 continue;
             }
             const si = layerOf(e);
@@ -174,7 +183,7 @@ export function mountCanvas(vp, d) {
             for (let i = Math.min(2, e.masks.length); i >= 1; i--) {
                 const b = el('div', 'layercard');
                 Object.assign(b.style, { left: `${r.x + 6 * i}px`, top: `${r.y - 6 * i}px` });
-                world.append(b);
+                put(world, b);
             }
             const cls = ['card', e.off && 'off', si && 'masked', hit === e.id && 'hit', moving === e.id && 'moving',
                 st?.closed && 'closed', st?.waiting && 'waiting', st?.holding && 'holding'].filter(Boolean).join(' ');
@@ -199,7 +208,7 @@ export function mountCanvas(vp, d) {
             if (st?.fired) c.append(el('span', 'fired', `${st.fired}×`));
             else if (e.once) c.append(el('span', 'badge1', '1×'));
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
-            world.append(c);
+            put(world, c);
             if (r.nav) {
                 const n = el('div', `mnav${r.nav.v ? ' v' : ''}`);
                 Object.assign(n.style, { left: `${r.nav.x}px`, top: `${r.nav.y}px` });
@@ -210,10 +219,11 @@ export function mountCanvas(vp, d) {
                 const nx = btn('', ic('right'), null, 'Next layer');
                 nx.dataset.flip = e.id; nx.dataset.d = 1;
                 n.append(pv, el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`), nx);
-                world.append(n);
+                put(world, n);
             }
         }
 
+        owner = '';
         // Links.
         const visible = x => x.mask == null || layerOf(m.byId(x.to)) === x.mask + 1;
         const portOf = (key, kind) => P.get(key)?.get(kind);
@@ -229,7 +239,7 @@ export function mountCanvas(vp, d) {
         };
         const color = kind => (kind === 'close' ? FAMILY_VAR.close : kind === 'ride' ? FAMILY_VAR.glue : FAMILY_VAR.open);
         const path = (pts, kind, dashed) => {
-            lk.append(sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`));
+            put(lk, sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`));
             // Only Closes has a head (the bar of a stop); Opens and ride-along lines run knob to socket without one.
             if (kind === 'close') arrow(pts, kind);
         };
@@ -241,12 +251,12 @@ export function mountCanvas(vp, d) {
             const back = kind === 'close' ? 4 : 0;
             const tipX = b[0] - ux * back; const tipY = b[1] - uy * back;
             const bx = tipX - ux * 8; const by = tipY - uy * 8;
-            lk.append(sv('path', { d: `M${tipX},${tipY} L${bx - uy * 5},${by + ux * 5} L${bx + uy * 5},${by - ux * 5} Z` }, `fill:${color(kind)};stroke:none`));
-            if (kind === 'close') lk.append(sv('path', { d: `M${b[0] - uy * 6},${b[1] + ux * 6} L${b[0] + uy * 6},${b[1] - ux * 6}` }, `stroke:${color(kind)};stroke-width:2.5`));
+            put(lk, sv('path', { d: `M${tipX},${tipY} L${bx - uy * 5},${by + ux * 5} L${bx + uy * 5},${by - ux * 5} Z` }, `fill:${color(kind)};stroke:none`));
+            if (kind === 'close') put(lk, sv('path', { d: `M${b[0] - uy * 6},${b[1] + ux * 6} L${b[0] + uy * 6},${b[1] - ux * 6}` }, `stroke:${color(kind)};stroke-width:2.5`));
         };
-        const drawEdge = (x, endPt, endN, rawEnd) => {
+        const drawEdge = (x, endPt, endN, rawEnd) => owning(`${x.from} ${x.to}`, () => {
             const a = portOf(x.from, x.fromPort);
-            if (!a) return;
+            if (!a) return undefined;
             const s0 = tip(a, 7); const s1 = tip(a, G);
             const e1 = [endPt[0] + endN[0] * G, endPt[1] + endN[1] * G];
             const mid = routeOnce(snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
@@ -256,14 +266,14 @@ export function mountCanvas(vp, d) {
             const hp = sv('path', { d: rounded(pts), class: 'lhit' });
             hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
             hp.dataset.ends = `${x.from}>${x.to}`;
-            lk.append(hp);
+            put(lk, hp);
             if (x.mode) {
                 const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
                 Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
-                world.append(lb);
+                put(world, lb);
             }
             return pts;
-        };
+        });
         /** The point `d` back from the end of a line. */
         const along = (pts, d) => {
             for (let k = pts.length - 1; k > 0; k--) {
@@ -280,6 +290,7 @@ export function mountCanvas(vp, d) {
             const key = rk.slice(0, i);
             const kind = rk.slice(i + 1);
             const p = portOf(key, kind);
+            owner = key;
             rowsAll.flat().forEach(x => handled.add(x));
             if (!p) continue;
             const rows = rowsAll.filter(row => row.every(x => x.cond ? (x.mask == null || layerOf(m.byId(key)) === x.mask + 1) : visible(x)));
@@ -302,13 +313,13 @@ export function mountCanvas(vp, d) {
                 n.dataset.open = key;
                 n.dataset.piece = PORT[kind].piece;
                 n.dataset.cond = CV.conds.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null, cond: x.lock ? { lock: x.lock, ...(x.by ? { by: x.by } : {}) } : { wait: x.wait, ...(x.by ? { by: x.by } : {}) } }) - 1;
-                world.append(n);
+                put(world, n);
             };
             const STEP = 30;
             if (rows.length === 1 && linksOf(rows[0]).length === 1) {
                 const x = linksOf(rows[0])[0];
                 const pts = drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt);
-                if (pts) condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP)));
+                if (pts) owning(`${x.from} ${x.to}`, () => condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP))));
                 continue;
             }
             const out = d => [snap(p.x + p.n[0] * d), snap(p.y + p.n[1] * d)];
@@ -327,7 +338,7 @@ export function mountCanvas(vp, d) {
             jl.style.color = col;
             if (rows.length === 1 && rows[0].ri !== undefined) { jl.dataset.row = rowAt(rows[0]); jl.classList.add('jhit'); }
             Object.assign(jl.style, { left: `${J0[0]}px`, top: `${J0[1]}px` });
-            world.append(jl);
+            put(world, jl);
             if (rows.length === 1) { linksOf(rows[0]).forEach(x => drawEdge(x, J0, p.n, J0)); continue; }
             const multi = rows.filter(r => linksOf(r).length > 1);
             rows.forEach((row, ri) => {
@@ -346,22 +357,23 @@ export function mountCanvas(vp, d) {
                     jr.style.color = col;
                     if (row.ri !== undefined) { jr.dataset.row = rowAt(row); jr.classList.add('jhit'); }
                     Object.assign(jr.style, { left: `${target[0]}px`, top: `${target[1]}px` });
-                    world.append(jr);
+                    put(world, jr);
                     links.forEach(x => drawEdge(x, target, p.n, target));
                 } else if (links.length === 1) {
                     const pts = drawEdge(links[0], J0, p.n, J0);
-                    if (pts) cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP)));
+                    if (pts) owning(`${links[0].from} ${links[0].to}`, () => cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP))));
                 } else {
                     // Only locks and waits, as one of several rows: a stub off the OR junction.
                     const kk = ri - (rows.length - 1) / 2;
                     cs.forEach((c, li) => {
                         const lp = [J0[0] + p.n[0] * (30 + li * STEP) + t[0] * kk * 80, J0[1] + p.n[1] * (30 + li * STEP) + t[1] * kk * 80];
-                        lk.append(sv('path', { d: rounded([lp, J0]) }, `stroke:${col};stroke-dasharray:2 4`));
+                        put(lk, sv('path', { d: rounded([lp, J0]) }, `stroke:${col};stroke-dasharray:2 4`));
                         pill(c, row, lp);
                     });
                 }
             });
         }
+        owner = '';
         for (const x of g.edges) {
             if (handled.has(x) || !visible(x)) continue;
             const p = portOf(x.to, x.port);
@@ -370,6 +382,7 @@ export function mountCanvas(vp, d) {
 
         // Ports, on top of the cards: socket = in, knob = out (VISUAL 7.2).
         for (const [key, ports] of P) {
+            owner = key;
             for (const p of ports.values()) {
                 const def = PORT[p.kind];
                 const t = [-p.n[1], p.n[0]];
@@ -383,23 +396,24 @@ export function mountCanvas(vp, d) {
                 if (def.dir === 'out') {
                     const sw = p.kind === 'gout' && g.switches.has(key);
                     const fill = !anyVisible ? 'var(--canvas)' : sw ? FAMILY_VAR.close : col;
-                    pt.append(sv('path', { d: `M${A} A${rr},${rr} 0 0 0 ${B} Z` }, `fill:${fill};stroke:${sw ? FAMILY_VAR.close : col};stroke-width:2;${anyVisible ? '' : 'stroke-dasharray:3 2'}`));
-                    if (sw) pt.append(sv('circle', { cx: p.x + p.n[0] * 3, cy: p.y + p.n[1] * 3, r: 2 }, 'fill:var(--canvas)'));
+                    put(pt, sv('path', { d: `M${A} A${rr},${rr} 0 0 0 ${B} Z` }, `fill:${fill};stroke:${sw ? FAMILY_VAR.close : col};stroke-width:2;${anyVisible ? '' : 'stroke-dasharray:3 2'}`));
+                    if (sw) put(pt, sv('circle', { cx: p.x + p.n[0] * 3, cy: p.y + p.n[1] * 3, r: 2 }, 'fill:var(--canvas)'));
                 } else {
                     if (!anyVisible) continue;
-                    pt.append(sv('path', { d: `M${A} A${rr},${rr} 0 0 1 ${B} Z` }, 'fill:var(--canvas)'));
-                    pt.append(sv('path', { d: `M${A} A${rr},${rr} 0 0 1 ${B}` }, `fill:none;stroke:${col};stroke-width:2.2`));
+                    put(pt, sv('path', { d: `M${A} A${rr},${rr} 0 0 1 ${B} Z` }, 'fill:var(--canvas)'));
+                    put(pt, sv('path', { d: `M${A} A${rr},${rr} 0 0 1 ${B}` }, `fill:none;stroke:${col};stroke-width:2.2`));
                     if (def.ring) {
                         const A2 = [p.x + t[0] * 11, p.y + t[1] * 11];
                         const B2 = [p.x - t[0] * 11, p.y - t[1] * 11];
-                        pt.append(sv('path', { d: `M${A2} A11,11 0 0 1 ${B2}` }, `fill:none;stroke:${FAMILY_VAR.mask};stroke-width:2`));
+                        put(pt, sv('path', { d: `M${A2} A11,11 0 0 1 ${B2}` }, `fill:none;stroke:${FAMILY_VAR.mask};stroke-width:2`));
                     }
                 }
                 const h = sv('circle', { cx: p.x, cy: p.y, r: 14, class: 'port' }, 'fill:transparent');
                 h.dataset.port = `${key}|${p.kind}`;
-                pt.append(h);
+                put(pt, h);
             }
         }
+        owner = '';
         world.prepend(lk);
         world.append(pt);
         if (!camera()) fit(true);
@@ -480,14 +494,15 @@ export function mountCanvas(vp, d) {
         n?.classList.add('target');
     }
 
-    function zoomAt(f, cx, cy) {
+    /** `soon`: inside a gesture, the camera is applied on the next frame. */
+    function zoomAt(f, cx, cy, soon = false) {
         const v = camera() ?? (cam = { tx: 20, ty: 20, scale: 0.78 });
         if (cx === undefined) { cx = vp.clientWidth / 2; cy = vp.clientHeight / 2; }
         const ns = Math.min(2, Math.max(0.25, v.scale * f));
         v.tx = cx - (cx - v.tx) * ns / v.scale;
         v.ty = cy - (cy - v.ty) * ns / v.scale;
         v.scale = ns;
-        applyView();
+        if (soon) viewLater(); else applyView();
         saveCamera();
     }
 
@@ -532,8 +547,53 @@ export function mountCanvas(vp, d) {
     let pinch = null;
     let holdTimer = null;
     const toWorld = (cx, cy) => { const r = vp.getBoundingClientRect(); const v = camera(); return [(cx - r.left - v.tx) / v.scale, (cy - r.top - v.ty) / v.scale]; };
-    let raf = 0;
-    const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
+    // The camera moves at most once per frame (a phone sends pointer moves faster than it draws), and while a finger
+    // pans or pinches, the world is its own GPU layer, so moving it doesn't paint the cards again. The layer is let go
+    // at the end, which draws the text sharp at the new zoom.
+    let viewRaf = 0;
+    const viewLater = () => { if (!viewRaf) viewRaf = requestAnimationFrame(() => { viewRaf = 0; applyView(); }); };
+    let gestureTimer = null;
+    const gesture = on => {
+        clearTimeout(gestureTimer);
+        if (on) vp.classList.add('gesture');
+        else { if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); } vp.classList.remove('gesture'); }
+    };
+
+    // A card drag moves the card's own nodes (the card, its mask layers, ports, junctions and pills) and swaps its
+    // links to other cards for straight guide lines, once per frame. The canvas is drawn again once, on the drop.
+    let dragRaf = 0;
+    let DR = null;
+    function dragSetup(id) {
+        const own = [];
+        const others = new Set();
+        for (const n of world.querySelectorAll('[data-of]')) {
+            const of = n.dataset.of.split(' ');
+            if (!of.includes(id)) continue;
+            if (of.length === 1) own.push(n);
+            else { n.style.visibility = 'hidden'; for (const k of of) if (k !== id) others.add(k); }
+        }
+        world.querySelector(`.card[data-id="${CSS.escape(id)}"]`)?.classList.add('moving');
+        const guide = sv('svg', { class: 'lk dragguide', width: 1, height: 1 });
+        world.prepend(guide);
+        const r0 = CV.R.get(id);
+        DR = { id, drawn, own, guide, from: r0 ? [r0.x, r0.y] : null, others: [...others].map(k => CV.R.get(k)).filter(Boolean),
+            paths: [] };
+        for (let i = 0; i < DR.others.length; i++) DR.paths.push(guide.appendChild(sv('path', {}, 'stroke:var(--muted);stroke-dasharray:4 5;opacity:.7')));
+    }
+    function dragFrame() {
+        dragRaf = 0;
+        if (!moving) return;
+        if (!DR || DR.id !== moving || DR.drawn !== drawn) dragSetup(moving);
+        const c = memory().cards[moving];
+        if (!DR.from || !c) return;
+        const dx = c.x - DR.from[0];
+        const dy = c.y - DR.from[1];
+        for (const n of DR.own) n.style.translate = `${dx}px ${dy}px`;
+        const cx = c.x + CW / 2;
+        const cy = c.y + CH / 2;
+        DR.others.forEach((r, i) => DR.paths[i].setAttribute('d', `M${cx},${cy} L${r.x + r.w / 2},${r.y + r.h / 2}`));
+    }
+    const later = () => { if (!dragRaf) dragRaf = requestAnimationFrame(dragFrame); };
     vp.addEventListener('pointerdown', e => {
         if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box')) return;
         if (!camera()) return;
@@ -575,13 +635,14 @@ export function mountCanvas(vp, d) {
             const [a, b] = [...pts.values()];
             const r = vp.getBoundingClientRect();
             const dd = Math.hypot(a[0] - b[0], a[1] - b[1]);
-            zoomAt(pinch.s * dd / pinch.d / camera().scale, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top);
+            gesture(true);
+            zoomAt(pinch.s * dd / pinch.d / camera().scale, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top, true);
             return;
         }
         if (!start) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) { moved = true; clearTimeout(holdTimer); }
         if (!moved) return;
-        if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; applyView(); } else if (mode === 'card') {
+        if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; gesture(true); viewLater(); } else if (mode === 'card') {
             const [wx, wy] = toWorld(e.clientX, e.clientY);
             moving = drag.id;
             Object.assign(memory().cards[drag.id], { x: snap(wx - drag.dx), y: snap(wy - drag.dy) });
@@ -597,7 +658,8 @@ export function mountCanvas(vp, d) {
         clearTimeout(holdTimer);
         if (!pts.has(e.pointerId)) return;
         pts.delete(e.pointerId);
-        if (mode === 'pinch') { if (pts.size === 0) mode = null; return; }
+        if (mode === 'pinch') { if (pts.size === 0) { mode = null; gesture(false); } return; }
+        if (!pts.size) gesture(false);
         vp.style.cursor = '';
         if (mode === 'pan' && moved) saveCamera();
         if (mode === 'loose') {
@@ -607,7 +669,7 @@ export function mountCanvas(vp, d) {
             OV?.onLoose?.(h, OV?.loose?.at);
             return;
         }
-        if (mode === 'card' && moved) { moving = null; d.save(); render(); } else if (mode === 'port' && moved && drag.at) {
+        if (mode === 'card' && moved) { moving = null; DR = null; if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; } d.save(); render(); } else if (mode === 'port' && moved && drag.at) {
             const [key, kind] = drag.port.split('|');
             const r = CV.R.get(key);
             const [x, y] = drag.at;
@@ -626,7 +688,13 @@ export function mountCanvas(vp, d) {
     };
     vp.addEventListener('pointerup', end);
     vp.addEventListener('pointercancel', end);
-    vp.addEventListener('wheel', e => { e.preventDefault(); const r = vp.getBoundingClientRect(); zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+    vp.addEventListener('wheel', e => {
+        e.preventDefault();
+        const r = vp.getBoundingClientRect();
+        gesture(true);
+        gestureTimer = setTimeout(() => gesture(false), 250);
+        zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top, true);
+    }, { passive: false });
     // Keyboard: the canvas tools are buttons; a focused card opens with Enter.
     vp.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset?.id) d.open(e.target.dataset.id); });
 

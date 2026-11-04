@@ -215,8 +215,9 @@ function syncWithDrawer() {
     if (askedBook) { const name = askedBook; askedBook = null; app.openBook(name); } else app.show();
 }
 // ST closes its open drawers on any touch or mouse press outside them (script.js, on <html>). WI Hero stands for the
-// drawer, so a press inside it stays inside: it doesn't reach that handler.
-for (const type of ['touchstart', 'mousedown']) app.host.addEventListener(type, e => e.stopPropagation());
+// drawer, so a press inside it stays inside: it doesn't reach that handler. Passive: a touch listener that could
+// cancel makes the phone wait for the page's script before every scroll starts.
+for (const type of ['touchstart', 'mousedown']) app.host.addEventListener(type, e => e.stopPropagation(), { passive: true });
 if (wiDrawer) {
     new MutationObserver(syncWithDrawer).observe(wiDrawer, { attributes: true, attributeFilter: ['class'] });
     syncWithDrawer();

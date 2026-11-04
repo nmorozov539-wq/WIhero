@@ -135,7 +135,11 @@ How the folder filter hooks in:
 - The phone layout follows ST's own breakpoint (`max-width: 1000px`): the sidebar becomes a drawer that takes the book picker, the view options and the section buttons (moved there while it's open, so there's one of each), and the right panel becomes a full-screen page.
 - In ST's narrow layout, `position: fixed` elements don't get the viewport as their box (a fixed element with `inset: 0` came out 0 px tall, and one with `bottom: 0` sat above the screen). So the workspace sets its size explicitly (`100vw` × `100dvh`), and everything inside it that floats (drawer, sheet, palette, menus, hover preview) is positioned against the workspace instead of the viewport.
 - Pinch zoom is two pointers on the stage; the zoom buttons zoom around its middle. There are no swipe gestures.
-- Above 300 cards the stage culls: only cards within 300 px of the visible area are in the page, re-checked once per frame while panning or zooming. Links are all drawn (one SVG). The e2e test's 500-entry book keeps about 100 cards in the page.
+- The canvas draws every card (the old stage culled above 300 cards; the current canvas doesn't yet).
+- Pan and pinch only move the camera: one transform per frame, with the world on its own GPU layer while a finger is down (`.vp.gesture`), let go at the end so the text is drawn sharp at the new zoom.
+- A card drag doesn't draw the canvas: every node is tagged with the cards it belongs to (`data-of`), the card's own nodes (card, mask layers, ports, its junctions and pills) are moved with `translate`, and its links to other cards are hidden behind straight guide lines. The drop draws once and routes again.
+- Hero mode builds the engine model of a book once per change (`library.version`), and fills the entry panel the first time it opens.
+- The editor's touchstart listener is passive: a listener that could cancel makes the phone wait for the page's script before each scroll starts.
 
 ## Design changes this implies
 
