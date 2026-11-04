@@ -210,3 +210,12 @@
 #WorldInfo.wihero-under {
     display: none !important;
 }
+
+/* ST lights a closed top bar button on :hover. A phone keeps :hover on the last thing tapped, so a closed button
+   stayed lit until another was tapped. On screens without hover, a closed button looks closed. ST's own classes
+   (openIcon/closedIcon) still decide which button is lit. */
+@media (hover: none) {
+    .drawer-icon.closedIcon:hover {
+        opacity: 0.3;
+    }
+}
