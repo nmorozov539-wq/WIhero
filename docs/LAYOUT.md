@@ -21,7 +21,10 @@ Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-
 
 ### Opening the editor
 
-- ST's World Info button opens WI Hero instead of ST's drawer.
+- ST's World Info button opens WI Hero instead of ST's drawer, and is lit
+  while WI Hero is open. So does everything else in ST that opens its
+  drawer (a card's lorebook just imported, the character's, chat's and
+  persona's lorebook buttons), on the book it asked for.
 - Closing WI Hero only hides it: while ST stays open, it comes back exactly as
   it was left. After a page reload it starts on Home, and tabs are not
   restored (like ST, which starts on its main screen).
@@ -349,7 +352,7 @@ style: a list first, the book at the bottom.
 | + | New entry: asks for a name and makes it, without placing it: it waits in the panel with a hollow dot |
 | Folder header | Name, count, collapse arrow |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
-| Greetings group | Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |
+| Greetings group | First in the list. Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
 | Dot, filled | The entry is on the canvas; tap to jump to it |

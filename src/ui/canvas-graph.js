@@ -9,6 +9,8 @@ export const G = 12;
 export const CW = 168;
 export const CH = 60;
 export const snap = v => Math.round(v / G) * G;
+/** The widest a row of the layout gets: two cards side by side, about a phone's width at full zoom. */
+export const ROW_W = 2 * CW + 60;
 
 /** Port kinds: direction, family and the piece the inspector opens on. */
 export const PORT = {
@@ -138,7 +140,8 @@ export function canvasSet(m, g, placed) {
 }
 
 /**
- * Layered layout, top to bottom (VISUAL 7.6): longest path ranks, barycentre order, packs kept together.
+ * Layered layout, top to bottom (VISUAL 7.6): longest path ranks, barycentre order, packs kept together. A layer
+ * wraps at ROW_W, so a wide one becomes several rows.
  * @returns {Record<string, {x: number, y: number}>} positions by card key
  */
 export function layout(m, g, ids) {
@@ -178,20 +181,26 @@ export function layout(m, g, ids) {
     const wOf = u => (u.pack ? cols(u) * CW + (cols(u) - 1) * 24 + 48 : CW + (m.byId(u.keys[0]).masks.length ? 36 : 0));
     const hOf = u => (u.pack ? Math.ceil(u.keys.length / 2) * (CH + 24) - 24 + 60 : CH);
     const cx = new Map();
-    const layerY = [];
+    const rowY = new Map();
     let y = 0;
     layers.forEach((L, d) => {
         if (!L) return;
         if (d > 0) L.forEach(u => { const ps = [...preds.get(u)].filter(p => cx.has(p)); u.bc = ps.length ? ps.reduce((s, p) => s + cx.get(p), 0) / ps.length : 0; });
         if (d > 0) L.sort((a, b) => a.bc - b.bc);
-        const total = L.reduce((s, u) => s + wOf(u), 0) + (L.length - 1) * 60;
-        let x = -total / 2;
-        L.forEach(u => { const w = wOf(u); cx.set(u, x + w / 2); x += w + 60; });
-        layerY[d] = y;
-        y += Math.max(...L.map(hOf)) + 132;
+        // Phone first: a layer wider than two cards wraps onto more rows, so the canvas grows down, not sideways.
+        const rows = [];
+        for (const u of L) {
+            const row = rows.at(-1);
+            if (row && row.w + 60 + wOf(u) <= ROW_W) { row.units.push(u); row.w += 60 + wOf(u); } else rows.push({ units: [u], w: wOf(u) });
+        }
+        rows.forEach((row, i) => {
+            let x = -row.w / 2;
+            row.units.forEach(u => { const w = wOf(u); cx.set(u, x + w / 2); rowY.set(u, y); x += w + 60; });
+            y += Math.max(...row.units.map(hOf)) + (i < rows.length - 1 ? 72 : 132);
+        });
     });
     units.forEach(u => {
-        const y0 = layerY[depth.get(u)] + (u.pack ? 36 : 0);
+        const y0 = rowY.get(u) + (u.pack ? 36 : 0);
         const x0 = cx.get(u) - wOf(u) / 2 + (u.pack ? 24 : 0);
         u.keys.forEach((k, i) => {
             const c = u.pack ? i % 2 : 0;
@@ -204,7 +213,8 @@ export function layout(m, g, ids) {
 
 /**
  * Places cards that have no position yet (BUILD_SPEC 8.3): the nearest free spot beside the card it is linked
- * with (right, then below, then above, then left), or the middle of the view. Changes `pos`.
+ * with, or the middle of the view. The story reads top to bottom, so a card its partner leads to goes below it first
+ * (then right, left, above), and a card that leads to its partner goes above it first. Changes `pos`.
  */
 export function placeNew(m, g, ids, pos, center) {
     // Pack frames (members' box plus its margins) are taken space too, for cards that aren't members.
@@ -225,7 +235,7 @@ export function placeNew(m, g, ids, pos, center) {
         const base = partner ? pos[partner.from === id ? partner.to : partner.from] : null;
         let spot = null;
         if (base) {
-            const steps = [[1, 0], [0, 1], [0, -1], [-1, 0]];
+            const steps = partner.to === id ? [[0, 1], [1, 0], [-1, 0], [0, -1]] : [[0, -1], [1, 0], [-1, 0], [0, 1]];
             for (let ring = 1; ring <= 12 && !spot; ring++) {
                 for (const [dx, dy] of steps) {
                     const p = { x: snap(base.x + dx * ring * (CW + 48)), y: snap(base.y + dy * ring * (CH + 72)) };
@@ -235,7 +245,7 @@ export function placeNew(m, g, ids, pos, center) {
         }
         if (!spot) {
             let p = { x: snap(center.x), y: snap(center.y) };
-            for (let i = 0; i < 30 && !free(p); i++) p = { x: snap(p.x + CW + 48), y: p.y };
+            for (let i = 0; i < 30 && !free(p); i++) p = { x: p.x, y: snap(p.y + CH + 72) };
             spot = p;
         }
         pos[id] = spot;

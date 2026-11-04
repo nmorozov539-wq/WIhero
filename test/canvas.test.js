@@ -82,7 +82,34 @@ test('a new linked card goes in the nearest free spot beside its partner; a lone
     const lone = m.E.find(e => !ids.has(e.id)).id;
     const set = new Set([...ids, lone]);
     placeNew(m, g, set, pos, { x: 5000, y: 5000 });
-    assert.ok(Math.abs(pos[lone].y - snap(5000)) < 1 && pos[lone].x >= snap(5000));
+    assert.ok(Math.abs(pos[lone].x - snap(5000)) < 1 && pos[lone].y >= snap(5000));
+});
+
+test('the canvas grows downwards: a card a partner leads to goes below it, one that leads to it goes above', () => {
+    const { m, g, ids, pos } = laidOut();
+    const free = k => !m.byId(k).packs.length;
+    const x = g.edges.find(e => e.kind === 'open' && e.mask == null && !e.from.startsWith('pack:') && !e.to.startsWith('pack:') && free(e.from) && free(e.to));
+    const keep = { ...pos };
+    const only = new Set([x.from, x.to]);
+    const p1 = { [x.from]: keep[x.from] };
+    placeNew(m, g, only, p1, { x: 0, y: 0 });
+    assert.equal(p1[x.to].x, keep[x.from].x);
+    assert.ok(p1[x.to].y > keep[x.from].y, 'the gated card sits below');
+    const p2 = { [x.to]: keep[x.to] };
+    placeNew(m, g, only, p2, { x: 0, y: 0 });
+    assert.equal(p2[x.from].x, keep[x.to].x);
+    assert.ok(p2[x.from].y < keep[x.to].y, 'the card that gates it sits above');
+});
+
+test('no row of the layout is wider than two cards, so a phone sees it at full zoom', () => {
+    const { m, g, ids, pos } = laidOut();
+    const R = nodeRects(m, g, ids, pos);
+    const rows = new Map();
+    for (const r of R.values()) {
+        if (r.pack || m.byId(r.key)?.packs.length) continue;
+        (rows.get(r.y) ?? rows.set(r.y, []).get(r.y)).push(r);
+    }
+    for (const [y, rs] of rows) assert.ok(rs.length <= 2, `${rs.length} cards side by side at y=${y}`);
 });
 
 test('ports face their partners, and a side moved by hand wins', () => {

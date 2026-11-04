@@ -29,7 +29,7 @@ const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], 
 
 /**
  * @param {object} deps
- *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor() }
+ *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }
  */
 export function createApp(deps) {
     const { ctx, library, snapshots, hooks, settings, saveSettings } = deps;
@@ -300,6 +300,7 @@ export function createApp(deps) {
         host.hidden = false;
         pushBackState();
         render();
+        deps.onVisible?.(true);
     }
     function hide() {
         if (host.hidden) return;
@@ -309,8 +310,23 @@ export function createApp(deps) {
         host.hidden = true;
         library.flush();
         if (history.state?.wihero) { ignorePop = true; history.back(); }
+        deps.onVisible?.(false);
     }
     const toggle = () => (host.hidden ? show() : hide());
+
+    /** Opens the editor on a book, when ST asks for one (a card's lorebook just imported, a lorebook button). */
+    function openBook(name) {
+        if (!library.names().includes(name)) { show(); return; }
+        if (S.mode === 'hero') {
+            H.book = name;
+            H.active = 'canvas';
+            H.panel = false;
+        } else {
+            const t = S.tabs.find(x => !x.home && x.history.at(-1)?.type === 'book' && x.history.at(-1).book === name);
+            if (t) { S.active = t.id; S.select = null; S.search = null; } else openIn({ type: 'book', book: name }, { newTab: true });
+        }
+        if (host.hidden) show(); else render();
+    }
     const isOpen = () => !host.hidden;
 
     // Android's Back arrives as popstate: one history entry is pushed while the editor is open.
@@ -1295,6 +1311,38 @@ export function createApp(deps) {
                 if (!groups.has(f)) groups.set(f, []);
                 groups.get(f).push(e);
             }
+            // The open chat's character's greetings (BUILD_SPEC 15.4), placed with the dot like entries. First, as the story
+            // starts from them.
+            const greets = chatGreetings(data).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
+            if (greets.length) {
+                const open = !H.closedFolders.has('\u0000greetings');
+                const hd = btn(`phdr${open ? ' open' : ''}`, `${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
+                hd.querySelector('small').textContent = greets.length;
+                list.append(hd);
+                if (open) {
+                    const box = el('div', 'pgrp');
+                    for (const g of greets) {
+                        const r = el('div', 'prow greet');
+                        r.dataset.key = g.key;
+                        const nm = el('span', 'nm');
+                        nm.append(el('b', '', g.title), el('small', '', g.text));
+                        r.append(nm);
+                        if (g.changed) r.append(el('span', 'pbang', '!'));
+                        const placed = on.has(g.key);
+                        const gd = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => {
+                            ev.stopPropagation();
+                            if (dragged(ev)) return;
+                            if (!placed) { canvasMemory(bookSettings(settings, book)).cards[g.key] = { placed: true }; saveSettings(); }
+                            showOnCanvas(book, g.key);
+                        }, placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas`);
+                        dotDrag(gd, g.key, g.title);
+                        r.append(gd);
+                        r.addEventListener('click', () => inspect(book, g.key));
+                        box.append(r);
+                    }
+                    list.append(box);
+                }
+            }
             if (!groups.size) list.append(el('div', 'pnone', needle ? 'Nothing matches.' : 'No entries yet. Tap + to make one.'));
             for (const f of [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b))) {
                 let box = list;
@@ -1327,37 +1375,6 @@ export function createApp(deps) {
                         if (placed) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye' }));
                     }, { help: 'Or drag its dot onto the canvas to place it where you drop it.' }));
                     box.append(r);
-                }
-            }
-            // The open chat's character's greetings (BUILD_SPEC 15.4), placed with the dot like entries.
-            const greets = chatGreetings(data).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
-            if (greets.length) {
-                const open = !H.closedFolders.has('\u0000greetings');
-                const hd = btn(`phdr${open ? ' open' : ''}`, `${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
-                hd.querySelector('small').textContent = greets.length;
-                list.append(hd);
-                if (open) {
-                    const box = el('div', 'pgrp');
-                    for (const g of greets) {
-                        const r = el('div', 'prow greet');
-                        r.dataset.key = g.key;
-                        const nm = el('span', 'nm');
-                        nm.append(el('b', '', g.title), el('small', '', g.text));
-                        r.append(nm);
-                        if (g.changed) r.append(el('span', 'pbang', '!'));
-                        const placed = on.has(g.key);
-                        const gd = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => {
-                            ev.stopPropagation();
-                            if (dragged(ev)) return;
-                            if (!placed) { canvasMemory(bookSettings(settings, book)).cards[g.key] = { placed: true }; saveSettings(); }
-                            showOnCanvas(book, g.key);
-                        }, placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas`);
-                        dotDrag(gd, g.key, g.title);
-                        r.append(gd);
-                        r.addEventListener('click', () => inspect(book, g.key));
-                        box.append(r);
-                    }
-                    list.append(box);
                 }
             }
         };
@@ -2011,7 +2028,7 @@ export function createApp(deps) {
     }
 
     return {
-        show, hide, toggle, isOpen, refresh, host, back,
+        show, hide, toggle, isOpen, refresh, host, back, openBook,
         /** For the in-ST checks. */
         get state() { return S; },
     };

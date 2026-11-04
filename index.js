@@ -185,6 +185,7 @@ app = createApp({
     entryTemplate: st.newWorldInfoEntryTemplate,
     cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
     openStEditor,
+    onVisible: lightButton,
     scan: { globals: scanGlobals, parseRegexFromString: st.parseRegexFromString },
 });
 
@@ -202,6 +203,33 @@ document.getElementById('top-settings-holder')?.addEventListener('click', e => {
         app.hide();
     }
 }, true);
+
+// ST also opens its drawer from its own code: a card's lorebook just imported, the character's and the chat's
+// lorebook buttons, a persona's lorebook. That is `$('#WIDrawerIcon').trigger('click')`, which runs jQuery's
+// handlers itself and never passes the capture listener above. A handler on the icon runs before the toggle's, so
+// it sends those to WI Hero too, on the book ST then picks in its editor's dropdown.
+let askedBook = false;
+globalThis.jQuery?.('#WIDrawerIcon').on('click', e => {
+    if (bypass || globalThis.jQuery('#WorldInfo').hasClass('openDrawer')) return;
+    e.stopPropagation();
+    e.preventDefault();
+    app.show();
+    askedBook = true;
+    setTimeout(() => { askedBook = false; }, 0);
+});
+globalThis.jQuery?.('#world_editor_select').on('change', function () {
+    if (!askedBook) return;
+    askedBook = false;
+    const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];
+    if (name) app.openBook(name);
+});
+
+/** ST's World Info button is lit while WI Hero is open, as it is for ST's own drawer. */
+function lightButton(open) {
+    const $ = globalThis.jQuery;
+    if (!$ || $('#WorldInfo').hasClass('openDrawer')) return; // ST's own drawer owns the button then
+    $('#WIDrawerIcon').toggleClass('openIcon', open).toggleClass('closedIcon', !open);
+}
 
 eventSource.on(eventTypes.WORLDINFO_UPDATED, library.onWorldInfoUpdated);
 for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);

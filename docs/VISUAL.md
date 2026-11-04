@@ -220,7 +220,9 @@ Drawn in sketch 7 (in the git history).
 
 ### 7.6 Layout and view
 
-- Layered automatic layout, top to bottom, from the links. Tidy reruns it.
+- Layered automatic layout, top to bottom, from the links. A layer wider than
+  two cards wraps onto more rows, so on a phone the canvas grows down. Tidy
+  reruns it.
 - The canvas fits itself to the screen on first open. Fit, + and − sit on the
   right; the zoom level shows bottom left.
 - The legend, when shown, names the five link colors.
