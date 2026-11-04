@@ -73,13 +73,28 @@
 /* The chat bubble (BUILD_SPEC 17.3) */
 .wihero-bubble-root {
     position: absolute;
-    right: 12px;
+    left: 12px;
     z-index: 30;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 8px;
     pointer-events: none;
+}
+
+.wihero-bubble-root.wihero-bubble-right {
+    left: auto;
+    right: 12px;
+    align-items: flex-end;
+}
+
+.wihero-bubble-root.wihero-bubble-moving .wihero-bubble {
+    opacity: 1;
+    cursor: grabbing;
+}
+
+.wihero-bubble {
+    touch-action: none;
 }
 
 .wihero-bubble-root[hidden] {

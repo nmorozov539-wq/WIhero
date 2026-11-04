@@ -757,6 +757,7 @@ Group chats (several characters' greetings mixed in one chat).
 - On each counted reply, `message.extra.wiheroSent` (and its swipe's) holds
   `[{ world, uid, title, mask? }]` from WORLD_INFO_ACTIVATED; a continue adds
   to the list. Older replies have none, and the bubble shows "–".
-- The bubble sits at the bottom right of the chat, above the input. A dot on it
-  means a gap (17.1); its menu then starts with the three actions.
+- The bubble sits at the bottom left of the chat, above the input. Drag it to
+  move it up or down either edge; it lands on the nearer edge and keeps its
+  spot. A dot on it means a gap (17.1); its menu then starts with the three actions.
 

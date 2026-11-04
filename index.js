@@ -190,7 +190,7 @@ function followEditor(open) {
 let askedBook = null;
 let askedTimer = null;
 
-bubble = createBubble({ ctx, settings, gap: () => (hooks.active() ? hooks.gap() : null), onFixGap: fixGap });
+bubble = createBubble({ ctx, settings, saveSettings: saveSettingsDebounced, gap: () => (hooks.active() ? hooks.gap() : null), onFixGap: fixGap });
 stVersion().then(v => health.setVersion(v));
 if (!health.ok) showHealth(health);
 
@@ -213,6 +213,9 @@ function syncWithDrawer() {
     if (!wiDrawer.classList.contains('wihero-under')) wiDrawer.classList.add('wihero-under');
     if (askedBook) { const name = askedBook; askedBook = null; app.openBook(name); } else app.show();
 }
+// ST closes its open drawers on any touch or mouse press outside them (script.js, on <html>). WI Hero stands for the
+// drawer, so a press inside it stays inside: it doesn't reach that handler.
+for (const type of ['touchstart', 'mousedown']) app.host.addEventListener(type, e => e.stopPropagation());
 if (wiDrawer) {
     new MutationObserver(syncWithDrawer).observe(wiDrawer, { attributes: true, attributeFilter: ['class'] });
     syncWithDrawer();

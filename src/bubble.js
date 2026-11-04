@@ -29,9 +29,9 @@ const node = (tag, cls, text) => {
 };
 
 /**
- * @param {object} deps { ctx, settings, gap: () => gap | null, onFixGap: (how) => Promise }
+ * @param {object} deps { ctx, settings, saveSettings, gap: () => gap | null, onFixGap: (how) => Promise }
  */
-export function createBubble({ ctx, settings, gap, onFixGap }) {
+export function createBubble({ ctx, settings, saveSettings = () => {}, gap, onFixGap }) {
     const root = node('div', 'wihero-bubble-root');
     root.id = 'wihero_bubble_root';
     const button = node('div', 'wihero-bubble interactable');
@@ -49,7 +49,8 @@ export function createBubble({ ctx, settings, gap, onFixGap }) {
     let open = false;
 
     const toggle = () => { open = !open; render(); };
-    button.addEventListener('click', e => { e.stopPropagation(); toggle(); });
+    let dragged = false;
+    button.addEventListener('click', e => { e.stopPropagation(); if (dragged) { dragged = false; return; } toggle(); });
     button.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
     menu.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('click', () => { if (open) { open = false; render(); } });
@@ -61,9 +62,44 @@ export function createBubble({ ctx, settings, gap, onFixGap }) {
     const lift = () => {
         const form = document.getElementById('form_sheld');
         const h = form?.offsetHeight;
-        if (h) root.style.bottom = `${h + 10}px`;
-        else if (!root.style.bottom) root.style.bottom = 'calc(var(--bottomFormBlockSize, 50px) + 14px)';
+        if (h) base = h + 10;
+        else if (base === null) base = 64;
+        const up = Math.max(0, Math.min(settings.bubblePos?.up ?? 0, (root.parentElement?.clientHeight ?? 600) - base - 60));
+        root.style.bottom = `${base + up}px`;
+        root.classList.toggle('wihero-bubble-right', settings.bubblePos?.side === 'right');
     };
+    let base = null;
+
+    // Drag it anywhere up and down either edge; it lands on the nearer edge, and the spot is kept.
+    button.addEventListener('pointerdown', e => {
+        if (e.button > 0) return;
+        const sheld = root.parentElement;
+        if (!sheld) return;
+        const y0 = e.clientY;
+        const x0 = e.clientX;
+        const up0 = settings.bubblePos?.up ?? 0;
+        let moving = false;
+        const move = ev => {
+            if (!moving && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 8) return;
+            if (!moving) { moving = true; button.setPointerCapture?.(e.pointerId); root.classList.add('wihero-bubble-moving'); }
+            const r = sheld.getBoundingClientRect();
+            settings.bubblePos = { side: ev.clientX > r.left + r.width / 2 ? 'right' : 'left', up: Math.max(0, up0 + y0 - ev.clientY) };
+            lift();
+        };
+        const end = () => {
+            button.removeEventListener('pointermove', move);
+            button.removeEventListener('pointerup', end);
+            button.removeEventListener('pointercancel', end);
+            if (!moving) return;
+            root.classList.remove('wihero-bubble-moving');
+            dragged = true;
+            setTimeout(() => { dragged = false; }, 300);
+            saveSettings();
+        };
+        button.addEventListener('pointermove', move);
+        button.addEventListener('pointerup', end);
+        button.addEventListener('pointercancel', end);
+    });
     function place() {
         const sheld = document.getElementById('sheld');
         if (!sheld) return false;
