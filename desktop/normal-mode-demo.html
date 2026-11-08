@@ -1,0 +1,1280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>WI Hero Desktop</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:wght@400;500&display=swap">
+<style>
+/* Layout: a fake SillyTavern screen; WI Hero drops from under ST's top bar at ST's chat width (--sheldWidth),
+   like ST's own World Info drawer, and stops above the send form. Inside: tab row, then Home or a two-pane book. */
+:root{
+  color-scheme: dark;
+  --sheldWidth: 50vw;
+  --mainFontSize: 15px;
+  --topBar: calc(var(--mainFontSize) * 2 + var(--mainFontSize) / 3);
+  --bottomForm: calc(var(--mainFontSize) * 1.9 + var(--mainFontSize) / 2.5);
+
+  /* ST default theme neutrals, then WI Hero's derived surfaces (same recipe as src/ui/app.css) */
+  --st-bg:#16171a; --st-chat:#1e1f23;
+  --fg:#e4e2da; --tint:#1d1e22; --accent:#e3913a;
+  --surface:color-mix(in srgb, var(--fg) 7%, var(--tint));
+  --raised:color-mix(in srgb, var(--fg) 12%, var(--tint));
+  --line:color-mix(in srgb, var(--fg) 18%, var(--tint));
+  --line2:color-mix(in srgb, var(--fg) 9%, var(--tint));
+  --muted:color-mix(in srgb, var(--fg) 62%, var(--tint));
+  --faint:color-mix(in srgb, var(--fg) 40%, var(--tint));
+  --hover:color-mix(in srgb, var(--fg) 6%, var(--tint));
+  --sel:color-mix(in srgb, var(--accent) 16%, var(--tint));
+  --bad:#ff6f61; --warn:#f2cf4a; --onaccent:#16171a;
+  --s-key:#6fd09a; --s-perm:#6fa8ff; --s-vec:#b48cff; --s-off:#6b6d72;
+  --p-open:#45c9bd; --p-close:#ff6f61; --p-glue:#f2cf4a; --p-mask:#f07cc8; --p-pack:#cfccc2;
+
+  --sans:'Noto Sans', system-ui, sans-serif;
+  --serif:'Noto Serif', Georgia, serif;
+  --t-xs:12px; --t-s:13px; --t-m:14px; --t-l:16px; --t-xl:24px;
+  --row:32px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--st-bg);color:var(--fg);font-family:var(--sans);font-size:var(--t-m);overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:none;margin:0;padding:0;cursor:pointer;text-align:inherit}
+input,textarea,select{font:inherit;color:inherit}
+::placeholder{color:var(--faint)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- fake ST ---------- */
+#st-top{position:fixed;top:0;left:0;right:0;height:var(--topBar);display:flex;justify-content:center;background:var(--st-bg);z-index:5}
+#st-top .inner{width:var(--sheldWidth);min-width:450px;display:flex;justify-content:space-between;align-items:center;padding:0 6px}
+.sti{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--fg);opacity:.35}
+.sti:hover,.sti.lit{opacity:1}
+#st-chat{position:fixed;top:var(--topBar);bottom:var(--bottomForm);left:0;right:0;margin:0 auto;width:var(--sheldWidth);min-width:450px;padding:16px 12px;display:flex;flex-direction:column;gap:12px;background:var(--st-chat);overflow:hidden}
+.mes{display:flex;gap:10px;font-size:var(--t-m);line-height:1.55}
+.mes .av{width:40px;height:40px;border-radius:50%;background:var(--raised);flex-shrink:0}
+.mes b{display:block;font-size:var(--t-s);margin-bottom:2px}
+.mes p{margin:0;color:var(--muted)}
+#st-send{position:fixed;bottom:0;left:0;right:0;margin:0 auto;width:var(--sheldWidth);min-width:450px;height:var(--bottomForm);display:flex;align-items:center;gap:8px;padding:0 8px;background:var(--st-chat);border-top:1px solid var(--line2)}
+#st-send .box{flex:1;height:70%;border-radius:6px;background:var(--surface);color:var(--faint);font-size:var(--t-s);display:flex;align-items:center;padding:0 10px}
+
+#democtl{position:fixed;left:max(12px, env(safe-area-inset-left, 0px));bottom:calc(var(--bottomForm) + 12px);z-index:40;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:var(--t-xs);color:var(--muted);display:flex;flex-direction:column;gap:6px;width:200px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#democtl b{color:var(--fg);font-size:var(--t-s)}
+#democtl input[type=range]{width:100%;accent-color:var(--accent)}
+#democtl .r{display:flex;justify-content:space-between}
+#democtl.min > :not(.head){display:none}
+#democtl .head{display:flex;justify-content:space-between;align-items:center}
+
+/* ---------- the drawer ---------- */
+#wih{position:fixed;top:var(--topBar);left:0;right:0;margin:0 auto;width:var(--sheldWidth);min-width:450px;
+  height:calc(100dvh - var(--topBar) - var(--bottomForm));background:var(--tint);border:1px solid var(--line);border-top:none;
+  border-radius:0 0 10px 10px;box-shadow:0 18px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;z-index:10;
+  transform-origin:top;transition:clip-path .22s ease-in-out;clip-path:inset(0 0 0 0)}
+#wih.closed{clip-path:inset(0 0 100% 0);pointer-events:none}
+
+/* tab row */
+#tabs{flex-shrink:0;height:40px;display:flex;align-items:stretch;border-bottom:1px solid var(--line);user-select:none}
+#tabscroll{display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none;min-width:0}
+#tabscroll::-webkit-scrollbar{display:none}
+.ib{width:38px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--muted);border-radius:6px}
+.ib:hover{color:var(--fg);background:var(--hover)}
+.tab{flex-shrink:0;display:flex;align-items:center;gap:7px;padding:0 6px 0 12px;font-size:var(--t-s);color:var(--muted);border-bottom:2px solid transparent;max-width:200px;position:relative}
+.tab:hover{color:var(--fg);background:var(--hover)}
+.tab.home{width:44px;padding:0;justify-content:center}
+.tab.active{color:var(--fg);border-bottom-color:var(--accent)}
+.tab.dragover{box-shadow:inset 2px 0 0 var(--accent)}
+.tab .dot{width:7px;height:7px;border-radius:4px;flex-shrink:0}
+.tab .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab .x{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;visibility:hidden}
+.tab.active .x,.tab:hover .x{visibility:visible}
+.tab .x:hover{background:var(--raised);color:var(--fg)}
+.tabgap{flex:1;min-width:24px}
+.kbd{font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px;line-height:16px}
+.searchbtn{display:flex;align-items:center;gap:8px;height:28px;align-self:center;padding:0 8px 0 10px;border-radius:7px;border:1px solid var(--line);color:var(--muted);font-size:var(--t-s);margin-right:4px;flex-shrink:0}
+.searchbtn:hover{color:var(--fg);border-color:var(--faint)}
+.narrow .searchbtn .lbl,.narrow .searchbtn .kbd{display:none}
+
+.view{flex:1;min-height:0;display:flex;position:relative}
+
+/* ---------- Home ---------- */
+#home{flex:1;overflow-y:auto;padding:18px 22px 28px}
+.hhead{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;min-height:34px}
+.hhead h1{margin:0 8px 0 0;font-size:20px;font-weight:700}
+.field{height:30px;border-radius:7px;border:1px solid var(--line);background:var(--surface);padding:0 10px;font-size:var(--t-s);min-width:0}
+.field:focus{border-color:var(--accent);outline:none}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:7px;font-size:var(--t-s);flex-shrink:0;white-space:nowrap}
+.btn.primary{background:var(--accent);color:var(--onaccent);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--hover)}
+.btn.quiet{color:var(--muted)}
+.btn.quiet:hover{color:var(--fg);background:var(--hover)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:default}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;height:30px}
+.seg button{width:32px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.seg button.on{background:var(--raised);color:var(--fg)}
+.grow{flex:1}
+
+.selbar{display:flex;align-items:center;gap:6px;margin-bottom:16px;min-height:34px;flex-wrap:wrap;background:var(--sel);border-radius:8px;padding:2px 6px}
+.selbar .cnt{font-weight:600;font-size:var(--t-s);margin:0 8px 0 4px}
+
+.fhead{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--t-xs);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:18px 0 8px;padding:3px 4px;border-radius:6px;user-select:none}
+.fhead:first-child{margin-top:0}
+.fhead .arrow{transition:transform .12s}
+.fhead.open .arrow{transform:rotate(90deg)}
+.fhead.drop{background:var(--sel);color:var(--fg)}
+.fhead:hover{color:var(--fg)}
+
+/* list view of books */
+.btable{width:100%;border-collapse:collapse;font-size:var(--t-s)}
+.btable th{text-align:left;color:var(--faint);font-weight:500;font-size:var(--t-xs);padding:0 8px 6px;border-bottom:1px solid var(--line2);white-space:nowrap;cursor:pointer;user-select:none}
+.btable th:hover{color:var(--fg)}
+.btable th.num,.btable td.num{text-align:right;font-variant-numeric:tabular-nums}
+.btable td{padding:0 8px;height:36px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.btable tr.b{cursor:pointer}
+.btable tr.b:hover td{background:var(--hover)}
+.btable tr.b.sel td{background:var(--sel)}
+.btable td.nm{font-weight:600;max-width:0;width:40%;overflow:hidden;text-overflow:ellipsis}
+.btable td.st{width:35%;max-width:0;overflow:hidden}
+.btable td.ck{width:28px;padding:0 0 0 6px}
+.btable td.mo{width:36px;padding:0 4px}
+.check{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--faint);display:flex;align-items:center;justify-content:center;color:var(--onaccent);visibility:hidden}
+tr.b:hover .check,.card:hover .check,.check.on,.anysel .check{visibility:visible}
+.check.on{background:var(--accent);border-color:var(--accent)}
+.more{width:28px;height:28px;border-radius:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;visibility:hidden}
+tr.b:hover .more,.card:hover .more,.row:hover .more,.more.open{visibility:visible}
+.more:hover{background:var(--raised);color:var(--fg)}
+
+.chips{display:flex;gap:6px;align-items:center;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:11px;border:1px solid var(--line);color:var(--muted);font-size:var(--t-xs);font-weight:600;min-width:0;max-width:100%;flex-shrink:1;white-space:nowrap}
+.chip span{overflow:hidden;text-overflow:ellipsis}
+button.chip:hover{border-color:var(--faint);color:var(--fg)}
+.chip.global{border-color:color-mix(in srgb, var(--s-key) 60%, var(--line));color:var(--s-key)}
+.chip.off{color:var(--faint)}
+.chip .gdot{width:7px;height:7px;border-radius:4px;border:1.5px solid currentColor;flex-shrink:0}
+.chip.global .gdot{background:currentColor}
+
+/* tiles */
+.grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));gap:12px}
+.card{position:relative;text-align:left;padding:14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px;min-height:112px;cursor:pointer}
+.card:hover{border-color:var(--faint)}
+.card.sel{border-color:var(--accent);background:var(--sel)}
+.card .top{display:flex;gap:10px;align-items:flex-start;padding-right:22px}
+.card .name{font-size:var(--t-m);font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.card .ck{position:absolute;left:10px;top:12px}
+.card.anysel .bk,.card:hover .bk{visibility:hidden}
+.card .more{position:absolute;top:8px;right:8px}
+.card .foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:var(--t-xs)}
+
+/* ---------- Book: two panes ---------- */
+#book{flex:1;display:flex;min-width:0;position:relative}
+.side{width:var(--sideW, 270px);flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--tint)}
+.resizer{width:6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;z-index:3;flex-shrink:0}
+.resizer:hover,.resizer.on{background:color-mix(in srgb, var(--accent) 50%, transparent)}
+.narrow .resizer{display:none}
+.narrow .side{position:absolute;top:0;bottom:0;left:0;z-index:15;width:min(300px, 85%);box-shadow:12px 0 30px rgba(0,0,0,.45);transform:translateX(-102%);transition:transform .18s}
+.narrow.sideopen .side{transform:none}
+.sidescrim{display:none}
+.narrow.sideopen .sidescrim{display:block;position:absolute;inset:0;z-index:14;background:rgba(0,0,0,.35)}
+
+.bk-head{padding:10px 10px 8px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--line2)}
+.bk-name{display:flex;align-items:center;gap:6px;font-weight:700;font-size:var(--t-l);padding:3px 6px;margin:0 -6px;border-radius:6px;max-width:100%;min-width:0}
+.bk-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bk-name:hover{background:var(--hover)}
+.bk-status{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bk-status .count{color:var(--faint);font-size:var(--t-xs);margin-left:2px}
+.srow{display:flex;gap:6px;padding:8px 10px 6px}
+.srow .field{flex:1;height:28px}
+.srow .ib{width:28px;height:28px;border:1px solid var(--line)}
+.list{flex:1;overflow-y:auto;padding:2px 0 10px;outline:none}
+.list .fhead{margin:10px 6px 2px;padding:3px 6px;text-transform:none;letter-spacing:0;font-size:var(--t-xs)}
+.list .fhead .n{color:var(--faint);font-weight:500}
+.list .fhead .add{margin-left:auto;visibility:hidden;width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.list .fhead:hover .add{visibility:visible}
+.list .fhead .add:hover{background:var(--raised)}
+.row{position:relative;display:flex;align-items:center;gap:8px;height:var(--row);padding:0 6px 0 14px;cursor:pointer;user-select:none}
+.row::before{content:"";position:absolute;left:6px;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--stripe)}
+.row.vec::before{background:repeating-linear-gradient(to bottom, var(--s-vec) 0 4px, transparent 4px 6px)}
+.row:hover{background:var(--hover)}
+.row.sel{background:var(--sel)}
+.row.cur{background:color-mix(in srgb, var(--accent) 24%, var(--tint))}
+.row.off{--stripe:var(--s-off)}
+.row.off .nm{color:var(--faint)}
+.row .nm{font-size:var(--t-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;min-width:0}
+.row .kw{font-size:var(--t-xs);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.row .tail{margin-left:auto;display:flex;align-items:center;gap:2px;flex-shrink:0}
+.row .pdot{width:6px;height:6px;border-radius:3px;background:var(--p-open);flex-shrink:0}
+.row .bang{color:var(--bad);font-weight:800;font-size:var(--t-s);padding:0 4px}
+.row.dragging{opacity:.4}
+.mini{width:26px;height:15px;border-radius:8px;background:var(--line);position:relative;flex-shrink:0;visibility:hidden}
+.mini::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:6px;background:#fff;transition:left .1s}
+.mini.on{background:color-mix(in srgb, var(--accent) 60%, var(--tint))}
+.mini.on::after{left:13px}
+.row:hover .mini,.row.off .mini{visibility:visible}
+.side-foot{border-top:1px solid var(--line2);padding:6px;display:flex;gap:2px;flex-wrap:wrap}
+.side-foot .btn{height:28px;padding:0 8px}
+.side-foot .btn.cur{background:var(--raised);color:var(--fg)}
+
+.main{flex:1;min-width:0;overflow-y:auto;position:relative}
+.mtop{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:4px;height:40px;padding:0 10px;background:var(--tint)}
+.mtop .crumb{font-size:var(--t-xs);color:var(--faint);display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap}
+.mtop .ib{width:30px;height:30px}
+.pane{max-width:760px;padding:4px 36px 60px}
+.narrow .pane{padding:4px 18px 60px}
+
+.ename{width:100%;border:none;background:none;padding:2px 0;font-size:var(--t-xl);font-weight:700;margin:0 0 6px;display:block;border-radius:4px}
+.ename:hover{background:var(--hover)}
+.ename:focus{outline:none;background:var(--hover)}
+.meta{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;color:var(--muted);font-size:var(--t-s)}
+.storychip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:12px;border:1px solid color-mix(in srgb, var(--p-open) 55%, var(--line));background:color-mix(in srgb, var(--p-open) 10%, transparent);font-size:var(--t-xs);white-space:nowrap}
+.storychip:hover{background:color-mix(in srgb, var(--p-open) 20%, transparent)}
+
+.line{display:flex;align-items:center;gap:8px;min-height:46px;border-top:1px solid var(--line2)}
+.line .lbl{color:var(--muted);font-size:var(--t-s);flex-shrink:0;width:96px}
+.ddl{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;margin-left:-8px;border-radius:6px;font-weight:600;font-size:var(--t-s)}
+.ddl:hover{background:var(--hover)}
+.sdot{width:8px;height:8px;border-radius:4px;flex-shrink:0}
+.toggle{width:38px;height:22px;border-radius:11px;position:relative;flex-shrink:0;background:var(--line)}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:9px;background:#fff;transition:left .12s}
+.toggle.on{background:color-mix(in srgb, var(--accent) 60%, var(--tint))}
+.toggle.on::after{left:18px}
+.offnote{font-size:var(--t-xs);color:var(--faint)}
+.entry-off .kwbox,.entry-off .econtent{opacity:.55}
+
+.kwline{align-items:flex-start;padding:8px 0}
+.kwline .lbl{padding-top:6px}
+.kwbox{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:32px;padding:3px 5px;border:1px solid var(--line);border-radius:7px;cursor:text}
+.kwbox:focus-within{border-color:var(--accent)}
+.kwchip{display:inline-flex;align-items:center;gap:2px;height:24px;padding:0 4px 0 9px;border-radius:5px;background:var(--raised);font-size:var(--t-s)}
+.kwchip button{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--muted);opacity:0}
+.kwchip:hover button{opacity:1}
+.kwchip button:hover{background:var(--line);color:var(--fg)}
+.kwbox input{flex:1;min-width:120px;border:none;background:none;height:24px;padding:0 4px;font-size:var(--t-s);outline:none}
+.addcond{color:var(--muted);font-size:var(--t-s);padding:4px 0 10px;margin-left:104px}
+.addcond:hover{color:var(--fg)}
+
+.fold{border-top:1px solid var(--line2)}
+.fold > .fh{display:flex;align-items:center;gap:8px;width:100%;height:46px;font-weight:600;font-size:var(--t-m)}
+.fold > .fh .sum{color:var(--faint);font-weight:400;font-size:var(--t-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.fold > .fh .arrow{transition:transform .12s;color:var(--muted)}
+.fold.open > .fh .arrow{transform:rotate(90deg)}
+.fold > .fb{display:none;padding:0 0 16px 24px}
+.fold.open > .fb{display:block}
+.logic{display:flex;gap:10px;align-items:baseline;padding:5px 0;font-size:var(--t-s)}
+.logic .stripe{width:14px;height:3px;border-radius:2px;flex-shrink:0;transform:translateY(-3px)}
+.logic .k{color:var(--muted);width:76px;flex-shrink:0;font-size:var(--t-xs);font-weight:600}
+.mutedlink{color:var(--muted);font-size:var(--t-s);margin-top:8px;display:inline-block}
+.mutedlink:hover{color:var(--fg)}
+
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:4px 28px}
+.pgroup{display:contents}
+.pgroup h4{grid-column:1/-1;margin:12px 0 2px;font-size:var(--t-xs);color:var(--faint);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.pgroup h4:first-child{margin-top:0}
+.prow{display:flex;align-items:center;gap:10px;min-height:32px;font-size:var(--t-s)}
+.prow label{color:var(--muted);flex:1;min-width:0}
+.prow select,.prow input[type=number]{height:28px;border-radius:6px;border:1px solid var(--line);background:var(--surface);padding:0 6px;font-size:var(--t-s);width:130px}
+.prow input[type=number]{width:80px;text-align:right}
+.prow .changed{color:var(--accent)}
+.prow input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+
+.chead{display:flex;align-items:baseline;justify-content:space-between;padding:14px 0 8px;border-top:1px solid var(--line2)}
+.chead .t{font-weight:600}
+.chead .v{color:var(--faint);font-size:var(--t-xs);font-variant-numeric:tabular-nums}
+.econtent{width:100%;border:none;background:none;padding:0;font-family:var(--serif);font-size:15.5px;line-height:1.75;resize:none;outline:none;min-height:200px;overflow:hidden}
+
+.empty{padding:60px 36px;color:var(--muted);font-size:var(--t-m);line-height:1.6}
+.empty b{color:var(--fg)}
+
+.bulk h2,.bset h2{font-size:20px;margin:6px 0 4px}
+.bulk .sub,.bset .sub{color:var(--muted);font-size:var(--t-s);margin-bottom:16px}
+.actrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.bset section{border-top:1px solid var(--line2);padding:14px 0}
+.bset h3{margin:0 0 10px;font-size:var(--t-m)}
+.linkrow{display:flex;align-items:center;gap:10px;height:34px;font-size:var(--t-s)}
+.linkrow .grow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- popovers ---------- */
+.menu{position:fixed;min-width:200px;max-width:280px;background:var(--raised);border:1px solid var(--line);border-radius:9px;box-shadow:0 14px 34px rgba(0,0,0,.5);padding:5px;z-index:100;font-size:var(--t-s)}
+.menu .mi{display:flex;align-items:center;gap:10px;width:100%;height:30px;padding:0 9px;border-radius:6px;white-space:nowrap}
+.menu .mi:hover,.menu .mi.hl{background:var(--hover)}
+.menu .mi.danger{color:var(--bad)}
+.menu .mi.armed{background:var(--accent);color:var(--onaccent)}
+.menu .mi .hint{margin-left:auto;color:var(--faint);font-size:var(--t-xs)}
+.menu .mi .ck{width:14px;display:flex;justify-content:center;color:var(--accent)}
+.menu .mi:disabled{opacity:.4;cursor:default}
+.menu hr{border:none;border-top:1px solid var(--line);margin:4px 2px}
+.menu .ml{color:var(--faint);font-size:var(--t-xs);font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:6px 9px 3px}
+
+#palette{position:absolute;inset:0;z-index:60;background:rgba(0,0,0,.35);display:flex;justify-content:center;align-items:flex-start;padding-top:56px}
+#palette .box{width:min(560px, calc(100% - 32px));background:var(--raised);border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.55);overflow:hidden;display:flex;flex-direction:column;max-height:70%}
+#palette input{height:46px;border:none;border-bottom:1px solid var(--line);background:none;padding:0 16px;font-size:var(--t-l);outline:none}
+#palette .res{overflow-y:auto;padding:6px}
+#palette .gl{color:var(--faint);font-size:var(--t-xs);font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:8px 10px 4px}
+#palette .r{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:0 10px;border-radius:6px;font-size:var(--t-s)}
+#palette .r.hl{background:var(--hover)}
+#palette .r .in{color:var(--faint);font-size:var(--t-xs);margin-left:auto;white-space:nowrap}
+#palette .foot{border-top:1px solid var(--line);padding:6px 12px;color:var(--faint);font-size:var(--t-xs);display:flex;gap:14px;flex-wrap:wrap}
+
+#toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%) translateY(10px);background:var(--fg);color:var(--tint);border-radius:9px;padding:8px 8px 8px 14px;font-size:var(--t-s);box-shadow:0 10px 24px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .15s, transform .15s;z-index:80;display:flex;gap:12px;align-items:center;white-space:nowrap;max-width:calc(100% - 24px)}
+#toast.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
+#toast button{font-weight:700;color:#b5600f;padding:2px 8px;border-radius:5px}
+#tip{position:fixed;z-index:120;background:#000;color:#fff;font-size:11.5px;padding:4px 8px;border-radius:5px;pointer-events:none;opacity:0;transition:opacity .1s;white-space:nowrap}
+#tip.show{opacity:.92}
+</style>
+
+<!-- fake SillyTavern behind the drawer -->
+<div id="st-top"><div class="inner" id="st-icons"></div></div>
+<div id="st-chat">
+  <div class="mes"><div class="av"></div><div><b>Kestrel Vane</b><p>The chapel bell has not rung since the king's coronation. The court still bows to him, but the priests won't say his name.</p></div></div>
+  <div class="mes"><div class="av"></div><div><b>You</b><p>Then I'll ring it myself. Tonight, before the market closes.</p></div></div>
+  <div class="mes"><div class="av"></div><div><b>Kestrel Vane</b><p>She looks at you for a long moment. "If you do that, the Hollow King will know exactly who you are."</p></div></div>
+</div>
+<div id="st-send"><div class="box">Type a message, or /? for help</div></div>
+
+<div id="democtl">
+  <div class="head"><b>Demo controls</b><button id="dc-min" class="ib" style="width:22px;height:22px" aria-label="Fold demo controls">–</button></div>
+  <label class="r" for="dc-width"><span>ST chat width</span><span id="dc-wv">50%</span></label>
+  <input id="dc-width" type="range" min="30" max="100" value="50">
+  <div class="r"><span>Drawer width</span><span id="dc-px"></span></div>
+  <div>The book icon in ST's top bar opens and closes WI Hero.</div>
+</div>
+
+<div id="wih">
+  <div id="tabs"></div>
+  <div class="view" id="view"></div>
+  <div id="toast"></div>
+</div>
+<div id="tip"></div>
+
+<script>
+/* ============ icons ============ */
+const I = {
+  chev:'<path d="M6 9l6 6 6-6"/>', right:'<path d="M9 6l6 6-6 6"/>', home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>', x:'<path d="M6 6l12 12M18 6L6 18"/>', search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  more:'<circle cx="12" cy="5.5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="18.5" r="1.3"/>',
+  book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>', tiles:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1-1"/>',
+  check:'<path d="M20 6L9 17l-5-5"/>', panel:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+  tab:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>', copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  move:'<path d="M5 9l4-4 4 4M9 5v14M19 15l-4 4-4-4"/>', export:'<path d="M12 3v12M7 8l5-5 5 5M5 21h14"/>', trash:'<path d="M3 6h18M8 6V4h8v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  edit:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>', clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  hero:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 6h7M7.7 7.7l8.6 8.6"/>',
+  swap:'<path d="M7 7h13l-3-3M17 17H4l3 3"/>', story:'<path d="M8 7h8M8 12h5M6 17h12"/>', warn:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+  chat:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/>', user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  sliders:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  plug:'<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0Z"/><path d="M12 18v4"/>', image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>',
+};
+const ic = (n, s = 16, w = 2) => `<svg class="i" viewBox="0 0 24 24" width="${s}" height="${s}" style="width:${s}px;height:${s}px" stroke-width="${w}">${I[n]}</svg>`;
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const h = (tag, attrs = {}, html = '') => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith('on')) e[k] = v; else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v); } if (html) e.innerHTML = html; return e; };
+
+/* ============ demo data ============ */
+const STRAT = { key:{label:'Keywords', color:'var(--s-key)'}, perm:{label:'Permanent', color:'var(--s-perm)'}, vec:{label:'Vectorized', color:'var(--s-vec)'} };
+const DEF_PARAMS = { position:'After char defs', depth:4, order:100, probability:100, sticky:0, cooldown:0, delay:0, scan:'Book default', caseS:false, whole:true, recursion:true, who:'Anyone', group:'', };
+let uidN = 100;
+function E(name, folder, strategy, kw, body, extra = {}) { return { uid: 'e' + (++uidN), name, folder, strategy, kw, body, on: true, kw2: null, params: { ...DEF_PARAMS, ...(extra.params || {}) }, pieces: extra.pieces || [], ...extra, }; }
+
+const BOOKS = {
+  'Moonlit Keep': { folder:null, global:false, links:['Kestrel Vane', 'Chapel night (chat)'], edited:'2 min ago', entries: [
+    E('The Bell Law', null, 'perm', [], 'By custom, no reign is legitimate until the bell rings. No one has rung it in a generation, and the court has stopped asking why.'),
+    E('Kestrel Vane', 'Characters', 'key', ['kestrel', 'swordmaster', 'exile'], 'Once the king’s sworn blade, now sworn to nothing. Keeps a room in the chapel loft and tells no one why. Left-handed; fights with a sabre that was never hers.', { pieces:[{c:'var(--p-glue)', k:'Glue', t:'Rides along with Chapel of Ash'}] }),
+    E('The Hollow King', 'Characters', 'perm', [], 'Once second to the rightful line, now crowned by a bell no one rang. The court still bows; the chapel still waits.', { pieces:[{c:'var(--p-open)', k:'Gate', t:'Opens when Kestrel Vane has fired'},{c:'var(--p-close)', k:'Close gate', t:'Closes when someone says “the bell rang”'},{c:'var(--p-mask)', k:'Masks', t:'2 masks: Crowned, Unmasked'}] }),
+    E('Prior Edda', 'Characters', 'key', ['edda', 'the prior', 'old priest'], 'Keeper of the chapel keys. Half-blind, entirely unafraid.'),
+    E('Wren', 'Characters', 'key', ['wren', 'the bellboy'], 'A bell-ringer’s apprentice with no bell to ring. Sells candles in the Sable Market.', { on:false }),
+    E('Chapel of Ash', 'Locations', 'key', ['chapel of ash', 'the bell', 'sanctuary'], 'Grey stone against a greyer sky. The bell tower has stood empty since the coronation.', { pieces:[{c:'var(--p-glue)', k:'Ridden by', t:'Kestrel Vane rides along'}] }),
+    E('Sable Market', 'Locations', 'key', ['sable market', 'the docks', 'smugglers'], 'Where the city buys what it won’t ask about. Busiest an hour before curfew.'),
+    E('The Bell Tower', 'Locations', 'key', ['bell tower', 'the tower', 'belfry'], 'Three hundred and twelve steps. The rope was cut, not frayed.', { pieces:[{c:'var(--p-open)', k:'Gate', t:'Opens when Chapel of Ash and Prior Edda have both fired'}] }),
+    E('Old Coronation Rite', 'Lore', 'vec', [], 'The rite asks three things of a new king: the bell, the oil, and the name spoken at the altar. The Hollow King had only the oil.'),
+    E('The Ninefold Court', 'Lore', 'key', ['the court', 'ninefold', 'the nine'], 'Nine seats, eight filled. The ninth belongs to whoever rings the bell.', { bang:true }),
+    E('Curfew', 'Lore', 'key', ['curfew', 'night watch'], 'No one in the streets after the third bell of the watch, which is odd, since there is no bell.'),
+  ]},
+  'A long way home':          { folder:null, global:false, links:[], edited:'yesterday', n:4 },
+  'Acher_legacy':             { folder:'Acher', global:false, links:[], edited:'3 days ago', n:31 },
+  'Acher_V2':                 { folder:'Acher', global:false, links:['The Blooming Lake mansion'], edited:'Oct 28', n:14 },
+  'Amalia-Taylor World Lore': { folder:null, global:false, links:['Princess Amalia Arcanisse'], edited:'Oct 20', n:6 },
+  'Cox and Bals Thanksgiving':{ folder:null, global:false, links:['Anita', 'Marcus'], edited:'Oct 11', n:5 },
+  'CyberpunkH':               { folder:'Horror', global:false, links:['Cyberpunk horror'], edited:'Sep 30', n:9 },
+  'EnUWF':                    { folder:null, global:true, links:['Riley'], edited:'Sep 12', n:8 },
+  'For Ethan':                { folder:null, global:false, links:[], edited:'Aug 2', n:1 },
+  'Hollow Pines':             { folder:'Horror', global:false, links:[], edited:'Jul 19', n:22 },
+};
+for (const [name, b] of Object.entries(BOOKS)) if (!b.entries) {
+  b.entries = Array.from({ length: Math.min(b.n, 7) }, (_, i) => E(`Entry ${i + 1}`, null, 'key', [`${name.split(/[ _-]/)[0].toLowerCase()} ${i + 1}`], 'Sample text for this demo.'));
+}
+const count = (b) => b.n ?? b.entries.length;
+const statusChips = (b) => {
+  const out = [];
+  if (b.global) out.push('<span class="chip global"><span class="gdot"></span><span>Global</span></span>');
+  if (b.links.length) out.push(`<span class="chip">${ic('link', 11, 2.3)}<span>${esc(b.links[0])}${b.links.length > 1 ? ' +' + (b.links.length - 1) : ''}</span></span>`);
+  if (!b.global && !b.links.length) out.push('<span class="chip off">Off</span>');
+  return out.join('');
+};
+const tokens = (s) => Math.max(0, Math.round(s.length / 3.7));
+
+/* ============ state ============ */
+const S = {
+  open: true, homeView: 'list', homeSort: 'name', homeSel: new Set(), homeAnchor: null, collapsed: new Set(), sideW: 270,
+  paramsOpen: false, logicOpen: false, sideOpen: false, narrow: false,
+};
+let tabN = 1;
+const homeTab = { id: 0, home: true };
+let tabs = [homeTab, { id: 1, book: 'Moonlit Keep', entry: null, sel: new Set(), page: 'entry' }];
+tabs[1].entry = BOOKS['Moonlit Keep'].entries[2].uid; tabs[1].sel = new Set([tabs[1].entry]);
+let activeId = 1;
+const active = () => tabs.find(t => t.id === activeId);
+
+/* ============ helpers: menu, toast, tooltip ============ */
+let menuEl = null;
+function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; document.querySelectorAll('.more.open').forEach(m => m.classList.remove('open')); } }
+function showMenu(at, items, opts = {}) {
+  closeMenu();
+  const m = h('div', { class: 'menu', role: 'menu' });
+  for (const it of items) {
+    if (it === '-') { m.append(h('hr')); continue; }
+    if (it.label && it.section) { m.append(h('div', { class: 'ml' }, esc(it.label))); continue; }
+    const b = h('button', { class: `mi${it.danger ? ' danger' : ''}`, role: 'menuitem', disabled: it.disabled || false },
+      `${it.check !== undefined ? `<span class="ck">${it.check ? ic('check', 13, 2.6) : ''}</span>` : (it.icon ? ic(it.icon, 14) : '')}<span>${it.html || esc(it.label)}</span>${it.hint ? `<span class="hint">${esc(it.hint)}</span>` : ''}`);
+    b.onclick = (e) => { e.stopPropagation(); if (it.keep) { it.fn(b, e); return; } closeMenu(); it.fn && it.fn(); };
+    m.append(b);
+  }
+  document.body.append(m);
+  const r = at.getBoundingClientRect ? at.getBoundingClientRect() : { left: at.x, right: at.x, top: at.y, bottom: at.y };
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  let x = opts.alignRight ? r.right - mw : r.left, y = r.bottom + 4;
+  if (x + mw > innerWidth - 8) x = innerWidth - mw - 8;
+  if (y + mh > innerHeight - 8) y = Math.max(8, r.top - mh - 4);
+  m.style.left = Math.max(8, x) + 'px'; m.style.top = y + 'px';
+  menuEl = m;
+  if (at.classList) at.classList.add('open');
+  m.querySelector('.mi:not(:disabled)')?.focus({ preventScroll: true });
+}
+document.addEventListener('mousedown', (e) => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); }, true);
+
+let toastT;
+function toast(msg, undo) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<span>${esc(msg)}</span>`;
+  if (undo) { const b = h('button', {}, 'Undo'); b.onclick = () => { undo(); t.classList.remove('show'); }; t.append(b); }
+  t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), undo ? 5000 : 2200);
+}
+const tip = document.getElementById('tip'); let tipT;
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest('[data-tip]'); clearTimeout(tipT); tip.classList.remove('show');
+  if (!el) return;
+  tipT = setTimeout(() => { tip.textContent = el.dataset.tip; const r = el.getBoundingClientRect(); tip.style.left = Math.min(innerWidth - tip.offsetWidth - 6, Math.max(6, r.left + r.width / 2 - tip.offsetWidth / 2)) + 'px'; tip.style.top = (r.bottom + 6) + 'px'; tip.classList.add('show'); }, 450);
+});
+document.addEventListener('mousedown', () => { clearTimeout(tipT); tip.classList.remove('show'); });
+
+/* ============ tabs ============ */
+function openBookTab(name, { background = false, entry } = {}) {
+  const b = BOOKS[name];
+  const first = entry || b.entries[0]?.uid || null;
+  const t = { id: ++tabN, book: name, entry: first, sel: new Set(first ? [first] : []), page: first ? 'entry' : 'settings' };
+  const at = tabs.indexOf(active()) + 1;
+  tabs.splice(at, 0, t);
+  if (background) { toast(`Opened ${name} in a background tab`); renderTabs(); return; }
+  activeId = t.id; S.sideOpen = false; render();
+}
+function closeTab(id) {
+  const i = tabs.findIndex(t => t.id === id); if (i < 0 || tabs[i].home) return;
+  tabs.splice(i, 1);
+  if (activeId === id) activeId = (tabs[i] || tabs[i - 1]).id;
+  render();
+}
+let dragTab = null;
+function renderTabs() {
+  const bar = document.getElementById('tabs'); bar.innerHTML = '';
+  const menuBtn = h('button', { class: 'ib', 'aria-label': 'Menu', 'data-tip': 'Menu' }, ic('chev'));
+  menuBtn.onclick = () => showMainMenu(menuBtn);
+  bar.append(menuBtn);
+  const sc = h('div', { id: 'tabscroll' });
+  for (const t of tabs) {
+    const b = h('button', { class: `tab${t.id === activeId ? ' active' : ''}${t.home ? ' home' : ''}`, draggable: t.home ? false : 'true' });
+    if (t.home) { b.innerHTML = ic('home'); b.setAttribute('aria-label', 'Home'); b.dataset.tip = 'Home'; }
+    else {
+      const bk = BOOKS[t.book];
+      b.innerHTML = `<span class="dot" style="background:${bk.global || bk.links.length ? 'var(--s-key)' : 'var(--s-off)'}"></span><span class="nm">${esc(t.book)}</span>`;
+      const x = h('span', { class: 'x', role: 'button', 'aria-label': 'Close tab' }, ic('x', 12, 2.4));
+      x.onclick = (e) => { e.stopPropagation(); closeTab(t.id); };
+      b.append(x);
+      b.onauxclick = (e) => { if (e.button === 1) { e.preventDefault(); closeTab(t.id); } };
+      b.onmousedown = (e) => { if (e.button === 1) e.preventDefault(); };
+      b.ondragstart = (e) => { dragTab = t; e.dataTransfer.effectAllowed = 'move'; };
+      b.ondragover = (e) => { if (dragTab && dragTab !== t) { e.preventDefault(); b.classList.add('dragover'); } };
+      b.ondragleave = () => b.classList.remove('dragover');
+      b.ondrop = (e) => { e.preventDefault(); if (!dragTab) return; tabs.splice(tabs.indexOf(dragTab), 1); tabs.splice(tabs.indexOf(t), 0, dragTab); dragTab = null; renderTabs(); };
+      b.oncontextmenu = (e) => { e.preventDefault(); showMenu({ x: e.clientX, y: e.clientY }, [
+        { label: 'Close tab', icon: 'x', fn: () => closeTab(t.id), hint: 'Middle-click' },
+        { label: 'Close other tabs', fn: () => { tabs = tabs.filter(o => o.home || o === t); activeId = t.id; render(); } },
+        { label: 'Close tabs to the right', fn: () => { tabs = tabs.slice(0, tabs.indexOf(t) + 1); if (!tabs.includes(active())) activeId = t.id; render(); } },
+        { label: 'Duplicate tab', icon: 'copy', fn: () => openBookTab(t.book, { entry: t.entry }) },
+      ]); };
+    }
+    b.onclick = () => { if (activeId !== t.id) { activeId = t.id; S.sideOpen = false; render(); } };
+    sc.append(b);
+  }
+  const plus = h('button', { class: 'ib', 'aria-label': 'New tab', 'data-tip': 'New tab' }, ic('plus', 15));
+  plus.style.width = '34px';
+  plus.onclick = () => { const t = { id: ++tabN, home: false, blank: true }; activeId = homeTab.id; render(); toast('A new tab starts on Home: pick a book'); };
+  sc.append(plus);
+  bar.append(sc);
+  const gap = h('div', { class: 'tabgap' }); gap.ondblclick = () => { activeId = homeTab.id; render(); };
+  bar.append(gap);
+  const sb = h('button', { class: 'searchbtn', 'aria-label': 'Search everything' }, `${ic('search', 14)}<span class="lbl">Search</span><span class="kbd">Ctrl K</span>`);
+  sb.onclick = openPalette;
+  bar.append(sb);
+  const close = h('button', { class: 'ib', 'aria-label': 'Close WI Hero', 'data-tip': 'Close (Esc)' }, ic('x'));
+  close.onclick = () => setOpen(false);
+  bar.append(close);
+  requestAnimationFrame(() => sc.querySelector('.tab.active')?.scrollIntoView({ inline: 'nearest', block: 'nearest' }));
+}
+
+let armedSwitch = false;
+function showMainMenu(anchor) {
+  const t = active();
+  const items = [];
+  items.push({ html: armedSwitch ? 'Click again to switch to Hero mode' : 'Switch to Hero mode', icon: 'hero', keep: true, fn: (btn) => {
+    if (!armedSwitch) { armedSwitch = true; btn.classList.add('armed'); btn.querySelector('span:last-child').textContent = 'Click again to switch to Hero mode'; setTimeout(() => { armedSwitch = false; }, 3000); return; }
+    armedSwitch = false; closeMenu(); toast('Hero mode is not part of this demo');
+  } });
+  items.push('-');
+  if (t.home) {
+    items.push({ section: true, label: 'View' });
+    items.push({ label: 'List', check: S.homeView === 'list', fn: () => { S.homeView = 'list'; render(); } });
+    items.push({ label: 'Tiles', check: S.homeView === 'tiles', fn: () => { S.homeView = 'tiles'; render(); } });
+  } else {
+    items.push({ section: true, label: 'Book' });
+    items.push({ label: 'Sort by: Order', icon: 'sliders', fn: () => toast('Sort options as on phones') });
+    items.push({ label: 'Show disabled entries', check: true, fn: () => toast('Hidden/shown as on phones') });
+    items.push({ label: 'Problems (1)', icon: 'warn', fn: () => { const e = BOOKS[t.book].entries.find(x => x.bang); if (e) selectEntry(t, e.uid); } });
+    items.push({ label: 'Snapshots', icon: 'clock', fn: () => toast('Snapshots sheet, as on phones') });
+  }
+  items.push('-');
+  items.push({ section: true, label: 'Display' });
+  items.push({ label: 'Content font: Serif', fn: () => toast('Serif / Sans, as on phones') });
+  items.push('-');
+  items.push({ label: 'Close other tabs', fn: () => { tabs = tabs.filter(o => o.home || o === t); render(); } });
+  showMenu(anchor, items);
+}
+
+/* ============ Home ============ */
+function bookMenu(name, at) {
+  const b = BOOKS[name];
+  showMenu(at, [
+    { label: 'Open', icon: 'book', fn: () => openBookTab(name) },
+    { label: 'Open in background tab', icon: 'tab', hint: 'Middle-click', fn: () => openBookTab(name, { background: true }) },
+    '-',
+    { label: b.global ? 'Make not global' : 'Make global', icon: 'link', fn: () => { b.global = !b.global; render(); } },
+    { label: 'Rename', icon: 'edit', hint: 'F2', fn: () => toast('Renames in place on the row') },
+    { label: 'Move to folder', icon: 'move', fn: () => folderMenu(at, [name]) },
+    { label: 'Export', icon: 'export', fn: () => toast(`${name}.json exported`) },
+    { label: 'Snapshots', icon: 'clock', fn: () => toast('Snapshots sheet, as on phones') },
+    '-',
+    { label: 'Delete', icon: 'trash', danger: true, hint: 'Del', fn: () => deleteBooks([name]) },
+  ]);
+}
+function folderMenu(at, names) {
+  const folders = [...new Set(Object.values(BOOKS).map(b => b.folder).filter(Boolean))].sort();
+  setTimeout(() => showMenu(at, [
+    { section: true, label: 'Move to' },
+    { label: 'No folder', icon: 'book', fn: () => moveBooks(names, null) },
+    ...folders.map(f => ({ label: f, icon: 'folder', fn: () => moveBooks(names, f) })),
+    '-',
+    { label: 'New folder…', icon: 'plus', fn: () => moveBooks(names, 'New folder') },
+  ]));
+}
+function moveBooks(names, f) { for (const n of names) BOOKS[n].folder = f; S.homeSel.clear(); toast(`Moved ${names.length === 1 ? names[0] : names.length + ' books'} to ${f || 'No folder'}`); render(); }
+function deleteBooks(names) {
+  const saved = names.map(n => [n, BOOKS[n]]);
+  for (const n of names) delete BOOKS[n];
+  tabs = tabs.filter(t => t.home || !names.includes(t.book)); if (!active()) activeId = 0;
+  S.homeSel.clear(); render();
+  toast(`Deleted ${names.length === 1 ? names[0] : names.length + ' books'}`, () => { for (const [n, b] of saved) BOOKS[n] = b; render(); });
+}
+function homeClick(e, name, order) {
+  if (e.button === 1 || ((e.ctrlKey || e.metaKey) && !S.homeSel.size)) { openBookTab(name, { background: true }); return; }
+  if (e.shiftKey && S.homeAnchor) {
+    const a = order.indexOf(S.homeAnchor), z = order.indexOf(name);
+    for (const n of order.slice(Math.min(a, z), Math.max(a, z) + 1)) S.homeSel.add(n);
+    render(); return;
+  }
+  if (e.ctrlKey || e.metaKey || S.homeSel.size || e.target.closest('.check')) { S.homeSel.has(name) ? S.homeSel.delete(name) : S.homeSel.add(name); S.homeAnchor = name; render(); return; }
+  openBookTab(name);
+}
+function renderHome() {
+  const root = h('div', { id: 'home' });
+  let q = '';
+  const head = h('div', { class: 'hhead' });
+  if (S.homeSel.size) {
+    head.className = 'selbar';
+    const x = h('button', { class: 'ib', 'aria-label': 'Clear selection', 'data-tip': 'Clear (Esc)' }, ic('x', 15)); x.style.height = '30px'; x.onclick = () => { S.homeSel.clear(); render(); };
+    head.append(x, h('span', { class: 'cnt' }, `${S.homeSel.size} selected`));
+    const mv = h('button', { class: 'btn quiet' }, `${ic('move', 14)}Move to folder`); mv.onclick = () => folderMenu(mv, [...S.homeSel]);
+    const ex = h('button', { class: 'btn quiet' }, `${ic('export', 14)}Export`); ex.onclick = () => toast(`Exported ${S.homeSel.size} books`);
+    const all = h('button', { class: 'btn quiet' }, 'Select all'); all.onclick = () => { Object.keys(BOOKS).forEach(n => S.homeSel.add(n)); render(); };
+    const del = h('button', { class: 'btn danger' }, `${ic('trash', 14)}Delete`); del.onclick = () => deleteBooks([...S.homeSel]);
+    head.append(mv, ex, all, h('span', { class: 'grow' }), del);
+  } else {
+    head.append(h('h1', {}, 'World Info'));
+    const s = h('input', { class: 'field', id: 'booksearch', type: 'search', placeholder: 'Filter books…', 'aria-label': 'Filter books' }); s.style.width = '220px';
+    s.oninput = () => { q = s.value.toLowerCase(); body(); };
+    const nb = h('button', { class: 'btn primary' }, `${ic('plus', 14, 2.4)}New book`); nb.onclick = () => newBook();
+    const nf = h('button', { class: 'btn ghost', 'data-tip': 'New folder' }, `${ic('folder', 14)}`); nf.onclick = () => toast('New folder: name it, then drag books onto it');
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Show as' });
+    for (const v of ['list', 'tiles']) { const b = h('button', { class: v === S.homeView ? 'on' : '', 'aria-label': v === 'list' ? 'List' : 'Tiles', 'data-tip': v === 'list' ? 'List' : 'Tiles' }, ic(v, 15)); b.onclick = () => { S.homeView = v; render(); }; seg.append(b); }
+    const gear = h('button', { class: 'ib', 'aria-label': 'World Info settings', 'data-tip': 'World Info settings' }, ic('gear')); gear.style.height = '30px';
+    gear.onclick = () => toast('ST’s World Info settings, in a popover');
+    head.append(s, h('span', { class: 'grow' }), seg, nf, nb, gear);
+  }
+  root.append(head);
+  const content = h('div'); root.append(content);
+
+  function body() {
+    content.innerHTML = '';
+    const names = Object.keys(BOOKS).filter(n => !q || n.toLowerCase().includes(q));
+    const sorter = { name: (a, b) => a.localeCompare(b), entries: (a, b) => count(BOOKS[b]) - count(BOOKS[a]), edited: () => 0 }[S.homeSort];
+    names.sort(sorter);
+    const loose = names.filter(n => !BOOKS[n].folder);
+    const folders = [...new Set(names.map(n => BOOKS[n].folder).filter(Boolean))].sort();
+    const order = [...folders.flatMap(f => names.filter(n => BOOKS[n].folder === f)), ...loose];
+    const groups = [...folders.map(f => [f, names.filter(n => BOOKS[n].folder === f)]), [null, loose]];
+    if (S.homeView === 'list' && names.length) { content.append(bookTable(groups, order, folders.length)); return; }
+    for (const [f, list] of groups) {
+      if (!list.length) continue;
+      const key = 'home:' + f;
+      const open = !S.collapsed.has(key);
+      if (f) {
+        const fh = h('button', { class: `fhead${open ? ' open' : ''}` }, `<span class="arrow">${ic('right', 12, 2.6)}</span>${ic('folder', 13)}<span>${esc(f)}</span><span style="opacity:.7">${list.length}</span>`);
+        fh.onclick = () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); body(); };
+        dropTarget(fh, (names) => moveBooks(names, f));
+        content.append(fh);
+      } else if (folders.length) {
+        const fh = h('div', { class: 'fhead open' }, `<span>Not in a folder</span><span style="opacity:.7">${list.length}</span>`);
+        dropTarget(fh, (names) => moveBooks(names, null));
+        content.append(fh);
+      }
+      if (!open) continue;
+      content.append(bookTiles(list, order));
+    }
+    if (!names.length) content.append(h('div', { class: 'empty' }, q ? 'No book matches that filter.' : 'No books yet. <b>New book</b> makes the first one.'));
+  }
+  body();
+  return root;
+}
+let dragBooks = null;
+function dropTarget(el, fn) {
+  el.ondragover = (e) => { if (dragBooks) { e.preventDefault(); el.classList.add('drop'); } };
+  el.ondragleave = () => el.classList.remove('drop');
+  el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drop'); if (dragBooks) fn(dragBooks); dragBooks = null; };
+}
+function wireBook(el, name, order) {
+  el.draggable = true;
+  el.ondragstart = () => { dragBooks = S.homeSel.has(name) ? [...S.homeSel] : [name]; };
+  el.onclick = (e) => { if (e.target.closest('.more,.gtoggle')) return; homeClick(e, name, order); };
+  el.onauxclick = (e) => { if (e.button === 1) { e.preventDefault(); openBookTab(name, { background: true }); } };
+  el.onmousedown = (e) => { if (e.button === 1) e.preventDefault(); };
+  el.oncontextmenu = (e) => { e.preventDefault(); bookMenu(name, { x: e.clientX, y: e.clientY }); };
+}
+function bookTable(groups, order, hasFolders) {
+  const tbl = h('table', { class: `btable${S.homeSel.size ? ' anysel' : ''}` });
+  const th = (label, key, cls = '') => `<th class="${cls}" data-sort="${key}">${label}${S.homeSort === key ? ' \u2193' : ''}</th>`;
+  tbl.innerHTML = `<thead><tr><th></th>${th('Name', 'name')}<th>Active</th>${th('Entries', 'entries', 'num')}${th('Edited', 'edited', 'num')}<th></th></tr></thead>`;
+  tbl.querySelectorAll('th[data-sort]').forEach(t => t.onclick = () => { S.homeSort = t.dataset.sort; render(); });
+  const tb = h('tbody');
+  for (const [f, list] of groups) {
+    if (!list.length) continue;
+    const key = 'home:' + f; const open = !S.collapsed.has(key);
+    if (f || hasFolders) {
+      const fr = h('tr', { class: 'frow' }); const td = h('td', { colspan: 6, style: 'padding:0;border:none' });
+      const fh = f ? h('button', { class: `fhead${open ? ' open' : ''}`, style: 'width:100%;margin:12px 0 2px' }, `<span class="arrow">${ic('right', 12, 2.6)}</span>${ic('folder', 13)}<span>${esc(f)}</span><span style="opacity:.7">${list.length}</span>`)
+                   : h('div', { class: 'fhead open', style: 'margin:12px 0 2px' }, `<span>Not in a folder</span><span style="opacity:.7">${list.length}</span>`);
+      if (f) fh.onclick = () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); };
+      dropTarget(fh, (names) => moveBooks(names, f));
+      td.append(fh); fr.append(td); tb.append(fr);
+    }
+    if (!open) continue;
+    for (const n of list) {
+      const b = BOOKS[n], sel = S.homeSel.has(n);
+      const tr = h('tr', { class: `b${sel ? ' sel' : ''}` });
+      tr.innerHTML = `<td class="ck"><span class="check${sel ? ' on' : ''}" role="checkbox" aria-checked="${sel}">${sel ? ic('check', 11, 3) : ''}</span></td>
+        <td class="nm" title="${esc(n)}">${esc(n)}</td><td class="st"><div class="chips">${statusChips(b)}</div></td>
+        <td class="num">${count(b)}</td><td class="num" style="color:var(--muted)">${esc(b.edited)}</td><td class="mo"></td>`;
+      const more = h('button', { class: 'more', 'aria-label': `${n} actions` }, ic('more', 15));
+      more.onclick = (e) => { e.stopPropagation(); bookMenu(n, more); };
+      tr.lastElementChild.append(more);
+      wireBook(tr, n, order);
+      tb.append(tr);
+    }
+  }
+  tbl.append(tb);
+  return tbl;
+}
+function bookTiles(list, order) {
+  const g = h('div', { class: 'grid' });
+  for (const n of list) {
+    const b = BOOKS[n], sel = S.homeSel.has(n);
+    const c = h('div', { class: `card${sel ? ' sel' : ''}${S.homeSel.size ? ' anysel' : ''}`, tabindex: 0 });
+    c.innerHTML = `<span class="ck"><span class="check${sel ? ' on' : ''}">${sel ? ic('check', 11, 3) : ''}</span></span>
+      <div class="top"><span class="bk" style="color:var(--muted)">${ic('book', 18, 1.8)}</span><div class="name">${esc(n)}</div></div>
+      <div class="chips" style="flex-wrap:wrap">${statusChips(b)}</div>
+      <div class="foot">${count(b)} ${count(b) === 1 ? 'entry' : 'entries'}<span class="grow"></span>${esc(b.edited)}</div>`;
+    const more = h('button', { class: 'more', 'aria-label': `${n} actions` }, ic('more', 15));
+    more.onclick = (e) => { e.stopPropagation(); bookMenu(n, more); };
+    c.append(more);
+    wireBook(c, n, order);
+    g.append(c);
+  }
+  return g;
+}
+function newBook() {
+  let n = 'New book', i = 2; while (BOOKS[n]) n = `New book ${i++}`;
+  BOOKS[n] = { folder: null, global: false, links: [], edited: 'just now', entries: [] };
+  openBookTab(n);
+}
+
+/* ============ Book: sidebar + main ============ */
+function bookOf(t) { return BOOKS[t.book]; }
+function entryOf(t, uid = t.entry) { return bookOf(t).entries.find(e => e.uid === uid); }
+function orderedEntries(t) {
+  const es = bookOf(t).entries;
+  const folders = [...new Set(es.map(e => e.folder).filter(Boolean))];
+  return [...es.filter(e => !e.folder), ...folders.flatMap(f => es.filter(e => e.folder === f))];
+}
+function selectEntry(t, uid, e = {}) {
+  const order = orderedEntries(t).map(x => x.uid);
+  if (e.shiftKey && t.entry) {
+    const a = order.indexOf(t.anchor || t.entry), z = order.indexOf(uid);
+    t.sel = new Set(order.slice(Math.min(a, z), Math.max(a, z) + 1));
+  } else if (e.ctrlKey || e.metaKey) {
+    t.sel.has(uid) ? t.sel.delete(uid) : t.sel.add(uid); t.anchor = uid;
+    if (!t.sel.size) t.sel.add(uid);
+  } else { t.sel = new Set([uid]); t.anchor = uid; }
+  t.entry = uid; t.page = 'entry';
+  if (S.narrow && t.sel.size === 1 && !e.keyboard) S.sideOpen = false;
+  renderBook();
+}
+function entryMenu(t, e, at) {
+  const ids = t.sel.has(e.uid) && t.sel.size > 1 ? [...t.sel] : [e.uid];
+  const many = ids.length > 1;
+  showMenu(at, [
+    ...(many ? [{ section: true, label: `${ids.length} entries` }] : [{ label: 'Open in new tab', icon: 'tab', hint: 'Middle-click', fn: () => openBookTab(t.book, { background: true, entry: e.uid }) }]),
+    { label: many ? 'Turn on' : (e.on ? 'Turn off' : 'Turn on'), icon: 'check', fn: () => setOn(t, ids, many ? true : !e.on) },
+    ...(many ? [{ label: 'Turn off', fn: () => setOn(t, ids, false) }] : []),
+    { label: 'Duplicate', icon: 'copy', hint: 'Ctrl D', fn: () => duplicate(t, ids) },
+    { label: 'Move to folder', icon: 'folder', fn: () => entryFolderMenu(t, ids, at) },
+    { label: 'Move to another book', icon: 'move', fn: () => toast('Picks a book; pieces and links to them are dropped, as on phones') },
+    { label: 'Copy as text', icon: 'copy', fn: () => toast('Copied') },
+    '-',
+    { label: 'Delete', icon: 'trash', danger: true, hint: 'Del', fn: () => deleteEntries(t, ids) },
+  ]);
+}
+function entryFolderMenu(t, ids, at) {
+  const folders = [...new Set(bookOf(t).entries.map(e => e.folder).filter(Boolean))];
+  setTimeout(() => showMenu(at, [
+    { section: true, label: 'Move to' },
+    { label: 'No folder', fn: () => moveEntries(t, ids, null) },
+    ...folders.map(f => ({ label: f, icon: 'folder', fn: () => moveEntries(t, ids, f) })),
+    '-', { label: 'New folder…', icon: 'plus', fn: () => moveEntries(t, ids, 'New folder') },
+  ]));
+}
+function moveEntries(t, ids, f) { for (const id of ids) entryOf(t, id).folder = f; toast(`Moved ${ids.length === 1 ? entryOf(t, ids[0]).name : ids.length + ' entries'} to ${f || 'No folder'}`); renderBook(); }
+function setOn(t, ids, on) { for (const id of ids) entryOf(t, id).on = on; renderBook(); }
+function duplicate(t, ids) {
+  const es = bookOf(t).entries;
+  for (const id of ids) { const e = entryOf(t, id); const c = { ...structuredClone({ ...e, pieces: [] }), uid: 'e' + (++uidN), name: e.name + ' (copy)' }; es.splice(es.indexOf(e) + 1, 0, c); }
+  renderBook();
+}
+function deleteEntries(t, ids) {
+  const es = bookOf(t).entries; const saved = es.slice();
+  const order = orderedEntries(t).map(x => x.uid); const next = order.find((u, i) => i > order.indexOf(ids[ids.length - 1]) && !ids.includes(u)) || order.find(u => !ids.includes(u));
+  bookOf(t).entries = es.filter(e => !ids.includes(e.uid));
+  t.sel = new Set(next ? [next] : []); t.entry = next || null; if (!next) t.page = 'settings';
+  renderBook();
+  toast(`Deleted ${ids.length === 1 ? saved.find(e => e.uid === ids[0]).name : ids.length + ' entries'}`, () => { bookOf(t).entries = saved; renderBook(); });
+}
+function newEntry(t, folder = null) {
+  const e = E('', folder, 'key', [], ''); e.fresh = true;
+  bookOf(t).entries.push(e);
+  t.sel = new Set([e.uid]); t.entry = e.uid; t.page = 'entry';
+  renderBook();
+  requestAnimationFrame(() => document.querySelector('.ename')?.focus());
+}
+
+let dragEntries = null;
+function renderBookView(t) {
+  const root = h('div', { id: 'book' });
+  root.style.setProperty('--sideW', S.sideW + 'px');
+  const b = bookOf(t);
+
+  /* --- sidebar --- */
+  const side = h('aside', { class: 'side', 'aria-label': 'Entries' });
+  const head = h('div', { class: 'bk-head' });
+  const nm = h('button', { class: 'bk-name', 'aria-label': 'Book menu' }, `${ic('book', 15)}<span>${esc(t.book)}</span>${ic('chev', 14)}`);
+  nm.onclick = () => showMenu(nm, [
+    { label: 'Open in Hero mode', icon: 'hero', fn: () => toast('Hero mode is not part of this demo') },
+    { label: 'Book settings', icon: 'gear', fn: () => { t.page = 'settings'; renderBook(); } },
+    '-',
+    { label: 'Rename', icon: 'edit', fn: () => toast('Renames in place') },
+    { label: 'Duplicate', icon: 'copy', fn: () => toast('Duplicated') },
+    { label: 'Move to folder', icon: 'move', fn: () => folderMenu(nm, [t.book]) },
+    { label: 'Export', icon: 'export', fn: () => toast(`${t.book}.json exported`) },
+    { label: 'Snapshots', icon: 'clock', fn: () => toast('Snapshots sheet, as on phones') },
+    '-',
+    { label: 'Delete book', icon: 'trash', danger: true, fn: () => deleteBooks([t.book]) },
+  ]);
+  head.append(nm);
+  const st = h('div', { class: 'bk-status' });
+  const g = h('button', { class: `chip${b.global ? ' global' : ''}`, 'data-tip': b.global ? 'Active in every chat. Click to turn off' : 'Click to make active in every chat' }, `<span class="gdot"></span><span>${b.global ? 'Global' : 'Not global'}</span>`);
+  g.onclick = () => { b.global = !b.global; toast(b.global ? `${t.book} is active in every chat` : `${t.book} is no longer global`); render(); };
+  st.append(g);
+  const l = h('button', { class: 'chip' }, `${ic('link', 11, 2.3)}<span>${b.links.length ? esc(b.links[0]) + (b.links.length > 1 ? ' +' + (b.links.length - 1) : '') : 'Not linked'}</span>`);
+  l.onclick = () => showMenu(l, [
+    { section: true, label: 'Linked to' },
+    ...b.links.map(x => ({ label: x, icon: x.includes('chat') ? 'chat' : 'user', hint: 'Unlink', fn: () => { b.links = b.links.filter(y => y !== x); render(); } })),
+    '-',
+    { label: 'Link to this chat', icon: 'plus', fn: () => { b.links.push('Chapel night (chat)'); render(); } },
+    { label: 'Link to Kestrel Vane', icon: 'plus', fn: () => { b.links.push('Kestrel Vane'); render(); } },
+  ]);
+  st.append(l, h('span', { class: 'count' }, `${b.entries.length} entries`));
+  head.append(st);
+  side.append(head);
+
+  const sr = h('div', { class: 'srow' });
+  const si = h('input', { class: 'field', id: 'entrysearch', type: 'search', placeholder: 'Filter entries  /', 'aria-label': 'Filter entries' });
+  const nb = h('button', { class: 'ib', 'aria-label': 'New entry', 'data-tip': 'New entry (Alt N)' }, ic('plus', 15));
+  nb.onclick = () => newEntry(t);
+  sr.append(si, nb);
+  side.append(sr);
+
+  const list = h('div', { class: 'list', tabindex: 0, role: 'listbox', 'aria-label': 'Entries', 'aria-multiselectable': 'true' });
+  function fillList(q = '') {
+    list.innerHTML = '';
+    const es = orderedEntries(t).filter(e => !q || e.name.toLowerCase().includes(q) || e.kw.some(k => k.includes(q)));
+    let last = null;
+    for (const e of es) {
+      if (e.folder && e.folder !== last) {
+        last = e.folder;
+        const key = t.book + ':' + e.folder; const open = !S.collapsed.has(key);
+        const n = es.filter(x => x.folder === e.folder).length;
+        const fh = h('div', { class: `fhead${open ? ' open' : ''}`, role: 'button', tabindex: -1 }, `<span class="arrow">${ic('right', 11, 2.6)}</span><span>${esc(e.folder)}</span><span class="n">${n}</span>`);
+        const add = h('button', { class: 'add', 'aria-label': `New entry in ${e.folder}`, 'data-tip': 'New entry here' }, ic('plus', 12, 2.4));
+        add.onclick = (ev) => { ev.stopPropagation(); newEntry(t, e.folder); };
+        fh.append(add);
+        fh.onclick = () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); fillList(si.value.toLowerCase()); };
+        fh.ondragover = (ev) => { if (dragEntries) { ev.preventDefault(); fh.classList.add('drop'); } };
+        fh.ondragleave = () => fh.classList.remove('drop');
+        fh.ondrop = (ev) => { ev.preventDefault(); fh.classList.remove('drop'); if (dragEntries) moveEntries(t, dragEntries, e.folder); dragEntries = null; };
+        list.append(fh);
+      }
+      if (e.folder && S.collapsed.has(t.book + ':' + e.folder)) continue;
+      const row = h('div', { class: `row${e.strategy === 'vec' ? ' vec' : ''}${e.on ? '' : ' off'}${t.sel.has(e.uid) ? ' sel' : ''}${t.entry === e.uid && t.page === 'entry' ? ' cur' : ''}`, role: 'option', 'aria-selected': t.sel.has(e.uid), draggable: 'true', 'data-uid': e.uid });
+      row.style.setProperty('--stripe', STRAT[e.strategy].color);
+      const kwText = e.strategy === 'perm' ? 'always on' : e.strategy === 'vec' ? 'by meaning' : e.kw.join(', ');
+      row.innerHTML = `<span class="nm">${esc(e.name || 'Untitled')}</span><span class="kw">${esc(kwText)}</span><span class="tail">${e.bang ? '<span class="bang" data-tip="Has a problem">!</span>' : ''}${e.pieces.length ? '<span class="pdot" data-tip="Has story logic"></span>' : ''}</span>`;
+      const mini = h('button', { class: `mini${e.on ? ' on' : ''}`, role: 'switch', 'aria-checked': e.on, 'aria-label': `${e.name} on`, 'data-tip': e.on ? 'On' : 'Off' });
+      mini.onclick = (ev) => { ev.stopPropagation(); e.on = !e.on; renderBook(); };
+      const more = h('button', { class: 'more', 'aria-label': `${e.name} actions` }, ic('more', 14));
+      more.style.width = more.style.height = '22px';
+      more.onclick = (ev) => { ev.stopPropagation(); entryMenu(t, e, more); };
+      row.querySelector('.tail').append(mini, more);
+      row.onclick = (ev) => selectEntry(t, e.uid, ev);
+      row.onauxclick = (ev) => { if (ev.button === 1) { ev.preventDefault(); openBookTab(t.book, { background: true, entry: e.uid }); } };
+      row.onmousedown = (ev) => { if (ev.button === 1) ev.preventDefault(); };
+      row.oncontextmenu = (ev) => { ev.preventDefault(); if (!t.sel.has(e.uid)) selectEntry(t, e.uid); entryMenu(t, e, { x: ev.clientX, y: ev.clientY }); };
+      row.ondragstart = () => { dragEntries = t.sel.has(e.uid) ? [...t.sel] : [e.uid]; requestAnimationFrame(() => row.classList.add('dragging')); };
+      row.ondragend = () => row.classList.remove('dragging');
+      list.append(row);
+    }
+    if (!es.length) list.append(h('div', { class: 'empty', style: 'padding:24px 14px;font-size:13px' }, q ? 'No entry matches.' : 'No entries yet.'));
+  }
+  si.oninput = () => fillList(si.value.toLowerCase());
+  si.onkeydown = (e) => { if (e.key === 'ArrowDown') { e.preventDefault(); list.focus(); } if (e.key === 'Escape') { si.value = ''; fillList(); list.focus(); e.stopPropagation(); } };
+  list.onkeydown = (ev) => {
+    const vis = [...list.querySelectorAll('.row')].map(r => r.dataset.uid);
+    let i = vis.indexOf(t.entry);
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault(); i = Math.max(0, Math.min(vis.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
+      selectEntry(t, vis[i], { shiftKey: ev.shiftKey, keyboard: true });
+      requestAnimationFrame(() => { const l = document.querySelector('.list'); l.focus(); l.querySelector('.row.cur')?.scrollIntoView({ block: 'nearest' }); });
+    } else if (ev.key === 'Enter') { document.querySelector('.ename')?.focus(); }
+    else if (ev.key === 'Delete') { deleteEntries(t, [...t.sel]); }
+    else if (ev.key === ' ') { ev.preventDefault(); setOn(t, [...t.sel], !entryOf(t).on); requestAnimationFrame(() => document.querySelector('.list').focus()); }
+  };
+  list.ondragover = (ev) => { if (dragEntries && ev.target === list) ev.preventDefault(); };
+  list.ondrop = (ev) => { if (dragEntries && ev.target === list) { moveEntries(t, dragEntries, null); dragEntries = null; } };
+  fillList();
+  side.append(list);
+
+  const foot = h('div', { class: 'side-foot' });
+  const bs = h('button', { class: `btn quiet${t.page === 'settings' ? ' cur' : ''}` }, `${ic('gear', 14)}Book settings`);
+  bs.onclick = () => { t.page = 'settings'; S.sideOpen = false; renderBook(); };
+  foot.append(bs);
+  const probs = b.entries.filter(e => e.bang).length;
+  if (probs) { const p = h('button', { class: 'btn quiet', style: 'color:var(--bad)' }, `${ic('warn', 14)}${probs} problem`); p.onclick = () => selectEntry(t, b.entries.find(e => e.bang).uid); foot.append(p); }
+  side.append(foot);
+
+  root.append(side);
+  const rz = h('div', { class: 'resizer', role: 'separator', 'aria-label': 'Resize entry list', 'aria-orientation': 'vertical' });
+  rz.onpointerdown = (ev) => {
+    rz.setPointerCapture(ev.pointerId); rz.classList.add('on');
+    const x0 = ev.clientX, w0 = S.sideW;
+    rz.onpointermove = (m) => { S.sideW = Math.max(200, Math.min(460, w0 + m.clientX - x0)); root.style.setProperty('--sideW', S.sideW + 'px'); };
+    rz.onpointerup = () => { rz.onpointermove = null; rz.classList.remove('on'); };
+  };
+  rz.ondblclick = () => { S.sideW = 270; root.style.setProperty('--sideW', '270px'); };
+  root.append(rz);
+  const scrim = h('div', { class: 'sidescrim' }); scrim.onclick = () => { S.sideOpen = false; applyNarrow(); };
+  root.append(scrim);
+
+  /* --- main pane --- */
+  const main = h('main', { class: 'main' });
+  const top = h('div', { class: 'mtop' });
+  if (S.narrow) { const pb = h('button', { class: 'ib', 'aria-label': 'Show entries', 'data-tip': 'Entries' }, ic('panel')); pb.onclick = () => { S.sideOpen = true; applyNarrow(); }; top.append(pb); }
+  main.append(top);
+  if (t.page === 'settings') renderSettings(t, main, top);
+  else if (t.sel.size > 1) renderBulk(t, main, top);
+  else if (entryOf(t)) renderEntry(t, entryOf(t), main, top);
+  else main.append(h('div', { class: 'empty' }, 'No entry selected. Pick one on the left, or click <b>+</b> to write a new one.'));
+  root.append(main);
+  return root;
+}
+
+function crumb(top, html) { top.append(h('div', { class: 'crumb' }, html)); top.append(h('span', { class: 'grow' })); }
+
+function renderEntry(t, e, main, top) {
+  crumb(top, `${ic('book', 12)}${esc(t.book)}${e.folder ? ` <span>/</span> ${esc(e.folder)}` : ''}`);
+  const order = orderedEntries(t); const i = order.indexOf(e);
+  const prev = h('button', { class: 'ib', 'aria-label': 'Previous entry', 'data-tip': 'Previous (Alt ↑)', disabled: i <= 0 }, `<span style="transform:rotate(180deg);display:flex">${ic('chev', 15)}</span>`);
+  const next = h('button', { class: 'ib', 'aria-label': 'Next entry', 'data-tip': 'Next (Alt ↓)', disabled: i >= order.length - 1 }, ic('chev', 15));
+  prev.onclick = () => i > 0 && selectEntry(t, order[i - 1].uid, { keyboard: true });
+  next.onclick = () => i < order.length - 1 && selectEntry(t, order[i + 1].uid, { keyboard: true });
+  const more = h('button', { class: 'ib', 'aria-label': 'Entry actions', 'data-tip': 'More' }, ic('more'));
+  more.onclick = () => entryMenu(t, e, more);
+  top.append(prev, next, more);
+
+  const p = h('div', { class: `pane${e.on ? '' : ' entry-off'}` });
+  const name = h('input', { class: 'ename', id: 'ename', value: e.name, placeholder: 'Entry name', 'aria-label': 'Entry name' });
+  name.oninput = () => { e.name = name.value; const r = document.querySelector(`.row[data-uid="${e.uid}"] .nm`); if (r) r.textContent = e.name || 'Untitled'; };
+  name.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); (p.querySelector('.kwbox input') || p.querySelector('.econtent')).focus(); } };
+  p.append(name);
+
+  const meta = h('div', { class: 'meta' });
+  if (e.pieces.length) {
+    const sc = h('button', { class: 'storychip' }, `${ic('story', 13)}Story logic · ${e.pieces.length} ${e.pieces.length === 1 ? 'rule' : 'rules'}`);
+    sc.onclick = () => { S.logicOpen = true; renderBook(); requestAnimationFrame(() => document.getElementById('logic')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); };
+    meta.append(sc);
+  }
+  if (e.bang) meta.append(h('span', { style: 'color:var(--bad);display:inline-flex;gap:6px;align-items:center' }, `${ic('warn', 13)}Its keyword “the court” also triggers The Hollow King`));
+  if (meta.children.length) p.append(meta);
+
+  /* strategy + switch */
+  const sl = h('div', { class: 'line' });
+  sl.append(h('span', { class: 'lbl' }, 'Strategy'));
+  const dd = h('button', { class: 'ddl', 'aria-haspopup': 'menu' }, `<span class="sdot" style="background:${STRAT[e.strategy].color}"></span>${STRAT[e.strategy].label}${ic('chev', 13)}`);
+  dd.onclick = () => showMenu(dd, Object.entries(STRAT).map(([k, s]) => ({ html: `<span class="sdot" style="background:${s.color};display:inline-block;margin-right:8px"></span>${s.label}`, check: e.strategy === k, hint: { key: 'when a keyword shows up', perm: 'always', vec: 'by meaning' }[k], fn: () => { e.strategy = k; renderBook(); } })));
+  sl.append(dd, h('span', { class: 'grow' }));
+  if (!e.on) sl.append(h('span', { class: 'offnote' }, 'Off: never sent'));
+  const tg = h('button', { class: `toggle${e.on ? ' on' : ''}`, role: 'switch', 'aria-checked': e.on, 'aria-label': 'Entry on', 'data-tip': e.on ? 'On' : 'Off' });
+  tg.onclick = () => { e.on = !e.on; renderBook(); };
+  sl.append(tg);
+  p.append(sl);
+
+  /* keywords */
+  if (e.strategy === 'key') {
+    p.append(kwLine('Keywords', e.kw, () => {}));
+    if (e.kw2) {
+      const l2 = kwLine('', e.kw2.kw, () => {});
+      const lg = h('button', { class: 'ddl', style: 'font-weight:500;color:var(--muted);margin-left:0;width:96px;padding:0;font-size:12px' }, `${esc(e.kw2.logic)}${ic('chev', 12)}`);
+      lg.onclick = () => showMenu(lg, [...['And any of', 'And all of', 'But none of', 'But not all of'].map(x => ({ label: x, check: e.kw2.logic === x, fn: () => { e.kw2.logic = x; renderBook(); } })), '-', { label: 'Remove condition', icon: 'trash', danger: true, fn: () => { e.kw2 = null; renderBook(); } }]);
+      l2.replaceChild(lg, l2.firstChild);
+      l2.style.borderTop = 'none';
+      p.append(l2);
+    } else {
+      const ac = h('button', { class: 'addcond' }, '+ Add condition');
+      ac.onclick = () => { e.kw2 = { logic: 'And any of', kw: [] }; renderBook(); requestAnimationFrame(() => document.querySelectorAll('.kwbox input')[1]?.focus()); };
+      p.append(ac);
+    }
+  }
+
+  /* story logic */
+  if (e.pieces.length) {
+    const f = h('div', { class: `fold${S.logicOpen ? ' open' : ''}`, id: 'logic' });
+    const fh = h('button', { class: 'fh', 'aria-expanded': S.logicOpen }, `<span class="arrow">${ic('right', 13, 2.4)}</span>Story logic<span class="sum">${esc(e.pieces.map(x => x.k).join(' · '))}</span>`);
+    fh.onclick = () => { S.logicOpen = !S.logicOpen; f.classList.toggle('open'); };
+    const fb = h('div', { class: 'fb' });
+    for (const pc of e.pieces) fb.append(h('div', { class: 'logic' }, `<span class="stripe" style="background:${pc.c}"></span><span class="k">${esc(pc.k)}</span><span>${esc(pc.t)}</span>`));
+    const hl = h('button', { class: 'mutedlink' }, 'Edit in Hero mode ›'); hl.onclick = () => toast('Hero mode is not part of this demo');
+    fb.append(hl);
+    f.append(fh, fb);
+    p.append(f);
+  }
+
+  /* parameters */
+  const changed = Object.entries(e.params).filter(([k, v]) => DEF_PARAMS[k] !== v);
+  const pf = h('div', { class: `fold${S.paramsOpen ? ' open' : ''}` });
+  const sumText = changed.length ? changed.map(([k, v]) => `${PNAMES[k]} ${fmtP(k, v)}`).join(' · ') : 'Defaults';
+  const pfh = h('button', { class: 'fh', 'aria-expanded': S.paramsOpen }, `<span class="arrow">${ic('right', 13, 2.4)}</span>Parameters<span class="sum">${esc(sumText)}</span>`);
+  pfh.onclick = () => { S.paramsOpen = !S.paramsOpen; pf.classList.toggle('open'); };
+  const pb = h('div', { class: 'fb' });
+  pb.append(paramGrid(e));
+  pf.append(pfh, pb);
+  p.append(pf);
+
+  /* content */
+  const ch = h('div', { class: 'chead' }, `<span class="t">Content</span><span class="v" id="tok">${tokens(e.body)} tokens</span>`);
+  const ta = h('textarea', { class: 'econtent', id: 'econtent', placeholder: 'Type here', 'aria-label': 'Content' });
+  ta.value = e.body;
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.max(200, ta.scrollHeight) + 'px'; };
+  ta.oninput = () => { e.body = ta.value; document.getElementById('tok').textContent = `${tokens(e.body)} tokens`; fit(); };
+  requestAnimationFrame(fit);
+  p.append(ch, ta);
+  main.append(p);
+}
+const PNAMES = { position:'Position', depth:'Depth', order:'Order', probability:'Probability', sticky:'Sticky', cooldown:'Cooldown', delay:'Delay', scan:'Scan depth', caseS:'Case-sensitive', whole:'Whole words', recursion:'Recursion', who:'Who triggers', group:'Inclusion group' };
+const fmtP = (k, v) => typeof v === 'boolean' ? (v ? 'on' : 'off') : k === 'probability' ? v + '%' : v;
+function paramGrid(e) {
+  const grid = h('div', { class: 'pgrid' });
+  const groups = [
+    ['Placement', [['position', ['Before char defs', 'After char defs', 'Before example msgs', 'After example msgs', 'Top of AN', 'Bottom of AN', 'At depth']], ...(e.params.position === 'At depth' ? [['depth', 'n']] : []), ['order', 'n']]],
+    ['Chance and timing', [['probability', 'n'], ['sticky', 'n'], ['cooldown', 'n'], ['delay', 'n']]],
+    ['Matching', [['scan', ['Book default', '1', '2', '4', '10']], ['caseS', 'b'], ['whole', 'b'], ['recursion', 'b'], ['who', ['Anyone', 'Me', 'Character']]]],
+    ['Limits', [['group', 't']]],
+  ];
+  for (const [title, rows] of groups) {
+    const g = h('div', { class: 'pgroup' }); g.append(h('h4', {}, title));
+    for (const [k, type] of rows) {
+      const r = h('div', { class: 'prow' });
+      const id = 'p-' + k;
+      const lab = h('label', { for: id }, PNAMES[k] + (k === 'probability' ? ' %' : ''));
+      if (e.params[k] !== DEF_PARAMS[k]) lab.classList.add('changed');
+      let ctl;
+      if (Array.isArray(type)) { ctl = h('select', { id }); for (const o of type) ctl.append(h('option', { value: o, selected: o === String(e.params[k]) }, esc(o))); ctl.onchange = () => { e.params[k] = isNaN(+ctl.value) || k === 'scan' ? ctl.value : +ctl.value; lab.classList.toggle('changed', e.params[k] !== DEF_PARAMS[k]); if (k === 'position') { renderBook(); } }; }
+      else if (type === 'b') { ctl = h('input', { id, type: 'checkbox', checked: e.params[k] }); ctl.onchange = () => { e.params[k] = ctl.checked; lab.classList.toggle('changed', e.params[k] !== DEF_PARAMS[k]); }; }
+      else if (type === 'n') { ctl = h('input', { id, type: 'number', value: e.params[k], min: 0 }); ctl.oninput = () => { e.params[k] = +ctl.value; lab.classList.toggle('changed', e.params[k] !== DEF_PARAMS[k]); }; }
+      else { ctl = h('input', { id, type: 'text', value: e.params[k], placeholder: 'none', class: 'field' }); ctl.style.width = '130px'; ctl.style.height = '28px'; ctl.oninput = () => { e.params[k] = ctl.value; }; }
+      r.append(lab, ctl); g.append(r);
+    }
+    grid.append(g);
+  }
+  return grid;
+}
+function kwLine(label, arr) {
+  const line = h('div', { class: 'line kwline' });
+  line.append(h('span', { class: 'lbl' }, label));
+  const box = h('div', { class: 'kwbox' });
+  const inp = h('input', { placeholder: arr.length ? '' : 'Type a keyword, then Enter', 'aria-label': label || 'Condition keywords' });
+  function draw() {
+    box.querySelectorAll('.kwchip').forEach(c => c.remove());
+    arr.forEach((k, i) => {
+      const c = h('span', { class: 'kwchip' }, `<span>${esc(k)}</span>`);
+      const x = h('button', { 'aria-label': `Remove ${k}`, tabindex: -1 }, ic('x', 10, 2.6));
+      x.onclick = (ev) => { ev.stopPropagation(); arr.splice(i, 1); draw(); };
+      c.ondblclick = () => { inp.value = k; arr.splice(i, 1); draw(); inp.focus(); };
+      box.insertBefore(c, inp);
+    });
+    inp.placeholder = arr.length ? '' : 'Type a keyword, then Enter';
+  }
+  const commit = () => { const parts = inp.value.split(',').map(s => s.trim()).filter(Boolean); if (parts.length) { arr.push(...parts); inp.value = ''; draw(); } };
+  inp.onkeydown = (ev) => {
+    if (ev.key === 'Enter' || ev.key === ',' || (ev.key === 'Tab' && inp.value.trim())) { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Backspace' && !inp.value && arr.length) { inp.value = arr.pop(); draw(); ev.preventDefault(); }
+  };
+  inp.onblur = commit;
+  inp.onpaste = () => setTimeout(commit);
+  box.onclick = () => inp.focus();
+  box.append(inp); draw();
+  line.append(box);
+  return line;
+}
+
+function renderBulk(t, main, top) {
+  crumb(top, `${ic('book', 12)}${esc(t.book)}`);
+  const ids = [...t.sel]; const es = ids.map(id => entryOf(t, id));
+  const p = h('div', { class: 'pane bulk' });
+  p.append(h('h2', {}, `${ids.length} entries selected`));
+  p.append(h('div', { class: 'sub' }, esc(es.map(e => e.name).join(', ')) + '. Shift-click selects a range, Ctrl-click adds one, Esc clears.'));
+  const act = h('div', { class: 'actrow' });
+  const on = h('button', { class: 'btn ghost' }, 'Turn on'); on.onclick = () => setOn(t, ids, true);
+  const off = h('button', { class: 'btn ghost' }, 'Turn off'); off.onclick = () => setOn(t, ids, false);
+  const mv = h('button', { class: 'btn ghost' }, `${ic('folder', 14)}Move to folder`); mv.onclick = () => entryFolderMenu(t, ids, mv);
+  const mb = h('button', { class: 'btn ghost' }, `${ic('move', 14)}Move to another book`); mb.onclick = () => toast('Picks a book, as on phones');
+  const dup = h('button', { class: 'btn ghost' }, `${ic('copy', 14)}Duplicate`); dup.onclick = () => duplicate(t, ids);
+  const del = h('button', { class: 'btn danger' }, `${ic('trash', 14)}Delete`); del.onclick = () => deleteEntries(t, ids);
+  act.append(on, off, mv, mb, dup, h('span', { class: 'grow' }), del);
+  p.append(act);
+  const f = h('div', { class: 'fold open' });
+  f.append(h('div', { class: 'fh' }, 'Edit together<span class="sum">Rows where they differ say Mixed. Only rows you change are applied.</span>'));
+  const fb = h('div', { class: 'fb', style: 'padding-left:0' });
+  const grid = h('div', { class: 'pgrid' });
+  const g = h('div', { class: 'pgroup' });
+  const strat = new Set(es.map(e => e.strategy));
+  const rows = [['Strategy', strat.size > 1 ? 'Mixed' : STRAT[[...strat][0]].label, ['Mixed', 'Keywords', 'Permanent', 'Vectorized']],
+    ...['position', 'order', 'probability', 'who'].map(k => { const vals = new Set(es.map(e => String(e.params[k]))); return [PNAMES[k], vals.size > 1 ? 'Mixed' : [...vals][0], null]; })];
+  for (const [lab, v, opts] of rows) {
+    const r = h('div', { class: 'prow' });
+    r.append(h('label', {}, lab));
+    const s = h('select', {}); for (const o of (opts || [v, ...(v === 'Mixed' ? [] : [])])) s.append(h('option', { selected: o === v }, esc(o)));
+    if (!opts && v === 'Mixed') s.style.color = 'var(--faint)';
+    r.append(s); g.append(r);
+  }
+  grid.append(g); fb.append(grid);
+  const ap = h('button', { class: 'btn primary', style: 'margin-top:14px' }, `Apply to ${ids.length} entries`); ap.onclick = () => toast('Nothing changed yet');
+  fb.append(ap); f.append(fb); p.append(f);
+  main.append(p);
+}
+
+function renderSettings(t, main, top) {
+  crumb(top, `${ic('book', 12)}${esc(t.book)} <span>/</span> Book settings`);
+  const b = bookOf(t);
+  const p = h('div', { class: 'pane bset' });
+  p.append(h('h2', {}, 'Book settings'));
+  p.append(h('div', { class: 'sub' }, `${b.entries.length} entries · edited ${esc(b.edited)}`));
+  const s1 = h('section'); s1.append(h('h3', {}, 'Where it is active'));
+  const gl = h('div', { class: 'linkrow' }, `<span class="grow">Active in every chat (global)</span>`);
+  const tg = h('button', { class: `toggle${b.global ? ' on' : ''}`, role: 'switch', 'aria-checked': b.global, 'aria-label': 'Global' }); tg.onclick = () => { b.global = !b.global; render(); };
+  gl.append(tg); s1.append(gl);
+  for (const x of b.links) { const r = h('div', { class: 'linkrow' }, `${ic(x.includes('chat') ? 'chat' : 'user', 14)}<span class="grow">${esc(x)}</span>`); const u = h('button', { class: 'btn quiet' }, 'Unlink'); u.onclick = () => { b.links = b.links.filter(y => y !== x); render(); }; r.append(u); s1.append(r); }
+  const lk = h('div', { class: 'linkrow' }); const lb = h('button', { class: 'btn ghost' }, `${ic('plus', 13)}Link to this chat`); lb.onclick = () => { b.links.push('Chapel night (chat)'); render(); }; lk.append(lb); s1.append(lk);
+  p.append(s1);
+  const s2 = h('section'); s2.append(h('h3', {}, 'New entry defaults'));
+  s2.append(h('div', { class: 'sub', style: 'margin-bottom:8px' }, 'What a new entry in this book starts with.'));
+  s2.append(paramGrid({ params: { ...DEF_PARAMS } }));
+  p.append(s2);
+  const s3 = h('section'); s3.append(h('h3', {}, 'Book'));
+  const ar = h('div', { class: 'actrow' });
+  ar.append(...[['Export', 'export'], ['Snapshots', 'clock'], ['Duplicate', 'copy']].map(([l, i]) => { const x = h('button', { class: 'btn ghost' }, `${ic(i, 14)}${l}`); x.onclick = () => toast(l); return x; }));
+  const d = h('button', { class: 'btn danger' }, `${ic('trash', 14)}Delete book`); d.onclick = () => deleteBooks([t.book]); ar.append(d);
+  s3.append(ar); p.append(s3);
+  main.append(p);
+}
+
+/* ============ search palette (Ctrl K) ============ */
+function openPalette() {
+  closeMenu();
+  if (document.getElementById('palette')) return;
+  const wrap = h('div', { id: 'palette', role: 'dialog', 'aria-label': 'Search everything' });
+  const box = h('div', { class: 'box' });
+  const inp = h('input', { placeholder: 'Search books, folders, entries and keywords', 'aria-label': 'Search' });
+  const res = h('div', { class: 'res', role: 'listbox' });
+  const foot = h('div', { class: 'foot' }, '<span>↑↓ move</span><span>Enter open in a new tab</span><span>Ctrl Enter background tab</span><span>Esc close</span>');
+  box.append(inp, res, foot); wrap.append(box);
+  document.getElementById('wih').append(wrap);
+  let items = [], hl = 0;
+  const cur = active();
+  function run() {
+    const q = inp.value.trim().toLowerCase(); res.innerHTML = ''; items = [];
+    const groups = [];
+    const match = (e) => !q || e.name.toLowerCase().includes(q) || e.kw.some(k => k.includes(q));
+    if (cur.book) groups.push([`In ${cur.book}`, BOOKS[cur.book].entries.filter(match).slice(0, 6).map(e => ({ label: e.name, color: STRAT[e.strategy].color, in: e.kw.slice(0, 3).join(', '), go: (bg) => { if (bg) openBookTab(cur.book, { background: true, entry: e.uid }); else selectEntry(cur, e.uid); } }))]);
+    if (q) groups.push(['Other books', Object.entries(BOOKS).filter(([n]) => n !== cur.book).flatMap(([n, b]) => b.entries.filter(match).map(e => ({ label: e.name, color: STRAT[e.strategy].color, in: n, go: (bg) => openBookTab(n, { background: bg, entry: e.uid }) }))).slice(0, 5)]);
+    groups.push(['Books', Object.keys(BOOKS).filter(n => !q || n.toLowerCase().includes(q)).slice(0, q ? 6 : 4).map(n => ({ label: n, icon: 'book', in: `${count(BOOKS[n])} entries`, go: (bg) => openBookTab(n, { background: bg }) }))]);
+    for (const [gl, list] of groups) {
+      if (!list.length) continue;
+      res.append(h('div', { class: 'gl' }, esc(gl)));
+      for (const it of list) {
+        const i = items.length; items.push(it);
+        const r = h('button', { class: 'r', role: 'option' }, `${it.icon ? ic(it.icon, 14) : `<span class="sdot" style="background:${it.color}"></span>`}<span>${esc(it.label)}</span><span class="in">${esc(it.in)}</span>`);
+        r.onmousemove = () => { if (hl !== i) { hl = i; mark(); } };
+        r.onclick = (ev) => { close(); it.go(ev.ctrlKey || ev.metaKey); };
+        res.append(r);
+      }
+    }
+    if (!items.length) res.append(h('div', { class: 'empty', style: 'padding:20px' }, 'Nothing matches.'));
+    hl = 0; mark();
+  }
+  function mark() { res.querySelectorAll('.r').forEach((r, i) => r.classList.toggle('hl', i === hl)); res.querySelectorAll('.r')[hl]?.scrollIntoView({ block: 'nearest' }); }
+  function close() { wrap.remove(); }
+  inp.oninput = run;
+  inp.onkeydown = (ev) => {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); hl = Math.min(items.length - 1, hl + 1); mark(); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); hl = Math.max(0, hl - 1); mark(); }
+    else if (ev.key === 'Enter' && items[hl]) { ev.preventDefault(); close(); items[hl].go(ev.ctrlKey || ev.metaKey); }
+    else if (ev.key === 'Escape') { ev.stopPropagation(); close(); }
+  };
+  wrap.onmousedown = (ev) => { if (ev.target === wrap) close(); };
+  run(); inp.focus();
+}
+
+/* ============ render ============ */
+function renderBook() {
+  const v = document.getElementById('view'); const keepScroll = v.querySelector('.list')?.scrollTop;
+  v.innerHTML = '';
+  v.append(renderBookView(active()));
+  if (keepScroll != null) v.querySelector('.list').scrollTop = keepScroll;
+  applyNarrow();
+}
+function render() {
+  closeMenu();
+  renderTabs();
+  const t = active();
+  if (t.home) { const v = document.getElementById('view'); v.innerHTML = ''; v.append(renderHome()); }
+  else renderBook();
+}
+function applyNarrow() { const w = document.getElementById('wih'); w.classList.toggle('narrow', S.narrow); w.classList.toggle('sideopen', S.narrow && S.sideOpen); }
+
+/* ============ keyboard ============ */
+const typing = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+document.addEventListener('keydown', (e) => {
+  if (!S.open) return;
+  const t = active();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
+  if (e.key === 'Escape') {
+    if (menuEl) { closeMenu(); return; }
+    if (document.getElementById('palette')) { document.getElementById('palette').remove(); return; }
+    if (S.narrow && S.sideOpen) { S.sideOpen = false; applyNarrow(); return; }
+    if (t.home && S.homeSel.size) { S.homeSel.clear(); render(); return; }
+    if (!t.home && t.sel.size > 1) { t.sel = new Set([t.entry]); renderBook(); return; }
+    if (typing(document.activeElement)) { document.activeElement.blur(); return; }
+    setOpen(false); return;
+  }
+  if (e.altKey && !t.home && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault(); const o = orderedEntries(t); const i = o.findIndex(x => x.uid === t.entry) + (e.key === 'ArrowDown' ? 1 : -1);
+    if (o[i]) selectEntry(t, o[i].uid, { keyboard: true }); return;
+  }
+  if (e.altKey && e.key.toLowerCase() === 'n') { e.preventDefault(); t.home ? newBook() : newEntry(t); return; }
+  if (typing(document.activeElement)) return;
+  if (e.key === '/') { e.preventDefault(); (document.getElementById('entrysearch') || document.getElementById('booksearch'))?.focus(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && t.home) { e.preventDefault(); Object.keys(BOOKS).forEach(n => S.homeSel.add(n)); render(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !t.home) { e.preventDefault(); duplicate(t, [...t.sel]); }
+  if (e.key === 'Delete' && t.home && S.homeSel.size) deleteBooks([...S.homeSel]);
+});
+
+/* ============ fake ST + demo controls ============ */
+function setOpen(o) { S.open = o; document.getElementById('wih').classList.toggle('closed', !o); document.getElementById('st-wi').classList.toggle('lit', o); closeMenu(); }
+(function stIcons() {
+  const box = document.getElementById('st-icons');
+  const list = [['sliders', 'AI response settings'], ['plug', 'API connections'], ['edit', 'Advanced formatting'], ['book', 'World Info'], ['user', 'User settings'], ['image', 'Backgrounds'], ['plug', 'Extensions'], ['user', 'Persona'], ['user', 'Characters']];
+  for (const [i, label] of list) {
+    const b = h('button', { class: 'sti', 'aria-label': label, 'data-tip': label }, ic(i, 20, 1.8));
+    if (label === 'World Info') { b.id = 'st-wi'; b.classList.add('lit'); b.onclick = () => setOpen(!S.open); }
+    else b.onclick = () => setOpen(false);
+    box.append(b);
+  }
+})();
+const dw = document.getElementById('dc-width');
+function measure() {
+  const w = document.getElementById('wih').getBoundingClientRect().width;
+  document.getElementById('dc-px').textContent = Math.round(w) + ' px';
+  const n = w < 640; if (n !== S.narrow) { S.narrow = n; S.sideOpen = false; if (!active().home) renderBook(); }
+}
+dw.oninput = () => { document.documentElement.style.setProperty('--sheldWidth', dw.value + 'vw'); document.getElementById('dc-wv').textContent = dw.value + '%'; measure(); };
+document.getElementById('dc-min').onclick = () => document.getElementById('democtl').classList.toggle('min');
+new ResizeObserver(measure).observe(document.getElementById('wih'));
+(function initWidth() {
+  /* Most desktop screens show this at ST's default 50%. Start the demo a little wider on small windows so both panes show. */
+  if (innerWidth < 1500) { dw.value = Math.min(100, Math.ceil(900 / innerWidth * 100)); dw.oninput(); }
+})();
+render(); measure();
+</script>
+
+</body>
+</html>
