@@ -272,7 +272,7 @@ The shared entry page, as in Normal mode, with Story logic always open and
 | Delete | Take the selected card off the canvas (only without links) |
 | Esc | Menu, armed piece, strip (Cancel), text box, selection, then closes WI Hero |
 
-### Open questions
+### Notes
 
 - Settled: Tidy runs left to right, both side columns resize, hover dimming
   waits 350ms.
