@@ -157,6 +157,9 @@ The same page in both modes. Top to bottom:
 
 ## Normal mode
 
+Normal mode never shows Moments (CONCEPTS 3.13): not in the book's list, the
+search, the entries drawer or any entry count. They live in Hero mode.
+
 ### Bottom bar
 
 Shown on Home and the book page, hidden on the entry page.
@@ -293,7 +296,7 @@ and puts every port back on its default side.
 
 Under the canvas, always there, with a fold arrow (remembered). One row of chips
 that scrolls sideways: **Opens · Closes · Glue · Switch · Mask · Pack**, a
-divider, then **Lock · Wait**. The bar writes the same story logic as the
+divider, then **Lock · Wait · Moment**. The bar writes the same story logic as the
 inspector (CONCEPTS 3); it is the quick way to make links.
 
 **Placing.** Tap a chip and then a card (tap the chip again to disarm), or drag
@@ -323,6 +326,11 @@ itself, a broken switch) is refused with one line saying why.
 | Wait | The same places. 1, 2, 3, 5, 10 or a number of your own, and whose messages count. On a card it counts from the start of the chat |
 | Mask | Its name, **Write its text** (opens the entry on that mask), priority with ↑ ↓, "On when" (a loose end, a list, a phrase, a number of messages), and "Off when ▸" folded |
 | Pack | The book's packs as chips, and "+ New pack". `town/inn` sits inside `town` |
+| Moment | No strip of its own. Tapped on empty canvas: asks its name and places a new Moment, with its inspector open for the phrases. On an entry: the same, then "When *it* happens, *Mill*… opens / closes", which links them |
+
+**Make it a Moment** sits in an existing lock's strip, beside Remove: the
+lock's phrases (and who says them) move to a new Moment on the canvas, and the
+lock becomes a link from it, in the same row.
 
 **Turning a link around (⇄).** A link alone in its row moves with its locks
 and waits. One that shared a row leaves it, and the strip says so ("*Road* was
@@ -368,6 +376,13 @@ Piece cards:
 Picking a pack asks for the reading: Any of them, All of them, or a number.
 Where a lock is allowed there is a "Lock phrase…" row.
 
+**Moment inspector** (tap a Moment card): a spark and its name (no on/off
+switch), a line saying what a Moment is, its phrases as chips with × and a box
+to add one ("any one is enough"), Who says it (Anyone, You, The character),
+"Happened" or "Not yet" with chat state on, then its Gate, Gates for and Closes
+for rows and + Add logic for those. Footer: Rename · Take off canvas · Delete
+(only when nothing uses it) · Data.
+
 **Greeting inspector** (tap a greeting card): its name ("Greeting", "Alt 2"),
 the greeting's opening words (tap to read it all, read only), Gates for,
 Closes for, "Used by" (entries that read it), **Re-pick** when the
@@ -389,6 +404,7 @@ style: a list first, the book at the bottom.
 | + | New entry: asks for a name and makes it, without placing it: it waits in the panel with a hollow dot |
 | Folder header | Name, count, collapse arrow |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
+| Moments group | Under Greetings: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
 | Greetings group | First in the list. Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
@@ -662,7 +678,7 @@ lanes beside it. (The phone keeps top to bottom, which suits a tall screen.)
 
 Under the canvas, as on phones, but every chip shows its color, name and key:
 **Opens O · Closes C · Glue G · Switch S · Mask M · Pack P**, a divider,
-**Lock L · Wait W**, and a hint "Or drag from a card's port to another card".
+**Lock L · Wait W · Moment E**, and a hint "Or drag from a card's port to another card".
 The fold arrow sits inside the bar at its right end. On a narrow canvas the
 hint goes first, then the key letters, so no chip is ever cut off.
 

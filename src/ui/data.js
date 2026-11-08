@@ -49,6 +49,16 @@ export function addEntry(data, template, defaults = {}, fields = {}) {
     return entry;
 }
 
+/**
+ * A new Moment (CONCEPTS 3.13): stored as an entry with no content, switched off so ST never activates it,
+ * titled "Moment: <name>", its phrases as key words, flagged `moment: true` in its story logic.
+ */
+export function addMoment(data, template, name, phrases = []) {
+    const entry = addEntry(data, template, {}, { comment: `Moment: ${name}`, key: [...phrases], keysecondary: [], content: '', disable: true, constant: false, vectorized: false });
+    writeConfig(data, entry.uid, { id: uniqueId(slugify(name) || `moment-${entry.uid}`, idsIn(data)), moment: true });
+    return data.entries[entry.uid];
+}
+
 /** The ids used in a book's entries. */
 export const idsIn = data => new Set(entriesOf(data).map(idOf).filter(Boolean));
 

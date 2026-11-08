@@ -36,7 +36,9 @@ demo (in the git history) follows this model.
   opening", which settles conflicts inside the turn, and **locks in the user's
   message** (3.10), which open in the reply to that same message. A lock phrase
   in the character's reply counts from the next message, since the lore is
-  chosen before the reply is written.
+  chosen before the reply is written. **Moments** (3.13) follow the same timing
+  as locks: one said in the user's message happens in time for the reply to
+  it, one said in a reply happens from the next message.
 - **Only chat generations count.** A generation moves the story only if its
   result lands in the chat: normal replies, swipes, regenerations, continues.
   Quiet prompts, summaries, impersonation, dry runs and other extensions' calls
@@ -278,6 +280,31 @@ model.
   character, the greeting's number and a fingerprint of its opening words.
 - Single-character chats only, for now.
 
+### 3.13 Moment
+
+A lock that stands on its own card: something that can happen in the story,
+said in the chat, with no text of its own. "Missing tooth", "The storm
+breaks", "She learns his name".
+
+- It **happens** when one of its phrases is in the newest user message or the
+  newest reply, said by the side it allows (anyone, only the user, only the
+  character). Timing follows locks (2.1).
+- **Once it has happened, it stays happened** for that branch of the chat. It
+  rewinds with swipes and deletes like all other state.
+- Other things use it like an entry: in gate and close-gate rows and in mask
+  rows. It can carry **Gates for** and **Closes for**. "*Dentist* waits for
+  *Missing tooth*"; "*Tower* closes when *Missing tooth* happens".
+- **Its own gate arms it**: "Missing tooth only counts after *The kiss*". A
+  phrase said before the gate is met does nothing.
+- It **never sends anything** to the model. It takes no glue, masks, Once,
+  switch, close gate or strategy, and it can't be closed.
+- A lock in a row can become one: **Make it a Moment** moves its phrases to a
+  new Moment, and the lock becomes a link from it in the same row. Locks stay
+  as the quick inline form.
+- It is not an entry to read or write: Normal mode doesn't show Moments at all
+  (lists, search, entry counts), and Hero mode lists them only in the entry
+  panel's Moments group.
+
 ## 4. Linking and the canvas
 
 - **Anything with a link is on the canvas.** Linking to an entry that isn't
@@ -312,6 +339,8 @@ These are reported while editing. An entry with a problem never fires.
 - A malformed mask (reported, skipped, not blocking the entry).
 - A greeting that changed (edited or reordered since it was linked): it doesn't
   fire until it is re-picked.
+- A Moment with no phrases (it can never happen), and Closes for aimed at a
+  Moment (a Moment can't be closed).
 
 Warnings, which don't block:
 
@@ -321,6 +350,9 @@ Warnings, which don't block:
 - A gate row that the entry's own close gate always meets first, so the entry
   could never fire.
 - A greeting whose character is missing (it never fires).
+- A Moment nothing uses yet.
+- A Moment carrying a piece it takes none of (glue, masks, Once, a switch, a
+  close gate): it is ignored.
 
 Problems put a red "!" on the card and on the entry's row; ⌄ lists them all
 under "Problems".
@@ -368,6 +400,11 @@ Nothing in it is saved to the chat or the book.
   entries simply behave as plain World Info.
 - **Entry ids**: entries are referred to by a stable id kept in `wihero`, not
   ST's uid, so copying entries or merging books doesn't break links.
+- **Moments**: an entry of their own in the book, flagged `"moment": true` in
+  `wihero`, its phrases as the key words, no content, ST's switch off
+  (`disable: true`) and titled "Moment: *name*". ST never activates it, with or
+  without WI Hero; WI Hero matches its phrases itself. Its Who triggers is who
+  says it. It travels with export, cards and import like any entry.
 - **Story state**: on each chat message, per swipe (2.3).
 - **WI Hero's own settings**: canvas positions, port sides, the mask layer
   shown on each card, each canvas's camera, entry folders, book folders, each

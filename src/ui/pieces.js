@@ -19,6 +19,8 @@ export const PIECES = [
     { key: 'by', label: 'Who triggers', family: 'by', help: 'Whose messages the key words are matched against. Without it, both count.' },
 ];
 export const PIECE = Object.fromEntries(PIECES.map(p => [p.key, p]));
+/** What a Moment takes (CONCEPTS 3.13): its own gate (which arms it), and what it opens and closes. */
+export const MOMENT_PIECES = ['gate', 'gatesFor', 'closesFor'];
 export const ROW_FIELDS = ['gate', 'closeGate'];
 export const LIST_FIELDS = ['gatesFor', 'closesFor', 'switch', 'packs'];
 
@@ -38,6 +40,7 @@ export function hasPiece(c, key) {
 
 /** The pieces a config doesn't have yet that may be added. Once isn't offered on glued entries (CONCEPTS 3.5). */
 export function missingPieces(c) {
+    if (c?.moment === true) return PIECES.filter(p => MOMENT_PIECES.includes(p.key) && !hasPiece(c, p.key));
     return PIECES.filter(p => !hasPiece(c, p.key) && !(p.key === 'once' && hasPiece(c, 'glue')));
 }
 

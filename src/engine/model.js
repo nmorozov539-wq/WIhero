@@ -121,7 +121,12 @@ export function normalize(raw) {
     return { config: c, ui, legacy };
 }
 
-const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy'];
+const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment'];
+/** What a Moment can't take (CONCEPTS 3.13): it sends nothing, so nothing that shapes what is sent. */
+const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate' };
+
+/** Whether an ST entry is a Moment (CONCEPTS 3.13): a WI Hero entry flagged `moment: true`. */
+export const isMoment = entry => rawConfig(entry)?.moment === true;
 const BY = ['user', 'char'];
 
 /**
@@ -157,6 +162,7 @@ export function buildModel(entries, options = {}) {
             opens: { rows: [], all: [] }, closes: [], masks: [],
             probability: entry.useProbability !== false ? Number(entry.probability ?? 100) : 100,
             cooldown: Number(entry.cooldown) || 0,
+            moment: null,
         };
         byStKey.set(node.stKey, node);
         if (!isObject(config)) {
@@ -183,6 +189,16 @@ export function buildModel(entries, options = {}) {
         else node.once = config.once === true;
         if (config.by !== undefined && !BY.includes(config.by)) report(node, 'by must be "user" or "char"');
         else node.by = config.by ?? null;
+        if (config.moment !== undefined && config.moment !== true) report(node, 'moment must be true', { warning: true });
+        if (config.moment === true) {
+            // Its phrases are the entry's key words; who says them is its `by`.
+            const phrases = (Array.isArray(entry.key) ? entry.key : []).filter(k => typeof k === 'string' && k.trim()).map(k => k.trim());
+            node.moment = { phrases, by: node.by };
+            node.by = null; // not a filter on ST's activation: ST never activates a Moment
+            if (!phrases.length) report(node, 'is a Moment with no phrases, so it can never happen');
+            const extra = Object.entries(NOT_ON_MOMENT).filter(([k]) => config[k] !== undefined && !(k === 'once' && config.once === false));
+            if (extra.length) report(node, `is a Moment, which takes no ${extra.map(([, v]) => v).join(', ')}; ${extra.length > 1 ? 'they are' : 'it is'} ignored`, { warning: true });
+        }
     }
 
     // 2. Duplicate ids within a book: every copy is blocked.
@@ -292,7 +308,7 @@ export function buildModel(entries, options = {}) {
 
     // 3. Each entry's own rules.
     for (const node of nodes.values()) {
-        const c = node.config;
+        const c = node.moment ? Object.fromEntries(Object.entries(node.config).filter(([k]) => !(k in NOT_ON_MOMENT))) : node.config;
         const fail = message => report(node, message);
         if (c.gate !== undefined) {
             const rows = compileRows(node, c.gate, `${node.key}|g`, m => fail(`gate: ${m}`));
@@ -392,6 +408,7 @@ export function buildModel(entries, options = {}) {
         if (c.closesFor !== undefined) {
             for (const target of targetsOf(node, c.closesFor, 'closesFor')) {
                 const t = nodes.get(target);
+                if (t.moment) { report(node, `closesFor targets the Moment "${t.id}": a Moment can't be closed`); continue; }
                 const raw = [node.id];
                 t.closes.push({ row: { key: `${t.key}|c|for:${node.id}`, items: [{ type: 'entry', key: node.key }], waits: [], locks: [], raw }, kind: 'closesFor', source: node.key });
             }
@@ -431,7 +448,7 @@ export function buildModel(entries, options = {}) {
     const pathOwner = new Map();
     for (const node of nodes.values()) {
         const list = node.config.switch;
-        if (list === undefined) continue;
+        if (list === undefined || node.moment) continue;
         if (!Array.isArray(list) || list.some(x => typeof x !== 'string' || !x) || new Set(list).size < 2) { report(node, 'a switch needs at least two paths'); continue; }
         const paths = [];
         let bad = false;
@@ -459,7 +476,7 @@ export function buildModel(entries, options = {}) {
 
     // 6. Once: closes after the first firing, from the next message.
     for (const node of nodes.values()) {
-        if (node.once) node.closes.push({ row: { key: `${node.key}|c|once`, items: [{ type: 'self', key: node.key }], waits: [], locks: [], raw: ['once'] }, kind: 'once', source: node.key });
+        if (node.once && !node.moment) node.closes.push({ row: { key: `${node.key}|c|once`, items: [{ type: 'self', key: node.key }], waits: [], locks: [], raw: ['once'] }, kind: 'once', source: node.key });
     }
 
     // 7. Ride-along: riders by host.
@@ -468,6 +485,23 @@ export function buildModel(entries, options = {}) {
         if (node.glue?.mode !== 'ride') continue;
         if (!riders.has(node.glue.host)) riders.set(node.glue.host, []);
         riders.get(node.glue.host).push(node.key);
+    }
+
+    // 7b. Moments: each happens through its own rows, its gate (or nothing) and then a lock on its phrases, armed
+    // once the gate is met. A Moment nothing uses is a warning.
+    const used = new Set();
+    for (const node of nodes.values()) {
+        const rows = [...node.opens.rows, ...node.closes.map(cl => cl.row), ...node.masks.flatMap(m => [...m.opens, ...m.closes])];
+        for (const row of rows) for (const item of row.items) for (const k of refKeys(item)) if (k !== node.key) used.add(k);
+        for (const item of node.opens.all) used.add(item.source ?? item.key);
+        if (node.moment && ((node.config.gatesFor ?? []).length || (node.config.closesFor ?? []).length)) used.add(node.key);
+    }
+    for (const node of nodes.values()) {
+        if (!node.moment) continue;
+        const lock = { phrases: node.moment.phrases, by: node.moment.by };
+        const base = node.opens.rows.length ? node.opens.rows : [{ key: `${node.key}|g`, items: [], waits: [], locks: [], raw: [] }];
+        node.moment.rows = base.map((row, i) => ({ ...row, key: `${row.key}|happen`, locks: [...row.locks, { ...lock, key: `${node.key}|happen|${i}` }] }));
+        if (!used.has(node.key)) report(node, 'is a Moment nothing uses yet', { warning: true });
     }
 
     // 8. Rules that can never be met: loops through gates, packs and Gates for. Blocked entries count as able

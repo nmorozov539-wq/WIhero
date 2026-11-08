@@ -2,11 +2,11 @@
 // ST's drawer. Closing only hides it; after a reload it starts on Home (D6). N2 builds the shared chrome and normal
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
-import { buildModel } from '../engine/model.js';
+import { buildModel, isMoment } from '../engine/model.js';
 import { btn, createLayer, el, issueText, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
-    MIXED, PARAM_LIST, addEntry, filterChoices, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
+    MIXED, PARAM_LIST, addEntry, addMoment, filterChoices, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
     deleteBookSettings, duplicateEntry, entriesOf, entryAsText, folderOf, groupEntries, SORT_NAMES, sortEntries, idOf, isBlank, moveEntry,
     paramSummary, paramText, paramValue, rekeyEntry, removeEntry, renameBookSettings, search, setBookFolder, setFolder, setParam,
     strategyOf, titleOf,
@@ -14,7 +14,7 @@ import {
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
 import { closedText, logicLines } from './logic-text.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
-import { LR, PORT, TB, buildGraph, canvasBook, canvasSet } from './canvas-graph.js';
+import { LR, PORT, TB, buildGraph, canvasBook, canvasSet, momentName } from './canvas-graph.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { entryStatus } from '../engine/turn.js';
 import { getStringHash, isObject } from '../engine/util.js';
@@ -115,7 +115,11 @@ export function createApp(deps) {
     // ---------------------------------------------------------------- helpers
     const visibleNames = () => library.names().filter(n => !S.hiddenBooks.has(n));
     const hiddenIn = book => S.hiddenEntries.get(book) ?? new Set();
-    const entriesShown = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid));
+    // Moments are entries in the book, but not in any entry list, search or count (CONCEPTS 3.13): they live on the
+    // canvas and in the panel's Moments group. `linkable` is every entry a rule can name, Moments included.
+    const entriesShown = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid) && !isMoment(e));
+    const momentsOf = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid) && isMoment(e));
+    const linkable = (book, data) => [...entriesShown(book, data), ...momentsOf(book, data)];
     /**
      * The engine's model of a book, built once per change: a Hero draw asks for it several times (problems, the
      * panel, the inspector, the piece bar's checks). Only the library's working copies are kept; a trial copy (the
@@ -992,6 +996,7 @@ export function createApp(deps) {
                 closed: s.status === 'closed' ? closedText(state.closed[node.key].by, nameOf) : null,
                 holding: s.status === 'holding',
                 waiting: s.status === 'waiting',
+                happened: node.moment ? s.status === 'happened' : undefined,
                 mask: s.mask,
             };
         };
@@ -1215,7 +1220,7 @@ export function createApp(deps) {
         if (key.startsWith('pack:')) return { t: 'pack', name: key.slice(5) };
         if (key.startsWith('greet:')) { const g = chatGreetings(data).find(x => x.key === key); return g ? { t: 'greet', ref: g.ref } : null; }
         const e = entriesOf(data).find(x => cardKey(x) === key);
-        return e ? { t: 'entry', uid: e.uid } : null;
+        return e ? { t: 'entry', uid: e.uid, ...(isMoment(e) ? { moment: true } : {}) } : null;
     }
 
     /**
@@ -1271,7 +1276,7 @@ export function createApp(deps) {
             nameOfId,
             candidates: () => {
                 const d = data();
-                const out = sortEntries(entriesShown(book, d), sortBy()).map(e => ({ key: cardKey(e), end: { t: 'entry', uid: e.uid }, title: titleOf(e) }));
+                const out = sortEntries(linkable(book, d), sortBy()).map(e => ({ key: cardKey(e), end: { t: 'entry', uid: e.uid }, title: titleOf(e) }));
                 for (const p of packsOf(d)) out.push({ key: `pack:${p}`, end: { t: 'pack', name: p }, title: `#${p}` });
                 for (const g of chatGreetings(d)) out.push({ key: g.key, end: { t: 'greet', ref: g.ref }, title: `${g.title}: ${g.text.slice(0, 30)}` });
                 return out;
@@ -1297,10 +1302,18 @@ export function createApp(deps) {
             setFolded: v => { settings.pieceBarFolded = v; saveSettings(); },
             toast: t => layer.toast(t),
             place: (k, hit) => dropPiece(book, k, hit),
+            entryTemplate: deps.entryTemplate,
+            makeMoment: made => {
+                const mem = canvasMemory(bookSettings(settings, book));
+                const key = cardKey(made);
+                mem.cards[key] = { ...(mem.cards[key] ?? {}), placed: true };
+                saveSettings();
+            },
         };
     }
 
     function dropPiece(book, k, hit) {
+        if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null); return; }
         const r = startPiece(k, hit, barApi(book));
         if (r.why) { render(); layer.toast(r.why); return; }
         openStrip(book, r.edit);
@@ -1326,6 +1339,7 @@ export function createApp(deps) {
         if (B.armed) {
             const k = B.armed;
             B.armed = null;
+            if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null); return true; }
             if (!hit) { render(); return false; }
             dropPiece(book, k, hit);
             return true;
@@ -1337,6 +1351,39 @@ export function createApp(deps) {
         }
         if (hit?.row) { inspect(book, hit.row.key, PORT[hit.row.port].piece); return true; }
         return false;
+    }
+
+    /**
+     * A new Moment (CONCEPTS 3.13), from the piece bar: asks its name, places it on the canvas and opens its inspector
+     * for the phrases. Dropped on an entry, it asks whether the Moment opens or closes it, and links them.
+     */
+    function newMoment(book, on = null) {
+        if (on && (on.t !== 'entry' || on.moment)) { render(); layer.toast('A Moment reacts on an entry: it opens or closes it.'); return; }
+        const data = library.peek(book);
+        const target = on ? data?.entries[on.uid] : null;
+        layer.askText({
+            title: 'New Moment', placeholder: 'What happens: Missing tooth', ok: 'Make',
+            help: 'Something that can happen in the story, said in the chat. You add the phrases next.',
+            done: name => {
+                const made = library.change(book, d => addMoment(d, deps.entryTemplate, name.trim() || 'Moment'));
+                if (!made) return;
+                const key = cardKey(made);
+                const mem = canvasMemory(bookSettings(settings, book));
+                mem.cards[key] = { ...(mem.cards[key] ?? {}), placed: true };
+                saveSettings();
+                const finish = () => { render(); inspect(book, key); };
+                if (!target) { finish(); return; }
+                layer.sheet(`When ${name.trim()} happens, ${titleOf(target)}…`, sh => {
+                    for (const [kind, label] of [['open', 'opens'], ['close', 'closes']]) {
+                        sh.append(layer.opt(label, () => {
+                            layer.close();
+                            barAct(book, (ed, d) => addLink(ed, d, kind, { t: 'entry', uid: made.uid, moment: true }, { t: 'entry', uid: target.uid }, { join: 'and' }));
+                            finish();
+                        }));
+                    }
+                });
+            },
+        });
     }
 
     /** A new entry in a book, with the book's defaults for new entries. */
@@ -1371,7 +1418,7 @@ export function createApp(deps) {
             const fill = () => {
                 list.replaceChildren();
                 const needle = q.value.trim().toLowerCase();
-                const free = sortEntries(entriesShown(book, data), sortBy()).filter(e => !on.has(cardKey(e)) && (!needle || titleOf(e).toLowerCase().includes(needle)));
+                const free = sortEntries(linkable(book, data), sortBy()).filter(e => !on.has(cardKey(e)) && (!needle || titleOf(e).toLowerCase().includes(needle)));
                 for (const e of free.slice(0, 60)) list.append(layer.opt(titleOf(e), () => { layer.close(); place(cardKey(e), titleOf(e)); }, { dot: strategyColor(e), sub: entryFolder(book, e) || undefined }));
                 if (!free.length) list.append(el('p', 'help', needle ? 'Nothing matches.' : 'Every entry is on the canvas already.'));
             };
@@ -1608,6 +1655,34 @@ export function createApp(deps) {
                     list.append(box);
                 }
             }
+            // The book's Moments (CONCEPTS 3.13), under the greetings: the only list they are in.
+            const moments = sortEntries(momentsOf(book, data), 'az').filter(e => !needle || titleOf(e).toLowerCase().includes(needle) || (e.key ?? []).some(k => String(k).toLowerCase().includes(needle)));
+            if (moments.length) {
+                const open = !H.closedFolders.has('\u0000moments');
+                const hd = btn(`phdr${open ? ' open' : ''}`, `${ic('right')}<span>Moments</span><small></small>`, () => { open ? H.closedFolders.add('\u0000moments') : H.closedFolders.delete('\u0000moments'); fill(); });
+                hd.querySelector('small').textContent = moments.length;
+                list.append(hd);
+                if (open) {
+                    const box = el('div', 'pgrp');
+                    for (const e of moments) {
+                        const key = cardKey(e);
+                        const r = el('div', 'prow greet moment');
+                        r.dataset.key = key;
+                        const nm = el('span', 'nm');
+                        nm.append(el('b', '', momentName(e)), el('small', '', (e.key ?? []).map(k => `“${k}”`).join(' · ') || 'no phrases yet'));
+                        r.append(nm);
+                        if (heroCanvas?.view?.m?.byId(key)?.problem) r.append(el('span', 'pbang', '!'));
+                        const placed = on.has(key);
+                        const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
+                        const gd = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => { ev.stopPropagation(); if (!dragged(ev)) place(); }, placed ? `Show ${momentName(e)} on the canvas` : `Place ${momentName(e)} on the canvas`);
+                        if (desk) { dotDrag(r, key, momentName(e)); r.classList.toggle('on', H.insp?.key === key); } else dotDrag(gd, key, momentName(e));
+                        r.append(gd);
+                        r.addEventListener('click', ev => { if (desk && dragged(ev)) return; if (placed || desk) inspect(book, key); else place(); });
+                        box.append(r);
+                    }
+                    list.append(box);
+                }
+            }
             if (!groups.size) list.append(el('div', 'pnone', needle ? 'Nothing matches.' : 'No entries yet. Tap + to make one.'));
             for (const f of [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b))) {
                 let box = list;
@@ -1825,7 +1900,7 @@ export function createApp(deps) {
     function inspectorFor(book, data, box = main) {
         const I = H.insp;
         const view = heroCanvas?.view;
-        const shown = entriesShown(book, data);
+        const shown = linkable(book, data);
         const others = except => shown.filter(x => x.uid !== except).map(x => ({ uid: x.uid, title: titleOf(x), dot: strategyColor(x) }));
         const nameOfId = id => { const x = entriesOf(data).find(y => idOf(y) === id); return x ? titleOf(x) : id; };
         const common = {
@@ -1871,7 +1946,18 @@ export function createApp(deps) {
         const mem = canvasMemory(bookSettings(settings, book));
         renderInspector(box, {
             ...common, entry: e,
-            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: titleOf(e), open: I.open, lines, sources,
+            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources,
+            happened: isMoment(e) && H.chatState ? !!chatStatus(book)(I.key)?.happened : null,
+            renameMoment: () => layer.askText({
+                title: 'Rename Moment', placeholder: 'Missing tooth', value: momentName(e), ok: 'Rename',
+                done: v => { if (v.trim()) library.change(book, d => { d.entries[e.uid].comment = `Moment: ${v.trim()}`; }); },
+            }),
+            deleteMoment: () => {
+                const unused = model.issues.some(i => i.stKey === `${book}.${e.uid}` && /nothing uses/.test(i.message));
+                if (!unused) { layer.toast('Remove its links first: other cards use this Moment.'); return; }
+                H.insp = null;
+                deleteEntries(book, [e.uid]);
+            },
             others: others(e.uid), greetings: chatGreetings(data),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             closed: closedInfo(node, e),

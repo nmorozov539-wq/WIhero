@@ -61,6 +61,24 @@ function latchLocks(state, model, chat, texts) {
     }
 }
 
+/**
+ * Moments (CONCEPTS 3.13) that happen now: one of the phrases is in `texts` (on its side), with its gate met. A Moment
+ * happens once and stays happened; it is written as fired at the message that said it, so one said in the user
+ * message counts for the reply to it, one said in a reply from the next message (as locks, D1).
+ */
+function happenMoments(state, model, chat, texts) {
+    const ctx = { state, chat, texts, greetingOk: greetingOk(model) };
+    for (const node of model.nodes.values()) {
+        if (!node.moment?.rows || node.blocked || (state.fired[node.key] ?? 0) > 0) continue;
+        if (!node.opens.all.every(item => itemTime(item, ctx) !== null)) continue;
+        const r = anyRowMet(node.moment.rows, ctx);
+        if (!r) continue;
+        state.fired[node.key] = 1;
+        state.firstAt[node.key] = r.at;
+        state.lastAt[node.key] = r.at;
+    }
+}
+
 /** Closes every entry and mask whose close rules are met in `state` (latches already written). */
 function applyCloses(state, model, chat, at) {
     const ctx = { state, chat, greetingOk: greetingOk(model) };
@@ -87,7 +105,9 @@ function applyCloses(state, model, chat, at) {
  */
 export function stateForScan(chat, model, options = {}) {
     const { state } = baseState(chat, model, options);
-    latchLocks(state, model, chat, newestTexts(chat));
+    const texts = newestTexts(chat);
+    latchLocks(state, model, chat, texts);
+    happenMoments(state, model, chat, texts);
     applyCloses(state, model, chat, chat.length);
     return state;
 }
@@ -113,6 +133,7 @@ export function mayFire(node, state, chat, model) {
 export function keepAtLoad(entry, model, state, chat, sticky) {
     const node = model.byStKey.get(`${entry.world}.${entry.uid}`);
     if (!node) return true;
+    if (node.moment) return false; // it sends nothing (stored off; this covers one switched on by hand)
     if (sticky?.has(node.stKey)) return true;
     if (node.blocked || !node.key || state.closed[node.key]) return false;
     if (state.holding[node.key]) return true;
@@ -259,7 +280,10 @@ export function advance(working, pending, model, chat, mesId) {
     }
     // 4. Locks whose phrase is in the new reply act from the next message (D1).
     const reply = chat[mesId];
-    if (reply && !reply.is_user) latchLocks(next, model, chat, { char: { text: reply.mes ?? '', at: mesId } });
+    if (reply && !reply.is_user) {
+        latchLocks(next, model, chat, { char: { text: reply.mes ?? '', at: mesId } });
+        happenMoments(next, model, chat, { char: { text: reply.mes ?? '', at: mesId } });
+    }
     // 5–6. Close rules met now (Once, this turn's fires, new latches, waits) close from the next message.
     applyCloses(next, model, chat, mesId);
     return next;
@@ -298,6 +322,10 @@ export function keywordOnSide(entry, chat, side, globals) {
  * @returns {{ status: 'blocked' | 'closed' | 'holding' | 'open' | 'waiting', text: string, mask: string | null }}
  */
 export function entryStatus(node, state, chat, model) {
+    if (node.moment) {
+        if (node.blocked) return { status: 'blocked', text: 'has a problem', mask: null };
+        return (state.fired[node.key] ?? 0) > 0 ? { status: 'happened', text: 'happened', mask: null } : { status: 'waiting', text: 'not yet', mask: null };
+    }
     const mask = node.masks?.length && !node.blocked ? chooseMask(node, state, chat, model) : null;
     if (node.blocked) return { status: 'blocked', text: 'has a problem', mask: null };
     const closed = state.closed[node.key];

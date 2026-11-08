@@ -4,7 +4,7 @@ import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 import { explain } from './preview.js';
 
-const FAMILY = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', fire: 'var(--s-key)' };
+const FAMILY = { moment: 'var(--accent)', open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', fire: 'var(--s-key)' };
 const PLACEHOLDER = { user: 'Type what you would write', reply: 'Type or paste the character\'s reply' };
 const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
 const low = t => t.charAt(0).toLowerCase() + t.slice(1);
