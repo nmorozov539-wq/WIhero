@@ -4,7 +4,7 @@
 import { buildModel, FIELD, rawConfig, stKey } from './engine/model.js';
 import { advance, baseState, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
 import { pickMask, reopen } from './engine/manual.js';
-import { greetingFingerprint, greetingsOf, openingGreeting, writeSnapshot } from './chat-state.js';
+import { greetingFpOf, greetingSignature, openingGreeting, writeSnapshot } from './chat-state.js';
 import { isCounted, scanChat } from './generation.js';
 import { entryHash, scanLength, stickyHeld } from './timers.js';
 import { probeEntriesLoaded, probeScanDone } from './compat.js';
@@ -56,16 +56,11 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         return c.characters?.[c.characterId] ?? null;
     };
     const stateOptions = chat => ({ greeting: openingGreeting(chat, character()), renamed: settings.renamed ?? {} });
-    const greetingFp = (avatar, n) => {
-        const char = ctx().characters?.find?.(c => c.avatar === avatar);
-        if (!char) return undefined;
-        const list = greetingsOf(char);
-        return n < list.length ? greetingFingerprint(list[n], st.getStringHash) : null;
-    };
+    const greetingFp = greetingFpOf(() => ctx().characters, st.getStringHash);
 
     function rebuild(entries) {
         const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}`).join('\n')
-            + `\n${character()?.avatar ?? ''}|${greetingsOf(character()).join('\u0000').length}`;
+            + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;
         model = buildModel(entries, { greetingFp });

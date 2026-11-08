@@ -9,7 +9,7 @@ import { createApp } from './src/ui/app.js';
 import { mountPanel, render, renderNotice } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
 import { createBubble } from './src/bubble.js';
-import { checkHealth, createHealth, standDownText, stVersion } from './src/compat.js';
+import { checkHealth, createHealth, EVENTS, standDownText, stVersion } from './src/compat.js';
 import * as st from './src/st.js';
 
 const ctx = () => SillyTavern.getContext();
@@ -115,15 +115,24 @@ function registerCommands() {
 }
 registerCommands();
 
-eventSource.on(eventTypes.GENERATION_STARTED, hooks.onGenerationStarted);
-eventSource.on(eventTypes.GENERATION_AFTER_COMMANDS, hooks.onAfterCommands);
-eventSource.on(eventTypes.WORLDINFO_ENTRIES_LOADED, hooks.onEntriesLoaded);
-eventSource.on(eventTypes.WORLDINFO_SCAN_DONE, hooks.onScanDone);
-eventSource.on(eventTypes.WORLD_INFO_ACTIVATED, hooks.onWorldInfoActivated);
-eventSource.on(eventTypes.MESSAGE_RECEIVED, hooks.onMessageReceived);
-eventSource.on(eventTypes.GENERATION_STOPPED, hooks.dropPending);
-eventSource.on(eventTypes.CHAT_CHANGED, hooks.dropPending);
-for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_RECEIVED']) eventSource.on(eventTypes[type], refresh);
+/**
+ * Subscribes to an ST event by name, only if this ST has it. The engine's own events are in the health check
+ * (compat.js EVENTS), which stands the engine down without them; the rest only keep panels and the editor fresh,
+ * so a missing one is named in the console and skipped.
+ */
+function on(type, fn) {
+    if (eventTypes[type]) { eventSource.on(eventTypes[type], fn); return; }
+    if (!EVENTS.includes(type)) console.warn(`[WI Hero] SillyTavern has no ${type} event; what follows it may not refresh.`);
+}
+on('GENERATION_STARTED', hooks.onGenerationStarted);
+on('GENERATION_AFTER_COMMANDS', hooks.onAfterCommands);
+on('WORLDINFO_ENTRIES_LOADED', hooks.onEntriesLoaded);
+on('WORLDINFO_SCAN_DONE', hooks.onScanDone);
+on('WORLD_INFO_ACTIVATED', hooks.onWorldInfoActivated);
+on('MESSAGE_RECEIVED', hooks.onMessageReceived);
+on('GENERATION_STOPPED', hooks.dropPending);
+on('CHAT_CHANGED', hooks.dropPending);
+for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_RECEIVED']) on(type, refresh);
 
 // ---- Catch-up (BUILD_SPEC 17.1): replies that ran with WI Hero off leave the story state behind.
 const FIXED = { catchUp: n => `Caught up on ${n} ${n === 1 ? 'reply' : 'replies'}, oldest first.`, keep: () => 'Kept the old story state.', fresh: () => 'The story state starts again from the newest reply.' };
@@ -157,7 +166,7 @@ async function offerCatchUp() {
     const how = { [POPUP_RESULT.AFFIRMATIVE]: 'catchUp', [POPUP_RESULT.CUSTOM1]: 'keep', [POPUP_RESULT.CUSTOM2]: 'fresh' }[result];
     if (how) await fixGap(how);
 }
-eventSource.on(eventTypes.CHAT_CHANGED, () => setTimeout(offerCatchUp, 300));
+on('CHAT_CHANGED', () => setTimeout(offerCatchUp, 300));
 
 // ---- The editor (N2)
 let snapshots = null;
@@ -165,6 +174,12 @@ const library = createLibrary({
     ctx: uiCtx, WI: st.WI, powerUser: ctx().powerUserSettings, settings, saveSettings: saveSettingsDebounced,
     onFirstSeen: (name, data, o) => snapshots.seed(name, data, o),
     onChange: () => app?.refresh(),
+    onSaveError: (name, e, final, what = 'save') => {
+        console.error(`[WI Hero] Could not ${what}`, name, e);
+        globalThis.toastr?.error(what === 'export' ? `Could not export ${name}.`
+            : final ? `Could not save ${name}. Your edits are kept here; the next change tries again.`
+                : `Could not save ${name}. Trying again in a few seconds.`, 'WI Hero');
+    },
 });
 snapshots = createSnapshots({ ctx, settings, saveSettings: saveSettingsDebounced, library });
 
@@ -260,7 +275,7 @@ globalThis.jQuery?.('#world_editor_select').on('change', function () {
     askedTimer = setTimeout(() => { askedBook = null; }, 1500);
 });
 
-eventSource.on(eventTypes.WORLDINFO_UPDATED, library.onWorldInfoUpdated);
+on('WORLDINFO_UPDATED', library.onWorldInfoUpdated);
 for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
 
 globalThis.wihero = {

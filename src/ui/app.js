@@ -8,7 +8,7 @@ import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
     deleteBookSettings, duplicateEntry, entriesOf, entryAsText, folderOf, groupEntries, SORT_NAMES, sortEntries, idOf, isBlank, moveEntry,
-    paramSummary, paramText, paramValue, rekeyEntry, renameBookSettings, search, setBookFolder, setFolder, setParam,
+    paramSummary, paramText, paramValue, rekeyEntry, removeEntry, renameBookSettings, search, setBookFolder, setFolder, setParam,
     strategyOf, titleOf,
 } from './data.js';
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
@@ -18,7 +18,7 @@ import { LR, PORT, TB, buildGraph, canvasBook, canvasSet } from './canvas-graph.
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { entryStatus } from '../engine/turn.js';
 import { getStringHash, isObject } from '../engine/util.js';
-import { greetingFingerprint, greetingsOf, openingGreeting } from '../chat-state.js';
+import { greetingFingerprint, greetingFpOf, greetingSignature, greetingsOf, openingGreeting } from '../chat-state.js';
 import { addToList, bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
 import { addLink } from './links.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
@@ -115,12 +115,17 @@ export function createApp(deps) {
      * piece bar tries an edit on one first) is built fresh each time.
      */
     const models = new WeakMap();
+    // Built like the runtime's model (st-hooks), so a changed greeting shows here as it will play.
+    const greetingFp = greetingFpOf(() => ctx().characters, getStringHash);
+    const openCharacter = () => { const c = ctx(); return c.groupId ? null : c.characters?.[c.characterId] ?? null; };
+    const buildBookModel = entries => buildModel(entries, { greetingFp });
     const modelOf = (book, data) => {
         const own = library.peek(book) === data;
         const kept = own ? models.get(data) : null;
-        if (kept && kept.book === book && kept.version === library.version) return kept.model;
-        const model = buildModel(entriesOf(data).map(e => ({ ...e, world: book })));
-        if (own) models.set(data, { book, version: library.version, model });
+        const greets = greetingSignature(openCharacter(), getStringHash);
+        if (kept && kept.book === book && kept.version === library.version && kept.greets === greets) return kept.model;
+        const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })));
+        if (own) models.set(data, { book, version: library.version, greets, model });
         return model;
     };
     const problemsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && !i.warning && i.blocking !== false);
@@ -133,15 +138,30 @@ export function createApp(deps) {
      * A page that opens a book also asks for its As imported copy (library.seen).
      */
     const waiting = new Set();
+    /** book → why it could not be loaded. */
+    const loadFailed = new Map();
     function need(book, { open = true } = {}) {
         const data = library.peek(book);
         if (data) { if (open) library.seen(book); return data; }
-        if (!waiting.has(book)) {
+        if (!waiting.has(book) && !loadFailed.has(book)) {
             waiting.add(book);
-            library.get(book).then(d => { waiting.delete(book); if (d) scheduleRender(); }, () => waiting.delete(book));
+            const fail = why => {
+                waiting.delete(book);
+                // Kept until WI Hero is closed, so a page that needs the book doesn't ask again on every draw.
+                loadFailed.set(book, why);
+                if (open) layer.toast(`Could not load ${book}: ${why}`);
+                scheduleRender();
+            };
+            library.get(book).then(d => {
+                if (!d) { if (library.names().includes(book)) fail('it came back empty'); else waiting.delete(book); return; }
+                waiting.delete(book);
+                scheduleRender();
+            }, e => { console.error('[WI Hero] Could not load', book, e); fail(e?.message || 'an error'); });
         }
         return null;
     }
+    /** What a page shows while its book isn't there: still loading, or why it couldn't be. */
+    const loadingNote = book => (loadFailed.has(book) ? `Could not load ${book}: ${loadFailed.get(book)}.` : 'Loading…');
 
     /**
      * Home's entry counts: books load in the background, a few at a time, and each count is written into its row
@@ -297,7 +317,7 @@ export function createApp(deps) {
         delete p.fresh;
         const e = library.peek(p.book)?.entries[p.uid];
         if (e && isBlank(e)) {
-            library.change(p.book, d => { delete d.entries[p.uid]; }, { quiet: true });
+            library.change(p.book, d => { removeEntry(d, p.uid); }, { quiet: true });
             layer.toast('Empty entry removed');
         }
     }
@@ -375,7 +395,8 @@ export function createApp(deps) {
         layer.close();
         layer.flushToast();
         host.hidden = true;
-        library.flush();
+        library.flush().catch(() => {}); // a failed save is reported by the library
+        loadFailed.clear();
         if (history.state?.wihero) { ignorePop = true; history.back(); }
         deps.onVisible?.(false);
     }
@@ -465,7 +486,7 @@ export function createApp(deps) {
         main.append(v);
         const data = need(p.book);
         if (!library.names().includes(p.book) && !data) { v.append(el('div', 'empty-note', 'This book was deleted or renamed.')); return; }
-        if (!data) { v.append(el('div', 'empty-note', 'Loading…')); return; }
+        if (!data) { v.append(el('div', 'empty-note', loadingNote(p.book))); return; }
         const book = p.book;
         const model = modelOf(book, data);
         const all = entriesShown(book, data);
@@ -721,7 +742,7 @@ export function createApp(deps) {
     // ---------------------------------------------------------------- entry page
     function renderEntry(p, nav = null, into = main, extra = {}) {
         const data = need(p.book);
-        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', library.names().includes(p.book) ? 'Loading…' : 'This book was deleted or renamed.')); into.append(v); return; }
+        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', library.names().includes(p.book) ? loadingNote(p.book) : 'This book was deleted or renamed.')); into.append(v); return; }
         const e = data.entries[p.uid];
         if (!e || hiddenIn(p.book).has(p.uid)) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'This entry was deleted.')); into.append(v); return; }
         const book = p.book;
@@ -816,8 +837,10 @@ export function createApp(deps) {
         layer.askText({
             title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
             done: async n => {
-                const name = await library.create(n);
-                openIn({ type: 'book', book: name }, { newTab: true });
+                try {
+                    const name = await library.create(n);
+                    openIn({ type: 'book', book: name }, { newTab: true });
+                } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
             },
         });
     }
@@ -841,7 +864,7 @@ export function createApp(deps) {
                 library.change(book, d => {
                     for (const u of gone) {
                         if (d.entries[u]) delete folders[cardKey(d.entries[u])];
-                        delete d.entries[u];
+                        removeEntry(d, u);
                     }
                 });
                 saveSettings();
@@ -1078,7 +1101,7 @@ export function createApp(deps) {
         const book = heroBook();
         if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
         const data = need(book);
-        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'Loading…')); main.append(v); return; }
+        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', loadingNote(book))); main.append(v); return; }
 
         if (S.desk) deskColumns(); // the columns first, so the canvas fits the room it really has
         const vp = el('div', 'vp');
@@ -1349,13 +1372,13 @@ export function createApp(deps) {
         const book = heroBook();
         if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
         const data = need(book);
-        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'Loading…')); main.append(v); return; }
+        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', loadingNote(book))); main.append(v); return; }
         const seeds = previewSeeds();
         let seed = seeds.find(x => x.id === H.pv?.seed);
         if (!seed) { seed = seeds[0]; seedPreview(seed); }
         const shown = entriesShown(book, data);
         const entries = shown.map(e => ({ ...e, world: book }));
-        const model = buildModel(entries);
+        const model = buildBookModel(entries);
         const g = deps.scan?.globals?.() ?? {};
         const run = runPreview({
             entries, model, base: seed.base, greeting: seed.greeting, renamed: settings.renamed ?? {},
@@ -2095,7 +2118,8 @@ export function createApp(deps) {
         });
     }
     async function duplicateBook(book) {
-        const to = await library.duplicate(book);
+        let to;
+        try { to = await library.duplicate(book); } catch (e) { layer.toast(`Could not duplicate ${book}: ${e.message}`); return; }
         copyBookSettings(settings, book, to);
         saveSettings();
         openIn({ type: 'book', book: to }, { newTab: true });
@@ -2545,7 +2569,7 @@ export function createApp(deps) {
         const uid = p.fresh;
         p.fresh = null;
         const e = library.peek(p.book)?.entries[uid];
-        if (e && isBlank(e)) { library.change(p.book, d => { delete d.entries[uid]; }, { quiet: true }); layer.toast('Empty entry removed'); }
+        if (e && isBlank(e)) { library.change(p.book, d => { removeEntry(d, uid); }, { quiet: true }); layer.toast('Empty entry removed'); }
     }
     /** A new entry in a book (and folder), with the book's defaults, not opened anywhere yet. */
     function createEntryIn(book, folder = '') {
@@ -2567,7 +2591,7 @@ export function createApp(deps) {
     const deskN = deskNormal({
         S, settings, library, layer, main, root, shadow,
         saveSettings: () => saveSettings(),
-        tab, page, leave, render, renderTabs, closeTab, hide, need, modelOf, entriesShown, hiddenIn, entryFolder,
+        tab, page, leave, render, renderTabs, closeTab, hide, need, loadingNote, modelOf, entriesShown, hiddenIn, entryFolder,
         problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, wiSettingsSheet,
         bookFolderSheet, folderSheet, snapshotsSheet, problemsSheet, renameBook, duplicateBook, newEntryFolder, openHero,
         createEntryIn, entryMenu, moveToBookSheet, applyParam, leaveEntry,

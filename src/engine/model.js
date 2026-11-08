@@ -238,6 +238,7 @@ export function buildModel(entries, options = {}) {
                 const [, name, mode] = reading;
                 const keys = members(node.book, name);
                 if (!keys.length) return { error: `links to pack "#${name}", which no entry carries` };
+                if (mode !== undefined && mode !== 'all' && !(Number(mode) >= 1)) return { error: `"${ref}" counts from 1: use #${name} for any member` };
                 return { item: { type: 'pack', name, keys, mode: mode === 'all' ? 'all' : mode ? Number(mode) : 'any' } };
             }
             if (!ID_PATTERN.test(ref)) return { error: `"${ref}" is not a valid link` };
@@ -331,7 +332,7 @@ export function buildModel(entries, options = {}) {
             if (node.glue && node.cooldown > 0) report(node, 'has a cooldown, so glue can\'t keep it on every turn', { warning: true });
         }
         if (c.masks !== undefined) {
-            if (!Array.isArray(c.masks)) report(node, 'masks must be a list', { blocking: false });
+            if (!Array.isArray(c.masks)) report(node, 'masks must be a list', { warning: true });
             else node.masks = compileMasks(node, c.masks);
         }
     }
@@ -340,7 +341,7 @@ export function buildModel(entries, options = {}) {
         const out = [];
         list.forEach((mask, i) => {
             const name = isObject(mask) && typeof mask.name === 'string' && mask.name ? mask.name : null;
-            const skip = message => report(node, `mask ${name ? `"${name}"` : i + 1} ${message}; it is skipped`, { blocking: false });
+            const skip = message => report(node, `mask ${name ? `"${name}"` : i + 1} ${message}; it is skipped`, { warning: true });
             if (!isObject(mask)) return skip('is not an object');
             if (!name || !ID_PATTERN.test(name)) return skip(name ? 'has a name that is not valid' : 'has no name');
             if (out.some(m => m.name === name)) return skip('has a name used twice');

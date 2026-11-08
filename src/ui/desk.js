@@ -416,7 +416,7 @@ export function deskNormal(A) {
         const wrap = el('div', 'bk');
         main.append(wrap);
         if (!library.names().includes(p.book) && !data) { wrap.append(el('div', 'empty-note', 'This book was deleted or renamed.')); return; }
-        if (!data) { wrap.append(el('div', 'empty-note', 'Loading…')); return; }
+        if (!data) { wrap.append(el('div', 'empty-note', A.loadingNote(p.book))); return; }
         const book = p.book;
         const model = A.modelOf(book, data);
         const all = A.entriesShown(book, data);

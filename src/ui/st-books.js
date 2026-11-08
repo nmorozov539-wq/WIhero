@@ -5,6 +5,9 @@ import { upgradeBook } from '../book.js';
 import { adoptUiFields } from './data.js';
 
 const SAVE_DELAY = 350;
+/** A failed save is tried again after this, a few times, before the book is left unsaved until its next change. */
+const RETRY_DELAY = 5000;
+const RETRIES = 3;
 
 /**
  * @param {object} deps
@@ -16,11 +19,15 @@ const SAVE_DELAY = 350;
  * @param {(name: string, data: object) => Promise<void>} [deps.onFirstSeen] called before a book is first opened or
  *   changed (As imported). Listing books (Home) doesn't count: it would upload a copy of every book at once.
  * @param {() => void} [deps.onChange]
+ * @param {(name: string, error: unknown, final: boolean, what?: 'save' | 'export') => void} [deps.onSaveError] a save
+ *   (or export) of `name` failed; `final` when it won't be tried again until the book changes.
  */
-export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {} }) {
+export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {}, onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e) }) {
     /** name → the working copy WI Hero edits; ST's cache is updated on every save. */
     const copies = new Map();
     const timers = new Map();
+    /** name → failed saves in a row. */
+    const failures = new Map();
     /** Objects WI Hero handed to saveWorldInfo, to tell its own saves from other ones. */
     const ours = new WeakSet();
     const loading = new Map();
@@ -68,9 +75,9 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         return out;
     }
 
-    function schedule(name) {
+    function schedule(name, delay = SAVE_DELAY) {
         clearTimeout(timers.get(name));
-        timers.set(name, setTimeout(() => save(name), SAVE_DELAY));
+        timers.set(name, setTimeout(() => save(name), delay));
     }
 
     async function save(name) {
@@ -85,12 +92,26 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         saveSettings();
         const copy = structuredClone(data);
         ours.add(copy);
-        await ctx().saveWorldInfo(name, copy, true);
+        try {
+            await ctx().saveWorldInfo(name, copy, true);
+        } catch (e) {
+            // Never rejects: callers (the debounce, flush on close) don't wait for it. The working copy keeps the edit.
+            const n = (failures.get(name) ?? 0) + 1;
+            const final = n >= RETRIES;
+            failures.set(name, final ? 0 : n);
+            if (!final && !timers.has(name)) schedule(name, RETRY_DELAY);
+            onSaveError(name, e, final);
+            return false;
+        }
+        failures.delete(name);
         ctx().reloadWorldInfoEditor?.(name);
+        return true;
     }
 
+    /** Saves every pending book now. Rejects when one fails (already reported), so a book action waiting on it stops. */
     async function flush() {
-        await Promise.all([...timers.keys()].map(save));
+        const done = await Promise.all([...timers.keys()].map(save));
+        if (done.includes(false)) throw Object.assign(new Error('a book could not be saved'), { reported: true });
     }
 
     /** Another save of the book (ST's own editor, a slash command): drop the working copy so the next read is fresh. */
@@ -194,8 +215,16 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
 
     /** Downloads the same file as ST's own export (D10). */
     async function exportBook(name) {
-        await flush();
-        const data = await ctx().loadWorldInfo(name);
+        let data;
+        try {
+            await flush();
+            data = await ctx().loadWorldInfo(name);
+            if (!data) throw new Error('it came back empty');
+        } catch (e) {
+            // Every caller starts it without waiting, so it reports here.
+            if (!e?.reported) onSaveError(name, e, true, 'export');
+            return false;
+        }
         const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
