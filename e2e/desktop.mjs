@@ -33,7 +33,8 @@ const errors = [];
 async function open(w, h, query = '') {
     const page = await browser.newPage({ viewport: { width: w, height: h } });
     page.on('pageerror', e => errors.push(`${w}x${h}: ${e.message}`));
-    page.on('console', m => { if (m.type() === 'error') errors.push(`${w}x${h}: ${m.text().slice(0, 300)}`); });
+    // The harness has no favicon; the browser asks for one at its own pace.
+    page.on('console', m => { if (m.type() === 'error' && !m.location().url.endsWith('/favicon.ico')) errors.push(`${w}x${h}: ${m.text().slice(0, 300)}`); });
     await page.goto(`${BASE}?reset${query}`);
     await page.locator('#wihero-editor .tab').first().waitFor();
     return page;
@@ -58,6 +59,19 @@ async function normalMode(w, h, drawer) {
     ok(`${w}: Normal mode in the drawer box (${drawer}px)`);
     await $(page, '.tile').first().waitFor();
     ok(`${w}: Home shows tiles`);
+    assert.equal(await $(page, '.tadd, .dfilter').count(), 0, 'no + tab and no Filter books box');
+    assert.equal(await $(page, '.dseg button span').count(), 0, 'the view switch is icons only');
+    const loose = await $(page, '.dfolder').filter({ hasText: 'Not in a folder' });
+    if (await loose.count()) assert.equal(await loose.isVisible(), await page.evaluate(() => wihero.library.names().some(n => !Object.values(wihero.settings.bookFolders ?? {}).some(l => l.includes(n)))), '"Not in a folder" shows only while it holds a book');
+    const tabs = await $(page, '.tab').count();
+    await $(page, '.tile').filter({ hasText: 'WIHero-Sample' }).click({ button: 'right' });
+    await $(page, '.sheet.pop').getByText('New tab', { exact: true }).click();
+    assert.equal(await $(page, '.tab').count(), tabs + 1, 'New tab adds a tab');
+    assert.ok(await $(page, '.tile').first().isVisible(), 'and stays on Home');
+    await $(page, '.tab').nth(tabs).click();
+    await $(page, '.brow').first().waitFor();
+    await $(page, '.tab.fixed').click();
+    ok(`${w}: Home: no + tab or filter box, icon view switch, New tab stays on Home`);
     await $(page, '.tile').filter({ hasText: 'WIHero-Sample' }).click();
     await $(page, '.brow').first().waitFor();
     assert.ok(await $(page, '.bl').isVisible() && await $(page, '.br').isVisible(), 'two panes');
@@ -185,13 +199,42 @@ async function heroMode(w, h, drawer) {
 }
 
 async function narrow() {
-    // 1200px wide: the drawer is 600px, under the 640px where the book's list becomes an overlay.
+    // 1200px wide: the drawer is 600px, under the 640px where the book shows its list, then an entry.
     const page = await open(1200, 800);
     await $(page, '.tile').filter({ hasText: 'WIHero-Sample' }).click();
     await $(page, '.en-line, .bl').first().waitFor();
     assert.equal(Math.round((await hostBox(page)).w), 600);
+    const shows = sel => $(page, sel).first().isVisible();
+    assert.ok(await shows('.bk .bl'), 'the book opens on its entry list');
+    assert.ok(!(await shows('.bk .br')), 'with no empty entry pane beside it');
+    const listW = await $(page, '.bk .bl').evaluate(n => n.getBoundingClientRect().width);
+    assert.ok(listW > 560, `the list fills the drawer (${listW}px)`);
     await shot(page, 'narrow-book');
-    ok('a 600px drawer: the book opens');
+    ok('a 600px drawer: the book opens on its entry list, full width');
+    await $(page, '.brow').first().click();
+    await $(page, '.br .en h1').waitFor();
+    assert.ok(!(await shows('.bk .bl')), 'an entry fills the book');
+    await shot(page, 'narrow-entry');
+    await $(page, '.br .en-line .lbtn').first().click();
+    assert.ok(await shows('.bk .bl'), '← goes back to the list');
+    assert.ok(!(await shows('.bk .br')));
+    ok('a 600px drawer: an entry fills the drawer, ← goes back to the list');
+    // Widen: the whole window (no side panel open), still above the send form; the two panes come back.
+    await $(page, '.tright .iconbtn[aria-label="Widen"]').click();
+    let box = await hostBox(page);
+    assert.equal(Math.round(box.w), 1200, 'widened, WI Hero takes the window\'s width');
+    assert.equal(Math.round(box.y + box.h), 800 - 47, 'and stops above the send form');
+    assert.ok(await shows('.bk .bl') && await shows('.bk .br'), 'with the list and the entry side by side');
+    await shot(page, 'widened-book');
+    // An open side panel: WI Hero keeps clear of it (ST's panel is half of what Chat width leaves: 300px here).
+    await page.evaluate(() => wihero.app.host.classList.add('pl'));
+    box = await hostBox(page);
+    assert.equal(Math.round(box.x), 299);
+    await page.evaluate(() => wihero.app.host.classList.remove('pl'));
+    assert.equal(await page.evaluate(() => wihero.settings.desk.normalWide), true, 'remembered');
+    await $(page, '.tright .iconbtn[aria-label="Drawer size"]').click();
+    assert.equal(Math.round((await hostBox(page)).w), 600, 'Drawer size puts it back');
+    ok('Widen in Normal mode: the window\'s width beside side panels, remembered, and back');
     await page.evaluate(() => { wihero.settings.desk = { heroWide: false }; });
     await toHero(page);
     assert.equal(await $(page, '.hinsp').count(), 0, 'the inspector starts hidden in a narrow drawer');

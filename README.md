@@ -19,6 +19,11 @@ In SillyTavern, open **Extensions** → **Install extension**, paste
 Run the tests with `node --test`; the in-ST checks are in [e2e/](e2e/README.md).
 The spec is in [docs/](docs/), starting at [BUILD_SPEC.md](docs/BUILD_SPEC.md).
 
+**Versions.** Every PR that changes the extension sets `version` in
+`manifest.json` to `0.<PR number>.0`, so the version ST shows names the PR it
+came from. A fix pushed straight to `main` bumps the last number. `1.0.0` is
+for the first release.
+
 ## License
 
 GPLv3. See [LICENSE](LICENSE).

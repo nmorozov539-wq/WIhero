@@ -49,10 +49,10 @@ scroll sideways. There is no tab list.
 | ⌄             | Opens the menu sheet (contents per mode, below) |
 | Permanent tabs | Icon only, first in the row, can't be closed. Normal mode: Home. Hero mode: Canvas and Preview |
 | Other tabs    | Tap to switch. The active tab has a thin accent underline; × shows only on it. Closing a tab shows the one to its right (the one to its left when it was the last) |
-| Pull left     | Normal mode: pulling the tab row left past its end opens a new tab; a + grows at the right end and turns the accent color when letting go will open it |
 
 Anything opened from a permanent tab opens in a new tab. Long press opens it in
-a background tab.
+a background tab. There is no "new tab" control: Home is always one tap away
+and opens everything in a tab of its own.
 
 ### ⌄ menu
 
@@ -67,7 +67,7 @@ pick shows its effect behind it.
 | View / Book | Home: Open books in (Normal mode, Hero mode). Book page: Sort by (Order, A–Z, Key words first, Permanent first, Vectorized first; inside each folder) · Show disabled entries (Shown, Hidden) · Problems (n) › when there are any · Snapshots › | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Snapshots › |
 | Canvas | | Tidy layout · Legend (Shown, Hidden) · Show chat state (switch, off by default) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) | Content font · Colors |
-| Tabs | New tab · Close other tabs | Close other tabs |
+| Tabs | Close other tabs | Close other tabs |
 
 The View section is left out on the entry page.
 
@@ -424,6 +424,10 @@ The phone screens stay as they are below that.
   Info button, another top bar drawer, the × in the tab row, or Esc).
 - Everything inside is laid out for the drawer's width, not the window's. At
   1920px wide and 50% that is 960px; at 1366px it is 683px.
+- **Widen** (a button in the tab row, remembered) makes it as wide as the
+  window, still above the send form. An open side panel keeps its place: WI
+  Hero then fills the space beside it, and opening one doesn't close WI Hero.
+  Drawer size puts it back.
 
 ### What changes from phones
 
@@ -438,21 +442,19 @@ The phone screens stay as they are below that.
   ordinary Ctrl/Shift-click selection.
 - **No selection mode.** Selecting is always possible: Ctrl-click adds one,
   Shift-click adds a range, Esc clears. Hovering a book shows a checkbox.
-- **No pull-to-open-tab.** The tab row has a + button.
 
 ### Tab row
 
-40px high (phones: 50). Left to right: ⌄, Home, book and entry tabs, +, empty space,
-Search (with "Ctrl K"), ×.
+40px high (phones: 50). Left to right: ⌄, Home, book and entry tabs, empty space,
+Search (with "Ctrl K"), Widen (or Drawer size), ×.
 
 | Control | What it does |
 |---------|--------------|
 | Book tab | A book icon and the book's name; it shows the two panes. Click to switch. × shows on the active tab and on hover. Middle-click closes. Drag to reorder |
 | Entry tab | The strategy dot and the entry's name; it shows that entry's page alone, full width. Same controls as a book tab |
 | Tab right-click | Close tab · Close other tabs · Close tabs to the right · Duplicate tab |
-| + | Shows Home, to pick a book for the new tab |
-| Double-click empty space | The same as + |
 | Search | The search overlay (below). Ctrl K anywhere |
+| Widen / Drawer size | The window's width beside any open side panel, or back to the drawer box (Size and place). Remembered |
 | × | Closes WI Hero (like Esc with nothing else open) |
 
 A book tab switches entries inside itself (the list is beside the entry). An
@@ -472,12 +474,13 @@ for another), Ctrl Enter opens in a background tab, Esc closes.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "World Info", Filter books box, List/Tiles switch, New folder, **+ New book**, gear (ST's World Info settings) |
+| Header | "World Info", List/Tiles switch (icons only: rows, a grid; the name on hover), New folder, **+ New book**, gear (ST's World Info settings). No filter box: Search (Ctrl K) finds books |
 | Tiles (default) | The sketch's tiles: name, status chips, entry count and edited date. Fills as many columns as fit. A checkbox shows on hover |
 | List | A table: checkbox (on hover), Name, Active (Global, first link +n, or Off), Entries, Edited, ⋯ (on hover). Click a header to sort. Folders are collapsible rows inside the table; "Not in a folder" last |
+| Not in a folder | Last, in both views. Hidden when every book is in a folder, except while a book is dragged (dropping it there takes it out of its folder) |
 | Click a book | Opens it in a new tab |
-| Middle-click, Ctrl-click | Opens it in a background tab |
-| Right-click, ⋯ | Open · Open in background tab · Make global · Rename · Move to folder · Export · Snapshots · Delete |
+| Middle-click, Ctrl-click | Opens it in a new tab and stays on Home |
+| Right-click, ⋯ | Open · New tab (stays on Home) · Make global · Rename · Move to folder · Export · Snapshots · Delete |
 | Drag a book | Onto a folder header to move it there |
 | Selection bar | Replaces the header while books are selected: ✕, "N selected", Move to folder, Export, Select all, Delete (Undo toast) |
 
@@ -537,16 +540,19 @@ Delete, then "Edit together" with the bulk rows (Mixed where they differ) and
 active (Global switch, the links with Unlink, Link to this chat), New entry
 defaults (the parameter grid), and Export, Snapshots, Duplicate, Delete book.
 
-**Narrow drawer** (under 640px, from a small window or a low Chat width): the
-left pane becomes an overlay. A panel button at the left of the top line opens
-it; picking an entry closes it.
+**Narrow drawer** (under 640px, from a small window, a scaled screen or a low
+Chat width): the book works as on phones. It opens on the entry list, full
+width. Picking an entry shows it full width, with ← at the left of the top line
+back to the list (∧ ∨ still step through entries). Ctrl/Shift-click selects on
+the list, and "N selected ›" in its footer shows the bulk pane. Widen brings
+the two panes back.
 
 ### Keys
 
 | Key | Where | What it does |
 |-----|-------|--------------|
 | Ctrl K | Anywhere | Search overlay |
-| / | Not typing | Focus the filter box |
+| / | Book, not typing | Focus the filter box |
 | Alt N | Home / book | New book / new entry |
 | Alt ↑ ↓ | Book | Previous / next entry |
 | Ctrl D | Book list | Duplicate the selected entries |

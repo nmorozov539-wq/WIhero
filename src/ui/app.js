@@ -187,6 +187,14 @@ export function createApp(deps) {
         if (typing()) { pendingRender = true; renderTabs(); return; }
         render();
     }
+    // A narrow drawer (desk.js) lays the book out as list then entry: crossing that width (Chat width, a side panel
+    // beside a widened drawer) draws again.
+    let wasNarrow = null;
+    if (globalThis.ResizeObserver) new ResizeObserver(() => {
+        const n = root.clientWidth > 0 && root.clientWidth < 640;
+        if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
+        wasNarrow = n;
+    }).observe(root);
     root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) render(); }, 0));
 
     function render() {
@@ -220,9 +228,12 @@ export function createApp(deps) {
      */
     function shape() {
         const wide = S.desk && S.mode === 'hero' && deskSettings().heroWide !== false;
+        // Normal mode's Widen: the space ST's open side panels leave, still above the send form.
+        const nwide = S.desk && S.mode === 'normal' && deskSettings().normalWide === true;
         root.dataset.desk = S.desk ? '1' : '';
         host.classList.toggle('desk', S.desk);
         host.classList.toggle('wide', wide);
+        host.classList.toggle('nwide', nwide);
         layer.pop.desk = S.desk;
     }
 
@@ -1882,39 +1893,6 @@ export function createApp(deps) {
         }, { help: 'The story logic as it is stored in the entry. It travels with the book.' });
     }
 
-    function newTab() {
-        const t = { id: ++tabUid, history: [{ type: 'home' }], fresh: true };
-        S.tabs.push(t);
-        leave();
-        S.active = t.id;
-        S.select = null;
-        render();
-    }
-
-    // Pulling the tab row left past its end opens a new tab (Normal mode): a + grows at the right, under the finger.
-    {
-        const pull = el('div', 'pullnew');
-        pull.innerHTML = ic('plus');
-        tabbar.append(pull);
-        const atEnd = () => strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2;
-        let x0 = null;
-        const show = w => { pull.style.width = `${w}px`; pull.classList.toggle('ready', w >= 64); };
-        strip.addEventListener('touchstart', e => { x0 = S.mode === 'normal' && !S.select && atEnd() ? e.touches[0].clientX : null; }, { passive: true });
-        strip.addEventListener('touchmove', e => {
-            if (x0 === null) return;
-            const dx = x0 - e.touches[0].clientX;
-            if (!atEnd() || dx <= 0) { show(0); return; }
-            show(Math.min(dx * 0.6, 80));
-        }, { passive: true });
-        strip.addEventListener('touchend', () => {
-            const go = x0 !== null && pull.classList.contains('ready');
-            x0 = null;
-            show(0);
-            if (go) newTab();
-        });
-        strip.addEventListener('touchcancel', () => { x0 = null; show(0); });
-    }
-
     const sortBy = () => (SORT_NAMES[settings.sortBy] ? settings.sortBy : 'order');
 
     // ---------------------------------------------------------------- menus
@@ -1981,7 +1959,6 @@ export function createApp(deps) {
             });
             sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard' }));
             sh.append(el('div', 'lbl', 'Tabs'));
-            if (S.mode !== 'hero') sh.append(layer.opt('New tab', () => { layer.close(); newTab(); }, { icon: 'tab' }));
             sh.append(layer.opt('Close other tabs', () => {
                 layer.close();
                 if (S.mode === 'hero') {
@@ -2590,7 +2567,7 @@ export function createApp(deps) {
     const deskN = deskNormal({
         S, settings, library, layer, main, root, shadow,
         saveSettings: () => saveSettings(),
-        tab, page, leave, render, renderTabs, closeTab, newTab, hide, need, modelOf, entriesShown, hiddenIn, entryFolder,
+        tab, page, leave, render, renderTabs, closeTab, hide, need, modelOf, entriesShown, hiddenIn, entryFolder,
         problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, wiSettingsSheet,
         bookFolderSheet, folderSheet, snapshotsSheet, problemsSheet, renameBook, duplicateBook, newEntryFolder, openHero,
         createEntryIn, entryMenu, moveToBookSheet, applyParam, leaveEntry,
