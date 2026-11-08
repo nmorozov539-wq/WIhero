@@ -79,7 +79,7 @@ export function renderEntryPage(main, o) {
     if (D) {
         // Desktop: a thin line with the book and folder as a breadcrumb, then ∧ ∨ and ⋮ (LAYOUT "Book (two panes)").
         const top = el('div', 'en-line');
-        if (D.panel) top.append(btn('lbtn', ic('panel', 's'), D.panel, 'Entries'));
+        if (D.panel) { const b = btn('lbtn', ic('back', 's'), D.panel, 'Back to the entries'); b.title = 'Entries'; top.append(b); }
         const crumbs = el('div', 'crumbs');
         crumbs.insertAdjacentHTML('beforeend', ic('book', 's'));
         D.crumbs.forEach((c, i) => {

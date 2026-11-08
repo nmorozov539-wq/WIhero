@@ -424,6 +424,10 @@ The phone screens stay as they are below that.
   Info button, another top bar drawer, the × in the tab row, or Esc).
 - Everything inside is laid out for the drawer's width, not the window's. At
   1920px wide and 50% that is 960px; at 1366px it is 683px.
+- **Widen** (a button in the tab row, remembered) makes it as wide as the
+  window, still above the send form. An open side panel keeps its place: WI
+  Hero then fills the space beside it, and opening one doesn't close WI Hero.
+  Drawer size puts it back.
 
 ### What changes from phones
 
@@ -443,7 +447,7 @@ The phone screens stay as they are below that.
 ### Tab row
 
 40px high (phones: 50). Left to right: ⌄, Home, book and entry tabs, +, empty space,
-Search (with "Ctrl K"), ×.
+Search (with "Ctrl K"), Widen (or Drawer size), ×.
 
 | Control | What it does |
 |---------|--------------|
@@ -453,6 +457,7 @@ Search (with "Ctrl K"), ×.
 | + | Shows Home, to pick a book for the new tab |
 | Double-click empty space | The same as + |
 | Search | The search overlay (below). Ctrl K anywhere |
+| Widen / Drawer size | The window's width beside any open side panel, or back to the drawer box (Size and place). Remembered |
 | × | Closes WI Hero (like Esc with nothing else open) |
 
 A book tab switches entries inside itself (the list is beside the entry). An
@@ -537,9 +542,12 @@ Delete, then "Edit together" with the bulk rows (Mixed where they differ) and
 active (Global switch, the links with Unlink, Link to this chat), New entry
 defaults (the parameter grid), and Export, Snapshots, Duplicate, Delete book.
 
-**Narrow drawer** (under 640px, from a small window or a low Chat width): the
-left pane becomes an overlay. A panel button at the left of the top line opens
-it; picking an entry closes it.
+**Narrow drawer** (under 640px, from a small window, a scaled screen or a low
+Chat width): the book works as on phones. It opens on the entry list, full
+width. Picking an entry shows it full width, with ← at the left of the top line
+back to the list (∧ ∨ still step through entries). Ctrl/Shift-click selects on
+the list, and "N selected ›" in its footer shows the bulk pane. Widen brings
+the two panes back.
 
 ### Keys
 

@@ -241,6 +241,14 @@ const keepBesideSidePanel = e => {
     setTimeout(() => { wiDrawer.classList.remove('pinnedOpen'); icon?.classList.remove('drawerPinnedOpen'); }, 0);
 };
 for (const type of ['mousedown', 'touchstart', 'click']) document.addEventListener(type, keepBesideSidePanel, { capture: true, passive: true });
+// Widened, WI Hero keeps clear of an open side panel (pinned, or opened beside normal mode): app.css insets it.
+for (const [id, cls] of [['left-nav-panel', 'pl'], ['right-nav-panel', 'pr']]) {
+    const panel = document.getElementById(id);
+    if (!panel) continue;
+    const sync = () => app.host.classList.toggle(cls, panel.classList.contains('openDrawer'));
+    new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    sync();
+}
 globalThis.jQuery?.('#world_editor_select').on('change', function () {
     if (native) return;
     const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];

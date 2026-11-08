@@ -84,7 +84,7 @@ export function deskNormal(A) {
     /** Shows an entry in the book tab it belongs to (opening one if needed), selected. */
     function showInBook(book, uid) {
         const t = S.tabs.find(x => !x.home && pageOf(x).type === 'book' && pageOf(x).book === book);
-        if (t) { S.active = t.id; Object.assign(pageOf(t), { sel: uid, anchor: uid, pane: null }); S.select = null; A.render(); return; }
+        if (t) { S.active = t.id; Object.assign(pageOf(t), { sel: uid, anchor: uid, pane: null, select: null, listOpen: false }); S.select = null; A.render(); return; }
         openBook(book, { sel: uid });
     }
 
@@ -144,7 +144,11 @@ export function deskNormal(A) {
         strip.ondblclick = e => { if (e.target === strip) A.newTab(); };
         const right = el('div', 'tright');
         const sb = btn('tsearch', `${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
-        right.append(sb, btn('iconbtn', ic('x'), () => A.hide(), 'Close WI Hero'));
+        // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
+        const wide = desk().normalWide === true;
+        const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => { desk().normalWide = !wide; save(); A.render(); }, wide ? 'Drawer size' : 'Widen');
+        wb.title = wide ? 'Drawer size' : 'Widen';
+        right.append(sb, wb, btn('iconbtn', ic('x'), () => A.hide(), 'Close WI Hero'));
         tabbar.append(right);
     }
     function tabMenu(t) {
@@ -428,28 +432,27 @@ export function deskNormal(A) {
         if (p.sel != null && !data.entries[p.sel]) p.sel = null;
         if (p.select) for (const u of [...p.select]) if (!data.entries[u] || A.hiddenIn(book).has(u)) p.select.delete(u);
         const isNarrow = narrow();
+        // A narrow drawer works like the phone: the list fills the book, an entry fills it with ← back to the list.
+        // With nothing picked yet there is no entry to show, so the list shows.
+        if (isNarrow && p.sel == null && !p.pane && !(p.select?.size > 1)) p.listOpen = true;
+        const listPage = isNarrow && !!p.listOpen;
         wrap.classList.toggle('narrow', isNarrow);
+        wrap.classList.toggle('lpage', listPage);
         wrap.style.setProperty('--lw', `${listW()}px`);
 
-        const left = el('aside', `bl${isNarrow && !p.listOpen ? ' closed' : ''}`);
+        const left = el('aside', 'bl');
         wrap.append(left);
         if (!isNarrow) {
             wrap.append(resizer(listW, (w, done) => { desk().listW = w; wrap.style.setProperty('--lw', `${w}px`); if (done) save(); }, { ...LIST_W, onEnd: save }));
         }
         const right = el('section', 'br');
         wrap.append(right);
-        if (isNarrow && p.listOpen) {
-            const scrim = el('div', 'blscrim');
-            scrim.addEventListener('click', () => { p.listOpen = false; A.render(); });
-            wrap.append(scrim);
-        }
         bookList(left, p, book, data, model, all);
         if (p.pane === 'settings') bookSettingsPane(right, p, book, data);
         else if (p.select?.size > 1) bulkPane(right, p, book, data);
         else if (p.sel != null) entryPane(right, p, book, data, all);
         else {
             const v = el('div', 'view');
-            if (isNarrow) { const top = el('div', 'en-line'); top.append(btn('lbtn', ic('panel', 's'), () => { p.listOpen = true; A.render(); }, 'Entries')); v.append(top); }
             v.append(el('div', 'dpick', all.length ? 'Pick an entry on the left, or press Alt N for a new one.' : 'No entries yet. Click + to write the first one.'));
             right.append(v);
         }
@@ -539,6 +542,7 @@ export function deskNormal(A) {
         const move = (d, extend) => moveSel(p, book, order, d, extend);
 
         const foot = el('div', 'blfoot');
+        if (narrow() && p.select?.size > 1) foot.append(btn('linkish selgo', `${p.select.size} selected ›`, () => { p.listOpen = false; A.render(); }));
         foot.append(btn('linkish', `${ic('gear', 's')} Book settings`, () => { p.pane = 'settings'; p.select = null; if (narrow()) p.listOpen = false; A.render(); }));
         const blocking = model.issues.filter(i => !i.warning && i.blocking !== false && i.stKey?.startsWith(`${book}.`));
         if (model.issues.length) {
@@ -793,12 +797,15 @@ export function deskNormal(A) {
         });
     }
 
+    /** A narrow drawer's ← back to the entry list. */
+    const toList = p => { const b = btn('lbtn', ic('back', 's'), () => { p.listOpen = true; A.render(); }, 'Back to the entries'); b.title = 'Entries'; return b; };
+
     function bulkPane(right, p, book, data) {
         const uids = [...p.select].filter(u => data.entries[u]);
         const list = uids.map(u => data.entries[u]);
         const v = el('div', 'view bulk');
         right.append(v);
-        if (narrow()) { const top = el('div', 'en-line'); top.append(btn('lbtn', ic('panel', 's'), () => { p.listOpen = true; A.render(); }, 'Entries')); v.append(top); }
+        if (narrow()) { const top = el('div', 'en-line'); top.append(toList(p)); v.append(top); }
         const box = el('div', 'en');
         v.append(box);
         box.append(el('h1', 'bh', `${list.length} entries selected`));
@@ -833,7 +840,7 @@ export function deskNormal(A) {
         const v = el('div', 'view');
         right.append(v);
         const top = el('div', 'en-line');
-        if (narrow()) top.append(btn('lbtn', ic('panel', 's'), () => { p.listOpen = true; A.render(); }, 'Entries'));
+        if (narrow()) top.append(toList(p));
         const cr = el('div', 'crumbs');
         cr.insertAdjacentHTML('beforeend', ic('book', 's'));
         cr.append(el('span', 'crumb', book), el('span', 'sl', '/'), el('span', 'crumb', 'Book settings'));
@@ -980,7 +987,6 @@ export function deskNormal(A) {
         if (layer.isOpen()) { layer.close(); return true; }
         if (S.search) { S.search = null; A.render(); return true; }
         const p = A.page();
-        if (p.type === 'book' && p.listOpen) { p.listOpen = false; A.render(); return true; }
         if (p.type === 'book' && p.select?.size > 1) { p.select = null; A.render(); return true; }
         if (p.type === 'book' && p.pane) { p.pane = null; A.render(); return true; }
         if (S.selectOf === 'books' && S.select?.size) { clearSel(); return true; }

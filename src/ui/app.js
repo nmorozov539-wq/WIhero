@@ -187,6 +187,14 @@ export function createApp(deps) {
         if (typing()) { pendingRender = true; renderTabs(); return; }
         render();
     }
+    // A narrow drawer (desk.js) lays the book out as list then entry: crossing that width (Chat width, a side panel
+    // beside a widened drawer) draws again.
+    let wasNarrow = null;
+    if (globalThis.ResizeObserver) new ResizeObserver(() => {
+        const n = root.clientWidth > 0 && root.clientWidth < 640;
+        if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
+        wasNarrow = n;
+    }).observe(root);
     root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) render(); }, 0));
 
     function render() {
@@ -220,9 +228,12 @@ export function createApp(deps) {
      */
     function shape() {
         const wide = S.desk && S.mode === 'hero' && deskSettings().heroWide !== false;
+        // Normal mode's Widen: the space ST's open side panels leave, still above the send form.
+        const nwide = S.desk && S.mode === 'normal' && deskSettings().normalWide === true;
         root.dataset.desk = S.desk ? '1' : '';
         host.classList.toggle('desk', S.desk);
         host.classList.toggle('wide', wide);
+        host.classList.toggle('nwide', nwide);
         layer.pop.desk = S.desk;
     }
 
