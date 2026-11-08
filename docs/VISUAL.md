@@ -220,9 +220,20 @@ Drawn in sketch 7 (in the git history).
 
 ### 7.6 Layout and view
 
-- Layered automatic layout, top to bottom, from the links. A layer wider than
-  two cards wraps onto more rows, so on a phone the canvas grows down. Tidy
-  reruns it.
+- Layered automatic layout from the links. On phones it runs top to bottom: a
+  layer wider than two cards wraps onto more rows, so the canvas grows down.
+  On desktop (LAYOUT, "Desktop: Hero mode") it runs **left to right**: each
+  layer is a column, ordered by where its sources sit and centered against the
+  tallest column; a pack's unlinked members join a linked member's column so
+  the frame stays whole. Tidy reruns it.
+- **Port sides follow the layout.** A link between cards that stand side by
+  side leaves the source's right edge and enters the target's left edge;
+  between cards above one another it uses bottom and top (7.2's capacity
+  rules apply per edge). A port with no partner card (a lone lock or wait)
+  sits on the top edge. On side edges the ports run, top to bottom: opens,
+  glue, closes.
+- On desktop, resting the pointer on a card for 350ms dims everything not
+  linked to it, the same look as a phone's tap-to-focus.
 - The canvas fits itself to the screen on first open. Fit, + and − sit on the
   right; the zoom level shows bottom left.
 - The legend, when shown, names the five link colors.
@@ -241,4 +252,3 @@ Drawn in sketch 7 (in the git history).
 
 - Mapping the surface tokens onto ST's SmartTheme colors (section 2), and a
   light-theme pass.
-- Desktop layout.

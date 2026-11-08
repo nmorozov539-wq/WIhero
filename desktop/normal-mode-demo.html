@@ -421,13 +421,14 @@ const tokens = (s) => Math.max(0, Math.round(s.length / 3.7));
 
 /* ============ state ============ */
 const S = {
-  open: true, homeView: 'list', homeSort: 'name', homeSel: new Set(), homeAnchor: null, collapsed: new Set(), sideW: 270,
+  open: true, homeView: 'tiles', homeSort: 'name', homeSel: new Set(), homeAnchor: null, collapsed: new Set(), sideW: 270,
   paramsOpen: false, logicOpen: false, sideOpen: false, narrow: false,
 };
 let tabN = 1;
 const homeTab = { id: 0, home: true };
 let tabs = [homeTab, { id: 1, book: 'Moonlit Keep', entry: null, sel: new Set(), page: 'entry' }];
 tabs[1].entry = BOOKS['Moonlit Keep'].entries[2].uid; tabs[1].sel = new Set([tabs[1].entry]);
+{ const k = BOOKS['Moonlit Keep'].entries[1].uid; tabs.push({ id: 2, book: 'Moonlit Keep', entry: k, sel: new Set([k]), page: 'entry', only: true }); tabN = 2; }
 let activeId = 1;
 const active = () => tabs.find(t => t.id === activeId);
 
@@ -475,6 +476,19 @@ document.addEventListener('mouseover', (e) => {
 document.addEventListener('mousedown', () => { clearTimeout(tipT); tip.classList.remove('show'); });
 
 /* ============ tabs ============ */
+/* An entry in its own tab: the entry page alone, full width. The breadcrumb's book name goes to the book. */
+function openEntryTab(book, uid, { background = false } = {}) {
+  const t = { id: ++tabN, book, entry: uid, sel: new Set([uid]), page: 'entry', only: true };
+  tabs.splice(tabs.indexOf(active()) + 1, 0, t);
+  const e = BOOKS[book].entries.find(x => x.uid === uid);
+  if (background) { toast(`Opened ${e.name} in a background tab`); renderTabs(); return; }
+  activeId = t.id; render();
+}
+function goToBook(book, uid) {
+  let t = tabs.find(x => x.book === book && !x.only);
+  if (!t) { openBookTab(book, { entry: uid }); return; }
+  activeId = t.id; if (uid) { t.entry = uid; t.sel = new Set([uid]); t.page = 'entry'; } render();
+}
 function openBookTab(name, { background = false, entry } = {}) {
   const b = BOOKS[name];
   const first = entry || b.entries[0]?.uid || null;
@@ -502,7 +516,11 @@ function renderTabs() {
     if (t.home) { b.innerHTML = ic('home'); b.setAttribute('aria-label', 'Home'); b.dataset.tip = 'Home'; }
     else {
       const bk = BOOKS[t.book];
-      b.innerHTML = `<span class="dot" style="background:${bk.global || bk.links.length ? 'var(--s-key)' : 'var(--s-off)'}"></span><span class="nm">${esc(t.book)}</span>`;
+      const te = t.only && bk.entries.find(x => x.uid === t.entry);
+      b.innerHTML = t.only
+        ? `<span class="dot" style="background:${te ? STRAT[te.strategy].color : 'var(--s-off)'};border-radius:2px"></span><span class="nm">${esc(te ? te.name || 'Untitled' : 'Entry')}</span>`
+        : `${ic('book', 13)}<span class="nm">${esc(t.book)}</span>`;
+      if (t.only) b.dataset.tip = `${te ? te.name : ''} \u00b7 ${t.book}`;
       const x = h('span', { class: 'x', role: 'button', 'aria-label': 'Close tab' }, ic('x', 12, 2.4));
       x.onclick = (e) => { e.stopPropagation(); closeTab(t.id); };
       b.append(x);
@@ -516,7 +534,7 @@ function renderTabs() {
         { label: 'Close tab', icon: 'x', fn: () => closeTab(t.id), hint: 'Middle-click' },
         { label: 'Close other tabs', fn: () => { tabs = tabs.filter(o => o.home || o === t); activeId = t.id; render(); } },
         { label: 'Close tabs to the right', fn: () => { tabs = tabs.slice(0, tabs.indexOf(t) + 1); if (!tabs.includes(active())) activeId = t.id; render(); } },
-        { label: 'Duplicate tab', icon: 'copy', fn: () => openBookTab(t.book, { entry: t.entry }) },
+        { label: 'Duplicate tab', icon: 'copy', fn: () => t.only ? openEntryTab(t.book, t.entry) : openBookTab(t.book, { entry: t.entry }) },
       ]); };
     }
     b.onclick = () => { if (activeId !== t.id) { activeId = t.id; S.sideOpen = false; render(); } };
@@ -766,7 +784,7 @@ function entryMenu(t, e, at) {
   const ids = t.sel.has(e.uid) && t.sel.size > 1 ? [...t.sel] : [e.uid];
   const many = ids.length > 1;
   showMenu(at, [
-    ...(many ? [{ section: true, label: `${ids.length} entries` }] : [{ label: 'Open in new tab', icon: 'tab', hint: 'Middle-click', fn: () => openBookTab(t.book, { background: true, entry: e.uid }) }]),
+    ...(many ? [{ section: true, label: `${ids.length} entries` }] : [{ label: 'Open in new tab', icon: 'tab', hint: 'Middle-click', fn: () => openEntryTab(t.book, e.uid, { background: true }) }]),
     { label: many ? 'Turn on' : (e.on ? 'Turn off' : 'Turn on'), icon: 'check', fn: () => setOn(t, ids, many ? true : !e.on) },
     ...(many ? [{ label: 'Turn off', fn: () => setOn(t, ids, false) }] : []),
     { label: 'Duplicate', icon: 'copy', hint: 'Ctrl D', fn: () => duplicate(t, ids) },
@@ -887,7 +905,8 @@ function renderBookView(t) {
       more.onclick = (ev) => { ev.stopPropagation(); entryMenu(t, e, more); };
       row.querySelector('.tail').append(mini, more);
       row.onclick = (ev) => selectEntry(t, e.uid, ev);
-      row.onauxclick = (ev) => { if (ev.button === 1) { ev.preventDefault(); openBookTab(t.book, { background: true, entry: e.uid }); } };
+      row.onauxclick = (ev) => { if (ev.button === 1) { ev.preventDefault(); openEntryTab(t.book, e.uid, { background: true }); } };
+      row.ondblclick = () => openEntryTab(t.book, e.uid);
       row.onmousedown = (ev) => { if (ev.button === 1) ev.preventDefault(); };
       row.oncontextmenu = (ev) => { ev.preventDefault(); if (!t.sel.has(e.uid)) selectEntry(t, e.uid); entryMenu(t, e, { x: ev.clientX, y: ev.clientY }); };
       row.ondragstart = () => { dragEntries = t.sel.has(e.uid) ? [...t.sel] : [e.uid]; requestAnimationFrame(() => row.classList.add('dragging')); };
@@ -922,7 +941,7 @@ function renderBookView(t) {
   if (probs) { const p = h('button', { class: 'btn quiet', style: 'color:var(--bad)' }, `${ic('warn', 14)}${probs} problem`); p.onclick = () => selectEntry(t, b.entries.find(e => e.bang).uid); foot.append(p); }
   side.append(foot);
 
-  root.append(side);
+  if (!t.only) root.append(side);
   const rz = h('div', { class: 'resizer', role: 'separator', 'aria-label': 'Resize entry list', 'aria-orientation': 'vertical' });
   rz.onpointerdown = (ev) => {
     rz.setPointerCapture(ev.pointerId); rz.classList.add('on');
@@ -931,14 +950,14 @@ function renderBookView(t) {
     rz.onpointerup = () => { rz.onpointermove = null; rz.classList.remove('on'); };
   };
   rz.ondblclick = () => { S.sideW = 270; root.style.setProperty('--sideW', '270px'); };
-  root.append(rz);
+  if (!t.only) root.append(rz);
   const scrim = h('div', { class: 'sidescrim' }); scrim.onclick = () => { S.sideOpen = false; applyNarrow(); };
   root.append(scrim);
 
   /* --- main pane --- */
   const main = h('main', { class: 'main' });
   const top = h('div', { class: 'mtop' });
-  if (S.narrow) { const pb = h('button', { class: 'ib', 'aria-label': 'Show entries', 'data-tip': 'Entries' }, ic('panel')); pb.onclick = () => { S.sideOpen = true; applyNarrow(); }; top.append(pb); }
+  if (S.narrow && !t.only) { const pb = h('button', { class: 'ib', 'aria-label': 'Show entries', 'data-tip': 'Entries' }, ic('panel')); pb.onclick = () => { S.sideOpen = true; applyNarrow(); }; top.append(pb); }
   main.append(top);
   if (t.page === 'settings') renderSettings(t, main, top);
   else if (t.sel.size > 1) renderBulk(t, main, top);
@@ -951,7 +970,10 @@ function renderBookView(t) {
 function crumb(top, html) { top.append(h('div', { class: 'crumb' }, html)); top.append(h('span', { class: 'grow' })); }
 
 function renderEntry(t, e, main, top) {
-  crumb(top, `${ic('book', 12)}${esc(t.book)}${e.folder ? ` <span>/</span> ${esc(e.folder)}` : ''}`);
+  if (t.only) {
+    const bl = h('button', { class: 'crumb', style: 'cursor:pointer', 'data-tip': 'Go to the book' }, `${ic('book', 12)}<u style="text-underline-offset:3px">${esc(t.book)}</u>${e.folder ? ` <span>/</span> ${esc(e.folder)}` : ''}`);
+    bl.onclick = () => goToBook(t.book, e.uid); top.append(bl, h('span', { class: 'grow' }));
+  } else crumb(top, `${ic('book', 12)}${esc(t.book)}${e.folder ? ` <span>/</span> ${esc(e.folder)}` : ''}`);
   const order = orderedEntries(t); const i = order.indexOf(e);
   const prev = h('button', { class: 'ib', 'aria-label': 'Previous entry', 'data-tip': 'Previous (Alt ↑)', disabled: i <= 0 }, `<span style="transform:rotate(180deg);display:flex">${ic('chev', 15)}</span>`);
   const next = h('button', { class: 'ib', 'aria-label': 'Next entry', 'data-tip': 'Next (Alt ↓)', disabled: i >= order.length - 1 }, ic('chev', 15));
@@ -959,7 +981,7 @@ function renderEntry(t, e, main, top) {
   next.onclick = () => i < order.length - 1 && selectEntry(t, order[i + 1].uid, { keyboard: true });
   const more = h('button', { class: 'ib', 'aria-label': 'Entry actions', 'data-tip': 'More' }, ic('more'));
   more.onclick = () => entryMenu(t, e, more);
-  top.append(prev, next, more);
+  if (t.only) top.append(more); else top.append(prev, next, more);
 
   const p = h('div', { class: `pane${e.on ? '' : ' entry-off'}` });
   const name = h('input', { class: 'ename', id: 'ename', value: e.name, placeholder: 'Entry name', 'aria-label': 'Entry name' });
@@ -1174,8 +1196,8 @@ function openPalette() {
     const q = inp.value.trim().toLowerCase(); res.innerHTML = ''; items = [];
     const groups = [];
     const match = (e) => !q || e.name.toLowerCase().includes(q) || e.kw.some(k => k.includes(q));
-    if (cur.book) groups.push([`In ${cur.book}`, BOOKS[cur.book].entries.filter(match).slice(0, 6).map(e => ({ label: e.name, color: STRAT[e.strategy].color, in: e.kw.slice(0, 3).join(', '), go: (bg) => { if (bg) openBookTab(cur.book, { background: true, entry: e.uid }); else selectEntry(cur, e.uid); } }))]);
-    if (q) groups.push(['Other books', Object.entries(BOOKS).filter(([n]) => n !== cur.book).flatMap(([n, b]) => b.entries.filter(match).map(e => ({ label: e.name, color: STRAT[e.strategy].color, in: n, go: (bg) => openBookTab(n, { background: bg, entry: e.uid }) }))).slice(0, 5)]);
+    if (cur.book) groups.push([`In ${cur.book}`, BOOKS[cur.book].entries.filter(match).slice(0, 6).map(e => ({ label: e.name, color: STRAT[e.strategy].color, in: e.kw.slice(0, 3).join(', '), go: (bg) => { if (bg) openEntryTab(cur.book, e.uid, { background: true }); else if (cur.only) { cur.entry = e.uid; render(); } else selectEntry(cur, e.uid); } }))]);
+    if (q) groups.push(['Other books', Object.entries(BOOKS).filter(([n]) => n !== cur.book).flatMap(([n, b]) => b.entries.filter(match).map(e => ({ label: e.name, color: STRAT[e.strategy].color, in: n, go: (bg) => openEntryTab(n, e.uid, { background: bg }) }))).slice(0, 5)]);
     groups.push(['Books', Object.keys(BOOKS).filter(n => !q || n.toLowerCase().includes(q)).slice(0, q ? 6 : 4).map(n => ({ label: n, icon: 'book', in: `${count(BOOKS[n])} entries`, go: (bg) => openBookTab(n, { background: bg }) }))]);
     for (const [gl, list] of groups) {
       if (!list.length) continue;
@@ -1209,7 +1231,7 @@ function renderBook() {
   const v = document.getElementById('view'); const keepScroll = v.querySelector('.list')?.scrollTop;
   v.innerHTML = '';
   v.append(renderBookView(active()));
-  if (keepScroll != null) v.querySelector('.list').scrollTop = keepScroll;
+  if (keepScroll != null && v.querySelector('.list')) v.querySelector('.list').scrollTop = keepScroll;
   applyNarrow();
 }
 function render() {

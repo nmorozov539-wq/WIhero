@@ -9,5 +9,6 @@ following ST's World Info drawer with greetings first and a canvas that grows
 down (#13 and after).
 
 ## Later
-Preview over several turns, desktop layout, greetings in group chats, a
+Preview over several turns, building the desktop layout (designed in LAYOUT,
+"Desktop"; brief in desktop/HANDOFF.md), greetings in group chats, a
 timeline scrubber across branches.
