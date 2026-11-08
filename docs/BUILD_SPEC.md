@@ -46,7 +46,7 @@ to be changed while building.
 | D1 | **Locks open in the same reply.** A lock phrase in the message the user just sent opens its gate (or meets its close gate) for the reply to that message. A phrase in the character's reply can only count from the next message, since ST picks the lore before the reply exists. **[spec change]** to CONCEPTS 2.1: locks are the second exception to "from the next message". |
 | D2 | **Opening is one step per message.** Anything opened by an entry firing opens from the next message. A chain can't run ahead of the chat (no spoilers). |
 | D3 | **An entry closed this turn didn't happen.** It doesn't fire, opens nothing and closes nothing. Example: Tunnel closes Mill and Mill closes Bridge, all three mentioned: Mill is closed, Bridge stays open. Entries that close each other in a loop all close. Not configurable. |
-| D4 | **The on/off switch is a pause.** An entry that is off injects nothing, glue included. Its story state is untouched, and a hold carries on when it's turned back on. The switch belongs to the book, so rewinding the chat never touches it. |
+| D4 | **The on/off switch is a pause.** An entry that is off injects nothing, glue included. Switching it changes no story state, and a hold carries on when it's turned back on. Its close gates and locks still follow the story while it's off, so it can come back closed. The switch belongs to the book, so rewinding the chat never touches it. |
 | D5 | **Reopen restores the entry as it was just before it closed** (holding again if it was holding, waiting if it was waiting), and its close gate counts afresh from the Reopen. It rewinds like everything else. |
 | D6 | **After a page reload WI Hero starts on Home** (normal mode), like ST starts on its main screen. Tabs are not restored. Closing WI Hero while ST stays open only hides it, so reopening returns to exactly where it was. |
 | D7 | **Each book's canvas remembers how it was left**, across reloads: card positions, port sides, the mask layer shown on each card, and the camera (pan and zoom). |
@@ -66,7 +66,7 @@ to be changed while building.
 | D21 | **Snapshots are manual.** A "Snapshot" button saves a named copy of the whole book; nothing is copied automatically except one "As imported" copy, kept the first time WI Hero opens or changes a book. Restore puts the book back (with Undo) and leaves the chat's story state alone. Saving stays automatic. Details in section 11. |
 | D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ⌄ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
 | D24 | **A chat that ran without WI Hero is caught up on request.** Replies with no snapshot after the last one that has one (WI Hero switched off, or not yet installed) leave the story behind. When WI Hero is switched on or the chat opens, it asks once: **Catch up** replays the skipped turns through the engine, oldest first, each starting from the one before, with Preview's keyword matching (ST doesn't save what it sent); **Keep as is** carries the old state on; **Start from here** starts the state again; **Not now** leaves the choice on the chat bubble and the panel. Details in section 17.1. |
-| D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and internal WI Hero pulls) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
+| D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and ST internal the engine needs) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
 | D26 | **A chat bubble shows what reached the model.** A book in a circle over the chat, with how many World Info entries were sent with the last reply (from WORLD_INFO_ACTIVATED, all books, also with the engine off). Tap it for their names (and mask). Stored per reply and swipe; on by default, with a "Chat bubble" switch in the extension settings. Details in section 17.3. |
 | D23 | **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
 
@@ -383,9 +383,10 @@ the current state if it has none), so they rewind like everything else.
   only count fires and latches from now on.
 - **Pick a mask**: `/wihero-mask entry=<id> <name>` sets `masks.pick[id]`;
   without a name it deletes it.
-- **On/off switch (D4)**: ST's own `disable` field on the entry. Story state is
-  not touched. A disabled entry is skipped by ST before external activation
-  (4800–4890), so a hold pauses by itself.
+- **On/off switch (D4)**: ST's own `disable` field on the entry. The switch
+  writes no state; the engine doesn't read `disable`, so close rules and locks
+  are evaluated as for any entry. A disabled entry is skipped by ST before
+  external activation (4800–4890), so a hold pauses by itself.
 
 ---
 
@@ -512,7 +513,7 @@ Each rule gets a test, using the sample book where possible:
   before the first reply switches the scenario; a fingerprint mismatch blocks
   it; Gates for through a pack reaches a member added later.
 - Manual: Reopen restores holding and resets the close baseline (D5); on/off
-  leaves state alone (D4).
+  leaves state alone, and an off entry's close gate still closes it (D4).
 - Data: top-level `wihero` and old field names normalize (2.3); a book run
   through `convertWorldInfoToCharacterBook` and `convertCharacterBook` keeps
   `extensions.wihero` (copy the two functions into a test fixture).
@@ -766,6 +767,12 @@ Group chats (several characters' greetings mixed in one chat).
   nothing is removed from the scan, nothing forced, no snapshots written, and a
   warning says what is missing. The editor and the bubble keep working.
 - The lines show as a toast once per session and stay in the extension panel.
+- The check covers the engine only. The editor and panels also use other ST
+  events (WORLDINFO_UPDATED, MESSAGE_DELETED, MESSAGE_SWIPED, MESSAGE_EDITED,
+  WORLDINFO_SETTINGS_UPDATED, CHARACTER_EDITED), context members and DOM ids;
+  standing the engine down wouldn't help those. Every subscription goes
+  through `on()` in `index.js`, which skips an event this ST doesn't have and
+  names it in the console.
 
 ### 17.3 The chat bubble (D26)
 

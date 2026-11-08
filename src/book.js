@@ -1,5 +1,5 @@
-// Writing story logic onto a book's entries, and the save path. The pure part has no SillyTavern imports;
-// saveBook takes ST's context. See BUILD_SPEC 2 and TECHNICAL_NOTES 9.
+// Writing story logic onto a book's entries. No SillyTavern imports; the editor saves through src/ui/st-books.js.
+// See BUILD_SPEC 2 and TECHNICAL_NOTES 9.
 import { FIELD, normalize, rawConfig } from './engine/model.js';
 import { slugify, uniqueId } from './engine/util.js';
 
@@ -57,18 +57,3 @@ export function newId(entry, taken) {
 
 /** The ids used in a book. */
 export const bookIds = data => new Set(Object.values(data.entries ?? {}).map(e => rawConfig(e)?.id).filter(id => typeof id === 'string'));
-
-/**
- * Saves a change to a book through ST's own path: a copy of ST's cache (which already has every editor edit) →
- * change → saveWorldInfo(immediately) → reload ST's editor, so it doesn't overwrite the change with its own copy.
- * @param {object} ctx SillyTavern.getContext()
- * @param {(data: object) => void | Promise<void>} change
- */
-export async function saveBook(ctx, name, change) {
-    const data = await ctx.loadWorldInfo(name);
-    if (!data) throw new Error(`no book "${name}"`);
-    await change(data);
-    await ctx.saveWorldInfo(name, data, true);
-    ctx.reloadWorldInfoEditor?.(name);
-    return data;
-}

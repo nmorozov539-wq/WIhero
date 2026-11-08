@@ -6,7 +6,7 @@ import { buildModel } from '../src/engine/model.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings,
     duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
-    rekeyEntry, renameBookSettings, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
+    rekeyEntry, removeEntry, renameBookSettings, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
 } from '../src/ui/data.js';
 import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
 import { defaultSnapshotName, snapshotFileName, sortSnapshots, toBase64 } from '../src/ui/snapshots.js';
@@ -54,6 +54,19 @@ test('duplicating gives the copy a fresh id; moving keeps it unless the target h
     const free = book();
     const moved2 = moveEntry(data, 1, free);
     assert.equal(idOf(moved2), 'mill-copy');
+});
+
+test('a book imported from a card: deleting or moving an entry drops its originalData entry, like ST', () => {
+    const data = book(e(0, 'road', { id: 'road' }), e(1, 'mill', { id: 'mill' }));
+    data.originalData = { entries: [{ uid: 0, keys: ['road'] }, { uid: '1', keys: ['mill'] }] };
+    removeEntry(data, 1);
+    assert.equal(data.entries[1], undefined);
+    assert.deepEqual(data.originalData.entries.map(x => x.uid), [0], 'a string uid matches too');
+    moveEntry(data, 0, book());
+    assert.deepEqual(data.originalData.entries, []);
+    const plain = book(e(0, 'road', { id: 'road' }));
+    removeEntry(plain, 0);
+    assert.equal(plain.originalData, undefined);
 });
 
 test('parameters: text, summary, and Who triggers stored in the story logic', () => {

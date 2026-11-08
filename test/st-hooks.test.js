@@ -149,6 +149,18 @@ test('greetings: the chat\'s opening greeting opens its scenario', async () => {
     assert.deepEqual(st.hooks.model.issues, []);
 });
 
+test('greetings: a greeting edited to the same length is seen as changed', async () => {
+    const character = { avatar: 'Sera.png', first_mes: 'Main.', data: { alternate_greetings: ['AAAA'] } };
+    const fp = String(getStringHash('AAAA'));
+    const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Sera.png', name: 'Sera', fp }]] })], { character });
+    st.chat[0] = { is_user: false, mes: 'AAAA', swipe_id: 1, swipes: ['Main.', 'AAAA'] };
+    await st.send('hello');
+    assert.equal(st.hooks.model.greetings.get('@Sera.png:1').ok, true);
+    character.data.alternate_greetings[0] = 'BBBB';
+    await st.send('hello');
+    assert.equal(st.hooks.model.greetings.get('@Sera.png:1').ok, false, 'the model was rebuilt');
+});
+
 // ---- N6 (BUILD_SPEC 17)
 
 const chain = () => [

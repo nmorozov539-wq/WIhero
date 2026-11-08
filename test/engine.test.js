@@ -37,6 +37,13 @@ test('pack readings: any, all and at least n', () => {
     assert.ok(fires(s, 'all', 5));
 });
 
+test('a pack reading of 0 is a problem, not a gate that is always met', () => {
+    const entries = [e(0, 'inn', { id: 'inn', packs: ['town'] }), e(1, 'zero', { id: 'zero', gate: [['#town:0']] })];
+    const s = new Sim(entries);
+    assert.deepEqual(problems(s.model), ['zero: gate: "#town:0" counts from 1: use #town for any member']);
+    assert.deepEqual(s.send('zero'), []);
+});
+
 test('a nested pack: a rule on town covers town/inn', () => {
     const s = new Sim([e(0, 'inn', { id: 'inn', packs: ['town/inn'] }), e(1, 'rumor', { id: 'rumor', gate: [['#town']] })]);
     s.send('inn');
@@ -234,6 +241,17 @@ test('the on/off switch is a pause: a hold carries on when turned back on (D4)',
     assert.ok(fires(s, 'x', 0));
 });
 
+test('an off entry still follows the story: its close gate closes it, and it comes back closed (D4)', () => {
+    const entries = [e(0, 'storm', { id: 'storm', closeGate: [['dawn']] }), e(1, 'dawn', { id: 'dawn' })];
+    const s = new Sim(entries);
+    s.send('storm');
+    entries[0].disable = true;
+    s.send('dawn');
+    assert.ok(s.state.closed[K('storm')], 'closed while off');
+    entries[0].disable = false;
+    assert.ok(!fires(s, 'storm', 0));
+});
+
 // ---------------------------------------------------------------- Masks
 
 test('masks: the last open mask wins; a mask close gate turns it off; main below', () => {
@@ -271,6 +289,7 @@ test('a malformed mask is skipped and the entry keeps working', () => {
     assert.equal(node.blocked, false);
     assert.deepEqual(node.masks.map(m => m.name), ['ok']);
     assert.match(model.issues[0].message, /mask "x" has no content; it is skipped/);
+    assert.equal(model.issues[0].warning, true, 'a skipped mask is a warning: the entry still fires');
 });
 
 test('a mask closed this turn by a firing entry is not used (closing beats opening)', () => {

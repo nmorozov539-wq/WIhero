@@ -63,9 +63,12 @@ demo (in the git history) follows this model.
   three are mentioned in one message, Mill closes and Bridge stays open.
   Entries that close each other in a loop all close.
 - **The on/off switch is a pause**, not a story event. An off entry injects
-  nothing, glue included, but its story state is untouched: a hold carries on
-  when it's turned back on. The switch belongs to the book, so rewinding the
-  chat never touches it.
+  nothing and doesn't fire, glue included, and switching it changes no story
+  state: a hold carries on when it's turned back on. The story keeps moving
+  while it's off, though: its close gates and locks still read what other
+  entries fire and what is said, so it can close while off and comes back
+  closed. The switch belongs to the book, so rewinding the chat never touches
+  it.
 
 ### 2.3 Story state lives in the chat
 

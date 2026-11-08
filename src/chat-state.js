@@ -42,3 +42,19 @@ export function greetingsOf(character) {
 
 /** A greeting's fingerprint: ST's getStringHash of its first 200 characters, trimmed (BUILD_SPEC 15.2). */
 export const greetingFingerprint = (text, hash) => String(hash(String(text ?? '').trim().slice(0, 200)));
+
+/**
+ * buildModel's `greetingFp` over ST's characters: the fingerprint of a character's greeting n, undefined when the
+ * character is missing, null when it has no greeting n. The runtime, the editor and Preview all use it, so they
+ * agree on which greetings changed.
+ * @param {() => object[] | undefined} characters
+ */
+export const greetingFpOf = (characters, hash) => (avatar, n) => {
+    const char = characters()?.find?.(c => c.avatar === avatar);
+    if (!char) return undefined;
+    const list = greetingsOf(char);
+    return n < list.length ? greetingFingerprint(list[n], hash) : null;
+};
+
+/** A key that changes whenever a character's greetings change in a way the model sees (their fingerprints). */
+export const greetingSignature = (character, hash) => `${character?.avatar ?? ''}|${greetingsOf(character).map(t => greetingFingerprint(t, hash)).join(',')}`;

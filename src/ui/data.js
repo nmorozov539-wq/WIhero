@@ -71,7 +71,7 @@ export function duplicateEntry(data, uid) {
  */
 export function moveEntry(from, uid, to) {
     const entry = structuredClone(from.entries[uid]);
-    delete from.entries[uid];
+    removeEntry(from, uid);
     entry.uid = freeUid(to);
     to.entries[entry.uid] = entry;
     const config = configOf(entry);
@@ -79,6 +79,19 @@ export function moveEntry(from, uid, to) {
         writeConfig(to, entry.uid, { ...config, id: uniqueId(config.id, idsIn(to)) });
     }
     return entry;
+}
+
+/**
+ * Deletes an entry. For a book imported from a card, its `originalData` entry goes too, like ST's own delete
+ * (world-info.js deleteWIOriginalDataValue), so a later entry given the same uid doesn't pick up the old one.
+ */
+export function removeEntry(data, uid) {
+    delete data.entries[uid];
+    const original = data.originalData?.entries;
+    if (!Array.isArray(original)) return;
+    // Loose equality like ST's: card uids can be strings.
+    const i = original.findIndex(x => x?.uid == uid);
+    if (i >= 0) original.splice(i, 1);
 }
 
 /** "Copy as text": the name, the key words and the content. */

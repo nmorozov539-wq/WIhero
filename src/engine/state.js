@@ -81,4 +81,3 @@ function renameBooks(state, renamed) {
     };
 }
 
-export const cloneState = state => structuredClone(state);
