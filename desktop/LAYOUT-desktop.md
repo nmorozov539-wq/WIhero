@@ -1,7 +1,8 @@
 ## Desktop: normal mode (draft)
 
 > First pass, from the sketches in [sketches/](sketches). Demo:
-> [normal-mode-demo.html](normal-mode-demo.html). Hero mode on desktop is not designed yet.
+> [normal-mode-demo.html](normal-mode-demo.html). Hero mode is further down, demo:
+> [hero-mode-demo.html](hero-mode-demo.html).
 
 Desktop is any screen where ST uses its desktop layout (wider than 1000px).
 The phone screens stay as they are below that.
@@ -152,3 +153,111 @@ ST's page, and taking them would close or switch the browser tab.
 - Tiles or list as the default on Home.
 - Whether the left pane should also show a short content preview per row
   (two lines, like a mail client) when it is wide.
+
+---
+
+## Desktop: Hero mode (draft)
+
+### Size
+
+- Hero mode opens **widened**: the whole window under ST's top bar, side to
+  side and down to the bottom (over ST's send form). A canvas needs the room.
+- A button in the tab row (next to ×) shrinks it to the drawer size Normal
+  mode uses, and back. It is remembered.
+- At drawer size the entry list starts hidden; the canvas toggle (top left)
+  shows it.
+
+### Tab row
+
+⌄, **Canvas** and **Preview** (permanent, icon only), entry tabs, empty space,
+then the book picker (the book's name ▾: the book list, + New book), Search
+(Ctrl K), Normal mode, Widen/Drawer size, ×.
+
+The book picker moves here from the bottom of the entry panel: on desktop the
+book is chosen once per canvas, and the tab row has the room.
+
+### Canvas tab: three columns
+
+| Column | What it is |
+|--------|------------|
+| Left: entry list (250px) | The phone's entry panel, docked. Filter box, +, Greetings first, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect. Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
+| Middle: canvas | The canvas, with the piece bar under it |
+| Right: inspector (320px) | Docked, always there; the ▯ button bottom right hides it |
+
+### Canvas: mouse
+
+| Action | Result |
+|--------|--------|
+| Hover a card | Its links and the cards they reach stay bright; the rest dims (the phone's focus, without a click). Three handles appear under it: teal, red, yellow |
+| Click a card | Selects it; the inspector shows it |
+| Double-click a card | The inspector's Text tab, to edit its content in place |
+| Drag a card | Moves it (the whole card, not only the grip; there is no scrolling to fight with). Links follow |
+| Drag empty canvas | Pans |
+| Shift-drag empty canvas | Box select. Several selected cards move together; the inspector offers Pack into…, Add all to a gate…, Turn off, Take off canvas |
+| Shift/Ctrl-click | Adds a card to the selection |
+| Wheel | Zooms around the pointer |
+| Drag from a knob or a hover handle onto another card | Makes a link: teal = the other card waits for this one, red = this one closes it, yellow = it rides along with this one. The piece bar turns into the strip for it |
+| Right-click a card | Inspect · Open entry · Edit text · Add piece (all eight, with their keys) · Data · Take off canvas |
+| Right-click empty canvas | "Add to canvas here": a search box, New entry here, every unplaced entry, Fit, Tidy layout |
+| Click a lock or wait chip | Inspects its card with that rule open |
+| Click empty canvas | Clears the selection |
+
+### Piece bar
+
+Under the canvas, as on phones, but every chip shows its color, name and key:
+**Opens O · Closes C · Glue G · Switch S · Mask M · Pack P**, a divider,
+**Lock L · Wait W**, and a hint "Or drag from a card's port to another card".
+
+Four ways to add a piece, all ending in the same strip:
+
+1. Click a chip, then a card (cards that can't take it dim). A banner says what
+   to click, with Cancel.
+2. Drag a chip onto a card.
+3. Drag from a card's port or hover handle onto another card (Opens, Closes,
+   Glue).
+4. Right-click a card › Add piece, or the inspector's + Add logic. With a card
+   selected, the key alone does it (O, C, G, …).
+
+The strip is the phone's: Cancel on the left, Done on the right, the sentence
+in between ("*The Ninefold Court* waits for *Prior Edda*" with ⇄, "and (both)
+/ or (either one)", Lock, Wait). A loose end can be dropped on a card or picked
+from a list.
+
+### Inspector (right column)
+
+| State | What it shows |
+|-------|---------------|
+| Nothing selected | The book: Problems (click jumps to the card), the link legend, and a short mouse cheat sheet |
+| One card | Header: strategy dot, name, on/off switch, ×. Tabs **Story logic** and **Text**. Story logic: the content's first two lines (click = Text tab), a problem line, one row per rule, expanding into its editor (chips with ×, + add, + Another row), From other entries, + Add logic. Text: the content, editable, with its keywords above. Footer: Open entry · Data |
+| Several cards | Their names and the group actions |
+
+### Preview tab
+
+A tab of its own, full width, two columns: the pretend exchange on the left
+(start point chip, You and Character slots, highlights, key), the report on the
+right (fire / blocked / change counts, then Fires, Blocked, Would change with
+reasons). Clicking a highlight or a row jumps to that card on the canvas.
+
+### Entry tabs
+
+The shared entry page, as in Normal mode, with Story logic always open and
+"Show on canvas ›".
+
+### Keys (canvas)
+
+| Key | What it does |
+|-----|--------------|
+| O C G S M P L W | Arm that piece; with a card selected, put it on that card |
+| F | Fit |
+| + − | Zoom |
+| / | Filter the entry list |
+| Delete | Take the selected card off the canvas (only without links) |
+| Esc | Menu, armed piece, strip (Cancel), text box, selection, then closes WI Hero |
+
+### Open questions
+
+- Tidy layout direction on a wide screen: left to right may suit it better than
+  top to bottom.
+- Whether the inspector should be resizable like Normal mode's list.
+- Whether hover dimming should wait a moment, so moving the mouse across the
+  canvas doesn't flicker.
