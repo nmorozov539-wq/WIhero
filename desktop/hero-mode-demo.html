@@ -80,8 +80,11 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .view{flex:1;min-height:0;display:flex;position:relative}
 
 /* left: entry list */
-.side{width:250px;flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--tint);transition:margin .18s}
-.side.hide{margin-left:-250px}
+.side{width:var(--sw, 250px);flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--tint);transition:margin .18s}
+.side.hide{margin-left:calc(-1 * var(--sw, 250px))}
+.rz{width:6px;margin:0 -3px;cursor:col-resize;z-index:8;flex-shrink:0;position:relative}
+.rz:hover,.rz.on{background:color-mix(in srgb, var(--accent) 50%, transparent)}
+.side.hide + .rz,.insp.hide{display:none}
 .srow{display:flex;gap:6px;padding:8px 10px 6px}
 .field{height:28px;border-radius:7px;border:1px solid var(--line);background:var(--surface);padding:0 10px;font-size:var(--t-s);min-width:0;flex:1}
 .field:focus{border-color:var(--accent);outline:none}
@@ -176,7 +179,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .seg button.on{background:var(--raised);color:var(--fg)}
 
 /* right: inspector */
-.insp{width:320px;flex-shrink:0;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--tint)}
+.insp{width:var(--iw, 320px);flex-shrink:0;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--tint)}
 .insp.hide{display:none}
 .ih{display:flex;align-items:center;gap:8px;padding:10px 10px 6px 14px}
 .ih .t{font-weight:700;font-size:var(--t-l);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -325,7 +328,7 @@ let linkN = 10;
 const W = 168, H = 60;
 
 /* ============ state ============ */
-const S = { tab:'canvas', sel:null, multi:new Set(), view:{x:60,y:40,z:1}, side:true, insp:true, itab:'logic', open:true, wide:true, armed:null, strip:null, openRow:null, mask:{king:0}, entryTabs:[] };
+const S = { sw:250, iw:320, tab:'canvas', sel:null, multi:new Set(), view:{x:60,y:40,z:1}, side:true, insp:true, itab:'logic', open:true, wide:true, armed:null, strip:null, openRow:null, mask:{king:0}, entryTabs:[] };
 
 /* ============ utils: menu, toast, tip ============ */
 let menuEl = null;
@@ -428,7 +431,7 @@ function mainMenu(a){
     { label:'Active globally', hint:'Off', fn:() => toast('Global switch') }, { label:'Linked to: Kestrel Vane +1 ›', fn:() => toast('Links sheet') },
     { label:'Problems (1) ›', icon:'warn', fn:() => select('court', true) }, { label:'Snapshots ›', icon:'clock', fn:() => toast('Snapshots') },
     '-', { section:true, label:'Canvas' },
-    { label:'Tidy layout', icon:'tidy', fn:() => toast('Tidy reruns the layered layout') }, { label:'Show chat state', hint:'Off', fn:() => toast('Chat state: fired counts, closed cards, as on phones') },
+    { label:'Tidy layout', icon:'tidy', fn:() => doTidy() }, { label:'Show chat state', hint:'Off', fn:() => toast('Chat state: fired counts, closed cards, as on phones') },
     '-', { label:'Open books in Hero mode', hint:'On', fn:() => {} },
   ]);
 }
@@ -483,7 +486,8 @@ function renderSide(){
 /* ----- canvas ----- */
 let cv, world, svgL, svgP;
 function renderCanvasView(v){
-  v.append(renderSide());
+  v.style.setProperty('--sw', S.sw + 'px'); v.style.setProperty('--iw', S.iw + 'px');
+  v.append(renderSide(), resizer('sw', 1, 200, 420, 250));
   const wrap = h('div', { class:'cwrap' });
   cv = h('div', { id:'cv', tabindex:0, 'aria-label':'Story canvas' });
   world = h('div', { id:'world' });
@@ -494,12 +498,23 @@ function renderCanvasView(v){
   const st = h('button', { class:'sidetoggle', 'aria-label': S.side ? 'Hide entry list' : 'Show entry list', 'data-tip': S.side ? 'Hide entries' : 'Show entries' }, ic('panel', 15));
   st.onclick = () => { S.side = !S.side; render(); }; cv.append(st);
   const tools = h('div', { class:'ctools' });
-  for (const [icn, tipT, fn] of [['plus', 'Zoom in (+)', () => zoomBy(1.2)], ['minus', 'Zoom out (−)', () => zoomBy(1 / 1.2)], ['fit', 'Fit (F)', fit], ['panelr', S.insp ? 'Hide inspector' : 'Show inspector', () => { S.insp = !S.insp; render(); }]]){ const b = h('button', { 'aria-label':tipT, 'data-tip':tipT }, ic(icn, 15)); b.onclick = fn; tools.append(b); }
+  for (const [icn, tipT, fn] of [['plus', 'Zoom in (+)', () => zoomBy(1.2)], ['minus', 'Zoom out (−)', () => zoomBy(1 / 1.2)], ['fit', 'Fit (F)', fit], ['tidy', 'Tidy left to right (T)', () => doTidy()], ['panelr', S.insp ? 'Hide inspector' : 'Show inspector', () => { S.insp = !S.insp; render(); }]]){ const b = h('button', { 'aria-label':tipT, 'data-tip':tipT }, ic(icn, 15)); b.onclick = fn; tools.append(b); }
   cv.append(tools, h('div', { class:'zoomlbl', id:'zl' }));
   wrap.append(cv, h('div', { id:'pbar' }));
   v.append(wrap);
+  if (S.insp) v.append(resizer('iw', -1, 260, 560, 320));
   v.append(h('aside', { class:`insp${S.insp ? '' : ' hide'}`, id:'insp', 'aria-label':'Inspector' }));
   wireCanvas(); drawWorld(); renderBar(); renderInsp(); applyView();
+}
+function resizer(key, dir, min, max, def){
+  const rz = h('div', { class:'rz', role:'separator', 'aria-orientation':'vertical', 'aria-label':'Resize column', 'data-tip':'Drag to resize, double-click to reset' });
+  rz.onpointerdown = (e) => {
+    rz.setPointerCapture(e.pointerId); rz.classList.add('on'); const x0 = e.clientX, w0 = S[key];
+    rz.onpointermove = (m) => { S[key] = Math.max(min, Math.min(max, w0 + dir * (m.clientX - x0))); rz.parentElement.style.setProperty('--' + key, S[key] + 'px'); };
+    rz.onpointerup = () => { rz.onpointermove = null; rz.classList.remove('on'); };
+  };
+  rz.ondblclick = () => { S[key] = def; rz.parentElement.style.setProperty('--' + key, def + 'px'); };
+  return rz;
 }
 function applyView(){ if (!world) return; world.style.transform = `translate(${S.view.x}px, ${S.view.y}px) scale(${S.view.z})`; const zl = document.getElementById('zl'); if (zl) zl.textContent = Math.round(S.view.z * 100) + '%'; }
 function zoomBy(f, cx, cy){ const r = cv.getBoundingClientRect(); cx ??= r.width / 2; cy ??= r.height / 2; const z = Math.max(.3, Math.min(2, S.view.z * f)); S.view.x = cx - (cx - S.view.x) * z / S.view.z; S.view.y = cy - (cy - S.view.y) * z / S.view.z; S.view.z = z; applyView(); }
@@ -510,21 +525,73 @@ function centerWorld(){ const r = cv.getBoundingClientRect(); return toWorld(r.l
 function jumpTo(u){ select(u, true); const r = cv.getBoundingClientRect(); const p = POS[u]; S.view.x = r.width / 2 - (p.x + W / 2) * S.view.z; S.view.y = r.height / 2 - (p.y + H / 2) * S.view.z; applyView(); }
 function placeAt(u, p){ POS[u] = { x:Math.round(p.x / 12) * 12, y:Math.round(p.y / 12) * 12 }; S.sel = u; render(); toast(`Placed ${N(u)}`, () => { delete POS[u]; render(); }); }
 
+/* Tidy: layered layout, left to right. Columns are link depth; each column is ordered by where its sources sit
+   and centered against the tallest one. A pack's unlinked members join the column of a linked member. */
+function tidy(){
+  const placed = Object.keys(POS); const layer = {};
+  for (const u of placed) layer[u] = 0;
+  for (let i = 0; i < placed.length; i++) for (const l of LINKS) if (POS[l.from] && POS[l.to]) layer[l.to] = Math.max(layer[l.to], layer[l.from] + 1);
+  const linked = new Set(LINKS.flatMap(l => [l.from, l.to]));
+  const cols = [];
+  for (const u of placed.filter(u => linked.has(u))) (cols[layer[u]] ||= []).push(u);
+  const order = {};
+  cols.forEach((c, ci) => { c.sort((a, b) => bary(a) - bary(b)); c.forEach((u, i) => order[u] = i); });
+  function bary(u){ const src = LINKS.filter(l => l.to === u && order[l.from] != null).map(l => order[l.from]); return src.length ? src.reduce((x, y) => x + y) / src.length : -1; }
+  for (const u of placed.filter(u => !linked.has(u))){
+    const mate = placed.find(m => linked.has(m) && ENT[m].packs?.some(p => ENT[u].packs?.includes(p)));
+    const c = mate ? cols[layer[mate]] : (cols[0] ||= []);
+    c.splice(mate ? c.indexOf(mate) + 1 : c.length, 0, u);
+  }
+  const RH = 132, CW = 264, max = Math.max(...cols.map(c => c?.length || 0));
+  cols.forEach((c, ci) => (c || []).forEach((u, i) => POS[u] = { x:ci * CW, y:(max - c.length) * RH / 2 + i * RH }));
+}
+
 /* ports: where links attach */
-function port(u, kind, dir, l){
-  const p = POS[u];
-  if (kind === 'glue') return dir === 'out' ? { x:p.x + W, y:p.y + H / 2, side:'r' } : { x:p.x, y:p.y + H / 2, side:'l' };
-  if (dir === 'out') return { x:p.x + (kind === 'open' ? W * .5 : W * .2), y:p.y + H, side:'b' };
-  return { x:p.x + (kind === 'open' ? W * .5 : W * .82), y:p.y, side:'t' };
+/* Ports sit on the side facing the other card: left/right when the cards stand side by side (Tidy lays them
+   out left to right), top/bottom when one is above the other. Shape (socket in, knob out) carries direction. */
+const FR = { lr:{ open:.3, glue:.55, close:.8 }, tb:{ open:.5, glue:.3, close:.8 } };
+function sideOf(u, other, dir){
+  const p = POS[u], o = other && POS[other];
+  if (!o) return 't'; /* a lone lock or wait sits on top, clear of the lanes beside the card */
+  const right = o.x >= p.x + W + 24, left = o.x + W + 24 <= p.x;
+  if (right) return 'r';
+  if (left) return 'l';
+  return o.y > p.y ? 'b' : 't';
+}
+function port(u, kind, dir, other){
+  const p = POS[u], side = sideOf(u, other, dir);
+  if (side === 'l' || side === 'r') return { x:p.x + (side === 'r' ? W : 0), y:p.y + H * FR.lr[kind], side };
+  return { x:p.x + W * (dir === 'out' && kind === 'close' ? .2 : FR.tb[kind]), y:p.y + (side === 'b' ? H : 0), side };
 }
 const COLOR = { open:'var(--p-open)', close:'var(--p-close)', glue:'var(--p-glue)' };
+const OUT = { r:[1,0], l:[-1,0], b:[0,1], t:[0,-1] };
+function jpoint(b){ const [dx, dy] = OUT[b.side]; return { x:b.x + dx * 30, y:b.y + dy * 30 }; }
+function rounded(pts){
+  const r = 10; let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 1; i < pts.length - 1; i++){
+    const a = pts[i - 1], c = pts[i], n = pts[i + 1];
+    const l1 = Math.hypot(c.x - a.x, c.y - a.y), l2 = Math.hypot(n.x - c.x, n.y - c.y);
+    if (!l1 || !l2){ continue; }
+    const k1 = Math.min(r, l1 / 2) / l1, k2 = Math.min(r, l2 / 2) / l2;
+    d += ` L${c.x - (c.x - a.x) * k1},${c.y - (c.y - a.y) * k1} Q${c.x},${c.y} ${c.x + (n.x - c.x) * k2},${c.y + (n.y - c.y) * k2}`;
+  }
+  const z = pts[pts.length - 1]; return d + ` L${z.x},${z.y}`;
+}
 function route(a, b, junction){
-  const r = 10;
-  if (a.side === 'r'){ const mx = (a.x + b.x) / 2; return `M${a.x},${a.y} H${mx} V${b.y} H${b.x}`; }
-  const jy = junction ? b.y - 30 : a.y + 24;
-  if (Math.abs(a.x - b.x) < 1) return `M${a.x},${a.y} V${b.y}`;
-  const s = Math.sign(b.x - a.x);
-  return `M${a.x},${a.y} V${jy - r} Q${a.x},${jy} ${a.x + s * r},${jy} H${b.x - s * r} Q${b.x},${jy} ${b.x},${jy + r} V${b.y}`;
+  const hz = a.side === 'l' || a.side === 'r';
+  const [dx, dy] = OUT[a.side];
+  const pts = [a];
+  if (hz){
+    const jx = junction ? jpoint(b).x : a.x + dx * 24;
+    if (b.side === 'l' || b.side === 'r') pts.push({ x:jx, y:a.y }, { x:jx, y:b.y });
+    else pts.push({ x:b.x, y:a.y });
+  } else {
+    const jy = junction ? jpoint(b).y : a.y + dy * 24;
+    if (b.side === 't' || b.side === 'b') pts.push({ x:a.x, y:jy }, { x:b.x, y:jy });
+    else pts.push({ x:a.x, y:b.y });
+  }
+  pts.push(b);
+  return rounded(pts.filter((q, i) => i === 0 || q.x !== pts[i - 1].x || q.y !== pts[i - 1].y));
 }
 function drawWorld(){
   world.querySelectorAll('.card,.layercard,.mnav,.packframe,.lchip,.junc,.ghosts').forEach(e => e.remove());
@@ -537,29 +604,29 @@ function drawWorld(){
   const junctions = {};
   for (const l of LINKS){
     if (!POS[l.from] || !POS[l.to]) continue;
-    const a = port(l.from, l.kind, 'out'), b = port(l.to, l.kind, 'in');
+    const a = port(l.from, l.kind, 'out', l.to), b = port(l.to, l.kind, 'in', l.from);
     const p = document.createElementNS(NS, 'path');
     p.setAttribute('d', route(a, b, !!l.row)); p.setAttribute('fill', 'none'); p.setAttribute('stroke', COLOR[l.kind]); p.setAttribute('stroke-width', 2);
     if (l.kind === 'close') p.setAttribute('stroke-dasharray', '6 5');
     p.setAttribute('class', 'lk'); p.dataset.from = l.from; p.dataset.to = l.to;
     svgL.append(p);
-    if (l.kind === 'close'){ const bar = document.createElementNS(NS, 'path'); bar.setAttribute('d', `M${b.x - 7},${b.y - 2} H${b.x + 7}`); bar.setAttribute('stroke', COLOR.close); bar.setAttribute('stroke-width', 3); bar.setAttribute('class', 'lk'); bar.dataset.from = l.from; bar.dataset.to = l.to; svgL.append(bar); }
-    if (l.row){ const k = l.to + ':' + l.row; junctions[k] = junctions[k] || { x:b.x, y:b.y - 30, to:l.to, n:0, from:[] }; junctions[k].n++; junctions[k].from.push(l.from); }
-    if (l.wait){ const c = h('div', { class:'lchip', style:`left:${b.x}px;top:${(a.y + b.y) / 2}px;color:var(--p-open)` }, `${ic('clock', 11)}${l.wait} messages`); c.dataset.from = l.from; c.dataset.to = l.to; c.onclick = (e) => { e.stopPropagation(); select(l.to); openRowFor(l.to, 'Gate'); }; world.append(c); }
+    if (l.kind === 'close'){ const bar = document.createElementNS(NS, 'path'); bar.setAttribute('d', b.side === 'l' || b.side === 'r' ? `M${b.x + OUT[b.side][0] * 2},${b.y - 7} V${b.y + 7}` : `M${b.x - 7},${b.y + OUT[b.side][1] * 2} H${b.x + 7}`); bar.setAttribute('stroke', COLOR.close); bar.setAttribute('stroke-width', 3); bar.setAttribute('class', 'lk'); bar.dataset.from = l.from; bar.dataset.to = l.to; svgL.append(bar); }
+    if (l.row){ const k = l.to + ':' + l.row; junctions[k] = junctions[k] || { ...jpoint(b), to:l.to, n:0, from:[] }; junctions[k].n++; junctions[k].from.push(l.from); }
+    if (l.wait){ const c = h('div', { class:'lchip', style:`left:${(a.x + b.x) / 2}px;top:${l.row ? jpoint(b).y - 26 : (a.y + b.y) / 2}px;color:var(--p-open)` }, `${ic('clock', 11)}${l.wait} messages`); c.dataset.from = l.from; c.dataset.to = l.to; c.onclick = (e) => { e.stopPropagation(); select(l.to); openRowFor(l.to, 'Gate'); }; world.append(c); }
   }
   for (const j of Object.values(junctions)) if (j.n > 1){ const c = h('div', { class:'junc', style:`left:${j.x}px;top:${j.y}px;color:var(--p-open)` }, 'and'); c.dataset.to = j.to; c.dataset.from = j.from.join(' '); world.append(c); }
-  for (const lk of LOCKS){ if (!POS[lk.to]) continue; const b = port(lk.to, lk.kind, 'in'); const p = document.createElementNS(NS, 'path'); p.setAttribute('d', `M${b.x},${b.y - 34} V${b.y}`); p.setAttribute('stroke', COLOR.close); p.setAttribute('stroke-width', 2); p.setAttribute('stroke-dasharray', '6 5'); p.setAttribute('class', 'lk'); p.dataset.to = lk.to; p.dataset.from = ''; svgL.append(p);
-    const c = h('div', { class:'lchip', style:`left:${b.x}px;top:${b.y - 40}px;color:var(--p-close)` }, `${ic('lock', 11)}${esc(lk.phrase)}`); c.dataset.to = lk.to; c.dataset.from = ''; c.onclick = (e) => { e.stopPropagation(); select(lk.to); openRowFor(lk.to, 'Close gate'); }; world.append(c); }
+  for (const lk of LOCKS){ if (!POS[lk.to]) continue; const b = port(lk.to, lk.kind, 'in'); const [ox, oy] = OUT[b.side]; const e = { x:b.x + ox * 34, y:b.y + oy * 34 };
+    const p = document.createElementNS(NS, 'path'); p.setAttribute('d', `M${e.x},${e.y} L${b.x},${b.y}`); p.setAttribute('stroke', COLOR.close); p.setAttribute('stroke-width', 2); p.setAttribute('stroke-dasharray', '6 5'); p.setAttribute('class', 'lk'); p.dataset.to = lk.to; p.dataset.from = ''; svgL.append(p);
+    const c = h('div', { class:'lchip', style:`left:${e.x + ox * 46}px;top:${e.y + oy * 10}px;color:var(--p-close)` }, `${ic('lock', 11)}${esc(lk.phrase)}`); c.dataset.to = lk.to; c.dataset.from = ''; c.onclick = (ev) => { ev.stopPropagation(); select(lk.to); openRowFor(lk.to, 'Close gate'); }; world.append(c); }
   /* ports */
   const drawn = new Set();
+  const addPort = (pt, kind, dir, u) => { const key = `${u}${kind}${dir}${pt.side}`; if (drawn.has(key)) return; drawn.add(key); svgP.append(portShape(pt, kind, dir, u)); };
   for (const l of LINKS){
     if (!POS[l.from] || !POS[l.to]) continue;
-    for (const [u, dir] of [[l.from, 'out'], [l.to, 'in']]){
-      const key = u + l.kind + dir; if (drawn.has(key)) continue; drawn.add(key);
-      svgP.append(portShape(port(u, l.kind, dir), l.kind, dir, u));
-    }
+    addPort(port(l.from, l.kind, 'out', l.to), l.kind, 'out', l.from);
+    addPort(port(l.to, l.kind, 'in', l.from), l.kind, 'in', l.to);
   }
-  for (const lk of LOCKS) if (POS[lk.to] && !drawn.has(lk.to + 'closein')) svgP.append(portShape(port(lk.to, 'close', 'in'), 'close', 'in', lk.to));
+  for (const lk of LOCKS) if (POS[lk.to]) addPort(port(lk.to, 'close', 'in'), 'close', 'in', lk.to);
   /* cards */
   for (const [u, p] of Object.entries(POS)){
     const e = ENT[u];
@@ -616,8 +683,10 @@ function setFocus(u){
 let drag = null;
 function wireCanvas(){
   cv.addEventListener('wheel', (e) => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomBy(Math.exp(-e.deltaY * .0015), e.clientX - r.left, e.clientY - r.top); }, { passive:false });
-  cv.addEventListener('pointerover', (e) => { const c = e.target.closest('.card'); if (c && !drag && !S.armed){ setFocus(c.dataset.u); showGhosts(c.dataset.u); } });
-  cv.addEventListener('pointerout', (e) => { const c = e.target.closest('.card,.ghosts'); const to = e.relatedTarget?.closest?.('.card,.ghosts'); if (c && (!to || to.dataset.u !== c.dataset.u) && !drag){ setFocus(null); showGhosts(null); } });
+  /* Hover dimming waits 350ms, so sweeping the mouse across the canvas doesn't flicker. Handles show at once. */
+  let hoverT = null, hoverU = null;
+  cv.addEventListener('pointerover', (e) => { const c = e.target.closest('.card'); if (!c || drag || S.armed || c.dataset.u === hoverU) return; hoverU = c.dataset.u; showGhosts(hoverU); clearTimeout(hoverT); hoverT = setTimeout(() => setFocus(hoverU), 350); });
+  cv.addEventListener('pointerout', (e) => { const c = e.target.closest('.card,.ghosts'); const to = e.relatedTarget?.closest?.('.card,.ghosts'); if (c && (!to || to.dataset.u !== c.dataset.u) && !drag){ clearTimeout(hoverT); hoverU = null; setFocus(null); showGhosts(null); } });
   cv.addEventListener('pointerdown', (e) => {
     if (e.button === 2) return;
     cv.focus({ preventScroll:true });
@@ -673,7 +742,7 @@ function wireCanvas(){
     const inp = h('input', { placeholder:'Search entries', 'aria-label':'Search entries' });
     const items = [{ section:true, label:'Add to canvas here' }, { el:inp }, { label:'New entry here', icon:'plus', fn:() => toast('New entry, placed here') }, '-',
       ...unplaced.map(u => ({ label:N(u), sw:STRAT[ENT[u].strategy], fn:() => placeAt(u, { x:at.x - W / 2, y:at.y - H / 2 }) })),
-      '-', { label:'Fit', icon:'fit', hint:'F', fn:fit }, { label:'Tidy layout', icon:'tidy', fn:() => toast('Tidy reruns the layout') }];
+      '-', { label:'Fit', icon:'fit', hint:'F', fn:fit }, { label:'Tidy layout', icon:'tidy', fn:() => doTidy() }];
     showMenu({ x:e.clientX, y:e.clientY }, items);
     inp.oninput = () => { const q = inp.value.toLowerCase(); menuEl.querySelectorAll('.mi').forEach(b => { if (b.querySelector('.sw')) b.style.display = b.textContent.toLowerCase().includes(q) ? '' : 'none'; }); };
   });
@@ -804,6 +873,7 @@ function renderStrip(bar){
 }
 
 /* ----- inspector ----- */
+function doTidy(){ const before = JSON.parse(JSON.stringify(POS)); tidy(); drawWorld(); fit(); toast('Tidied left to right', () => { for (const k of Object.keys(before)) POS[k] = before[k]; drawWorld(); }); }
 function select(u, scroll){ S.sel = u; S.multi.clear(); S.insp = true; S.itab = S.itab === 'text' ? 'text' : 'logic'; S.openRow = null; if (document.getElementById('insp')?.classList.contains('hide')){ render(); return; } drawWorld(); renderInsp(); refreshSide(); }
 function openRowFor(u, k){ S.openRow = k; renderInsp(); }
 function cardMenu(u, at){
@@ -836,7 +906,7 @@ function renderInsp(){
     for (const [c, d, t] of [['var(--p-open)', '', 'Opens: waits for, then opens'], ['var(--p-close)', '6 5', 'Closes'], ['var(--p-glue)', '', 'Glue: rides along'], ['var(--p-mask)', '', 'Masks (stacked cards)'], ['var(--p-pack)', '4 4', 'Pack frame']]) lg.append(h('span', { style:'display:flex' }, `<svg width="30" height="8" viewBox="0 0 30 8"><path d="M1 4H29" stroke="${c}" stroke-width="2.5" ${d ? `stroke-dasharray="${d}"` : ''}/></svg>`), h('span', {}, t));
     b.append(lg);
     b.append(h('div', { class:'sect' }, 'Mouse'));
-    b.append(h('div', { style:'font-size:13px;color:var(--muted);line-height:1.8' }, 'Hover a card to see its links. Click to inspect, double-click to edit its text. Drag a card to move it, drag empty space to pan, Shift-drag to select several. Wheel zooms. Drag a colored port or handle under a card onto another card to link them. Right-click a card or the canvas for more.'));
+    b.append(h('div', { style:'font-size:13px;color:var(--muted);line-height:1.8' }, 'Rest the pointer on a card to see its links. Click to inspect, double-click to edit its text. Drag a card to move it, drag empty space to pan, Shift-drag to select several. Wheel zooms. Drag a colored port or handle under a card onto another card to link them. Right-click a card or the canvas for more.'));
     el.append(b); return;
   }
   const u = S.sel, e = ENT[u];
@@ -946,6 +1016,7 @@ document.addEventListener('keydown', (e) => {
   const p = PIECES.find(x => x !== '|' && x[3].toLowerCase() === e.key.toLowerCase());
   if (p){ e.preventDefault(); if (S.sel){ S.armed = p[0]; applyArmed(S.sel); } else arm(p[0]); return; }
   if (e.key.toLowerCase() === 'f'){ fit(); return; }
+  if (e.key.toLowerCase() === 't'){ doTidy(); return; }
   if (e.key === '+' || e.key === '='){ zoomBy(1.2); return; }
   if (e.key === '-'){ zoomBy(1 / 1.2); return; }
   if (e.key === '/'){ e.preventDefault(); document.getElementById('esearch')?.focus(); return; }
@@ -962,7 +1033,7 @@ function setOpen(o){ S.open = o; document.getElementById('wih').classList.toggle
     box.append(b);
   }
 })();
-render(); requestAnimationFrame(fit);
+tidy(); render(); requestAnimationFrame(fit);
 addEventListener('resize', () => { if (S.tab === 'canvas') fit(); });
 </script>
 

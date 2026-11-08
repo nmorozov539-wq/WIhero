@@ -180,15 +180,32 @@ book is chosen once per canvas, and the tab row has the room.
 
 | Column | What it is |
 |--------|------------|
-| Left: entry list (250px) | The phone's entry panel, docked. Filter box, +, Greetings first, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect. Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
+| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Greetings first, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect. Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
 | Middle: canvas | The canvas, with the piece bar under it |
-| Right: inspector (320px) | Docked, always there; the ▯ button bottom right hides it |
+| Right: inspector (320px, drag its edge: 260 to 560px) | Docked, always there; the ▯ button bottom right hides it |
+
+Both side columns resize by dragging their inner edge (double-click resets),
+and the sizes are remembered.
+
+### Layout direction
+
+The canvas flows **left to right**: Tidy puts the cards in columns by link
+depth (a card sits one column right of everything it waits for), orders each
+column by where its sources are, and centers the columns. A pack's unlinked
+members join the column of a linked member, so the frame stays whole. Tidy is
+in ⌄, the canvas's right-click menu, the tools on the right (above the
+inspector toggle) and the key T, with an Undo toast.
+
+Ports follow: a link between cards side by side leaves from the right edge
+and enters the left edge; between cards above one another it uses the bottom
+and top. A card's own lone lock or wait sits on its top edge, clear of the
+lanes beside it. (The phone keeps top to bottom, which suits a tall screen.)
 
 ### Canvas: mouse
 
 | Action | Result |
 |--------|--------|
-| Hover a card | Its links and the cards they reach stay bright; the rest dims (the phone's focus, without a click). Three handles appear under it: teal, red, yellow |
+| Hover a card | Three handles appear under it at once: teal, red, yellow. After the pointer rests on the card for 350ms, its links and the cards they reach stay bright and the rest dims (the phone's focus, without a click). Moving across the canvas doesn't flicker |
 | Click a card | Selects it; the inspector shows it |
 | Double-click a card | The inspector's Text tab, to edit its content in place |
 | Drag a card | Moves it (the whole card, not only the grip; there is no scrolling to fight with). Links follow |
@@ -249,6 +266,7 @@ The shared entry page, as in Normal mode, with Story logic always open and
 |-----|--------------|
 | O C G S M P L W | Arm that piece; with a card selected, put it on that card |
 | F | Fit |
+| T | Tidy, left to right |
 | + − | Zoom |
 | / | Filter the entry list |
 | Delete | Take the selected card off the canvas (only without links) |
@@ -256,8 +274,8 @@ The shared entry page, as in Normal mode, with Story logic always open and
 
 ### Open questions
 
-- Tidy layout direction on a wide screen: left to right may suit it better than
-  top to bottom.
-- Whether the inspector should be resizable like Normal mode's list.
-- Whether hover dimming should wait a moment, so moving the mouse across the
-  canvas doesn't flicker.
+- Settled: Tidy runs left to right, both side columns resize, hover dimming
+  waits 350ms.
+- The demo draws links with simple elbows, so two links can share a stretch;
+  the real router (lanes on a 12px lattice, never through a card) already
+  avoids that.
