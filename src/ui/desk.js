@@ -893,9 +893,11 @@ export function deskNormal(A) {
         main.append(ov);
         const names = A.visibleNames();
         for (const n of names) A.need(n, { open: false });
-        const cur = A.page().book;
+        const hero = S.mode === 'hero';
+        const cur = hero ? A.heroBook() : A.page().book;
         let hits = [];
         const open = (h, background) => {
+            if (hero) { S.search = null; A.heroOpen(h, background); return; }
             if (h.kind === 'entry') {
                 if (background) { openEntryTab(h.book, h.entry.uid, { background: true }); return; }
                 S.search = null;
@@ -985,5 +987,5 @@ export function deskNormal(A) {
         return false;
     }
 
-    return { render, renderTabs, back, key, openBook, openEntryTab, showInBook, openSearch };
+    return { render, renderTabs, back, key, openBook, openEntryTab, showInBook, openSearch, renderSearch };
 }

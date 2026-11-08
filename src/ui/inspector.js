@@ -17,7 +17,16 @@ const KIND_ICON = { lock: 'lock', wait: 'clock', greeting: 'chat' };
 /** The sheet itself: a grab bar that toggles and drags between half and full height. */
 function frame(box, x, cls) {
     const sh = el('div', `insp ${cls}${x.full ? ' full' : ''}`);
-    sh.setAttribute('role', 'dialog');
+    sh.setAttribute('role', x.desk ? 'region' : 'dialog');
+    if (x.desk) {
+        // Desktop (LAYOUT "Inspector (right column)"): docked, no grab bar.
+        const body = el('div', 'ibody');
+        sh.append(body);
+        box.append(sh);
+        if (x.scroll) requestAnimationFrame(() => { body.scrollTop = x.scroll; });
+        body.addEventListener('scroll', () => x.onScroll?.(body.scrollTop));
+        return body;
+    }
     const grab = el('div', 'igrab');
     grab.append(el('i'));
     grab.setAttribute('role', 'button');
@@ -139,11 +148,44 @@ export function renderInspector(box, x) {
     head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on'), btn('round flat', ic('x'), x.close, 'Close the inspector'));
     body.append(head);
 
+    if (x.desk) {
+        // Tabs Story logic and Text; Text edits the content in place.
+        const tabs = el('div', 'itabs');
+        tabs.setAttribute('role', 'tablist');
+        for (const [k, label] of [['logic', 'Story logic'], ['text', 'Text']]) {
+            const t = btn(x.tab === k ? 'on' : '', '', () => { if (x.tab !== k) x.setTab(k); });
+            t.textContent = label;
+            t.setAttribute('role', 'tab');
+            t.setAttribute('aria-selected', String(x.tab === k));
+            tabs.append(t);
+        }
+        body.append(tabs);
+        if (x.tab === 'text') {
+            const keys = (e.key ?? []).filter(Boolean);
+            const kw = e.constant ? 'Permanent' : e.vectorized ? 'Vectorized' : keys.length ? `Keywords: ${keys.join(', ')}` : 'No key words yet';
+            body.append(el('div', 'ikeys', kw));
+            const ta = el('textarea', 'itext');
+            ta.value = e.content ?? '';
+            ta.placeholder = 'What the AI reads when this entry fires';
+            ta.setAttribute('aria-label', 'Content');
+            ta.addEventListener('input', () => x.setText(ta.value));
+            ta.addEventListener('blur', () => x.textDone?.());
+            body.append(ta);
+            body.append(el('div', 'ihint', 'Saved as you type. Key words and parameters are in the entry tab.'));
+            if (x.focusText) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
+            const foot = el('div', 'ifoot');
+            foot.append(btn('linkish', `${ic('entry', 's')} Open entry`, () => x.openEntry()));
+            foot.append(btn('linkish', `${ic('code', 's')} Data`, x.data));
+            body.append(foot);
+            return;
+        }
+    }
+
     const pre = el('button', 'ipre');
     pre.type = 'button';
-    pre.textContent = (e.content ?? '').trim() || 'No text yet. Tap to write it.';
+    pre.textContent = (e.content ?? '').trim() || (x.desk ? 'No text yet. Click to write it.' : 'No text yet. Tap to write it.');
     if (!(e.content ?? '').trim()) pre.classList.add('empty');
-    pre.addEventListener('click', () => x.openEntry());
+    pre.addEventListener('click', () => (x.desk ? x.setTab('text') : x.openEntry()));
     body.append(pre);
 
     if (x.closed) {
@@ -201,7 +243,7 @@ export function renderInspector(box, x) {
 
     const foot = el('div', 'ifoot');
     foot.append(btn('linkish', `${ic('entry', 's')} Open entry`, () => x.openEntry()));
-    if (x.takeOff) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+    if (x.takeOff && !x.desk) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
     foot.append(btn('linkish', `${ic('code', 's')} Data`, x.data));
     body.append(foot);
 }

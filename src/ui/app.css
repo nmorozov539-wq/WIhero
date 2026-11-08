@@ -814,3 +814,88 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .dsr b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsr small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsr.at { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* ---------- Desktop: Hero mode (LAYOUT "Desktop: Hero mode") ---------- */
+[data-desk="1"] .tbook { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--fg); font-size: var(--t-s); font-weight: 600; max-width: 240px; }
+[data-desk="1"] .tbook span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-desk="1"] .tbook:hover, [data-desk="1"] .tmode:hover { background: var(--hover); }
+[data-desk="1"] .tmode { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font-size: var(--t-s); white-space: nowrap; }
+[data-desk="1"] .tmode:hover { color: var(--fg); }
+
+/* Three columns: the entry list, the canvas over the piece bar, the inspector. */
+[data-desk="1"] .main[data-page="hero:canvas"] { display: grid; grid-template-columns: var(--lw, 250px) minmax(0, 1fr) var(--iw, 320px); grid-template-rows: minmax(0, 1fr) auto; }
+[data-desk="1"] .main[data-page="hero:canvas"] > .vp { grid-column: 2; grid-row: 1; }
+[data-desk="1"] .main[data-page="hero:canvas"] > .pbar { grid-column: 2; grid-row: 2; }
+[data-desk="1"] .panel.dock { position: relative; grid-column: 1; grid-row: 1 / 3; width: auto; max-width: none; transform: none; box-shadow: none; transition: none; z-index: 3; }
+[data-desk="1"] .panel.dock.closed, [data-desk="1"] .panel.dock.dragging { transform: none; }
+[data-desk="1"] .panel.dock > .colresize.right { position: absolute; right: -3px; top: 0; bottom: 0; margin: 0; }
+[data-desk="1"] .panel.dock .phead { min-height: 0; padding: 10px 8px 6px 10px; }
+[data-desk="1"] .panel.dock .phead input { height: 30px; border-radius: 8px; padding: 0 10px; }
+[data-desk="1"] .panel.dock .phead .round { width: 30px; height: 30px; }
+[data-desk="1"] .panel.dock .prow { min-height: 30px; font-size: var(--t-s); margin: 1px 0; user-select: none; -webkit-user-select: none; }
+[data-desk="1"] .panel.dock .prow.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+[data-desk="1"] .panel.dock .prow .dotc { width: 28px; height: 28px; }
+[data-desk="1"] .panel.dock .phdr { min-height: 28px; font-size: var(--t-xs); }
+[data-desk="1"] .pfoot { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: var(--t-xs); color: var(--muted); }
+[data-desk="1"] .pfoot .plinks { display: inline-flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-desk="1"] .pfoot .pcount { white-space: nowrap; }
+[data-desk="1"] .main[data-page="hero:canvas"] > .panelBtn { left: calc(var(--lw, 0px) + 10px); top: 10px; width: 32px; height: 32px; border-radius: 8px; z-index: 6; transition: none; }
+[data-desk="1"] .main[data-page="hero:canvas"] .legend { left: calc(var(--lw, 0px) + 52px); }
+[data-desk="1"] .canvas-tools button { width: 32px; height: 32px; border-radius: 8px; }
+[data-desk="1"] .canvas-tools .itoggle { margin-top: 6px; }
+[data-desk="1"] .hinsp { grid-column: 3; grid-row: 1 / 3; position: relative; min-width: 0; border-left: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; }
+[data-desk="1"] .hinsp > .colresize.left { position: absolute; left: -3px; top: 0; bottom: 0; margin: 0; }
+[data-desk="1"] .hinsp .insp { position: static; height: auto; flex: 1; min-height: 0; border-radius: 0; border: 0; box-shadow: none; animation: none; background: transparent; }
+[data-desk="1"] .hinsp .ibody { padding-top: 10px; }
+[data-desk="1"] .hinsp .ihead h2 { font-size: var(--t-m); }
+[data-desk="1"] .hinsp .round { width: 30px; height: 30px; }
+[data-desk="1"] .hinsp .opt { min-height: 36px; font-size: var(--t-s); }
+.itabs { display: flex; gap: 2px; margin: 4px 12px 8px; border-bottom: 1px solid var(--line); }
+.itabs button { border: 0; background: transparent; color: var(--muted); font-size: var(--t-s); padding: 6px 10px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.itabs button.on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+.itabs button:hover { color: var(--fg); }
+.ikeys { margin: 0 16px 6px; font-size: var(--t-xs); color: var(--muted); }
+.itext { display: block; width: calc(100% - 32px); margin: 0 16px; min-height: 280px; resize: vertical; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 10px 12px;
+  font-family: var(--content-font, var(--serif)); font-size: var(--t-m); line-height: 1.5; user-select: text; -webkit-user-select: text; }
+.itext:focus { outline: none; border-color: var(--accent); }
+.ihint { margin: 6px 16px 0; font-size: var(--t-xs); color: var(--muted); }
+.ilegend { display: flex; flex-direction: column; gap: 6px; margin: 0 16px; font-size: var(--t-s); }
+.ilegend > span { display: flex; align-items: center; gap: 10px; }
+.ilegend > span > span { color: var(--fg); }
+.ilegend i { width: 28px; height: 3px; border-radius: 2px; background: currentColor; }
+.ilegend i.d { background: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 9px); }
+.hinsp .help { margin: 4px 16px 0; }
+.hinsp .lbl { padding: 14px 16px 4px; }
+.opt.muted .lab { opacity: .55; }
+
+/* The piece bar: key letters, the hint, and the armed banner. */
+[data-desk="1"] .pchip kbd, [data-desk="1"] kbd { font: 600 10px/1 var(--sans); padding: 2px 4px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 2px; }
+[data-desk="1"] .pchips .dhint { white-space: nowrap; color: var(--muted); font-size: var(--t-xs); margin-left: 8px; }
+.armban { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 12px; font-size: var(--t-s); background: color-mix(in srgb, var(--c) 18%, transparent); border-bottom: 1px solid var(--line); }
+
+/* Canvas mouse: hover handles, focus dimming, selection, link guide, box select. */
+.hhandles { position: absolute; transform: translateX(-50%); display: flex; gap: 8px; padding: 4px; z-index: 4; }
+.hh { width: 14px; height: 14px; border-radius: 7px; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: crosshair; }
+.hh.open { background: var(--p-open); }
+.hh.close { background: var(--p-close); }
+.hh.ride { background: var(--p-glue); }
+.hh:hover { transform: scale(1.25); }
+.vp.focusdim [data-of]:not(.lit) { opacity: .22; transition: opacity .15s; }
+.vp.focusdim [data-of].lit { transition: opacity .15s; }
+.card.picked { outline: 2px solid var(--accent); outline-offset: 2px; }
+.linkguide { overflow: visible; pointer-events: none; position: absolute; left: 0; top: 0; }
+.linkguide path { fill: none; stroke-width: 2.5; }
+.selbox { position: absolute; z-index: 7; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
+[data-desk="1"] .vp { cursor: default; }
+[data-desk="1"] .vp .card { cursor: grab; }
+[data-desk="1"] .sheet.pop .plimit { max-height: 320px; overflow-y: auto; }
+
+/* Preview: two columns, the exchange and the report. */
+.pv2 { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.pv2 > .ppage { position: relative; inset: auto; min-height: 0; overflow-y: auto; }
+.pv2 > .ppage.prep { border-left: 1px solid var(--line); }
+.pv2 .rcount { color: var(--muted); font-size: var(--t-s); margin-left: auto; }
+[data-desk="1"] .vp:focus, [data-desk="1"] .vp:focus-visible { outline: none; }
+[data-desk="1"] .pchips { gap: 6px; padding: 7px 12px; }
+[data-desk="1"] .pchip { height: 30px; padding: 0 8px 0 10px; gap: 6px; border-radius: 15px; }
+[data-desk="1"] .pchip.armed kbd { color: #16171a; border-color: rgba(0, 0, 0, .3); }

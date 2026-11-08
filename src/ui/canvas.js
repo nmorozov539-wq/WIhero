@@ -1,7 +1,7 @@
 // The Hero canvas on screen (VISUAL 7): cards, ports, junctions, lock tags, links routed around cards, mask
 // stacks, pack frames; pan, pinch and wheel zoom, Fit, card and port dragging. Lifted from the demo. Positions,
 // port sides, the mask layer on each card and the camera are kept in the extension settings (D7, BUILD_SPEC 8.2).
-import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, buildGraph, canvasSet, computePorts, layout, makeGrid, nodeRects, placeNew, rounded, route, snap } from './canvas-graph.js';
+import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, computePorts, layout, makeGrid, nodeRects, placeNew, rounded, route, snap } from './canvas-graph.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 
@@ -24,23 +24,23 @@ export function canvasMemory(bookSettings) {
  * Lays out what isn't placed yet: the whole book once (D8), then each new card beside its partner.
  * @returns {{ g, ids, pos, R, P }}
  */
-export function arrange(m, memory, center) {
+export function arrange(m, memory, center, dir = TB) {
     const g = buildGraph(m);
     const placedByHand = Object.entries(memory.cards).filter(([, c]) => c.placed).map(([k]) => k);
     const ids = canvasSet(m, g, placedByHand);
     const pos = {};
     for (const [k, c] of Object.entries(memory.cards)) if (Number.isFinite(c.x) && ids.has(k)) pos[k] = { x: c.x, y: c.y };
     if (!memory.placed) {
-        if (ids.size) Object.assign(pos, layout(m, g, new Set([...ids].filter(k => !pos[k]))));
+        if (ids.size) Object.assign(pos, layout(m, g, new Set([...ids].filter(k => !pos[k])), { dir }));
         memory.placed = true;
     } else {
-        placeNew(m, g, ids, pos, center);
+        placeNew(m, g, ids, pos, center, { dir });
     }
     for (const [k, p] of Object.entries(pos)) { const c = (memory.cards[k] ??= {}); c.x = p.x; c.y = p.y; }
     const manual = {};
     for (const [k, c] of Object.entries(memory.cards)) for (const [kind, side] of Object.entries(c.ports ?? {})) if (SIDE_OF[side]) manual[`${k}:${kind}`] = SIDE_OF[side];
     const R = nodeRects(m, g, ids, pos);
-    const P = computePorts(g, R, manual);
+    const P = computePorts(g, R, manual, { dir });
     return { g, ids, pos, R, P };
 }
 
@@ -61,6 +61,7 @@ export function mountCanvas(vp, d) {
     vp.append(world);
     const tools = el('div', 'canvas-tools');
     tools.append(btn('', ic('fit'), () => fit(), 'Fit to screen'), btn('', ic('plus'), () => zoomAt(1.2), 'Zoom in'), btn('', ic('minus'), () => zoomAt(1 / 1.2), 'Zoom out'));
+    d.tools?.(tools); // desktop: Tidy and the inspector toggle
     const zl = el('div', 'zlabel');
     vp.append(tools, zl);
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
@@ -70,6 +71,8 @@ export function mountCanvas(vp, d) {
     let moving = null;
     let hit = null;
     let cam = null;
+    /** Desktop: the cards selected on the canvas (click, Shift/Ctrl-click, Shift-drag a box). */
+    let picked = new Set();
 
     const memory = () => d.book().memory;
     function camera() {
@@ -100,7 +103,7 @@ export function mountCanvas(vp, d) {
         const { m, problems = new Set(), status = () => null, chatState = false } = d.book();
         const mem = memory();
         const before = JSON.stringify(mem);
-        const { g, ids, R, P } = arrange(m, mem, viewCenter());
+        const { g, ids, R, P } = arrange(m, mem, viewCenter(), d.dir ?? TB);
         if (JSON.stringify(mem) !== before) d.save();
         CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [] };
         world.innerHTML = '';
@@ -165,7 +168,7 @@ export function mountCanvas(vp, d) {
             owner = e.id;
             if (e.greeting) {
                 // A start card (VISUAL 7.5): rounded on the left, a chat icon, START over its name, the opening words.
-                const c = el('div', `card greet${e.greeting.missing ? ' missing' : ''}${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}`);
+                const c = el('div', `card greet${e.greeting.missing ? ' missing' : ''}${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}${picked.has(e.id) ? ' picked' : ''}`);
                 c.dataset.id = e.id;
                 Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
                 const gr = el('div', 'grip gicon');
@@ -185,7 +188,7 @@ export function mountCanvas(vp, d) {
                 Object.assign(b.style, { left: `${r.x + 6 * i}px`, top: `${r.y - 6 * i}px` });
                 put(world, b);
             }
-            const cls = ['card', e.off && 'off', si && 'masked', hit === e.id && 'hit', moving === e.id && 'moving',
+            const cls = ['card', e.off && 'off', si && 'masked', hit === e.id && 'hit', moving === e.id && 'moving', picked.has(e.id) && 'picked',
                 st?.closed && 'closed', st?.waiting && 'waiting', st?.holding && 'holding'].filter(Boolean).join(' ');
             const c = el('div', cls);
             c.dataset.id = e.id;
@@ -419,6 +422,8 @@ export function mountCanvas(vp, d) {
         if (!camera()) fit(true);
         applyView();
         drawOverlay();
+        if (d.desk && hoverKey && CV.R.has(hoverKey)) showHandles(hoverKey);
+        if (d.desk && focusKey) applyFocus(focusKey);
     }
 
     // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
@@ -564,19 +569,25 @@ export function mountCanvas(vp, d) {
     let dragRaf = 0;
     let DR = null;
     function dragSetup(id) {
+        // The card itself, or (desktop) every selected card when it is one of them.
+        const group = new Set(drag?.group ?? [id]);
         const own = [];
-        const others = new Set();
+        const others = new Map();
         for (const n of world.querySelectorAll('[data-of]')) {
             const of = n.dataset.of.split(' ');
-            if (!of.includes(id)) continue;
-            if (of.length === 1) own.push(n);
-            else { n.style.visibility = 'hidden'; for (const k of of) if (k !== id) others.add(k); }
+            if (!of.some(k => group.has(k))) continue;
+            if (of.every(k => group.has(k))) own.push(n);
+            else {
+                n.style.visibility = 'hidden';
+                const mine = of.find(k => group.has(k));
+                for (const k of of) if (!group.has(k)) others.set(`${mine}>${k}`, [mine, k]);
+            }
         }
-        world.querySelector(`.card[data-id="${CSS.escape(id)}"]`)?.classList.add('moving');
+        for (const k of group) world.querySelector(`.card[data-id="${CSS.escape(k)}"]`)?.classList.add('moving');
         const guide = sv('svg', { class: 'lk dragguide', width: 1, height: 1 });
         world.prepend(guide);
         const r0 = CV.R.get(id);
-        DR = { id, drawn, own, guide, from: r0 ? [r0.x, r0.y] : null, others: [...others].map(k => CV.R.get(k)).filter(Boolean),
+        DR = { id, drawn, own, guide, from: r0 ? [r0.x, r0.y] : null, others: [...others.values()].map(([a, k]) => [a, CV.R.get(k)]).filter(([, r]) => r),
             paths: [] };
         for (let i = 0; i < DR.others.length; i++) DR.paths.push(guide.appendChild(sv('path', {}, 'stroke:var(--muted);stroke-dasharray:4 5;opacity:.7')));
     }
@@ -589,14 +600,17 @@ export function mountCanvas(vp, d) {
         const dx = c.x - DR.from[0];
         const dy = c.y - DR.from[1];
         for (const n of DR.own) n.style.translate = `${dx}px ${dy}px`;
-        const cx = c.x + CW / 2;
-        const cy = c.y + CH / 2;
-        DR.others.forEach((r, i) => DR.paths[i].setAttribute('d', `M${cx},${cy} L${r.x + r.w / 2},${r.y + r.h / 2}`));
+        DR.others.forEach(([a, r], i) => {
+            const q = memory().cards[a];
+            if (!q) return;
+            DR.paths[i].setAttribute('d', `M${q.x + CW / 2},${q.y + CH / 2} L${r.x + r.w / 2},${r.y + r.h / 2}`);
+        });
     }
     const later = () => { if (!dragRaf) dragRaf = requestAnimationFrame(dragFrame); };
     vp.addEventListener('pointerdown', e => {
-        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box')) return;
+        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner')) return;
         if (!camera()) return;
+        if (d.desk && e.button !== 0) return; // right-click is a menu, middle-click nothing
         vp.setPointerCapture?.(e.pointerId);
         pts.set(e.pointerId, [e.clientX, e.clientY]);
         if (pts.size === 2) {
@@ -609,7 +623,27 @@ export function mountCanvas(vp, d) {
         start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: e.target };
         const gr = e.target.closest?.('[data-grip]');
         const port = e.target.closest?.('[data-port]');
-        if (e.target.closest?.('.loosend') && OV?.loose) { mode = 'loose'; drag = {}; } else if (gr) {
+        const card = d.desk && !port && !e.target.closest?.('[data-flip], .lockp, .junc') ? e.target.closest?.('.card[data-id]') : null;
+        const handle = d.desk ? e.target.closest?.('[data-handle]') : null;
+        if (handle || (d.desk && port && PORT[port.dataset.port.split('|')[1]]?.dir === 'out' && !OV)) {
+            // Desktop: drag from a hover handle or a knob onto another card makes a link (LAYOUT "Canvas: mouse").
+            const [key, kindOrPort] = handle ? [handle.dataset.handle, handle.dataset.kind] : port.dataset.port.split('|');
+            const kind = handle ? kindOrPort : { gout: 'open', cout: 'close', glout: 'ride' }[kindOrPort];
+            mode = 'link';
+            drag = { from: key, kind, port: port?.dataset.port };
+        } else if (e.target.closest?.('.loosend') && OV?.loose) { mode = 'loose'; drag = {}; } else if (card || gr) {
+            const id = (card ?? gr).dataset.id ?? gr.dataset.grip;
+            const [wx, wy] = toWorld(e.clientX, e.clientY);
+            const c = memory().cards[id];
+            const group = d.desk && picked.has(id) && picked.size > 1 ? [...picked].filter(k => memory().cards[k]) : null;
+            drag = { id, dx: wx - c.x, dy: wy - c.y, group, at: group ? Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) : null };
+            mode = 'card';
+        } else if (d.desk && e.shiftKey && !e.target.closest?.('[data-port], [data-pack], [data-link], [data-row], [data-cond]')) {
+            mode = 'box';
+            const r = vp.getBoundingClientRect();
+            drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, box: el('div', 'selbox') };
+            vp.append(drag.box);
+        } else if (gr) {
             const id = gr.dataset.grip;
             const [wx, wy] = toWorld(e.clientX, e.clientY);
             const c = memory().cards[id];
@@ -618,7 +652,7 @@ export function mountCanvas(vp, d) {
         } else if (port) { mode = 'port'; drag = { port: port.dataset.port }; } else mode = 'pan';
         // A long press on empty canvas picks an entry to place there.
         clearTimeout(holdTimer);
-        if (mode === 'pan' && d.holdEmpty && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-link], [data-row]')) {
+        if (mode === 'pan' && d.holdEmpty && !d.desk && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-link], [data-row]')) {
             const at = { x: e.clientX, y: e.clientY };
             holdTimer = setTimeout(() => {
                 if (moved || mode !== 'pan' || pts.size !== 1) return;
@@ -645,8 +679,28 @@ export function mountCanvas(vp, d) {
         if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; gesture(true); viewLater(); } else if (mode === 'card') {
             const [wx, wy] = toWorld(e.clientX, e.clientY);
             moving = drag.id;
-            Object.assign(memory().cards[drag.id], { x: snap(wx - drag.dx), y: snap(wy - drag.dy) });
+            hideHandles();
+            const c = memory().cards[drag.id];
+            const nx = snap(wx - drag.dx);
+            const ny = snap(wy - drag.dy);
+            if (drag.group) {
+                const dx = nx - drag.at[drag.id].x;
+                const dy = ny - drag.at[drag.id].y;
+                for (const k of drag.group) Object.assign(memory().cards[k], { x: drag.at[k].x + dx, y: drag.at[k].y + dy });
+            } else Object.assign(c, { x: nx, y: ny });
             later();
+        } else if (mode === 'link') {
+            drag.to = toWorld(e.clientX, e.clientY);
+            drawLinkGuide();
+            const h = hitAt(e.clientX, e.clientY);
+            markTarget(h?.card && h.card !== drag.from ? h : null);
+        } else if (mode === 'box') {
+            const r = vp.getBoundingClientRect();
+            const x1 = e.clientX - r.left;
+            const y1 = e.clientY - r.top;
+            Object.assign(drag.box.style, { left: `${Math.min(drag.x0, x1)}px`, top: `${Math.min(drag.y0, y1)}px`, width: `${Math.abs(x1 - drag.x0)}px`, height: `${Math.abs(y1 - drag.y0)}px` });
+            drag.x1 = x1;
+            drag.y1 = y1;
         } else if (mode === 'port') { drag.at = toWorld(e.clientX, e.clientY); vp.style.cursor = 'crosshair'; } else if (mode === 'loose') {
             OV.loose.at = toWorld(e.clientX, e.clientY);
             drawOverlay();
@@ -669,6 +723,29 @@ export function mountCanvas(vp, d) {
             OV?.onLoose?.(h, OV?.loose?.at);
             return;
         }
+        if (mode === 'link') {
+            world.querySelector('.linkguide')?.remove();
+            const h = moved && e.type === 'pointerup' ? hitAt(e.clientX, e.clientY) : null;
+            markTarget(null);
+            const from = drag.from;
+            const kind = drag.kind;
+            const portKey = drag.port;
+            mode = null; start = null; drag = null;
+            if (h?.card && h.card !== from) d.link?.(kind, from, h.card);
+            else if (!moved && portKey) tapAt(e.target);
+            return;
+        }
+        if (mode === 'box') {
+            drag.box.remove();
+            if (moved && drag.x1 !== undefined) {
+                const [ax, ay] = toWorldLocal(Math.min(drag.x0, drag.x1), Math.min(drag.y0, drag.y1));
+                const [bx, by] = toWorldLocal(Math.max(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
+                const inside = [...CV.R.values()].filter(r => !r.pack && r.x < bx && r.x + r.w > ax && r.y < by && r.y + r.h > ay).map(r => r.key);
+                setPicked(e.ctrlKey || e.metaKey ? new Set([...picked, ...inside]) : new Set(inside));
+            }
+            mode = null; start = null; drag = null;
+            return;
+        }
         if (mode === 'card' && moved) { moving = null; DR = null; if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; } d.save(); render(); } else if (mode === 'port' && moved && drag.at) {
             const [key, kind] = drag.port.split('|');
             const r = CV.R.get(key);
@@ -682,7 +759,18 @@ export function mountCanvas(vp, d) {
                 render();
                 d.toast('Port moved');
             }
-        } else if (!moved && start) tapAt(start.target);
+        } else if (!moved && start) {
+            // Desktop: Shift/Ctrl-click adds a card to the selection; a click selects it alone (then inspects it).
+            const c = d.desk ? start.target.closest?.('.card[data-id]') : null;
+            if (c && (e.shiftKey || e.ctrlKey || e.metaKey) && !OV) {
+                const s2 = new Set(picked);
+                s2.has(c.dataset.id) ? s2.delete(c.dataset.id) : s2.add(c.dataset.id);
+                setPicked(s2);
+            } else {
+                if (d.desk && !OV) setPicked(c ? new Set([c.dataset.id]) : new Set(), true);
+                tapAt(start.target);
+            }
+        }
         moving = null;
         mode = null; start = null; drag = null;
     };
@@ -697,6 +785,103 @@ export function mountCanvas(vp, d) {
     }, { passive: false });
     // Keyboard: the canvas tools are buttons; a focused card opens with Enter.
     vp.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset?.id) d.open(e.target.dataset.id); });
+
+    const toWorldLocal = (x, y) => { const v = camera(); return [(x - v.tx) / v.scale, (y - v.ty) / v.scale]; };
+    /** Desktop selection; `quiet` leaves telling the app to the tap that follows. */
+    function setPicked(next, quiet = false) {
+        picked = next;
+        for (const n of world.querySelectorAll('.card[data-id]')) n.classList.toggle('picked', picked.has(n.dataset.id));
+        if (!quiet) d.onPick?.([...picked]);
+    }
+    function drawLinkGuide() {
+        world.querySelector('.linkguide')?.remove();
+        const r = CV?.R.get(drag.from);
+        if (!r || !drag.to) return;
+        const col = { open: 'var(--p-open)', close: 'var(--p-close)', ride: 'var(--p-glue)' }[drag.kind];
+        const line = sv('svg', { class: 'lk linkguide', width: 1, height: 1 });
+        line.append(sv('path', { d: `M${r.x + r.w / 2},${r.y + r.h / 2} L${drag.to[0]},${drag.to[1]}` }, `stroke:${col};stroke-dasharray:6 5`));
+        world.append(line);
+    }
+
+    // ---- desktop hover: handles under a card at once, its links bright after 350ms (LAYOUT "Canvas: mouse")
+    let hoverKey = null;
+    let focusKey = null;
+    let focusTimer = null;
+    let leaveTimer = null;
+    function showHandles(key) {
+        world.querySelector('.hhandles')?.remove();
+        const r = CV?.R.get(key);
+        const e = CV?.m.byId(key);
+        if (!r || !e || OV) return;
+        const box = el('div', 'hhandles');
+        Object.assign(box.style, { left: `${r.x + r.w / 2}px`, top: `${r.y + r.h + 4}px` });
+        const kinds = e.greeting ? [['open', 'Opens: drag onto the card that waits for this one'], ['close', 'Closes: drag onto the card this one closes']]
+            : [['open', 'Opens: drag onto the card that waits for this one'], ['close', 'Closes: drag onto the card this one closes'], ['ride', 'Glue: drag onto the card that rides along with this one']];
+        for (const [k, label] of kinds) {
+            const h = el('i', `hh ${k}`);
+            h.dataset.handle = key;
+            h.dataset.kind = k;
+            h.title = label;
+            box.append(h);
+        }
+        world.append(box);
+    }
+    function hideHandles() { world.querySelector('.hhandles')?.remove(); }
+    function applyFocus(key) {
+        focusKey = key;
+        const lit = new Set([key]);
+        for (const x of CV?.g.edges ?? []) {
+            if (x.from === key || x.to === key) for (const k of [x.from, x.to]) { lit.add(k); if (k.startsWith('pack:')) CV.m.packMembers(k.slice(5)).forEach(m => lit.add(m.id)); }
+        }
+        const packs = CV?.m.byId(key)?.packs ?? [];
+        for (const r of CV?.R.values() ?? []) if (r.pack && (packs.some(p => p === r.pack || p.startsWith(`${r.pack}/`)) || lit.has(r.key))) lit.add(r.key);
+        vp.classList.add('focusdim');
+        for (const n of world.querySelectorAll('[data-of]')) {
+            const of = n.dataset.of.split(' ');
+            const on = of.length > 1 ? of.includes(key) && of.every(k => lit.has(k)) : lit.has(of[0]);
+            n.classList.toggle('lit', on);
+        }
+    }
+    function clearFocus() {
+        focusKey = null;
+        vp.classList.remove('focusdim');
+        for (const n of world.querySelectorAll('.lit')) n.classList.remove('lit');
+    }
+    if (d.desk) {
+        vp.addEventListener('pointermove', e => {
+            if (pts.size || e.buttons) return;
+            const c = e.target.closest?.('.card[data-id]');
+            const onHandles = e.target.closest?.('.hhandles');
+            const key = c?.dataset.id ?? (onHandles ? hoverKey : null);
+            if (key) {
+                clearTimeout(leaveTimer);
+                if (key !== hoverKey) {
+                    hoverKey = key;
+                    showHandles(key);
+                    clearTimeout(focusTimer);
+                    focusTimer = setTimeout(() => { if (hoverKey === key && !OV && !mode) applyFocus(key); }, 350);
+                }
+                return;
+            }
+            if (!hoverKey) return;
+            // Off the card: let go after a moment, so crossing to its handles or the next card doesn't flicker.
+            clearTimeout(leaveTimer);
+            leaveTimer = setTimeout(() => { hoverKey = null; clearTimeout(focusTimer); hideHandles(); clearFocus(); }, 160);
+        });
+        vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); hoverKey = null; hideHandles(); clearFocus(); });
+        vp.addEventListener('dblclick', e => {
+            // The press captured the pointer, so the event's target is the view: look under the pointer instead.
+            const key = hitAt(e.clientX, e.clientY)?.card;
+            if (key && (key.startsWith('id:') || key.startsWith('uid:'))) d.openText?.(key);
+        });
+        vp.addEventListener('contextmenu', e => {
+            if (e.target.closest('.canvas-tools, .panelBtn')) return;
+            e.preventDefault();
+            const c = e.target.closest?.('.card[data-id]');
+            if (c) { if (!picked.has(c.dataset.id)) setPicked(new Set([c.dataset.id]), true); d.cardMenu?.(c.dataset.id, { x: e.clientX, y: e.clientY }); return; }
+            d.emptyMenu?.(pointAt(e.clientX, e.clientY), { x: e.clientX, y: e.clientY });
+        });
+    }
 
     function flip(key, delta) {
         const e = CV.m.byId(key);
@@ -748,7 +933,7 @@ export function mountCanvas(vp, d) {
         const { m } = d.book();
         const g = buildGraph(m);
         const ids = CV?.ids ?? new Set();
-        const pos = layout(m, g, ids);
+        const pos = layout(m, g, ids, { dir: d.dir ?? TB });
         for (const k of ids) { const c = (mem.cards[k] ??= {}); c.x = pos[k].x; c.y = pos[k].y; delete c.ports; }
         d.save();
         render();
@@ -787,5 +972,9 @@ export function mountCanvas(vp, d) {
         return { x: snap(x - CW / 2), y: snap(y - CH / 2) };
     }
 
-    return { render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, get view() { return CV; }, get camera() { return camera(); } };
+    return {
+        render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt,
+        picked: () => [...picked], setPicked,
+        get view() { return CV; }, get camera() { return camera(); },
+    };
 }
