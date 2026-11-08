@@ -61,10 +61,10 @@ export function deskNormal(A) {
     function openBook(book, { sel = null, background = false, here = false } = {}) {
         const t = A.tab();
         const p = { type: 'book', book, sel, anchor: sel };
-        if (here || t.fresh) { A.leave(); t.history = [p]; delete t.fresh; S.active = t.id; } else {
+        if (here || (t.fresh && !background)) { A.leave(); t.history = [p]; delete t.fresh; S.active = t.id; } else {
             const n = { id: A.nextTabId(), history: [p] };
             S.tabs.splice(S.tabs.indexOf(t) + 1, 0, n);
-            if (background) { A.renderTabs(); layer.toast(`${book} opened in a background tab`); return; }
+            if (background) { A.renderTabs(); layer.toast(`${book} opened in a new tab`); return; }
             S.active = n.id;
         }
         S.select = null;
@@ -76,7 +76,7 @@ export function deskNormal(A) {
         const t = A.tab();
         const n = { id: A.nextTabId(), history: [{ type: 'entry', book, uid }] };
         S.tabs.splice(S.tabs.indexOf(t) + 1, 0, n);
-        if (background) { A.renderTabs(); layer.toast('Opened in a background tab'); return; }
+        if (background) { A.renderTabs(); layer.toast('Opened in a new tab'); return; }
         S.active = n.id;
         S.search = null;
         A.render();
@@ -138,10 +138,6 @@ export function deskNormal(A) {
             });
             strip.append(b);
         }
-        const plus = btn('tadd', ic('plus', 's'), () => A.newTab(), 'New tab');
-        plus.title = 'New tab';
-        strip.append(plus);
-        strip.ondblclick = e => { if (e.target === strip) A.newTab(); };
         const right = el('div', 'tright');
         const sb = btn('tsearch', `${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
         // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
@@ -189,8 +185,7 @@ export function deskNormal(A) {
         const v = el('div', 'view dhome');
         main.append(v);
         const names = A.visibleNames();
-        const q = (S.homeQ ?? '').trim().toLowerCase();
-        const shown = names.filter(n => !q || n.toLowerCase().includes(q) || bookFolderOf(settings, n).toLowerCase().includes(q));
+        const shown = names; // finding a book is Search's job (Ctrl K)
         const view = desk().homeView === 'list' ? 'list' : 'tiles';
         const sel = S.select instanceof Set && S.selectOf === 'books' ? S.select : null;
         const selected = sel?.size ? sel : null;
@@ -206,18 +201,13 @@ export function deskNormal(A) {
             h.append(btn('dbtn danger', `${ic('trash', 's')}<span>Delete</span>`, () => { const list = [...selected]; clearSel(); A.deleteBooks(list); }));
         } else {
             h.append(el('h1', '', 'World Info'));
-            const f = el('input', 'dfilter');
-            f.placeholder = 'Filter books';
-            f.setAttribute('aria-label', 'Filter books');
-            f.dataset.slash = '1';
-            f.value = S.homeQ ?? '';
-            f.addEventListener('input', () => { S.homeQ = f.value; const pos = f.selectionStart; A.render(); const n = main.querySelector('.dfilter'); n?.focus(); n?.setSelectionRange(pos, pos); });
-            h.append(f, el('span', 'sp'));
+            h.append(el('span', 'sp'));
             const seg = el('div', 'dseg');
             seg.setAttribute('role', 'radiogroup');
             seg.setAttribute('aria-label', 'View');
-            for (const [k, label, icon] of [['list', 'List', 'entry'], ['tiles', 'Tiles', 'select']]) {
-                const b = btn(view === k ? 'on' : '', `${ic(icon, 's')}<span>${label}</span>`, () => { desk().homeView = k; save(); A.render(); });
+            for (const [k, label, icon] of [['list', 'List', 'rows'], ['tiles', 'Tiles', 'grid']]) {
+                const b = btn(view === k ? 'on' : '', ic(icon, 's'), () => { desk().homeView = k; save(); A.render(); }, label);
+                b.title = label;
                 b.setAttribute('role', 'radio');
                 b.setAttribute('aria-checked', String(view === k));
                 seg.append(b);
@@ -231,9 +221,10 @@ export function deskNormal(A) {
         }
         v.append(h);
 
-        // Folders first, in name order; "Not in a folder" last. Empty folders still show, as drop targets.
+        // Folders first, in name order; "Not in a folder" last, and only while a book is in it or one is being dragged
+        // (it is where a book is dropped to take it out of its folder). Empty folders still show, as drop targets.
         const folders = Object.keys(settings.bookFolders).sort((a, b) => a.localeCompare(b));
-        const groups = folders.map(f => [f, settings.bookFolders[f].filter(n => shown.includes(n))]).filter(([, list]) => list.length || !q);
+        const groups = folders.map(f => [f, settings.bookFolders[f].filter(n => shown.includes(n))]);
         const loose = shown.filter(n => !bookFolderOf(settings, n));
         if (groups.length) groups.push(['', loose]); else groups.push([null, loose]);
         const order = shown; // for Shift ranges
@@ -269,22 +260,22 @@ export function deskNormal(A) {
             if (f !== null) {
                 const fh = btn(`dfolder${open ? ' open' : ''}`, `${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); A.render(); });
                 fh.querySelector('span').textContent = f || 'Not in a folder';
+                if (!f && !list.length) fh.classList.add('dloose');
                 fh.querySelector('small').textContent = list.length;
                 fh.setAttribute('aria-expanded', String(open));
                 dropTarget(fh, name => { setBookFolder(settings, name, f); save(); A.render(); layer.toast(f ? `Moved to ${f}` : 'Taken out of its folder'); });
-                if (table) { const r = el('div', 'drow dgroup'); r.append(fh); target.append(r); } else target.append(fh);
+                if (table) { const r = el('div', `drow dgroup${fh.classList.contains('dloose') ? ' dloose' : ''}`); r.append(fh); target.append(r); } else target.append(fh);
             }
             if (!open) continue;
             if (table) for (const n of sorted(list)) target.append(bookRow(n, sel, order));
             else {
                 const grid = el('div', 'dtiles');
                 for (const n of list) grid.append(bookTile(n, sel, order));
-                if (!list.length) grid.append(el('div', 'dempty', f ? 'Drag books here.' : 'Every book is in a folder.'));
+                if (!list.length) grid.append(el('div', `dempty${f ? '' : ' dloose'}`, f ? 'Drag books here.' : 'Drop here to take it out of its folder.'));
                 target.append(grid);
             }
         }
         if (!names.length) v.append(el('div', 'empty-note', 'No books yet. Click New book to make the first one.'));
-        else if (!shown.length) v.append(el('div', 'empty-note', 'No book matches the filter.'));
     }
     const clearSel = () => { S.select = null; S.selectOf = null; A.render(); };
     function newBookFolder() {
@@ -305,8 +296,8 @@ export function deskNormal(A) {
         node.dataset.book = name;
         node.tabIndex = 0;
         node.draggable = true;
-        node.addEventListener('dragstart', e => { dragBooks = sel?.has(name) ? [...sel] : [name]; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', name); });
-        node.addEventListener('dragend', () => { dragBooks = null; });
+        node.addEventListener('dragstart', e => { dragBooks = sel?.has(name) ? [...sel] : [name]; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', name); main.querySelector('.dhome')?.classList.add('dragging'); });
+        node.addEventListener('dragend', () => { dragBooks = null; main.querySelector('.dhome')?.classList.remove('dragging'); });
         node.addEventListener('click', e => {
             if (e.target.closest('.dcheck, .more')) return;
             if (e.shiftKey && sel?.size) { rangeSelect(name, order); return; }
@@ -403,7 +394,7 @@ export function deskNormal(A) {
     function bookMenu(name, at) {
         layer.sheet(null, sh => {
             sh.append(layer.opt('Open', () => { layer.close(); openBook(name); }, { icon: 'tab' }));
-            sh.append(layer.opt('Open in background tab', () => { layer.close(); openBook(name, { background: true }); }, { val: 'Ctrl-click' }));
+            sh.append(layer.opt('New tab', () => { layer.close(); openBook(name, { background: true }); }, { val: 'Ctrl-click' }));
             const g = library.isGlobal(name);
             sh.append(layer.opt(g ? 'Make not global' : 'Make global', () => { layer.close(); library.setGlobal(name, !g); A.render(); layer.toast(g ? `${name} is no longer global` : `${name} is active everywhere`); }));
             sh.append(el('div', 'div'));

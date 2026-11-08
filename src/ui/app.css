@@ -505,10 +505,6 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 /* The entry picker of a long press on the canvas */
 .sheet .pick-q { display: block; width: calc(100% - 32px); margin: 4px 16px 8px; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
 /* Pull the tab row right to open a new tab */
-.pullnew { width: 0; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: width .12s; }
-.pullnew svg { width: 22px; height: 22px; flex-shrink: 0; transition: transform .12s; }
-.pullnew.ready { color: var(--accent); }
-.pullnew.ready svg { transform: scale(1.25); }
 /* Entry page: whether the entry takes part in the story logic */
 .storychip { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 2px; padding: 4px 10px; border-radius: 13px; border: 1px solid var(--line); color: var(--muted); font-size: var(--t-xs); }
 .storychip svg { width: 14px; height: 14px; }
@@ -660,12 +656,11 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .dhead h1 { margin: 0 8px 0 0; font-size: var(--t-l); font-weight: 600; white-space: nowrap; }
 .dhead.selbar2 { box-shadow: inset 0 0 0 100px var(--raised), inset 0 -1px 0 var(--line); }
 .dhead .cnt { font-weight: 600; }
-.dfilter { height: 30px; width: 180px; min-width: 80px; flex-shrink: 1; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 10px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
-.dfilter:focus { border-color: var(--accent); }
 .dseg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex-shrink: 0; }
-.dseg button { height: 28px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--t-s); }
+.dseg button { height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: var(--t-s); }
 .dseg button.on { background: var(--raised); color: var(--fg); }
-.dseg svg.i { width: 14px; height: 14px; }
+.dseg svg.i { width: 16px; height: 16px; }
+.dhome:not(.dragging) .dloose { display: none; }
 .dfolder { display: flex; align-items: center; gap: 6px; width: 100%; padding: 14px 16px 6px; color: var(--muted); font-size: var(--t-s); font-weight: 600; border-radius: 6px; }
 .dfolder svg { width: 13px; height: 13px; transition: transform .15s; }
 .dfolder.open svg { transform: rotate(90deg); }
