@@ -80,6 +80,9 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         if (!data) return;
         const { ui } = upgradeBook(data);
         if (Object.keys(ui).length) { adoptUiFields(settings, name, data, ui); saveSettings(); }
+        // When it was last edited here, for Home's tiles and list (ST keeps no date of its own).
+        (settings.books[name] ??= { defaults: {}, folders: {} }).edited = Date.now();
+        saveSettings();
         const copy = structuredClone(data);
         ours.add(copy);
         await ctx().saveWorldInfo(name, copy, true);
@@ -300,8 +303,10 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         else $(sel).val(value).trigger(event);
     }
 
+    const edited = name => settings.books?.[name]?.edited ?? null;
+
     return {
-        names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
+        edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }
