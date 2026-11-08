@@ -175,6 +175,12 @@ async function heroMode(w, h, drawer) {
     assert.equal(await page.evaluate(() => wihero.settings.desk.heroWide), false, 'remembered');
     ok(`${w}: Drawer size shrinks Hero to ${drawer}px, the list starts hidden`);
     await shot(page, `${w}-hero-drawer`);
+    await $(page, '.tmode').click();
+    await $(page, '.tab[aria-label="Home"]').click();
+    await $(page, '.tile').first().waitFor();
+    const homeW = await $(page, '.dhome').evaluate(n => n.getBoundingClientRect().width);
+    assert.ok(homeW > drawer - 40, `Home fills the drawer after Hero (${homeW}px)`);
+    ok(`${w}: back in Normal mode, Home fills the drawer again`);
     await page.close();
 }
 

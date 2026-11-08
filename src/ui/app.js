@@ -162,7 +162,7 @@ export function createApp(deps) {
             countsRunning++;
             library.get(name).then(d => {
                 const span = countSpans.get(name);
-                if (d && span?.isConnected) span.textContent = span.dataset.bare ? String(entriesShown(name, d).length) : `${entriesShown(name, d).length} entries`;
+                if (d && span?.isConnected) span.textContent = span.dataset.bare ? String(entriesShown(name, d).length) : (n => `${n} ${n === 1 ? 'entry' : 'entries'}`)(entriesShown(name, d).length);
             }, () => {}).finally(() => { countsRunning--; pumpCounts(); });
         }
     }

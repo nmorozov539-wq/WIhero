@@ -222,6 +222,25 @@ if (wiDrawer) {
     new MutationObserver(syncWithDrawer).observe(wiDrawer, { attributes: true, attributeFilter: ['class'] });
     syncWithDrawer();
 }
+// Desktop at drawer size (LAYOUT "Desktop: normal mode", Size and place): WI Hero sits in the middle, so ST's side
+// panels (AI Response Configuration on the left, Characters on the right) open beside it instead of closing it.
+// ST closes every open drawer that isn't pinned when another one opens (doNavbarIconClick), so for that one click
+// the World Info drawer counts as pinned. Its handler reads the classes at once, before its first await. The press
+// itself is covered too: ST's "click outside closes drawers" runs on mousedown when it misses the icon.
+const SIDE_PANELS = new Set(['left-nav-panel', 'right-nav-panel']);
+const keepBesideSidePanel = e => {
+    const toggle = e.target.closest?.('.drawer-toggle');
+    const panel = toggle?.parentElement?.querySelector('.drawer-content');
+    if (!panel || !SIDE_PANELS.has(panel.id) || panel.classList.contains('openDrawer')) return;
+    if (!app.isOpen() || !app.host.classList.contains('desk') || app.host.classList.contains('wide') || !drawerOpen()) return;
+    const icon = document.querySelector('#WI-SP-button .drawer-icon');
+    const pinned = wiDrawer.classList.contains('pinnedOpen');
+    if (pinned) return;
+    wiDrawer.classList.add('pinnedOpen');
+    icon?.classList.add('drawerPinnedOpen');
+    setTimeout(() => { wiDrawer.classList.remove('pinnedOpen'); icon?.classList.remove('drawerPinnedOpen'); }, 0);
+};
+for (const type of ['mousedown', 'touchstart', 'click']) document.addEventListener(type, keepBesideSidePanel, { capture: true, passive: true });
 globalThis.jQuery?.('#world_editor_select').on('change', function () {
     if (native) return;
     const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];
