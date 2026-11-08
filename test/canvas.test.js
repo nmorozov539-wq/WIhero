@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-    CH, CW, G, buildGraph, canvasBook, canvasSet, computePorts, crosses, layout, makeGrid, nodeRects, placeNew, route, snap,
+    CH, CW, G, LR, buildGraph, canvasBook, canvasSet, computePorts, crosses, layout, makeGrid, nodeRects, placeNew, route, snap,
 } from '../src/ui/canvas-graph.js';
 import { arrange } from '../src/ui/canvas.js';
 
@@ -189,4 +189,165 @@ test('the open chat\'s greetings are start cards; their rules on entries become 
     assert.ok(gr.edges.some(x => x.from === 'greet:Sera.png:0' && x.to === 'id:road' && x.kind === 'open'));
     assert.ok(gr.edges.some(x => x.from === 'greet:Sera.png:0' && x.to === 'pack:town' && x.kind === 'close'));
     assert.equal(buildGraph(canvasBook(data)).edges.filter(x => x.from.startsWith('greet:')).length, 0, 'with no chat open, none are drawn');
+});
+
+// ---- Left to right (desktop, VISUAL 7.6)
+
+const book = (...entries) => ({ entries: Object.fromEntries(entries.map(x => [x.uid, x])) });
+const ent = (uid, id, config = {}) => ({ uid, comment: id, key: [id], content: '', extensions: { wihero: { id, ...config } } });
+
+function laidOutLR(data = sample()) {
+    const m = canvasBook(data);
+    const g = buildGraph(m);
+    const ids = canvasSet(m, g, []);
+    const pos = layout(m, g, ids, { dir: LR });
+    return { m, g, ids, pos };
+}
+
+test('left to right: every card on the grid, none overlapping, opens flowing rightwards', () => {
+    const { m, g, ids, pos } = laidOutLR();
+    const keys = [...ids];
+    assert.equal(Object.keys(pos).length, keys.length);
+    for (const k of keys) { assert.equal(pos[k].x, snap(pos[k].x)); assert.equal(pos[k].y, snap(pos[k].y)); }
+    for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) assert.ok(!overlap(pos[keys[i]], pos[keys[j]], 24), `${keys[i]} / ${keys[j]}`);
+    let checked = 0;
+    for (const x of g.edges) {
+        if (x.kind !== 'open' || x.mask != null || x.from.startsWith('pack:') || x.to.startsWith('pack:')) continue;
+        if (m.byId(x.from).packs.length && m.byId(x.from).packs[0] === m.byId(x.to).packs[0]) continue;
+        assert.ok(pos[x.from].x + CW < pos[x.to].x, `${x.from} left of ${x.to}`);
+        checked++;
+    }
+    assert.ok(checked >= 5);
+});
+
+test('left to right: a pack stands as one block in its column, its members stacked inside the frame', () => {
+    const { m, g, ids, pos } = laidOutLR();
+    const R = nodeRects(m, g, ids, pos);
+    const frame = R.get('pack:town');
+    assert.ok(frame.members.length >= 2);
+    const xs = new Set(frame.members.map(k => pos[k].x));
+    assert.equal(xs.size, 1, 'one column');
+    for (const key of frame.members) {
+        const r = R.get(key);
+        assert.ok(r.x >= frame.x && r.y >= frame.y && r.x + r.w <= frame.x + frame.w && r.y + r.h <= frame.y + frame.h);
+    }
+    for (const r of R.values()) {
+        if (r.pack || frame.members.includes(r.key)) continue;
+        assert.ok(r.x + r.w <= frame.x || r.x >= frame.x + frame.w || r.y + r.h <= frame.y || r.y >= frame.y + frame.h, `${r.key} is outside the frame`);
+    }
+});
+
+test('left to right: a card sits one column right of everything it waits for, columns ordered by their sources and centred', () => {
+    // a and b start; c waits for b, d waits for a, e waits for c and d.
+    const data = book(ent(0, 'a'), ent(1, 'b'), ent(2, 'c', { gate: [['b']] }), ent(3, 'd', { gate: [['a']] }), ent(4, 'e', { gate: [['c', 'd']] }));
+    const { pos } = laidOutLR(data);
+    const p = id => pos[`id:${id}`];
+    assert.equal(p('a').x, p('b').x);
+    assert.equal(p('c').x, p('d').x);
+    assert.ok(p('c').x > p('a').x && p('e').x > p('c').x);
+    assert.ok(p('a').y < p('b').y, 'the first column keeps the book order');
+    assert.ok(p('d').y < p('c').y, 'd follows a, which is above b');
+    // Every column is centred on the same middle line.
+    const mid = ks => (Math.min(...ks.map(k => p(k).y)) + Math.max(...ks.map(k => p(k).y)) + CH) / 2;
+    assert.ok(Math.abs(mid(['a', 'b']) - mid(['e'])) <= G);
+    assert.ok(Math.abs(mid(['c', 'd']) - mid(['e'])) <= G);
+});
+
+test('left to right: a pack\'s unlinked members join the column of its linked member', () => {
+    // Only inn is linked (from gate); square reads the pack, so the frame is drawn.
+    const data = book(ent(0, 'gate'), ent(1, 'inn', { gate: [['gate']], packs: ['town'] }), ent(2, 'smith', { packs: ['town'] }), ent(3, 'baker', { packs: ['town'] }),
+        ent(4, 'square', { gate: [['#town']] }));
+    const { pos } = laidOutLR(data);
+    const x = id => pos[`id:${id}`].x;
+    assert.equal(x('smith'), x('inn'));
+    assert.equal(x('baker'), x('inn'));
+    assert.ok(x('inn') > x('gate'));
+    assert.ok(x('square') > x('inn'));
+});
+
+test('left to right: cards with no links wrap into columns of six', () => {
+    const entries = Array.from({ length: 14 }, (_, i) => ent(i, `e${i}`));
+    const data = book(...entries);
+    const m = canvasBook(data);
+    const g = buildGraph(m);
+    const ids = new Set(m.E.map(e => e.id));
+    const pos = layout(m, g, ids, { dir: LR });
+    const cols = new Map();
+    for (const k of ids) cols.set(pos[k].x, (cols.get(pos[k].x) ?? 0) + 1);
+    assert.deepEqual([...cols.values()].sort(), [2, 6, 6]);
+});
+
+test('left to right: ports side by side use right and left, stacked ones bottom and top, a lone lock the top', () => {
+    const data = book(ent(0, 'road'), ent(1, 'mill', { gate: [['road']] }), ent(2, 'cave', { gate: [[{ lock: ['red beard'] }]] }));
+    const m = canvasBook(data);
+    const g = buildGraph(m);
+    const ids = new Set(m.E.map(e => e.id));
+    const pos = { 'id:road': { x: 0, y: 0 }, 'id:mill': { x: CW + 144, y: 96 }, 'id:cave': { x: 0, y: 300 } };
+    const R = nodeRects(m, g, ids, pos);
+    let P = computePorts(g, R, {}, { dir: LR });
+    assert.equal(P.get('id:road').get('gout').side, 'r');
+    assert.equal(P.get('id:mill').get('gin').side, 'l');
+    assert.equal(P.get('id:cave').get('gin').side, 't', 'a lone lock sits on top');
+    // Above one another: bottom to top.
+    pos['id:mill'] = { x: 24, y: 144 };
+    P = computePorts(g, nodeRects(m, g, ids, pos), {}, { dir: LR });
+    assert.equal(P.get('id:road').get('gout').side, 'b');
+    assert.equal(P.get('id:mill').get('gin').side, 't');
+    // A side moved by hand still wins.
+    P = computePorts(g, nodeRects(m, g, ids, pos), { 'id:mill:gin': 'l' }, { dir: LR });
+    assert.equal(P.get('id:mill').get('gin').side, 'l');
+    // The phone keeps its rule: a lone lock's socket on top, links to the side only when far more across than down.
+    pos['id:mill'] = { x: CW + 144, y: 96 };
+    P = computePorts(g, nodeRects(m, g, ids, pos));
+    assert.equal(P.get('id:road').get('gout').side, 'r');
+    assert.equal(P.get('id:cave').get('gin').side, 't');
+});
+
+test('left to right: on a side edge the ports run opens, glue, closes, top to bottom', () => {
+    const data = book(ent(0, 'host'), ent(1, 'storm'), ent(2, 'rider', { gate: [['host']], glue: { mode: 'ride', host: 'host' }, closeGate: [['storm']] }));
+    const m = canvasBook(data);
+    const g = buildGraph(m);
+    const ids = new Set(m.E.map(e => e.id));
+    const pos = { 'id:host': { x: 0, y: 0 }, 'id:storm': { x: 0, y: 144 }, 'id:rider': { x: CW + 144, y: 48 } };
+    const P = computePorts(g, nodeRects(m, g, ids, pos), {}, { dir: LR });
+    const rider = P.get('id:rider');
+    for (const k of ['gin', 'glin', 'cin']) assert.equal(rider.get(k).side, 'l', k);
+    assert.ok(rider.get('gin').y < rider.get('glin').y && rider.get('glin').y < rider.get('cin').y);
+});
+
+test('left to right: a new card a partner leads to goes right of it; one that leads to it, left', () => {
+    const { m, g, pos } = laidOutLR();
+    const free = k => !m.byId(k).packs.length;
+    const x = g.edges.find(e => e.kind === 'open' && e.mask == null && !e.from.startsWith('pack:') && !e.to.startsWith('pack:') && free(e.from) && free(e.to));
+    const only = new Set([x.from, x.to]);
+    const p1 = { [x.from]: pos[x.from] };
+    placeNew(m, g, only, p1, { x: 0, y: 0 }, { dir: LR });
+    assert.equal(p1[x.to].y, pos[x.from].y);
+    assert.ok(p1[x.to].x > pos[x.from].x);
+    const p2 = { [x.to]: pos[x.to] };
+    placeNew(m, g, only, p2, { x: 0, y: 0 }, { dir: LR });
+    assert.ok(p2[x.from].x < pos[x.to].x);
+});
+
+test('left to right: links are routed around cards, never through one', () => {
+    const { m, g, ids, pos } = laidOutLR();
+    const R = nodeRects(m, g, ids, pos);
+    const P = computePorts(g, R, {}, { dir: LR });
+    const grid = makeGrid(R, []);
+    const cards = [...R.values()].filter(r => !r.pack);
+    let routed = 0;
+    for (const x of g.edges) {
+        const a = P.get(x.from)?.get(x.fromPort);
+        const b = P.get(x.to)?.get(x.port);
+        if (!a || !b) continue;
+        const s = [snap(a.x + a.n[0] * G), snap(a.y + a.n[1] * G)];
+        const e = [snap(b.x + b.n[0] * G), snap(b.y + b.n[1] * G)];
+        const allow = new Set([x.from, x.to].filter(k => k.startsWith('pack:')));
+        for (const r of R.values()) if (r.pack && (r.members.includes(x.from) || r.members.includes(x.to))) allow.add(r.key);
+        const pts = route(grid, s[0], s[1], e[0], e[1], allow);
+        assert.ok(pts, `${x.from} → ${x.to} found a way`);
+        routed++;
+        for (const r of cards) assert.ok(!crosses(pts, r), `${x.from} → ${x.to} crosses ${r.key}`);
+    }
+    assert.ok(routed >= 10);
 });
