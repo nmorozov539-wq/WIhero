@@ -139,12 +139,24 @@ export function canvasSet(m, g, placed) {
     return new Set([...s].filter(id => m.byId(id)));
 }
 
+/** Layout directions (VISUAL 7.6): phones run top to bottom, desktop left to right. */
+export const TB = 'tb';
+export const LR = 'lr';
+/** Left to right: the room between columns (lanes, junctions and pills), and between cards in a column. */
+export const COL_GAP = 144;
+export const STACK_GAP = 48;
+/** The most cards a column of unlinked cards holds before it wraps into another column. */
+const LOOSE_COL = 6;
+
 /**
- * Layered layout, top to bottom (VISUAL 7.6): longest path ranks, barycentre order, packs kept together. A layer
- * wraps at ROW_W, so a wide one becomes several rows.
+ * Layered layout (VISUAL 7.6): longest path ranks, barycentre order, packs kept together.
+ * Top to bottom (phones): a layer wraps at ROW_W, so a wide one becomes several rows.
+ * Left to right (desktop): each layer is a column, ordered by where its sources sit, every column centred on the
+ * same middle line; a pack stands as one block in a column, its members stacked.
+ * @param {{ dir?: 'tb' | 'lr' }} [opts]
  * @returns {Record<string, {x: number, y: number}>} positions by card key
  */
-export function layout(m, g, ids) {
+export function layout(m, g, ids, { dir = TB } = {}) {
     const pos = {};
     const unitOf = {};
     const units = [];
@@ -177,34 +189,71 @@ export function layout(m, g, ids) {
     units.forEach(u => { if (!linked.has(u)) depth.set(u, maxD + 1); });
     const layers = [];
     units.forEach(u => (layers[depth.get(u)] ||= []).push(u));
-    const cols = u => (u.pack ? Math.min(2, u.keys.length) : 1);
+    const lr = dir === LR;
+    const cols = u => (u.pack ? (lr ? 1 : Math.min(2, u.keys.length)) : 1);
     const wOf = u => (u.pack ? cols(u) * CW + (cols(u) - 1) * 24 + 48 : CW + (m.byId(u.keys[0]).masks.length ? 36 : 0));
-    const hOf = u => (u.pack ? Math.ceil(u.keys.length / 2) * (CH + 24) - 24 + 60 : CH);
+    const hOf = u => (u.pack ? Math.ceil(u.keys.length / cols(u)) * (CH + 24) - 24 + 60 : CH + (lr && m.byId(u.keys[0]).masks.length ? 48 : 0));
     const cx = new Map();
     const rowY = new Map();
-    let y = 0;
-    layers.forEach((L, d) => {
-        if (!L) return;
-        if (d > 0) L.forEach(u => { const ps = [...preds.get(u)].filter(p => cx.has(p)); u.bc = ps.length ? ps.reduce((s, p) => s + cx.get(p), 0) / ps.length : 0; });
-        if (d > 0) L.sort((a, b) => a.bc - b.bc);
-        // Phone first: a layer wider than two cards wraps onto more rows, so the canvas grows down, not sideways.
-        const rows = [];
-        for (const u of L) {
-            const row = rows.at(-1);
-            if (row && row.w + 60 + wOf(u) <= ROW_W) { row.units.push(u); row.w += 60 + wOf(u); } else rows.push({ units: [u], w: wOf(u) });
-        }
-        rows.forEach((row, i) => {
-            let x = -row.w / 2;
-            row.units.forEach(u => { const w = wOf(u); cx.set(u, x + w / 2); rowY.set(u, y); x += w + 60; });
-            y += Math.max(...row.units.map(hOf)) + (i < rows.length - 1 ? 72 : 132);
+    if (lr) layoutColumns(); else layoutRows();
+
+    function layoutRows() {
+        let y = 0;
+        layers.forEach((L, d) => {
+            if (!L) return;
+            if (d > 0) L.forEach(u => { const ps = [...preds.get(u)].filter(p => cx.has(p)); u.bc = ps.length ? ps.reduce((s, p) => s + cx.get(p), 0) / ps.length : 0; });
+            if (d > 0) L.sort((a, b) => a.bc - b.bc);
+            // Phone first: a layer wider than two cards wraps onto more rows, so the canvas grows down, not sideways.
+            const rows = [];
+            for (const u of L) {
+                const row = rows.at(-1);
+                if (row && row.w + 60 + wOf(u) <= ROW_W) { row.units.push(u); row.w += 60 + wOf(u); } else rows.push({ units: [u], w: wOf(u) });
+            }
+            rows.forEach((row, i) => {
+                let x = -row.w / 2;
+                row.units.forEach(u => { const w = wOf(u); cx.set(u, x + w / 2); rowY.set(u, y); x += w + 60; });
+                y += Math.max(...row.units.map(hOf)) + (i < rows.length - 1 ? 72 : 132);
+            });
         });
-    });
+    }
+
+    function layoutColumns() {
+        // Columns by link depth; the last layer (cards with no links) wraps every LOOSE_COL cards.
+        const columns = [];
+        const cy = new Map();
+        layers.forEach((L, d) => {
+            if (!L) return;
+            const loose = L.every(u => !linked.has(u));
+            if (loose) { for (let i = 0; i < L.length; i += LOOSE_COL) columns.push(L.slice(i, i + LOOSE_COL)); return; }
+            columns.push(L);
+        });
+        const bookOrder = new Map(m.E.map((e, i) => [e.id, i]));
+        let x = 0;
+        for (const col of columns) {
+            // Ordered by where their sources sit (barycentre); cards with no source in the book's own order.
+            col.forEach(u => { const ps = [...preds.get(u)].filter(p => cy.has(p)); u.bc = ps.length ? ps.reduce((s, p) => s + cy.get(p), 0) / ps.length : Infinity; u.i = Math.min(...u.keys.map(k => bookOrder.get(k) ?? Infinity)); });
+            col.sort((a, b) => (a.bc === b.bc ? a.i - b.i : a.bc - b.bc));
+            const w = Math.max(...col.map(wOf));
+            const h = col.reduce((s, u) => s + hOf(u), 0) + (col.length - 1) * STACK_GAP;
+            let y = -h / 2;
+            for (const u of col) {
+                const uw = wOf(u);
+                cx.set(u, x + uw / 2);
+                rowY.set(u, y + (u.pack || !m.byId(u.keys[0]).masks.length ? 0 : 12));
+                cy.set(u, y + hOf(u) / 2);
+                y += hOf(u) + STACK_GAP;
+            }
+            x += w + COL_GAP;
+        }
+    }
+
     units.forEach(u => {
         const y0 = rowY.get(u) + (u.pack ? 36 : 0);
         const x0 = cx.get(u) - wOf(u) / 2 + (u.pack ? 24 : 0);
+        const n = cols(u);
         u.keys.forEach((k, i) => {
-            const c = u.pack ? i % 2 : 0;
-            const r = u.pack ? Math.floor(i / 2) : 0;
+            const c = u.pack ? i % n : 0;
+            const r = u.pack ? Math.floor(i / n) : 0;
             pos[k] = { x: snap(x0 + c * (CW + 24)), y: snap(y0 + r * (CH + 24)) };
         });
     });
@@ -213,10 +262,11 @@ export function layout(m, g, ids) {
 
 /**
  * Places cards that have no position yet (BUILD_SPEC 8.3): the nearest free spot beside the card it is linked
- * with, or the middle of the view. The story reads top to bottom, so a card its partner leads to goes below it first
- * (then right, left, above), and a card that leads to its partner goes above it first. Changes `pos`.
+ * with, or the middle of the view. Top to bottom, a card its partner leads to goes below it first (then right, left,
+ * above), and a card that leads to its partner goes above it first. Left to right, the same with right for below.
+ * Changes `pos`.
  */
-export function placeNew(m, g, ids, pos, center) {
+export function placeNew(m, g, ids, pos, center, { dir = TB } = {}) {
     // Pack frames (members' box plus its margins) are taken space too, for cards that aren't members.
     const frames = g.packs.map(name => {
         const keys = new Set(m.packMembers(name).map(e => e.id));
@@ -235,10 +285,13 @@ export function placeNew(m, g, ids, pos, center) {
         const base = partner ? pos[partner.from === id ? partner.to : partner.from] : null;
         let spot = null;
         if (base) {
-            const steps = partner.to === id ? [[0, 1], [1, 0], [-1, 0], [0, -1]] : [[0, -1], [1, 0], [-1, 0], [0, 1]];
+            const steps = dir === LR
+                ? (partner.to === id ? [[1, 0], [0, 1], [0, -1], [-1, 0]] : [[-1, 0], [0, -1], [0, 1], [1, 0]])
+                : (partner.to === id ? [[0, 1], [1, 0], [-1, 0], [0, -1]] : [[0, -1], [1, 0], [-1, 0], [0, 1]]);
+            const [sx, sy] = dir === LR ? [CW + COL_GAP, CH + STACK_GAP] : [CW + 48, CH + 72];
             for (let ring = 1; ring <= 12 && !spot; ring++) {
                 for (const [dx, dy] of steps) {
-                    const p = { x: snap(base.x + dx * ring * (CW + 48)), y: snap(base.y + dy * ring * (CH + 72)) };
+                    const p = { x: snap(base.x + dx * ring * sx), y: snap(base.y + dy * ring * sy) };
                     if (free(p)) { spot = p; break; }
                 }
             }
@@ -270,12 +323,22 @@ export function nodeRects(m, g, ids, pos) {
     return R;
 }
 
+/** On a side edge the ports run top to bottom: opens, glue, closes (VISUAL 7.6). */
+const FAMILY_ORDER = { open: 0, glue: 1, close: 2 };
+/** Where n ports sit along a side edge of a card: on the 12px lattice where they fit, so links leave straight. */
+const SIDE_AT = { 1: [36], 2: [24, 48], 3: [12, 30, 48] };
+
 /**
- * Which ports sit on each node, on which side and where (VISUAL 7.2): by default the side facing the linked
- * cards, long edges three ports, short edges one; a card with masks keeps its bottom and right for the layers.
+ * Which ports sit on each node, on which side and where (VISUAL 7.2, 7.6): by default the side facing the linked
+ * cards; a card with masks keeps its bottom and right for the layers. Top to bottom (phones), long edges take
+ * three ports and short edges one. Left to right (desktop), cards side by side link right edge to left edge and
+ * cards above one another bottom to top; side edges take three ports, in family order; a port with no partner
+ * (a lone lock or wait) sits on the top edge. Sides saved by hand always win.
  * @param {Record<string, string>} manual sides moved by hand, by `key:kind`
+ * @param {{ dir?: 'tb' | 'lr' }} [opts]
  */
-export function computePorts(g, R, manual = {}) {
+export function computePorts(g, R, manual = {}, { dir = TB } = {}) {
+    const lr = dir === LR;
     const P = new Map();
     const add = (key, kind, partner) => {
         if (!R.has(key)) return;
@@ -294,17 +357,27 @@ export function computePorts(g, R, manual = {}) {
         const [cx, cy] = ctr(r);
         const hasMask = r.e?.masks.length;
         const load = { t: 0, b: 0, l: 0, r: 0 };
-        const cap = { t: 3, b: hasMask ? 2 : 3, l: 1, r: hasMask ? 0 : 1 };
+        const side = lr ? 3 : 1;
+        const cap = { t: 3, b: hasMask ? 2 : 3, l: side, r: hasMask ? 0 : side };
         const list = [...ports.values()];
         for (const p of list) {
             const man = manual[`${key}:${p.kind}`];
             let dx = 0;
             let dy = 0;
             p.partners.forEach(k => { const [px, py] = ctr(R.get(k)); dx += px - cx; dy += py - cy; });
-            if (!p.partners.length) dy = PORT[p.kind].dir === 'in' ? -1 : 1;
-            const prefs = Math.abs(dy) * 1.6 >= Math.abs(dx)
-                ? [dy < 0 ? 't' : 'b', dx < 0 ? 'l' : 'r', dy < 0 ? 'b' : 't', dx < 0 ? 'r' : 'l']
-                : [dx < 0 ? 'l' : 'r', dy < 0 ? 't' : 'b', dy < 0 ? 'b' : 't', dx < 0 ? 'r' : 'l'];
+            if (lr && p.partners.length) { dx /= p.partners.length; dy /= p.partners.length; }
+            let prefs;
+            if (!p.partners.length && lr) {
+                const out = PORT[p.kind].dir === 'out';
+                prefs = ['t', 'b', out ? 'r' : 'l', out ? 'l' : 'r'];
+            } else {
+                if (!p.partners.length) dy = PORT[p.kind].dir === 'in' ? -1 : 1;
+                // Side by side once the partner's column is clear of this card's; phones lean towards up and down.
+                const across = lr ? Math.abs(dx) > (r.w + CW) / 2 - 24 : Math.abs(dy) * 1.6 < Math.abs(dx);
+                prefs = across
+                    ? [dx < 0 ? 'l' : 'r', dy < 0 ? 't' : 'b', dy < 0 ? 'b' : 't', dx < 0 ? 'r' : 'l']
+                    : [dy < 0 ? 't' : 'b', dx < 0 ? 'l' : 'r', dy < 0 ? 'b' : 't', dx < 0 ? 'r' : 'l'];
+            }
             p.pref = man ? [man, ...prefs] : prefs;
             p.ax = dx;
             p.ay = dy;
@@ -313,12 +386,18 @@ export function computePorts(g, R, manual = {}) {
         for (const p of list) { p.side = p.pref.find(s => load[s] < cap[s]) ?? p.pref[0]; load[p.side]++; }
         for (const s of ['t', 'b', 'l', 'r']) {
             const on = list.filter(p => p.side === s);
-            const along = p => (s === 't' || s === 'b' ? p.ax : p.ay);
-            on.sort((a, b) => along(a) - along(b) || a.kind.localeCompare(b.kind));
+            const flat = s === 't' || s === 'b';
+            const along = p => (flat ? p.ax : p.ay);
+            const fam = p => FAMILY_ORDER[PORT[p.kind].family];
+            if (lr && !flat) on.sort((a, b) => fam(a) - fam(b) || a.kind.localeCompare(b.kind));
+            else on.sort((a, b) => along(a) - along(b) || a.kind.localeCompare(b.kind));
             on.forEach((p, i) => {
                 const f = (i + 1) / (on.length + 1);
                 p.n = NORM[s];
-                if (s === 't' || s === 'b') { p.x = snap(r.x + r.w * f); p.y = s === 't' ? r.y : r.y + r.h; } else { p.x = s === 'l' ? r.x : r.x + r.w; p.y = snap(r.y + r.h / 2); }
+                if (flat) { p.x = snap(r.x + r.w * f); p.y = s === 't' ? r.y : r.y + r.h; } else {
+                    p.x = s === 'l' ? r.x : r.x + r.w;
+                    p.y = lr && r.h === CH && SIDE_AT[on.length] ? r.y + SIDE_AT[on.length][i] : snap(r.y + r.h / 2);
+                }
             });
         }
     }

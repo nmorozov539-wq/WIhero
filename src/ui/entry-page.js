@@ -73,14 +73,40 @@ export function paramRow(p, text, changed, onTap) {
  */
 export function renderEntryPage(main, o) {
     const { entry: e, layer, ui } = o;
+    const D = o.desk ?? null;
     const v = el('div', 'view');
     main.append(v);
-    const top = el('div', 'en-top');
-    top.append(btn('round', ic('back'), o.up, o.hero ? 'Close the entry tab' : 'Up to the book'), el('div', 'sp'));
-    const pill = el('div', 'pill');
-    pill.append(btn('round', ic('drawer'), o.drawer, 'Entries in this book'), btn('round', ic('more'), o.menu, 'Entry actions'));
-    top.append(pill);
-    v.append(top);
+    if (D) {
+        // Desktop: a thin line with the book and folder as a breadcrumb, then ∧ ∨ and ⋮ (LAYOUT "Book (two panes)").
+        const top = el('div', 'en-line');
+        if (D.panel) top.append(btn('lbtn', ic('panel', 's'), D.panel, 'Entries'));
+        const crumbs = el('div', 'crumbs');
+        crumbs.insertAdjacentHTML('beforeend', ic('book', 's'));
+        D.crumbs.forEach((c, i) => {
+            if (i) crumbs.append(el('span', 'sl', '/'));
+            const b = c.go ? btn('crumb', '', c.go) : el('span', 'crumb');
+            b.textContent = c.label;
+            crumbs.append(b);
+        });
+        top.append(crumbs);
+        if (D.prev !== undefined) {
+            const up = btn('lbtn', ic('up', 's'), D.prev, 'Previous entry (Alt ↑)');
+            const dn = btn('lbtn', ic('down', 's'), D.next, 'Next entry (Alt ↓)');
+            up.disabled = !D.prev;
+            dn.disabled = !D.next;
+            top.append(up, dn);
+        }
+        if (D.showOnCanvas) top.append(btn('linkish', 'Show on canvas ›', D.showOnCanvas));
+        top.append(btn('lbtn', ic('more', 's'), o.menu, 'Entry actions'));
+        v.append(top);
+    } else {
+        const top = el('div', 'en-top');
+        top.append(btn('round', ic('back'), o.up, o.hero ? 'Close the entry tab' : 'Up to the book'), el('div', 'sp'));
+        const pill = el('div', 'pill');
+        pill.append(btn('round', ic('drawer'), o.drawer, 'Entries in this book'), btn('round', ic('more'), o.menu, 'Entry actions'));
+        top.append(pill);
+        v.append(top);
+    }
 
     const en = el('div', `en${e.disable ? ' off' : ''}`);
     v.append(en);
@@ -94,9 +120,11 @@ export function renderEntryPage(main, o) {
     h1.addEventListener('blur', () => { h1.textContent = e.comment ?? ''; o.retitle(); });
     en.append(h1);
 
-    const bl = btn('bookline', `${ic('book', 's')}<span></span>`, o.up, 'Up to the book');
-    bl.querySelector('span').textContent = o.bookName + (o.folder ? ` · ${o.folder}` : '');
-    en.append(bl);
+    if (!D) {
+        const bl = btn('bookline', `${ic('book', 's')}<span></span>`, o.up, 'Up to the book');
+        bl.querySelector('span').textContent = o.bookName + (o.folder ? ` · ${o.folder}` : '');
+        en.append(bl);
+    }
 
     // At a glance: whether the entry has story pieces, and whether other entries' pieces point at it.
     const n = o.lines.length;
@@ -108,9 +136,16 @@ export function renderEntryPage(main, o) {
         inc.length ? `pointed at by ${inc.length === 1 ? inc[0] : `${inc.length} entries`}` : ''].filter(Boolean).join(' · ')));
     story.title = inc.length ? `Pointed at by: ${inc.join(', ')}` : '';
     story.addEventListener('click', () => {
+        if (D && n) {
+            // Desktop: the chip opens the Story logic section and scrolls to it.
+            if (!ui.logic && !o.hero) { ui.logic = true; o.redraw(); }
+            requestAnimationFrame(() => main.querySelector('.disc.logich')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+            return;
+        }
         if (n && !o.hero && !ui.logic) { ui.logic = true; o.redraw(); }
         else if (o.showOnCanvas) o.showOnCanvas();
     });
+    if (D && n) story.querySelector('span').textContent = `Story logic · ${n} rule${n === 1 ? '' : 's'}${inc.length ? ` · pointed at by ${inc.length === 1 ? inc[0] : `${inc.length}`}` : ''}`;
     en.append(story);
 
     if (o.problems.length) {
@@ -120,6 +155,7 @@ export function renderEntryPage(main, o) {
         en.append(pr);
     }
 
+    if (D) { deskFields(en, o, main); } else {
     // Strategy line, with the on/off switch at its right end.
     const sr = el('div', 'srow');
     const th = el('button', 'thin');
@@ -157,11 +193,12 @@ export function renderEntryPage(main, o) {
             en.append(ac);
         }
     }
+    }
 
     // Story logic: read-only here; folded in normal mode, always open in Hero mode.
     if (o.lines.length) {
         const open = o.hero || ui.logic;
-        const d = el('button', `disc${open ? ' open' : ''}`);
+        const d = el('button', `disc logich${open ? ' open' : ''}`);
         d.type = 'button';
         d.innerHTML = `${ic('right', 'chev')}<h2>Story logic</h2>`;
         if (!open) d.append(el('span', 'sum', logicSummary(o.lines)));
@@ -189,7 +226,7 @@ export function renderEntryPage(main, o) {
             if (o.hero) {
                 links.append(btn('linkish', `${ic('canvas', 's')} Show on canvas`, o.showOnCanvas), btn('linkish', `${ic('code', 's')} Data`, o.data));
             } else {
-                links.append(btn('linkish', 'Open in Hero mode ›', o.openInHero));
+                links.append(btn('linkish', D ? 'Edit in Hero mode ›' : 'Open in Hero mode ›', o.openInHero));
             }
             box.append(links);
             en.append(box);
@@ -203,7 +240,8 @@ export function renderEntryPage(main, o) {
     pd.append(el('span', 'sum', paramSummary(e)));
     pd.addEventListener('click', () => { ui.params = !ui.params; o.redraw(); });
     en.append(pd);
-    if (ui.params) {
+    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x)));
+    else if (ui.params) {
         for (const [group, list] of PARAMS) {
             en.append(el('div', 'plbl', group));
             for (const p of list) {
@@ -288,3 +326,166 @@ function keyBox(list, placeholder, done) {
     return box;
 }
 
+
+// ---------------------------------------------------------------- desktop (LAYOUT "Book (two panes)")
+
+/** Desktop: labels in a left column (Strategy, Keywords, the condition), values on the right. */
+function deskFields(en, o, main) {
+    const { entry: e, layer, ui } = o;
+    const g = el('div', 'fgrid');
+    const lab = text => el('div', 'flab', text);
+    const cur = e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys';
+    const st = el('button', 'fmenu');
+    st.type = 'button';
+    st.append(sdot(e), el('b', '', STRATEGY_NAME[cur]), el('span', 'car', '▾'));
+    st.setAttribute('aria-label', `Strategy: ${STRATEGY_NAME[cur]}`);
+    st.addEventListener('click', () => layer.sheet(null, sh => {
+        for (const k of ['keys', 'perm', 'vec']) {
+            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k] }));
+        }
+    }, { at: st }));
+    const sv = el('div', 'fval');
+    sv.append(st, el('span', 'sp'), swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on'));
+    g.append(lab('Strategy'), sv);
+    if (!e.constant) {
+        g.append(lab('Keywords'), keyChips(e.key ?? [], 'Type a key word, then Enter', list => o.change(x => { x.key = list; })));
+        const second = e.keysecondary ?? [];
+        if (second.length || ui.condition) {
+            const lt = el('button', 'fmenu flab');
+            lt.type = 'button';
+            lt.append(el('span', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
+            lt.addEventListener('click', () => layer.sheet(null, sh => {
+                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); ui.condition = false; o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; }); }, { icon: 'trash' }));
+            }, { at: lt }));
+            g.append(lt, keyChips(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
+        } else {
+            const ac = btn('linkish', `${ic('plus', 's')} Add condition`, () => {
+                ui.condition = true;
+                o.change(x => { x.selective = true; x.selectiveLogic ??= 0; });
+                setTimeout(() => main.querySelectorAll('.kchips input')[1]?.focus(), 0);
+            });
+            g.append(el('div', 'flab'), ac);
+        }
+    }
+    en.append(g);
+}
+
+/**
+ * Key words as chips with a typing box at the end (desktop): Enter, comma or Tab adds; Backspace on an empty box
+ * takes the last chip back to edit; × on a hovered chip removes it; a double click edits a chip; a pasted
+ * comma-separated list splits.
+ */
+export function keyChips(list, placeholder, done) {
+    let words = [...list];
+    const box = el('div', 'kchips');
+    const input = el('input', 'kin2');
+    input.placeholder = words.length ? '' : placeholder;
+    input.setAttribute('aria-label', placeholder);
+    const commit = next => { words = next; done([...words]); draw(); };
+    const add = text => {
+        const fresh = String(text).split(',').map(x => x.trim()).filter(Boolean).filter(x => !words.includes(x));
+        if (fresh.length) commit([...words, ...fresh]);
+    };
+    function draw() {
+        for (const c of [...box.querySelectorAll('.kchip')]) c.remove();
+        words.forEach((w, i) => {
+            const c = el('span', 'kchip');
+            c.append(el('span', '', w));
+            const x = btn('kx', ic('x', 's'), ev => { ev.stopPropagation(); commit(words.filter((_, j) => j !== i)); }, `Remove ${w}`);
+            c.append(x);
+            c.addEventListener('dblclick', () => { commit(words.filter((_, j) => j !== i)); input.value = w; input.focus(); });
+            box.insertBefore(c, input);
+        });
+        input.placeholder = words.length ? '' : placeholder;
+    }
+    input.addEventListener('keydown', ev => {
+        if ((ev.key === 'Enter' || ev.key === ',' || (ev.key === 'Tab' && input.value.trim())) && !ev.isComposing) {
+            ev.preventDefault();
+            add(input.value);
+            input.value = '';
+        } else if (ev.key === 'Backspace' && !input.value && words.length) {
+            ev.preventDefault();
+            const last = words.at(-1);
+            commit(words.slice(0, -1));
+            input.value = last;
+        }
+    });
+    input.addEventListener('paste', ev => {
+        const text = ev.clipboardData?.getData('text') ?? '';
+        if (!text.includes(',')) return;
+        ev.preventDefault();
+        add(input.value + text);
+        input.value = '';
+    });
+    input.addEventListener('blur', () => { if (input.value.trim()) { add(input.value); input.value = ''; } });
+    box.addEventListener('click', ev => { if (ev.target === box) input.focus(); });
+    box.append(input);
+    draw();
+    return box;
+}
+
+/**
+ * The parameters as real controls in two columns, grouped as on phones (desktop). Changed labels turn accent.
+ * @param {object} e the entry (or what new entries start with)
+ * @param {(p, value) => void} set
+ * @param {{ value?: (p) => any, mixed?: (p) => boolean, changed?: (p) => boolean, when?: (p) => boolean }} [o]
+ */
+export function paramGrid(e, set, o = {}) {
+    const valueOf = o.value ?? (p => paramValue(e, p));
+    const wrap = el('div', 'pgrid');
+    for (const [group, list] of PARAMS) {
+        const shown = list.filter(p => (o.when ? o.when(p) : !p.when || p.when(e)));
+        if (!shown.length) continue;
+        wrap.append(el('div', 'plbl', group));
+        const g = el('div', 'pg');
+        for (const p of shown) {
+            const value = valueOf(p);
+            const mixed = !!o.mixed?.(p);
+            const changed = o.changed ? o.changed(p) : !(value === p.def || (value === null && p.def === null) || (!value && !p.def));
+            const id = `p-${p.field}`;
+            const l = el('label', `pgl${changed ? ' ch' : ''}`, p.label);
+            l.htmlFor = id;
+            let c;
+            if (p.type === 'enum') {
+                c = el('select', 'pgc');
+                if (mixed) c.append(new Option('Mixed', '\u0000'));
+                for (const [k, label] of p.options) c.append(new Option(label, k === null ? '\u0001' : String(k)));
+                c.value = mixed ? '\u0000' : value === null || value === undefined ? '\u0001' : String(value);
+                c.addEventListener('change', () => {
+                    if (c.value === '\u0000') return;
+                    const opt = p.options.find(([k]) => (k === null ? '\u0001' : String(k)) === c.value);
+                    set(p, opt ? opt[0] : null);
+                });
+            } else if (p.type === 'bool') {
+                c = el('input', 'pgc chk');
+                c.type = 'checkbox';
+                c.checked = !mixed && !!value;
+                c.indeterminate = mixed;
+                c.addEventListener('change', () => set(p, c.checked));
+            } else {
+                const isNum = p.type === 'int';
+                c = el('input', 'pgc');
+                c.type = isNum ? 'number' : 'text';
+                if (isNum && p.min !== undefined) c.min = String(p.min);
+                if (isNum && p.max !== undefined) c.max = String(p.max);
+                c.placeholder = mixed ? 'Mixed' : isNum ? (p.optional ? 'Use global' : String(p.def)) : 'None';
+                c.value = mixed || value === null || value === undefined || (isNum && value === p.def && !changed) ? '' : String(value);
+                c.addEventListener('change', () => {
+                    const v = c.value.trim();
+                    if (!isNum) { set(p, v); return; }
+                    if (v === '') { set(p, p.optional ? null : p.def); return; }
+                    let n = Math.round(Number(v));
+                    if (!Number.isFinite(n)) { c.value = ''; return; }
+                    if (p.min !== undefined) n = Math.max(p.min, n);
+                    if (p.max !== undefined) n = Math.min(p.max, n);
+                    set(p, n);
+                });
+            }
+            c.id = id;
+            if (p.unit && p.type === 'int') { const u = el('span', 'pgu'); u.append(c, el('small', '', p.unit.trim())); g.append(l, u); } else g.append(l, c);
+        }
+        wrap.append(g);
+    }
+    return wrap;
+}

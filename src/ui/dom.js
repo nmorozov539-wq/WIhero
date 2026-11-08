@@ -79,6 +79,15 @@ export function longPress(node, fn) {
  */
 export function createLayer(layer, toastBox) {
     const closers = [];
+    /**
+     * Desktop (LAYOUT "Desktop: normal mode"): every sheet opens as a menu at the control that asked for it. The
+     * control is the last one pressed (or the point of a right-click); `pop.desk` is set by the app.
+     */
+    const pop = { desk: false, at: null };
+    const root = layer.getRootNode?.() ?? document;
+    const remember = e => { pop.at = { el: e.target, x: e.clientX, y: e.clientY, t: performance.now(), menu: e.type === 'contextmenu' }; };
+    root.addEventListener('pointerdown', remember, true);
+    root.addEventListener('contextmenu', remember, true);
 
     function close() {
         layer.innerHTML = '';
@@ -101,17 +110,55 @@ export function createLayer(layer, toastBox) {
      * @param {{ menu?: boolean, help?: string, cls?: string, onClose?: () => void }} [opts]
      */
     function sheet(title, build, opts = {}) {
-        scrim(opts.menu);
-        const sh = el('div', `sheet${opts.menu ? ' menu' : ''}${opts.cls ? ` ${opts.cls}` : ''}`);
-        sh.setAttribute('role', 'dialog');
-        if (!opts.menu) sh.append(el('div', 'grab'));
+        const anchor = pop.desk ? anchorRect(opts.at) : null;
+        scrim(opts.menu || !!anchor);
+        const sh = el('div', `sheet${opts.menu ? ' menu' : ''}${anchor ? ' pop' : ''}${opts.cls ? ` ${opts.cls}` : ''}`);
+        sh.setAttribute('role', anchor ? 'menu' : 'dialog');
+        if (!opts.menu && !anchor) sh.append(el('div', 'grab'));
         if (title) sh.append(el('h2', '', title));
         if (opts.help) sh.append(el('p', 'help', opts.help));
         build(sh);
         layer.append(sh);
+        if (anchor) place(sh, anchor);
         if (opts.onClose) closers.push(opts.onClose);
         sh.querySelector('button, input')?.focus({ preventScroll: true });
         return sh;
+    }
+
+    /** Where a desktop menu opens: under the control just pressed, at a right-click's point, or near the top. */
+    function anchorRect(at) {
+        if (at?.getBoundingClientRect) { const r = at.getBoundingClientRect(); return { x: r.left, y: r.bottom + 4, above: r.top - 4 }; }
+        if (at && Number.isFinite(at.x)) return { x: at.x, y: at.y, above: at.y };
+        const a = pop.at;
+        if (!a || performance.now() - a.t > 1500) return { center: true };
+        if (a.menu) return { x: a.x, y: a.y, above: a.y };
+        const c = a.el?.closest?.('button, [role="button"], .opt, .tile, .lrow, input, select') ?? a.el;
+        if (!c?.isConnected || !c.getBoundingClientRect) return { x: a.x, y: a.y, above: a.y };
+        const r = c.getBoundingClientRect();
+        // A row inside another menu: the new menu opens beside it.
+        if (c.closest?.('.sheet.pop')) return { x: r.left + 24, y: r.bottom + 2, above: r.top - 2 };
+        return { x: r.left, y: r.bottom + 4, above: r.top - 4, right: r.right };
+    }
+    function place(sh, a) {
+        const box = layer.getBoundingClientRect();
+        const w = sh.offsetWidth;
+        const h = sh.offsetHeight;
+        if (a.center) {
+            Object.assign(sh.style, { left: `${Math.max(8, (box.width - w) / 2)}px`, top: `${Math.min(80, box.height / 6)}px` });
+            sh.style.maxHeight = `${box.height - 96}px`;
+            return;
+        }
+        let x = a.x - box.left;
+        // A control at the right edge (the tab row's ×, a row's ⋯): the menu lines up with its right side.
+        if (a.right !== undefined && x + w > box.width - 8) x = a.right - box.left - w;
+        x = Math.max(8, Math.min(x, box.width - w - 8));
+        const below = box.bottom - a.y - 8;
+        const above = a.above - box.top - 8;
+        const up = h > below && above > below;
+        const room = up ? above : below;
+        sh.style.maxHeight = `${Math.max(160, room)}px`;
+        sh.style.left = `${x}px`;
+        sh.style.top = up ? `${Math.max(8, a.above - box.top - Math.min(h, room))}px` : `${a.y - box.top}px`;
     }
 
     /** A sheet row: label (and a line under it), and its current value at the right. */
@@ -204,5 +251,5 @@ export function createLayer(layer, toastBox) {
     /** Ends a waiting Undo toast now, so its delayed change happens (when WI Hero is closed, for example). */
     const flushToast = () => { if (current) endToast(false); };
 
-    return { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer };
+    return { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop };
 }

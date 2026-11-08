@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WI Hero harness</title>
+<!-- WI Hero's editor on a stand-in for SillyTavern's screen: its top bar, chat column and send form, ST's layout
+     variables, and an in-memory library. For checking the editor's layout in a browser without SillyTavern
+     (e2e/desktop.mjs); the in-ST checks are n2–n7. -->
+<style>
+  :root {
+    --topBarBlockSize: 35px; --bottomFormBlockSize: 47px; --sheldWidth: 50vw; --mainFontSize: 15px;
+    --SmartThemeBodyColor: #dcdcd2; --SmartThemeBlurTintColor: #17171b; --SmartThemeQuoteColor: #e18a24;
+    --SmartThemeShadowColor: rgba(0, 0, 0, .5); --SmartThemeBorderColor: rgba(0, 0, 0, .5);
+  }
+  :root.light { --SmartThemeBodyColor: #23232a; --SmartThemeBlurTintColor: #ececec; --SmartThemeQuoteColor: #b3591c; --SmartThemeShadowColor: rgba(0, 0, 0, .15); }
+  @media screen and (max-width: 1000px) { :root { --sheldWidth: 100vw; } }
+  html, body { margin: 0; height: 100%; background: #0e0e10; color: #ccc; font-family: 'Noto Sans', system-ui, sans-serif; }
+  :root.light body { background: #d8d8d8; }
+  #top-bar { position: fixed; top: 0; left: 0; right: 0; height: var(--topBarBlockSize); background: #222226; display: flex; justify-content: center; gap: 70px; align-items: center; z-index: 3005; }
+  #top-bar i { width: 18px; height: 18px; border-radius: 4px; background: #555; display: block; cursor: pointer; }
+  #top-bar i.wi { background: #e18a24; }
+  #sheld { position: fixed; top: var(--topBarBlockSize); bottom: 0; left: 0; right: 0; margin: 0 auto; width: var(--sheldWidth); min-width: 450px; max-width: 100vw; display: flex; flex-direction: column; }
+  #chat { flex: 1; padding: 20px; color: #888; font-size: 14px; }
+  #send_form { height: var(--bottomFormBlockSize); background: #1d1d21; border-top: 1px solid #333; box-sizing: border-box; padding: 10px 14px; color: #777; font-size: 14px; }
+  @media screen and (max-width: 1000px) { #sheld { min-width: 0; } }
+</style>
+</head>
+<body>
+<div id="top-bar"><i></i><i></i><i></i><i class="wi" id="wi-button" title="World Info"></i><i></i><i></i></div>
+<div id="sheld"><div id="chat">Seraphina: Welcome to the glade.</div><div id="send_form">Type a message, or /? for help</div></div>
+<script type="module" src="./harness.js"></script>
+</body>
+</html>

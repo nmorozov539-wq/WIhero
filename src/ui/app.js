@@ -14,16 +14,18 @@ import {
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
 import { closedText, logicLines } from './logic-text.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
-import { PORT, buildGraph, canvasBook, canvasSet } from './canvas-graph.js';
+import { LR, PORT, TB, buildGraph, canvasBook, canvasSet } from './canvas-graph.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { entryStatus } from '../engine/turn.js';
 import { getStringHash, isObject } from '../engine/util.js';
 import { greetingFingerprint, greetingsOf, openingGreeting } from '../chat-state.js';
-import { bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
+import { addToList, bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
+import { addLink } from './links.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
-import { editExisting, mountPieceBar, startPiece } from './piecebar.js';
+import { BAR, editExisting, mountPieceBar, startPiece } from './piecebar.js';
 import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
+import { deskNormal, resizer } from './desk.js';
 
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
 
@@ -59,6 +61,17 @@ export function createApp(deps) {
     // Keys typed in WI Hero are its own: ST's hotkeys (arrows swipe, Enter sends) never see them.
     for (const type of ['keydown', 'keyup', 'keypress']) host.addEventListener(type, e => e.stopPropagation());
     // Escape is Back while WI Hero is open, wherever the focus is (LAYOUT "Back").
+    // Desktop keys (LAYOUT "Keys"): Ctrl K anywhere while WI Hero is open, the rest inside it.
+    window.addEventListener('keydown', e => {
+        if (!S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
+        if (document.querySelector('.popup[open], dialog[open]')) return;
+        // In Hero mode a click on the list or the canvas can leave the focus on the page itself.
+        const inside = e.composedPath().includes(host) || (S.mode === 'hero' && document.activeElement === document.body);
+        const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
+        if (!inside && !ctrlK) return;
+        const took = S.mode === 'hero' ? heroKey(e) : deskN.key(e);
+        if (took) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
     window.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
@@ -81,8 +94,14 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null } },
+        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [] },
+        // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
+        desk: false,
     };
+    const deskQuery = window.matchMedia?.('(min-width: 1001px)');
+    S.desk = !!deskQuery?.matches;
+    deskQuery?.addEventListener?.('change', () => { S.desk = deskQuery.matches; layer.close(); if (!host.hidden) render(); else pendingRender = true; });
+    const deskSettings = () => (settings.desk ??= {});
     const tab = () => S.tabs.find(t => t.id === S.active) ?? S.tabs[0];
     const page = (t = tab()) => t.history.at(-1);
 
@@ -131,7 +150,8 @@ export function createApp(deps) {
     const counting = [];
     let countsRunning = 0;
     const countSpans = new Map(); // book → the span showing its count now
-    function countInto(name, span) {
+    function countInto(name, span, fmt = null) {
+        if (fmt) span.dataset.bare = '1';
         countSpans.set(name, span);
         if (!counting.includes(name)) counting.push(name);
         pumpCounts();
@@ -142,7 +162,7 @@ export function createApp(deps) {
             countsRunning++;
             library.get(name).then(d => {
                 const span = countSpans.get(name);
-                if (d && span?.isConnected) span.textContent = `${entriesShown(name, d).length} entries`;
+                if (d && span?.isConnected) span.textContent = span.dataset.bare ? String(entriesShown(name, d).length) : `${entriesShown(name, d).length} entries`;
             }, () => {}).finally(() => { countsRunning--; pumpCounts(); });
         }
     }
@@ -174,7 +194,9 @@ export function createApp(deps) {
         root.dataset.colors = settings.colorMode ?? 'standard';
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
+        shape();
         if (S.mode === 'hero') { renderHero(); return; }
+        if (S.desk) { renderTabs(); deskN.render(); return; }
         renderTabs();
         const p = page();
         const old = main.querySelector('.view');
@@ -191,6 +213,19 @@ export function createApp(deps) {
     }
     const pageId = p => `${tab().id}:${p.type}:${p.book ?? ''}:${p.uid ?? ''}`;
 
+    /**
+     * Desktop size and place (LAYOUT "Size and place"): normal mode, and Hero mode at drawer size, take ST's World
+     * Info drawer's box (under the top bar, Chat width wide, above the send form); Hero mode opens widened, over the
+     * whole window under the top bar. Phones keep the whole screen.
+     */
+    function shape() {
+        const wide = S.desk && S.mode === 'hero' && deskSettings().heroWide !== false;
+        root.dataset.desk = S.desk ? '1' : '';
+        host.classList.toggle('desk', S.desk);
+        host.classList.toggle('wide', wide);
+        layer.pop.desk = S.desk;
+    }
+
     function pageTitle(p) {
         if (p.type === 'home') return 'Home';
         if (p.type === 'book') return p.book;
@@ -200,7 +235,9 @@ export function createApp(deps) {
 
     function renderTabs() {
         strip.innerHTML = '';
+        tabbar.querySelector('.tright')?.remove();
         if (S.mode === 'hero') { renderHeroTabs(); return; }
+        if (S.desk) { deskN.renderTabs(strip, tabbar); revealActiveTab(); return; }
         for (const t of S.tabs) {
             const p = page(t);
             const active = t.id === S.active;
@@ -256,6 +293,11 @@ export function createApp(deps) {
 
     /** Opens a page: from Home's tab (or with `newTab`) in a new tab, otherwise in this tab's history. */
     function openIn(p, { newTab = false, background = false } = {}) {
+        if (S.desk && S.mode === 'normal') {
+            // Desktop: a book opens in a tab of its own; an entry shows in its book's tab, or its own tab when asked.
+            if (p.type === 'book') { deskN.openBook(p.book, { background }); return; }
+            if (p.type === 'entry') { if (newTab || background) deskN.openEntryTab(p.book, p.uid, { background }); else deskN.showInBook(p.book, p.uid); return; }
+        }
         const t = tab();
         S.select = null;
         S.search = null;
@@ -296,6 +338,7 @@ export function createApp(deps) {
 
     /** Back (Android) and Escape: sheet → search → selection → the tab's history → close the tab → close the editor. */
     function back() {
+        if (S.desk && S.mode === 'normal') return deskN.back();
         if (layer.isOpen()) { layer.close(); return true; }
         if (S.mode === 'hero') return heroBack();
         if (S.search) { S.search = null; render(); return true; }
@@ -665,11 +708,11 @@ export function createApp(deps) {
     }
 
     // ---------------------------------------------------------------- entry page
-    function renderEntry(p, nav = null) {
+    function renderEntry(p, nav = null, into = main, extra = {}) {
         const data = need(p.book);
-        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', library.names().includes(p.book) ? 'Loading…' : 'This book was deleted or renamed.')); main.append(v); return; }
+        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', library.names().includes(p.book) ? 'Loading…' : 'This book was deleted or renamed.')); into.append(v); return; }
         const e = data.entries[p.uid];
-        if (!e || hiddenIn(p.book).has(p.uid)) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'This entry was deleted.')); main.append(v); return; }
+        if (!e || hiddenIn(p.book).has(p.uid)) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'This entry was deleted.')); into.append(v); return; }
         const book = p.book;
         const model = modelOf(book, data);
         const node = model.byStKey.get(`${book}.${e.uid}`);
@@ -693,7 +736,7 @@ export function createApp(deps) {
             }
         }
         S.ui.condition = !!p.condition;
-        renderEntryPage(main, {
+        renderEntryPage(into, {
             entry: e,
             bookName: book,
             folder: entryFolder(book, e),
@@ -737,6 +780,7 @@ export function createApp(deps) {
                 }
             }),
             menu: () => entryMenu(book, e.uid, { onPage: !nav, heroTab: nav }),
+            ...extra,
             tokens: text => (ctx().getTokenCountAsync ? ctx().getTokenCountAsync(text) : Promise.resolve(null)),
         });
     }
@@ -870,7 +914,13 @@ export function createApp(deps) {
                 if (dot) { const d = el('i', 'sd'); d.style.background = dot; b.append(d); }
                 b.append(el('span', 'name', label));
             }
-            if (active && onClose) {
+            if (S.desk) b.title = label;
+            if (S.desk && onClose) {
+                // Desktop: × on hover too, and middle-click closes.
+                b.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); onClose(); } });
+                b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+            }
+            if ((active || S.desk) && onClose) {
                 const x = el('span', 'x');
                 x.innerHTML = ic('x');
                 x.setAttribute('role', 'button');
@@ -887,7 +937,31 @@ export function createApp(deps) {
             const e = library.peek(t.book)?.entries[t.uid];
             mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
         });
+        if (S.desk) heroTabsRight();
         revealActiveTab();
+    }
+
+    /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search, Normal mode, Widen/Drawer size, ×. */
+    function heroTabsRight() {
+        const right = el('div', 'tright');
+        const book = heroBook();
+        const bp = btn('tbook', `${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
+        bp.querySelector('span').textContent = book ?? 'No book';
+        bp.title = 'Switch book';
+        const sb = btn('tsearch', `${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
+        const nm = btn('tmode', `${ic('entry', 's')}<span>Normal mode</span>`, () => switchMode(), 'Switch to Normal mode');
+        const wide = deskSettings().heroWide !== false;
+        const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => {
+            deskSettings().heroWide = !wide;
+            saveSettings();
+            H.dlist = null; // the list and the inspector start as the new size has them
+            H.dinsp = null;
+            render();
+            requestAnimationFrame(() => heroCanvas?.fit());
+        }, wide ? 'Drawer size' : 'Widen');
+        wb.title = wide ? 'Drawer size' : 'Widen';
+        right.append(bp, sb, nm, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
+        tabbar.append(right);
     }
 
     function closeHeroTab(i) {
@@ -908,6 +982,7 @@ export function createApp(deps) {
     }
 
     function heroBack() {
+        if (S.desk) return heroBackDesk();
         // Back on an open strip is its Cancel; on an armed chip it disarms.
         if (H.active === 'canvas' && H.bar.edit) {
             const e = H.bar.edit;
@@ -969,16 +1044,32 @@ export function createApp(deps) {
         if (typeof H.active === 'number') {
             const t = H.tabs[H.active];
             main.dataset.page = `hero:${H.active}`;
-            renderEntry({ type: 'entry', book: t.book, uid: t.uid }, { up: () => closeHeroTab(H.active), go: uid => { t.uid = uid; t.mask = null; render(); }, tab: t });
+            const nav = { up: () => closeHeroTab(H.active), go: uid => { t.uid = uid; t.mask = null; render(); }, tab: t };
+            if (S.desk) {
+                // Desktop: the shared entry page, Story logic always open, "Show on canvas ›".
+                S.ui.logic = true;
+                const e = library.peek(t.book)?.entries[t.uid];
+                const folder = e ? entryFolder(t.book, e) : '';
+                renderEntry({ type: 'entry', book: t.book, uid: t.uid }, nav, main, {
+                    desk: {
+                        crumbs: [{ label: t.book }, ...(folder ? folder.split('/').map(f => ({ label: f })) : [])],
+                        showOnCanvas: e ? () => { showOnCanvas(t.book, cardKey(e)); inspect(t.book, cardKey(e)); } : null,
+                    },
+                });
+                if (S.search) deskN.renderSearch();
+                return;
+            }
+            renderEntry({ type: 'entry', book: t.book, uid: t.uid }, nav);
             return;
         }
-        if (H.active === 'preview') { renderPreviewTab(); return; }
+        if (H.active === 'preview') { renderPreviewTab(); if (S.desk && S.search) deskN.renderSearch(); return; }
         main.dataset.page = 'hero:canvas';
         const book = heroBook();
         if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
         const data = need(book);
         if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'Loading…')); main.append(v); return; }
 
+        if (S.desk) deskColumns(); // the columns first, so the canvas fits the room it really has
         const vp = el('div', 'vp');
         vp.tabIndex = -1;
         main.append(vp);
@@ -994,8 +1085,10 @@ export function createApp(deps) {
             tapTarget: hit => barTap(book, hit),
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
+                if (S.desk) { H.insp = null; heroInspector(book, data); return; }
                 if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
             },
+            ...(S.desk ? deskCanvas(book, data) : {}),
         });
         heroMount = mount;
         heroCanvas.render();
@@ -1004,9 +1097,11 @@ export function createApp(deps) {
     }
     /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
     function heroAround(book, data) {
+        if (S.desk) deskColumns();
         heroPanel(book, data);
         if (H.bar.edit && H.bar.edit.book !== book) H.bar.edit = null;
         mountPieceBar(barApi(book));
+        if (S.desk) { heroInspector(book, data); if (S.search) deskN.renderSearch(); return; }
         if (H.insp?.book === book) inspectorFor(book, data);
     }
     function legendBox() {
@@ -1068,7 +1163,7 @@ export function createApp(deps) {
         const data = () => library.peek(book);
         const nameOfId = id => { const x = entriesOf(data()).find(y => idOf(y) === id); return x ? titleOf(x) : id; };
         return {
-            B: H.bar, main, root, canvas: heroCanvas, layer,
+            B: H.bar, main, root, canvas: heroCanvas, layer, desk: S.desk,
             data, editor: () => bookEditor(data()),
             act: (fn, { quiet = false } = {}) => barAct(book, fn, quiet),
             snapshot: () => ({ book, entries: structuredClone(data().entries), original: data().originalData === undefined ? undefined : structuredClone(data().originalData), settings: structuredClone(bookSettings(settings, book)) }),
@@ -1143,6 +1238,7 @@ export function createApp(deps) {
             dropPiece(book, k, hit);
             return true;
         }
+        if (S.desk && hit?.cond) { inspect(book, hit.cond.key, PORT[hit.cond.port]?.piece ?? null); return true; }
         if (hit?.link || hit?.cond) {
             const edit = editExisting(hit, x);
             if (edit) { openStrip(book, edit); return true; }
@@ -1175,7 +1271,7 @@ export function createApp(deps) {
             render();
             layer.toast(`${title} placed`);
         };
-        layer.sheet('Place here', sh => {
+        layer.sheet(S.desk ? 'Add to canvas here' : 'Place here', sh => {
             const q = el('input', 'pick-q');
             q.placeholder = 'Search entries';
             q.setAttribute('aria-label', 'Search entries');
@@ -1192,8 +1288,14 @@ export function createApp(deps) {
                 title: 'New entry', placeholder: 'Entry name', ok: 'Create',
                 done: name => { const x = createEntry(book, name); place(cardKey(x), name); },
             }), { icon: 'plus' }), list);
+            if (S.desk) {
+                list.classList.add('plimit');
+                sh.append(layer.opt('Fit', () => { layer.close(); heroCanvas?.fit(); }, { icon: 'fit', val: 'F' }));
+                sh.append(layer.opt('Tidy layout', () => { layer.close(); tidyNow(); }, { icon: 'tidy', val: 'T' }));
+            }
             fill();
-        }, { help: 'Entries that aren\'t on the canvas yet.' });
+            if (S.desk) setTimeout(() => q.focus(), 0);
+        }, { help: S.desk ? null : 'Entries that aren\'t on the canvas yet.' });
     }
 
     // ---------------------------------------------------------------- Preview (N5, LAYOUT "Preview tab")
@@ -1261,18 +1363,29 @@ export function createApp(deps) {
             }, { help: 'Preview reads the open chat\'s latest exchange and how far its story has got, or starts from the beginning.' }),
             openEntry: k => { const e = byStKey.get(k); if (e) openHeroTab(book, e.uid); },
             showOnCanvas: k => { const e = byStKey.get(k); if (e) showOnCanvas(book, cardKey(e)); },
+            desk: S.desk,
+            // Desktop: a highlight or a report row jumps to the card on the canvas.
+            jump: k => { const e = byStKey.get(k); if (e) { showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } },
         });
     }
 
     // The entry panel (LAYOUT "Entry panel"): every entry of the book, a dot that places it on the canvas or finds it.
     let panelState = () => {};
     function heroPanel(book, data) {
-        const pb = btn('panelBtn', ic('panel'), () => { H.panel = !H.panel; panelState(); }, 'Entries');
-        const p = el('aside', 'panel');
+        const desk = S.desk;
+        const pb = desk
+            ? btn('panelBtn', ic(listShown() ? 'left' : 'panel'), () => { H.dlist = !listShown(); render(); }, listShown() ? 'Hide the entry list' : 'Show the entry list')
+            : btn('panelBtn', ic('panel'), () => { H.panel = !H.panel; panelState(); }, 'Entries');
+        if (desk) pb.title = listShown() ? 'Hide the entry list' : 'Show the entry list';
+        if (desk && !listShown()) { main.append(pb); panelState = () => {}; return; }
+        const p = el('aside', desk ? 'panel dock' : 'panel');
         main.append(pb, p);
         // The list is filled the first time the panel opens: a closed panel costs nothing on each draw.
         let filled = false;
-        panelState = () => {
+        if (desk) {
+            panelState = () => { if (!filled) fill(); p.classList.remove('closed'); };
+            p.append(resizer(() => deskSettings().heroListW ?? 250, w => { deskSettings().heroListW = w; deskColumns(); }, { min: 200, max: 420, def: 250, side: 'right', onEnd: () => saveSettings() }));
+        } else panelState = () => {
             if (H.panel && !filled) fill();
             p.classList.toggle('closed', !H.panel);
             pb.classList.toggle('open', H.panel);
@@ -1390,9 +1503,9 @@ export function createApp(deps) {
                             if (!placed) { canvasMemory(bookSettings(settings, book)).cards[g.key] = { placed: true }; saveSettings(); }
                             showOnCanvas(book, g.key);
                         }, placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas`);
-                        dotDrag(gd, g.key, g.title);
+                        if (desk) { dotDrag(r, g.key, g.title); r.classList.toggle('on', H.insp?.key === g.key); } else dotDrag(gd, g.key, g.title);
                         r.append(gd);
-                        r.addEventListener('click', () => inspect(book, g.key));
+                        r.addEventListener('click', ev => { if (desk && dragged(ev)) return; inspect(book, g.key); });
                         box.append(r);
                     }
                     list.append(box);
@@ -1422,17 +1535,43 @@ export function createApp(deps) {
                     const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
                     const d = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => { ev.stopPropagation(); if (!dragged(ev)) place(); },
                         placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas`);
-                    dotDrag(d, key, titleOf(e));
                     r.append(d);
-                    pressable(r, () => openHeroTab(book, e.uid), () => layer.sheet(titleOf(e), sh => {
-                        sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab' }));
+                    const rowMenu = () => layer.sheet(titleOf(e), sh => {
+                        sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: desk ? 'Double-click' : undefined }));
                         sh.append(layer.opt(placed ? 'Show on canvas' : 'Place on canvas', () => { layer.close(); place(); }, { icon: 'canvas' }));
-                        if (placed) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye' }));
-                    }, { help: 'Or drag its dot onto the canvas to place it where you drop it.' }));
+                        if (placed || desk) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: desk ? 'Click' : undefined }));
+                    }, { help: desk ? null : 'Or drag its dot onto the canvas to place it where you drop it.' });
+                    if (desk) {
+                        // Desktop: click inspects, double-click opens its tab, right-click is the menu, drag the row to place it.
+                        dotDrag(r, key, titleOf(e));
+                        r.classList.toggle('on', H.insp?.key === key);
+                        r.title = placed ? titleOf(e) : `${titleOf(e)}: not on the canvas. Drag it there, or click its dot`;
+                        r.addEventListener('click', ev => { if (!dragged(ev)) inspect(book, key); });
+                        r.addEventListener('dblclick', () => openHeroTab(book, e.uid));
+                        r.addEventListener('contextmenu', ev => { ev.preventDefault(); rowMenu(); });
+                    } else {
+                        dotDrag(d, key, titleOf(e));
+                        pressable(r, () => openHeroTab(book, e.uid), rowMenu);
+                    }
                     box.append(r);
                 }
             }
         };
+        if (desk) {
+            // The footer: the book's links and how many of its entries are on the canvas.
+            const ft = el('div', 'pfoot');
+            const lt = linkText(book);
+            const g = library.isGlobal(book);
+            const links = el('span', 'plinks');
+            links.innerHTML = ic(g ? 'book' : 'chain', 's');
+            links.append(g ? 'Global' : lt || 'Not linked');
+            const shown = entriesShown(book, data);
+            const on = view?.ids ?? new Set();
+            ft.append(links, el('span', 'pcount', `${shown.filter(e => on.has(cardKey(e))).length} of ${shown.length} placed`));
+            p.append(ft);
+            panelState();
+            return;
+        }
         const br = el('div', 'bookrow');
         const bp = btn('bookpick', `<b><span></span>${ic('down', 's')}</b><span class="bchips"></span>`, () => bookPicker(), 'Switch book');
         bp.querySelector('b span').textContent = book;
@@ -1450,7 +1589,13 @@ export function createApp(deps) {
     function bookPicker() {
         layer.sheet('Switch book', sh => {
             for (const n of visibleNames()) {
-                sh.append(layer.opt(n, () => { layer.close(); H.book = n; H.active = 'canvas'; H.panel = false; render(); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
+                sh.append(layer.opt(n, () => { layer.close(); H.book = n; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
+            }
+            if (S.desk) {
+                sh.append(layer.opt('New book', () => layer.askText({
+                    title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
+                    done: async n => { const name = await library.create(n); H.book = name; H.active = 'canvas'; H.insp = null; H.pick = []; render(); },
+                }), { icon: 'plus' }));
             }
         });
     }
@@ -1529,7 +1674,7 @@ export function createApp(deps) {
     }
 
     /** Opens the inspector on a card (from the canvas, a port, a pack sheet or Problems). */
-    function inspect(book, key, piece = null) {
+    function inspect(book, key, piece = null, { tab = null } = {}) {
         const data = library.peek(book);
         let open = null;
         if (piece && data && !key.startsWith('greet:')) {
@@ -1539,19 +1684,31 @@ export function createApp(deps) {
             if (has) open = piece;
         }
         const keep = H.insp?.key === key ? H.insp : null;
-        H.insp = { book, key, open, full: keep?.full ?? false, scroll: 0 };
+        H.insp = { book, key, open, full: keep?.full ?? false, scroll: 0, tab: tab ?? H.insp?.tab ?? 'logic', focusText: tab === 'text' };
+        if (S.desk) {
+            H.pick = [key];
+            if (H.dinsp === null && deskSettings().heroInsp !== false && !inspShown()) H.dinsp = true; // a narrow drawer hid it: a click asks for it
+        }
         H.panel = false;
         if (S.mode !== 'hero' || H.active !== 'canvas' || H.book !== book) { S.mode = 'hero'; H.active = 'canvas'; H.book = book; }
         else if (heroCanvas && data && main.dataset.page === 'hero:canvas' && !renderQueued) {
             // Already on this canvas: only the inspector changes, so leave the cards and links as they are.
             panelState();
+            if (S.desk) {
+                heroCanvas.setPicked(new Set([key]), true);
+                for (const r of main.querySelectorAll('.prow')) r.classList.toggle('on', r.dataset.key === key);
+                heroInspector(book, data);
+                heroCanvas.reveal(key);
+                return;
+            }
             main.querySelector('.insp')?.remove();
             inspectorFor(book, data);
             heroCanvas.reveal(key, 0.5);
             return;
         }
         render();
-        heroCanvas?.reveal?.(key, 0.5);
+        if (S.desk) heroCanvas?.setPicked(new Set([key]), true);
+        heroCanvas?.reveal?.(key, S.desk ? 1 : 0.5);
     }
 
     const stateKeyToCard = k => (k.startsWith('@') ? `greet:${k.slice(1)}` : `id:${k.slice(k.indexOf('/') + 1)}`);
@@ -1568,7 +1725,7 @@ export function createApp(deps) {
         };
     }
 
-    function inspectorFor(book, data) {
+    function inspectorFor(book, data, box = main) {
         const I = H.insp;
         const view = heroCanvas?.view;
         const shown = entriesShown(book, data);
@@ -1578,10 +1735,15 @@ export function createApp(deps) {
             layer, full: I.full, scroll: I.scroll, nameOfId, packs: packsOf(data),
             setFull: v => { I.full = v; render(); },
             onScroll: v => { I.scroll = v; },
-            close: () => { H.insp = null; render(); },
+            close: () => { H.insp = null; if (S.desk) heroCanvas?.setPicked(new Set(), true); render(); },
             inspect: key => inspect(book, key),
             edit: fn => editBook(book, fn),
+            desk: S.desk,
+            tab: I.tab ?? 'logic',
+            focusText: !!I.focusText,
+            setTab: k => { I.tab = k; I.focusText = k === 'text'; I.scroll = 0; heroInspector(book, data); I.focusText = false; },
         };
+        I.focusText = false;
         if (I.key.startsWith('greet:')) {
             const g = chatGreetings(data).find(x => x.key === I.key);
             if (!g) { H.insp = null; return; }
@@ -1591,7 +1753,7 @@ export function createApp(deps) {
             const gwhy = [];
             if (r.gatesFor.length || r.closesFor.length) gwhy.push('Remove its Gates for and Closes for (above).');
             if (usedBy.length) gwhy.push(`Remove the pieces in other entries that point at it: ${[...new Set(usedBy.map(titleOf))].join(', ')}.`);
-            renderGreetingInspector(main, {
+            renderGreetingInspector(box, {
                 ...common, g, others: others(null), takeOff: takeOffFor(book, g.title, gwhy),
                 rules: { gatesFor: r.gatesFor, closesFor: r.closesFor, usedBy: r.usedBy.map(byUid).filter(Boolean).map(x => ({ title: titleOf(x), key: cardKey(x), dot: strategyColor(x) })) },
             });
@@ -1610,8 +1772,9 @@ export function createApp(deps) {
             for (const k of model.riders?.get(node.key) ?? []) sources.push({ name: nameOf(k), key: stateKeyToCard(k), what: 'Rides along with this', family: 'glue' });
         }
         const mem = canvasMemory(bookSettings(settings, book));
-        renderInspector(main, {
-            ...common, entry: e, config: configOf(e) ?? {}, title: titleOf(e), open: I.open, lines, sources,
+        renderInspector(box, {
+            ...common, entry: e,
+            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: titleOf(e), open: I.open, lines, sources,
             others: others(e.uid), greetings: chatGreetings(data),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             closed: closedInfo(node, e),
@@ -1702,9 +1865,8 @@ export function createApp(deps) {
         sh.append(layer.opt('Tidy layout', () => {
             layer.close();
             if (H.active !== 'canvas') { H.active = 'canvas'; render(); }
-            const undo = heroCanvas?.tidy();
-            if (undo) layer.toast('Tidied', { action: ['Undo', () => { undo(); layer.toast('Layout put back'); }] });
-        }, { icon: 'tidy' }));
+            tidyNow();
+        }, { icon: 'tidy', val: S.desk ? 'T' : undefined }));
         switchRow(sh, 'Legend', H.legend, v => { H.legend = v; render(); });
         switchRow(sh, 'Show chat state', H.chatState, v => { H.chatState = v; render(); }, { sub: library.chatOpen() ? 'The open chat, at its latest message' : 'Open a chat to see it' });
     }
@@ -1799,6 +1961,7 @@ export function createApp(deps) {
             else if (p.type === 'home') {
                 sh.append(el('div', 'lbl', 'View'));
                 choiceRow(sh, 'Open books in', [['normal', 'Normal mode'], ['hero', 'Hero mode']], settings.openInHero ? 'hero' : 'normal', k => { settings.openInHero = k === 'hero'; saveSettings(); });
+                if (S.desk) choiceRow(sh, 'Show books as', [['tiles', 'Tiles'], ['list', 'List']], deskSettings().homeView === 'list' ? 'list' : 'tiles', k => { deskSettings().homeView = k; saveSettings(); render(); });
             } else if (p.type === 'book') {
                 const data = library.peek(p.book);
                 sh.append(el('div', 'lbl', 'View'));
@@ -1913,41 +2076,11 @@ export function createApp(deps) {
             if (fromPage) {
                 sh.append(layer.opt('List', () => layer.close(), { cur: true, icon: 'entry', sub: 'This page' }));
                 sh.append(el('div', 'div'));
-                sh.append(layer.opt('New folder…', () => layer.askText({
-                    title: 'New folder', placeholder: 'Folder name (Places/Town for one inside another)', ok: 'Create',
-                    done: f => {
-                        const b = bookSettings(settings, book);
-                        b.folderList = [...new Set([...(b.folderList ?? []), f.split('/').map(x => x.trim()).filter(Boolean).join('/')])];
-                        saveSettings();
-                        render();
-                    },
-                }), { icon: 'folder' }));
+                sh.append(layer.opt('New folder…', () => newEntryFolder(book), { icon: 'folder' }));
             }
             if (fromHome) sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'book', book }, { newTab: true }); }, { icon: 'tab' }));
-            sh.append(layer.opt('Rename', () => layer.askText({
-                title: 'Rename book', placeholder: 'Book name', value: book, check: n => library.nameProblem(n, book),
-                done: async n => {
-                    if (n === book) return;
-                    try {
-                        const to = await library.rename(book, n);
-                        renameBookSettings(settings, book, to);
-                        saveSettings();
-                        for (const t of S.tabs) for (const p of t.history) if (p.book === book) p.book = to;
-                        render();
-                        layer.toast(`Renamed to ${to}`);
-                    } catch (e) { layer.toast(e.message); }
-                },
-            }), { icon: 'edit' }));
-            if (fromPage) {
-                sh.append(layer.opt('Duplicate', async () => {
-                    layer.close();
-                    const to = await library.duplicate(book);
-                    copyBookSettings(settings, book, to);
-                    saveSettings();
-                    openIn({ type: 'book', book: to }, { newTab: true });
-                    layer.toast(`Made ${to}`);
-                }, { icon: 'copy' }));
-            }
+            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit' }));
+            if (fromPage) sh.append(layer.opt('Duplicate', () => { layer.close(); duplicateBook(book); }, { icon: 'copy' }));
             sh.append(layer.opt('Move to folder', () => bookFolderSheet(f => { setBookFolder(settings, book, f); saveSettings(); render(); }), { icon: 'move', val: bookFolderOf(settings, book) || 'No folder' }));
             sh.append(layer.opt('Export', () => { layer.close(); library.exportBook(book); layer.toast(`${book}.json exported`); }, { icon: 'code' }));
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›' }));
@@ -1955,11 +2088,74 @@ export function createApp(deps) {
         });
     }
 
-    function entryMenu(book, uid, { onPage = false, heroTab = null } = {}) {
+    function newEntryFolder(book) {
+        layer.askText({
+            title: 'New folder', placeholder: 'Folder name (Places/Town for one inside another)', ok: 'Create',
+            done: f => {
+                const b = bookSettings(settings, book);
+                b.folderList = [...new Set([...(b.folderList ?? []), f.split('/').map(x => x.trim()).filter(Boolean).join('/')])];
+                saveSettings();
+                render();
+            },
+        });
+    }
+    function renameBook(book) {
+        layer.askText({
+            title: 'Rename book', placeholder: 'Book name', value: book, check: n => library.nameProblem(n, book),
+            done: async n => {
+                if (n === book) return;
+                try {
+                    const to = await library.rename(book, n);
+                    renameBookSettings(settings, book, to);
+                    saveSettings();
+                    for (const t of S.tabs) for (const p of t.history) if (p.book === book) p.book = to;
+                    if (H.book === book) H.book = to;
+                    for (const t of H.tabs) if (t.book === book) t.book = to;
+                    render();
+                    layer.toast(`Renamed to ${to}`);
+                } catch (e) { layer.toast(e.message); }
+            },
+        });
+    }
+    async function duplicateBook(book) {
+        const to = await library.duplicate(book);
+        copyBookSettings(settings, book, to);
+        saveSettings();
+        openIn({ type: 'book', book: to }, { newTab: true });
+        layer.toast(`Made ${to}`);
+    }
+    /** Moves entries to another book; links to entries of this one don't travel. */
+    function moveToBookSheet(book, uids, after = () => {}) {
+        layer.sheet('Move to', s2 => {
+            for (const n of visibleNames().filter(x => x !== book)) {
+                s2.append(layer.opt(n, async () => {
+                    layer.close();
+                    const target = await library.get(n);
+                    if (!target) return;
+                    const moved = [];
+                    library.change(book, from => {
+                        for (const uid of uids) {
+                            if (!from.entries[uid]) continue;
+                            delete bookSettings(settings, book).folders[cardKey(from.entries[uid])];
+                            moved.push(moveEntry(from, uid, target));
+                        }
+                    });
+                    library.change(n, () => {});
+                    saveSettings();
+                    after(n, moved);
+                    render();
+                    layer.toast(moved.length === 1 ? `Moved to ${n}` : `Moved ${moved.length} entries to ${n}`);
+                }, { icon: 'book' }));
+            }
+        }, { help: 'Links to other entries of this book don\'t travel; the other book lists them as problems.' });
+    }
+
+    function entryMenu(book, uid, { onPage = false, heroTab = null, desk = null } = {}) {
         const ht = heroTab ? H.tabs[H.active] : null;
         const data = library.peek(book);
         const e = data?.entries[uid];
         if (!e) return;
+        if (desk) { deskEntryMenu(book, uid, e, desk); return; }
         layer.sheet(titleOf(e), sh => {
             if (ht) sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, cardKey(e)); }, { icon: 'canvas' }));
             else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab' }));
@@ -2003,6 +2199,44 @@ export function createApp(deps) {
                 deleteEntries(book, [uid]);
             }, { icon: 'trash', danger: true }));
         });
+    }
+
+    /**
+     * Desktop's entry menu (right-click, ⋯, ⋮): Open in new tab · Turn off · Duplicate · Move to folder · Move to
+     * another book · Copy as text · Delete. In an entry tab, "Show in its book" stands for Open in new tab.
+     */
+    function deskEntryMenu(book, uid, e, d) {
+        const p = page();
+        layer.sheet(null, sh => {
+            if (d.openTab) sh.append(layer.opt('Open in new tab', () => { layer.close(); d.openTab(); }, { icon: 'tab', val: 'Double-click' }));
+            if (d.inBook) sh.append(layer.opt('Show in its book', () => { layer.close(); d.inBook(); }, { icon: 'book' }));
+            sh.append(layer.opt(e.disable ? 'Turn on' : 'Turn off', () => { layer.close(); library.change(book, x => { x.entries[uid].disable = !e.disable; }); }, { icon: e.disable ? 'on' : 'off', val: 'Space' }));
+            sh.append(layer.opt('Duplicate', () => {
+                layer.close();
+                const copy = library.change(book, x => duplicateEntry(x, uid), { quiet: true });
+                const f = entryFolder(book, e);
+                if (f) { setFolder(settings, book, copy, f); saveSettings(); }
+                if (p.type === 'book') { p.sel = copy.uid; p.anchor = copy.uid; p.select = null; }
+                render();
+                layer.toast(`Made ${titleOf(copy)}`);
+            }, { icon: 'copy', val: 'Ctrl D' }));
+            sh.append(layer.opt('Move to folder', () => folderSheet(book, entryFolder(book, e), f => { setFolder(settings, book, e, f); saveSettings(); render(); }), { icon: 'folder', val: entryFolder(book, e) || 'No folder' }));
+            sh.append(layer.opt('Move to another book', () => moveToBookSheet(book, [uid], (n, moved) => {
+                if (p.type === 'entry') Object.assign(p, { book: n, uid: moved[0].uid });
+                else if (p.type === 'book') p.sel = null;
+            }), { icon: 'move' }));
+            sh.append(layer.opt('Copy as text', async () => {
+                layer.close();
+                try { await navigator.clipboard.writeText(entryAsText(e)); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
+            }, { icon: 'entry' }));
+            sh.append(el('div', 'div'));
+            sh.append(layer.opt('Delete', () => {
+                layer.close();
+                if (d.afterDelete) { d.afterDelete(); return; }
+                if (p.type === 'entry' && p.book === book && p.uid === uid) { const t = tab(); S.tabs.splice(S.tabs.indexOf(t), 1); S.active = S.tabs[0].id; }
+                deleteEntries(book, [uid]);
+            }, { icon: 'trash', danger: true, val: 'Delete' }));
+        }, { at: d.at });
     }
 
     /** The entry folders of a book, No folder, and + New folder. This is the main way folders get made. */
@@ -2094,6 +2328,289 @@ export function createApp(deps) {
         };
         draw();
     }
+
+    // ---------------------------------------------------------------- desktop
+    // Hero mode on desktop (LAYOUT "Desktop: Hero mode"): three columns, the canvas's mouse, keys.
+    /** The entry list shows when asked; else as the size has it (widened: shown, drawer size: hidden). */
+    const listShown = () => H.dlist ?? (deskSettings().heroWide !== false);
+    /** The inspector shows unless hidden; in a narrow drawer it starts hidden, so the canvas keeps some room. */
+    const inspShown = () => H.dinsp ?? (deskSettings().heroInsp !== false && (deskSettings().heroWide !== false || (main.clientWidth || 9999) >= 800));
+    function deskColumns() {
+        main.style.setProperty('--lw', listShown() ? `${deskSettings().heroListW ?? 250}px` : '0px');
+        main.style.setProperty('--iw', inspShown() ? `${deskSettings().heroInspW ?? 320}px` : '0px');
+    }
+
+    function tidyNow() {
+        const undo = heroCanvas?.tidy();
+        if (undo) layer.toast('Tidied', { action: ['Undo', () => { undo(); layer.toast('Layout put back'); }] });
+    }
+
+    /** Takes the selected cards off the canvas; a card with links stays, and the toast says so. */
+    function takeOffPicked(keys = heroCanvas?.picked() ?? []) {
+        const book = H.book;
+        const view = heroCanvas?.view;
+        if (!book || !view || !keys.length) return;
+        const mem = canvasMemory(bookSettings(settings, book));
+        const linked = k => view.g.edges.some(x => x.from === k || x.to === k) || (view.m.byId(k)?.packs.length ?? 0) > 0;
+        const off = keys.filter(k => !linked(k) && mem.cards[k]?.placed);
+        const stay = keys.filter(k => linked(k));
+        for (const k of off) delete mem.cards[k];
+        if (off.length) { saveSettings(); H.insp = null; heroCanvas.setPicked(new Set(), true); render(); }
+        const nm = k => view.m.byId(k)?.title ?? 'It';
+        if (stay.length) layer.toast(stay.length === 1 ? `${nm(stay[0])} stays: it has links. Remove them first` : `${stay.length} cards stay: they have links`);
+        else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} taken off the canvas` : `${off.length} cards taken off the canvas`);
+    }
+
+    /** What the canvas does with a mouse on desktop: left to right, link drags, menus, selection. */
+    function deskCanvas(book, data) {
+        return {
+            desk: true,
+            dir: LR,
+            tools: box => {
+                box.append(btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)'));
+                const t = btn('itoggle', ic('drawer'), () => {
+                    const v = !inspShown();
+                    H.dinsp = v;
+                    if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
+                    render();
+                }, 'Show or hide the inspector');
+                t.title = 'Show or hide the inspector';
+                box.append(t);
+                for (const b of box.querySelectorAll('button')) b.title ||= b.getAttribute('aria-label') ?? '';
+            },
+            link: (kind, from, to) => {
+                const x = barApi(book);
+                const src = nodeOf(book, from);
+                const dst = nodeOf(book, to);
+                if (!src || !dst) return;
+                if (kind === 'ride' && (src.t !== 'entry' || dst.t !== 'entry')) { layer.toast('Glue goes between entries.'); return; }
+                const piece = { open: 'opens', close: 'closes', ride: 'glue' }[kind];
+                openStrip(book, { piece, isNew: true, snap: x.snapshot(), dirty: false, note: null, src, dst: null, ...(kind === 'ride' ? { mode: 'ride' } : {}) });
+                H.bar.loosePick?.(dst);
+            },
+            openText: key => inspect(book, key, null, { tab: 'text' }),
+            onPick: keys => {
+                H.pick = keys;
+                if (keys.length === 1) { inspect(book, keys[0]); return; }
+                H.insp = null;
+                heroInspector(book, data);
+            },
+            cardMenu: key => cardMenu(book, data, key),
+            emptyMenu: at => placePicker(book, data, at),
+        };
+    }
+
+    function cardMenu(book, data, key) {
+        const end = nodeOf(book, key);
+        if (!end) return;
+        if (end.t === 'pack') { packSheet(book, data, end.name); return; }
+        const e = end.t === 'entry' ? data.entries[end.uid] : null;
+        const title = e ? titleOf(e) : chatGreetings(data).find(g => g.key === key)?.title ?? 'Greeting';
+        const view = heroCanvas?.view;
+        const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
+        layer.sheet(title, sh => {
+            sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: 'Click' }));
+            if (e) {
+                sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: 'New tab' }));
+                sh.append(layer.opt('Edit text', () => { layer.close(); inspect(book, key, null, { tab: 'text' }); }, { icon: 'edit', val: 'Double-click' }));
+            }
+            sh.append(el('div', 'lbl', 'Add piece'));
+            for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key }));
+            if (e) sh.append(layer.opt('Data', () => { layer.close(); dataSheet(e); }, { icon: 'code' }));
+            sh.append(layer.opt('Take off canvas', () => { layer.close(); takeOffPicked([key]); }, { icon: 'trash', val: linked ? 'Remove its links first' : 'Del', cls: linked ? 'muted' : undefined }));
+        });
+    }
+
+    /** The right column: the card's inspector, the selected cards, or the book. */
+    function heroInspector(book, data) {
+        main.querySelector('.hinsp')?.remove();
+        main.querySelector('.insp')?.remove();
+        deskColumns();
+        if (!inspShown()) return;
+        const col = el('aside', 'hinsp');
+        main.append(col);
+        col.append(resizer(() => deskSettings().heroInspW ?? 320, w => { deskSettings().heroInspW = w; deskColumns(); }, { min: 260, max: 560, def: 320, side: 'left', onEnd: () => saveSettings() }));
+        if (H.insp?.book === book) {
+            inspectorFor(book, data, col);
+            if (H.insp) return;
+        }
+        const picked = (heroCanvas?.picked() ?? []).filter(k => nodeOf(book, k));
+        if (picked.length > 1) groupPane(col, book, data, picked);
+        else bookPane(col, book, data);
+    }
+
+    function bookPane(col, book, data) {
+        const sh = el('div', 'insp book');
+        const body = el('div', 'ibody');
+        sh.append(body);
+        col.append(sh);
+        const head = el('div', 'ihead');
+        head.append(el('h2', '', book));
+        body.append(head);
+        const issues = modelOf(book, data).issues;
+        body.append(el('div', 'lbl', 'Problems'));
+        if (!issues.length) body.append(el('p', 'help', 'No problems in this book.'));
+        for (const i of [...issues.filter(x => !x.warning), ...issues.filter(x => x.warning)]) {
+            const uid = i.stKey ? Number(i.stKey.slice(i.stKey.lastIndexOf('.') + 1)) : null;
+            body.append(layer.opt(i.label, () => {
+                const x = uid === null ? null : data.entries[uid];
+                if (x) { showOnCanvas(book, cardKey(x)); inspect(book, cardKey(x)); }
+            }, { sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)' }));
+        }
+        body.append(el('div', 'lbl', 'Links'));
+        const lg = el('div', 'ilegend');
+        for (const [v, label, dashed] of [['open', 'Opens: waits for, then opens'], ['close', 'Closes', true], ['glue', 'Glue: rides along'], ['mask', 'Masks (stacked cards)'], ['pack', 'Pack frame', true]]) {
+            const r = el('span');
+            r.style.color = `var(--p-${v})`;
+            r.append(el('i', dashed ? 'd' : ''), el('span', '', label));
+            lg.append(r);
+        }
+        body.append(lg);
+        body.append(el('div', 'lbl', 'Mouse'));
+        body.append(el('p', 'help', 'Rest the pointer on a card to see its links. Click to inspect, double-click to edit its text. Drag a card to move it, drag empty space to pan, Shift-drag to select several. The wheel zooms. Drag a colored port or a handle under a card onto another card to link them. Right-click a card or the canvas for more.'));
+    }
+
+    function groupPane(col, book, data, keys) {
+        const ends = keys.map(k => nodeOf(book, k));
+        const uids = ends.filter(x => x?.t === 'entry').map(x => x.uid);
+        const names = keys.map(k => heroCanvas?.view?.m.byId(k)?.title ?? k);
+        const sh = el('div', 'insp group');
+        const body = el('div', 'ibody');
+        sh.append(body);
+        col.append(sh);
+        const head = el('div', 'ihead');
+        head.append(el('h2', '', `${keys.length} cards selected`), btn('round flat', ic('x'), () => { heroCanvas?.setPicked(new Set()); }, 'Clear the selection'));
+        body.append(head);
+        body.append(el('p', 'help', `${names.join(', ')}. Drag any of them to move them together.`));
+        const act = (label, icon, fn) => body.append(layer.opt(label, fn, { icon }));
+        act('Pack into…', 'tag', () => layer.sheet('Pack into', s2 => {
+            const pack = name => {
+                layer.close();
+                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${uids.length} entries packed into #${name}`);
+            };
+            for (const p of packsOf(data)) s2.append(layer.opt(`#${p}`, () => pack(p), { icon: 'tag' }));
+            s2.append(layer.opt('New pack…', () => layer.askText({
+                title: 'New pack', placeholder: 'Pack name (town/inn for one inside another)', ok: 'Add',
+                check: v => (/^[A-Za-z0-9][A-Za-z0-9_.\-/]*$/.test(v.replace(/^#/, '')) ? null : 'Letters, numbers, - _ . and / only'),
+                done: v => pack(v.replace(/^#/, '')),
+            }), { icon: 'plus' }));
+        }));
+        act('Add all to a gate…', 'canvas', () => layer.sheet('Which card waits for all of them?', s2 => {
+            for (const x of sortEntries(entriesShown(book, data), sortBy()).filter(x => !uids.includes(x.uid))) {
+                s2.append(layer.opt(titleOf(x), () => {
+                    layer.close();
+                    const dst = { t: 'entry', uid: x.uid };
+                    if (barAct(book, (ed, d) => { for (const u of uids) addLink(ed, d, 'open', { t: 'entry', uid: u }, dst, { join: 'and' }); })) layer.toast(`${titleOf(x)} waits for all ${uids.length}`);
+                }, { dot: strategyColor(x) }));
+            }
+        }, { help: 'It opens once every selected entry has fired.' }));
+        act('Turn off', 'on', () => {
+            library.change(book, d => { for (const u of uids) if (d.entries[u]) d.entries[u].disable = true; });
+            layer.toast(`${uids.length} entries turned off`);
+        });
+        act('Take off canvas', 'trash', () => takeOffPicked(keys));
+    }
+
+    function heroKey(e) {
+        const k = e.key;
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl && !e.altKey && k.toLowerCase() === 'k') { S.search = { query: S.search?.query ?? '', at: 0 }; render(); return true; }
+        if (S.search || layer.isOpen() || typing() || ctrl || e.altKey) return false;
+        if (H.active !== 'canvas' || !heroCanvas || !H.book) return false;
+        const book = H.book;
+        const up = k.length === 1 ? k.toUpperCase() : k;
+        const piece = !e.shiftKey && BAR.find(p => p.key === up);
+        if (piece) {
+            if (H.bar.edit) return false;
+            const sel = heroCanvas.picked();
+            if (sel.length === 1) { dropPiece(book, piece.k, { card: sel[0] }); return true; }
+            H.bar.armed = H.bar.armed === piece.k ? null : piece.k;
+            render();
+            return true;
+        }
+        if (up === 'F') { heroCanvas.fit(); return true; }
+        if (up === 'T') { tidyNow(); return true; }
+        if (k === '+' || k === '=') { heroCanvas.zoomAt(1.2); return true; }
+        if (k === '-') { heroCanvas.zoomAt(1 / 1.2); return true; }
+        if (k === '/') { H.dlist = true; render(); main.querySelector('.panel .phead input')?.focus(); return true; }
+        if (k === 'Delete' || k === 'Backspace') { takeOffPicked(); return true; }
+        return false;
+    }
+
+    /** Esc on desktop: menu, search, armed piece, strip (Cancel), text box, selection, then closes WI Hero. */
+    function heroBackDesk() {
+        if (S.search) { S.search = null; render(); return true; }
+        if (H.active === 'canvas') {
+            if (H.bar.armed) { H.bar.armed = null; render(); return true; }
+            if (H.bar.edit) {
+                const ed = H.bar.edit;
+                if (ed.dirty) barApi(ed.book).restore(ed.snap);
+                H.bar.edit = null;
+                H.bar.loosePick = null;
+                render();
+                return true;
+            }
+        }
+        if (typing()) { shadow.activeElement?.blur(); return true; }
+        if (H.active === 'canvas' && (H.insp || heroCanvas?.picked().length)) {
+            H.insp = null;
+            heroCanvas?.setPicked(new Set(), true);
+            render();
+            return true;
+        }
+        if (H.active === 'preview' && H.pv?.page) { H.pv.page = null; render(); return true; }
+        hide();
+        return false;
+    }
+    /** Discards a new entry left completely empty when the book pane moves on from it. */
+    function leaveEntry(p) {
+        if (p.fresh == null || p.fresh !== p.sel) return;
+        const uid = p.fresh;
+        p.fresh = null;
+        const e = library.peek(p.book)?.entries[uid];
+        if (e && isBlank(e)) { library.change(p.book, d => { delete d.entries[uid]; }, { quiet: true }); layer.toast('Empty entry removed'); }
+    }
+    /** A new entry in a book (and folder), with the book's defaults, not opened anywhere yet. */
+    function createEntryIn(book, folder = '') {
+        if (!library.peek(book)) return null;
+        const x = createEntry(book, '');
+        if (folder) { setFolder(settings, book, x, folder); saveSettings(); }
+        return x;
+    }
+    function openHero(book) {
+        leave();
+        H.book = book;
+        S.mode = 'hero';
+        S.select = null;
+        S.search = null;
+        H.active = 'canvas';
+        H.panel = false;
+        render();
+    }
+    const deskN = deskNormal({
+        S, settings, library, layer, main, root, shadow,
+        saveSettings: () => saveSettings(),
+        tab, page, leave, render, renderTabs, closeTab, newTab, hide, need, modelOf, entriesShown, hiddenIn, entryFolder,
+        problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, wiSettingsSheet,
+        bookFolderSheet, folderSheet, snapshotsSheet, problemsSheet, renameBook, duplicateBook, newEntryFolder, openHero,
+        createEntryIn, entryMenu, moveToBookSheet, applyParam, leaveEntry,
+        hasLogic: e => { const c = configOf(e); return !!c && Object.keys(c).some(k => k !== 'id'); },
+        nextTabId: () => ++tabUid,
+        typing: () => typing(),
+        renderEntryInto: (into, p, extra) => renderEntry(p, null, into, extra),
+        heroBook: () => heroBook(),
+        // Search in Hero mode: an entry is found on its canvas (or opened in a tab), a book or folder switches the canvas.
+        heroOpen: (h, background) => {
+            if (h.kind === 'entry') {
+                if (background) { if (!H.tabs.some(t => t.book === h.book && t.uid === h.entry.uid)) H.tabs.push({ book: h.book, uid: h.entry.uid }); render(); layer.toast('Opened in a background tab'); return; }
+                showOnCanvas(h.book, cardKey(h.entry));
+                inspect(h.book, cardKey(h.entry));
+                return;
+            }
+            if (h.book) { H.book = h.book; H.active = 'canvas'; H.insp = null; H.pick = []; }
+            render();
+        },
+    });
 
     return {
         show, hide, toggle, isOpen, refresh, host, back, openBook,

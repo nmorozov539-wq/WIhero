@@ -24,8 +24,19 @@ const low = t => t.charAt(0).toLowerCase() + t.slice(1);
  * @param {(stKey: string) => void} x.showOnCanvas
  */
 export function renderPreviewPage(main, x) {
-    const pg = el('div', 'ppage');
-    main.append(pg);
+    if (x.desk) {
+        // Desktop (LAYOUT "Desktop: Hero mode", Preview tab): the exchange on the left, the report on the right.
+        const two = el('div', 'pv2');
+        main.append(two);
+        const left = el('div', 'ppage');
+        const right = el('div', 'ppage prep');
+        two.append(left, right);
+        renderPreviewPage(left, { ...x, desk: false, inTwo: true });
+        renderReport(right, x);
+        return;
+    }
+    const pg = x.inTwo ? main : el('div', 'ppage');
+    if (!x.inTwo) main.append(pg);
     if (x.pv.page === 'report') { renderReport(pg, x); return; }
     const { run } = x;
 
@@ -63,6 +74,7 @@ export function renderPreviewPage(main, x) {
     body.append(key);
     pg.append(body);
 
+    if (x.inTwo) return;
     const ft = el('div', 'pfoot');
     const { fire, blocked, changes } = run.counts;
     ft.append(btn('report', `Report: ${fire} fire, ${blocked} blocked, ${changes} change${changes === 1 ? '' : 's'}`, () => x.set({ page: 'report', edit: null })));
@@ -144,8 +156,13 @@ export function explainSheet(x, stKey, { phrase = null, hit = null, change = nul
 function renderReport(pg, x) {
     const { run } = x;
     const head = el('div', 'en-top');
-    head.append(btn('round', ic('back'), () => x.set({ page: null }), 'Back to the preview'));
-    head.append(el('h2', 'rtitle', 'Report'));
+    if (x.desk) {
+        const { fire, blocked, changes } = run.counts;
+        head.append(el('h2', 'rtitle', 'Report'), el('span', 'rcount', `${fire} fire · ${blocked} blocked · ${changes} change${changes === 1 ? '' : 's'}`));
+    } else {
+        head.append(btn('round', ic('back'), () => x.set({ page: null }), 'Back to the preview'));
+        head.append(el('h2', 'rtitle', 'Report'));
+    }
     pg.append(head);
     const body = el('div', 'rbody');
     const s = run.start;
@@ -170,10 +187,10 @@ function renderReport(pg, x) {
     const rows = status => results.filter(r => r.status === status).map(r => {
         const info = x.info(r.stKey);
         const why = status === 'fires' ? cap(r.why) + (r.mask ? `, with its "${r.mask}" mask` : '') : `Because ${r.why}`;
-        return { title: info?.title ?? r.title, color: info?.color ?? 'var(--s-key)', sub: why + (r.logic ? '' : ' (plain entry)'), open: () => explainSheet(x, r.stKey) };
+        return { title: info?.title ?? r.title, color: info?.color ?? 'var(--s-key)', sub: why + (r.logic ? '' : ' (plain entry)'), open: () => (x.desk && x.jump ? x.jump(r.stKey) : explainSheet(x, r.stKey)) };
     });
     section('Fires', rows('fires'));
     section('Blocked', rows('blocked'));
-    section('Would change', run.changes.map(c => ({ title: c.text, color: FAMILY[c.family] ?? 'var(--muted)', sub: c.when, open: () => explainSheet(x, c.stKey, { change: c }) })));
+    section('Would change', run.changes.map(c => ({ title: c.text, color: FAMILY[c.family] ?? 'var(--muted)', sub: c.when, open: () => (x.desk && x.jump ? x.jump(c.stKey) : explainSheet(x, c.stKey, { change: c })) })));
     pg.append(body);
 }

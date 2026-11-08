@@ -9,14 +9,14 @@ import * as L from './links.js';
 
 /** The chips, in bar order; the divider sits before the conditions. */
 export const BAR = [
-    { k: 'opens', label: 'Opens', c: 'open', kind: 'open' },
-    { k: 'closes', label: 'Closes', c: 'close', kind: 'close' },
-    { k: 'glue', label: 'Glue', c: 'glue', kind: 'ride' },
-    { k: 'switch', label: 'Switch', c: 'close' },
-    { k: 'mask', label: 'Mask', c: 'mask' },
-    { k: 'pack', label: 'Pack', c: 'pack' },
-    { k: 'lock', label: 'Lock', c: 'cond', cond: true },
-    { k: 'wait', label: 'Wait', c: 'cond', cond: true },
+    { k: 'opens', label: 'Opens', c: 'open', kind: 'open', key: 'O' },
+    { k: 'closes', label: 'Closes', c: 'close', kind: 'close', key: 'C' },
+    { k: 'glue', label: 'Glue', c: 'glue', kind: 'ride', key: 'G' },
+    { k: 'switch', label: 'Switch', c: 'close', key: 'S' },
+    { k: 'mask', label: 'Mask', c: 'mask', key: 'M' },
+    { k: 'pack', label: 'Pack', c: 'pack', key: 'P' },
+    { k: 'lock', label: 'Lock', c: 'cond', cond: true, key: 'L' },
+    { k: 'wait', label: 'Wait', c: 'cond', cond: true, key: 'W' },
 ];
 const CHIP = Object.fromEntries(BAR.map(p => [p.k, p]));
 const FIELD = { gin: 'gate', cin: 'closeGate', mgin: 'gate', mcin: 'closeGate' };
@@ -68,10 +68,22 @@ export function mountPieceBar(x) {
             b.type = 'button';
             b.style.setProperty('--c', colorOf(p.k));
             b.append(el('i'), el('span', '', p.label));
+            if (x.desk) { b.append(el('kbd', '', p.key)); b.title = `${p.label} (${p.key})`; }
             b.dataset.piece = p.k;
             b.setAttribute('aria-pressed', String(B.armed === p.k));
             chipGestures(b, p.k);
             bar.append(b);
+        }
+        if (x.desk) {
+            // Desktop: a hint, and while a chip is armed, a banner that says what to click, with Cancel.
+            bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
+            if (B.armed) {
+                const ban = el('div', 'armban');
+                ban.style.setProperty('--c', colorOf(B.armed));
+                const cond = CHIP[B.armed].cond;
+                ban.append(el('span', '', `Click ${cond ? 'a card, a line or a junction' : 'a card'} to add ${CHIP[B.armed].label}.`), btn('pbtn sm', 'Cancel', () => { B.armed = null; x.render(); }));
+                bottom.prepend(ban);
+            }
         }
         armOverlay();
         return;
@@ -120,7 +132,7 @@ export function mountPieceBar(x) {
         });
         chip.addEventListener('pointerup', ev => {
             if (!start) return;
-            if (!ghost) { start = null; B.armed = B.armed === k ? null : k; armOverlay(); return; }
+            if (!ghost) { start = null; B.armed = B.armed === k ? null : k; if (x.desk) x.render(); else armOverlay(); return; }
             const off = overCancel(ev);
             const h = off ? null : canvas.hitAt(ev.clientX, ev.clientY);
             clean();
