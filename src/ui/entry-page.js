@@ -129,11 +129,11 @@ export function renderEntryPage(main, o) {
     // At a glance: whether the entry has story pieces, and whether other entries' pieces point at it.
     const n = o.lines.length;
     const inc = o.incoming ?? [];
-    const story = el('button', `storychip${n || inc.length ? ' on' : ''}`);
+    const story = el('button', 'storychip on');
     story.type = 'button';
+    story.hidden = !n && !inc.length; // nothing to say: no chip
     story.innerHTML = ic('canvas', 's');
-    story.append(el('span', '', [n ? `${n} story piece${n === 1 ? '' : 's'}` : 'No story pieces',
-        inc.length ? `pointed at by ${inc.length === 1 ? inc[0] : `${inc.length} entries`}` : ''].filter(Boolean).join(' · ')));
+    story.append(el('span', '', n ? storyHeadline(o.lines) : `Pointed at by ${inc.length === 1 ? inc[0] : `${inc.length} entries`}`));
     story.title = inc.length ? `Pointed at by: ${inc.join(', ')}` : '';
     story.addEventListener('click', () => {
         if (D && n) {
@@ -145,7 +145,6 @@ export function renderEntryPage(main, o) {
         if (n && !o.hero && !ui.logic) { ui.logic = true; o.redraw(); }
         else if (o.showOnCanvas) o.showOnCanvas();
     });
-    if (D && n) story.querySelector('span').textContent = `Story logic · ${n} rule${n === 1 ? '' : 's'}${inc.length ? ` · pointed at by ${inc.length === 1 ? inc[0] : `${inc.length}`}` : ''}`;
     en.append(story);
 
     if (o.problems.length) {
@@ -202,8 +201,11 @@ export function renderEntryPage(main, o) {
     }
     }
 
-    // Story logic: read-only here; folded in normal mode, always open in Hero mode.
-    if (o.lines.length) {
+    // Story logic: read-only here; folded in normal mode, always open in Hero mode. Hero shows it before the
+    // Parameters; Normal mode puts it after the Content, where the text a regular user came for comes first.
+    const storyLogic = () => {
+    if (!o.lines.length) return;
+    {
         const open = o.hero || ui.logic;
         const d = el('button', `disc logich${open ? ' open' : ''}`);
         d.type = 'button';
@@ -239,6 +241,8 @@ export function renderEntryPage(main, o) {
             en.append(box);
         }
     }
+    };
+    if (o.hero) storyLogic();
 
     // Parameters, in groups.
     const pd = el('button', `disc${ui.params ? ' open' : ''}`);
@@ -288,6 +292,7 @@ export function renderEntryPage(main, o) {
         countTimer = setTimeout(() => count(text), 500);
     }));
     count(text0);
+    if (!o.hero) storyLogic();
 
     if (o.fresh) setTimeout(() => { if (!h1.textContent) h1.focus(); }, 30);
     return v;
@@ -502,4 +507,17 @@ export function paramGrid(e, set, o = {}) {
         wrap.append(g);
     }
     return wrap;
+}
+
+/**
+ * The story chip's words: the first rule said plainly, then how many more ("Unlocks after Road · 2 more rules").
+ * @param {{ text: string }[]} lines logicLines
+ */
+export function storyHeadline(lines) {
+    if (!lines.length) return '';
+    const t = lines[0].text;
+    const m = /^(?:Opens when|Waits until) (.+?) (?:has|have) fired$/.exec(t);
+    const head = m ? `Unlocks after ${m[1]}` : t;
+    const more = lines.length - 1;
+    return more ? `${head} · ${more} more rule${more === 1 ? '' : 's'}` : head;
 }

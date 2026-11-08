@@ -265,7 +265,7 @@ for (const [id, cls] of [['left-nav-panel', 'pl'], ['right-nav-panel', 'pr']]) {
     sync();
 }
 globalThis.jQuery?.('#world_editor_select').on('change', function () {
-    if (native) return;
+    if (native || library.busy?.()) return; // WI Hero's own book changes refresh that list too
     const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];
     if (!name) return;
     if (app.isOpen()) { app.openBook(name); return; }

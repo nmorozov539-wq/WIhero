@@ -253,3 +253,15 @@ export function createLayer(layer, toastBox) {
 
     return { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop };
 }
+
+/**
+ * Problems and warnings counted apart (a warning only points at something odd): "1 warning",
+ * "2 problems · 1 warning". `menu` gives the ⌄ menu's label: "Problems (2)", "Warnings (1)", "Problems (2) · 1 warning".
+ */
+export function issueText(issues, { menu = false } = {}) {
+    const w = issues.filter(i => i.warning).length;
+    const p = issues.length - w;
+    const ws = `${w} warning${w === 1 ? '' : 's'}`;
+    if (menu) return p ? `Problems (${p})${w ? ` · ${ws}` : ''}` : `Warnings (${w})`;
+    return [p ? `${p} problem${p === 1 ? '' : 's'}` : '', w ? ws : ''].filter(Boolean).join(' · ');
+}

@@ -41,9 +41,10 @@ async function inspect(title) {
     await $('.panelBtn').click();
     await $('.panel:not(.closed)').waitFor();
     await $('.panel .phead input').fill('');
+    // The key first: placing or showing the card closes the panel.
+    const key = await $(`.prow:has(.nm:text-is("${title}"))`).getAttribute('data-key');
     await $(`.prow:has(.nm:text-is("${title}")) .dotc`).click();
     await wait(250);
-    const key = await $(`.prow:has(.nm:text-is("${title}"))`).getAttribute('data-key');
     await $(`.card[data-id="${key}"] .t`).click();
     await $(`.insp .ihead h2:text-is("${title}")`).waitFor();
     return key;

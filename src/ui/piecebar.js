@@ -23,6 +23,13 @@ const FIELD = { gin: 'gate', cin: 'closeGate', mgin: 'gate', mcin: 'closeGate' }
 const colorOf = k => `var(--p-${CHIP[k]?.c ?? k})`;
 const KIND_PIECE = { open: 'opens', close: 'closes', ride: 'glue' };
 
+/** What the armed chip's banner asks for. Opens and Closes start from the source, the card doing the verb. */
+export function armText(k, verb = 'Tap') {
+    if (k === 'opens') return `${verb} the card that opens something`;
+    if (k === 'closes') return `${verb} the card that closes something`;
+    return `${verb} ${CHIP[k]?.cond ? 'a card, a line or a junction' : 'a card'} to add ${CHIP[k]?.label ?? k}`;
+}
+
 /** Why a chip can't go on a card, or null. Opens and Closes take any card; the rest take entries. */
 function whyNotOn(k, end) {
     if (!end) return 'That card is gone.';
@@ -74,19 +81,19 @@ export function mountPieceBar(x) {
             chipGestures(b, p.k);
             bar.append(b);
         }
-        if (x.desk) {
-            // Desktop: a hint, and while a chip is armed, a banner that says what to click, with Cancel.
-            bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
-            if (B.armed) {
-                const ban = el('div', 'armban');
-                ban.style.setProperty('--c', colorOf(B.armed));
-                const cond = CHIP[B.armed].cond;
-                ban.append(el('span', '', `Click ${cond ? 'a card, a line or a junction' : 'a card'} to add ${CHIP[B.armed].label}.`), btn('pbtn sm', 'Cancel', () => { B.armed = null; x.render(); }));
-                bottom.prepend(ban);
-            }
-        }
+        // Desktop: a hint. Both layouts: while a chip is armed, a banner that says what to tap, with Cancel.
+        if (x.desk) bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
+        if (B.armed) bottom.prepend(armBanner(B.armed));
         armOverlay();
         return;
+    }
+
+    function armBanner(k) {
+        const ban = el('div', 'armban');
+        ban.style.setProperty('--c', colorOf(k));
+        ban.append(el('span', '', armText(k, x.desk ? 'Click' : 'Tap')), btn('pbtn sm', 'Cancel', () => { B.armed = null; x.render(); }));
+        ban.setAttribute('role', 'status');
+        return ban;
     }
 
     function armOverlay() {
@@ -132,7 +139,13 @@ export function mountPieceBar(x) {
         });
         chip.addEventListener('pointerup', ev => {
             if (!start) return;
-            if (!ghost) { start = null; B.armed = B.armed === k ? null : k; if (x.desk) x.render(); else armOverlay(); return; }
+            if (!ghost) {
+                start = null;
+                B.armed = B.armed === k ? null : k;
+                // Phones keep the bar (and how far it is scrolled) and only swap the banner.
+                if (x.desk) x.render(); else { armOverlay(); bottom.querySelector('.armban')?.remove(); if (B.armed) bottom.prepend(armBanner(B.armed)); }
+                return;
+            }
             const off = overCancel(ev);
             const h = off ? null : canvas.hitAt(ev.clientX, ev.clientY);
             clean();
@@ -193,13 +206,17 @@ export function mountPieceBar(x) {
     function linkStrip() {
         const kind = CHIP[e.piece].kind;
         if (e.piece === 'glue') mid.append(glueChoice());
-        const sentence = (src, dst) => (kind === 'open' ? [dst, ' waits for ', src] : kind === 'close' ? [src, ' closes ', dst] : [dst, ' rides along with ', src]);
+        // The source comes first, doing the verb: "Road opens Mill" (and, quieter, "Mill waits for Road").
+        const sentence = (src, dst) => (kind === 'open' ? [src, ' opens ', dst] : kind === 'close' ? [src, ' closes ', dst] : [dst, ' rides along with ', src]);
+        const echo = (srcText, dstText) => { const n = el('span', 'pecho'); n.textContent = ` · ${dstText} waits for ${srcText}`; return n; };
         const words = (end, dots) => (end ? { b: name(end) } : dots);
         if (!e.linked) {
             const fixed = e.src ?? e.dst;
             mid.append(say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : words(p, '…')))));
             const ok = end => !L.whyNot(kind, e.src ?? end, e.dst ?? end) && !L.sameEnd(end, fixed);
-            mid.append(row(el('span', 'phint', 'Drag the loose end onto a card, or'), picker('pick one', ok, linkTo)));
+            const tap = x.desk ? 'click' : 'tap';
+            const lead = kind === 'ride' ? 'Drag the loose end onto a card, or' : `Now ${tap} the card it ${kind === 'open' ? 'opens' : 'closes'}, drag the loose end onto it, or`;
+            mid.append(row(el('span', 'phint', lead), picker('pick one', ok, linkTo)));
             note();
             right.disabled = true;
             loose(fixed, kind === 'ride' ? 'glue' : kind === 'close' ? 'close' : 'open', end => ok(end), linkTo);
@@ -214,16 +231,21 @@ export function mountPieceBar(x) {
         // A pack source: how many of it.
         if (e.src.t === 'pack' && e.dst.t === 'entry') {
             const mode = L.readingOf(E, D, kind, e.src, e.dst);
-            const at = kind === 'open' ? 2 : 0;
-            parts.splice(at, 1, { b: `${mode === 'all' ? 'all' : mode === 'any' ? 'any' : mode} of #${e.src.name}` });
+            parts.splice(0, 1, { b: `${mode === 'all' ? 'all' : mode === 'any' ? 'any' : mode} of #${e.src.name}` });
             const n = el('input', 'pnum');
             n.type = 'number'; n.min = '2'; n.value = typeof mode === 'number' ? String(mode) : '2';
             n.setAttribute('aria-label', 'How many of the pack');
             const set = v => run((ed2, d2) => L.setReading(ed2, d2, kind, e.src, e.dst, v));
             n.addEventListener('change', () => { const v = Math.max(1, Math.round(Number(n.value) || 2)); set(v); });
-            mid.append(row(say(...parts), flip));
+            const s1 = say(...parts);
+            if (kind === 'open') s1.append(echo(parts[0].b, name(e.dst)));
+            mid.append(row(s1, flip));
             mid.append(row(seg([['any', 'any one'], ['all', 'all'], ['n', 'a number']], typeof mode === 'number' ? 'n' : mode, v => set(v === 'n' ? Math.max(2, Number(n.value) || 2) : v), 'How many of the pack'), ...(typeof mode === 'number' ? [n] : [])));
-        } else mid.append(row(say(...parts), flip));
+        } else {
+            const s1 = say(...parts);
+            if (kind === 'open') s1.append(echo(name(e.src), name(e.dst)));
+            mid.append(row(s1, flip));
+        }
         // Several links into one card: both, or either one.
         if (kind !== 'ride' && e.dst.t === 'entry') {
             const loc = L.findLink(E, D, kind, e.src, e.dst, e.mask ?? null);
@@ -624,8 +646,8 @@ export function startPiece(k, hit, x) {
         const why = whyNotOn(k, end);
         if (why) return { why };
         const E = x.editor();
-        if (k === 'opens') return { edit: end.t === 'greet' ? { ...base, src: end, dst: null } : { ...base, src: null, dst: end } };
-        if (k === 'closes') return { edit: { ...base, src: end, dst: null } };
+        // One direction rule: the first card is the source, the one doing the verb (Road opens Mill, Storm closes Mill).
+        if (k === 'opens' || k === 'closes') return { edit: { ...base, src: end, dst: null } };
         if (k === 'glue') {
             const g = E.config(end.uid).glue;
             if (g?.mode === 'ride') { const host = E.uidOfId(g.host); if (host !== undefined) return { edit: { ...base, isNew: false, piece: 'glue', mode: 'ride', src: { t: 'entry', uid: host }, dst: end, linked: true } }; }

@@ -185,6 +185,17 @@ async function heroMode(w, h, drawer) {
     await $(page, '.vp .card').first().waitFor();
     await shot(page, `${w}-hero`);
 
+    // The entry list: a click on a row's hollow dot places it; a click on the row only inspects.
+    const hollow = $(page, '.panel.dock .prow').filter({ has: page.locator('.dotc:not(.in)') }).first();
+    if (await hollow.count()) {
+        const key = await hollow.getAttribute('data-key');
+        const name = (await hollow.locator('.nm').textContent()).trim();
+        await hollow.locator('.dotc').click();
+        await $(page, `.prow[data-key="${key}"] .dotc.in`).waitFor();
+        assert.ok(await card(page, name.replace(/\s*\(.*$/, '')).isVisible(), `${name}: its card is on the canvas`);
+        ok(`${w}: a click on an entry's hollow dot places it on the canvas`);
+    }
+
     await $(page, '.tright .iconbtn[aria-label="Drawer size"]').click();
     await page.waitForTimeout(200);
     box = await hostBox(page);

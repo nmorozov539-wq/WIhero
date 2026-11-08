@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-    CH, CW, G, LR, buildGraph, canvasBook, canvasSet, computePorts, crosses, layout, makeGrid, nodeRects, placeNew, route, snap,
+    CH, CW, G, LR, buildGraph, canvasBook, canvasSet, withFrames, computePorts, crosses, layout, makeGrid, nodeRects, placeNew, route, snap,
 } from '../src/ui/canvas-graph.js';
 import { arrange } from '../src/ui/canvas.js';
 
@@ -37,6 +37,26 @@ test('a book without pieces has nothing on the canvas until entries are placed b
     assert.equal(canvasSet(m, g, []).size, 0);
     const one = m.E[0].id;
     assert.deepEqual([...canvasSet(m, g, [one])], [one]);
+});
+
+test('a pack shows its frame as soon as a member is on the canvas, without pulling in the rest', () => {
+    const data = sample();
+    for (const e of Object.values(data.entries)) { delete e.extensions; delete e.wihero; }
+    const [a, b] = Object.values(data.entries);
+    a.extensions = { wihero: { packs: ['crew'] } };
+    b.extensions = { wihero: { packs: ['crew'] } };
+    const m = canvasBook(data);
+    const g = buildGraph(m);
+    assert.deepEqual(g.packs, [], 'no rule reads or targets the pack');
+    const one = m.E.find(e => e.packs.includes('crew')).id;
+    const ids = canvasSet(m, g, [one]);
+    assert.deepEqual([...ids], [one], 'only the placed member is on the canvas');
+    const gf = withFrames(m, g, ids);
+    assert.deepEqual(gf.packs, ['crew']);
+    const R = nodeRects(m, gf, ids, { [one]: { x: 0, y: 0 } });
+    assert.ok(R.get('pack:crew'), 'a frame round the placed member');
+    assert.deepEqual(R.get('pack:crew').members, [one]);
+    assert.equal(withFrames(m, g, new Set()), g, 'nothing placed, nothing added');
 });
 
 test('the layout puts every card on the grid, none overlapping, opens flowing downwards', () => {

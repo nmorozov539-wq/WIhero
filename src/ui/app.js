@@ -3,7 +3,7 @@
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
 import { buildModel } from '../engine/model.js';
-import { btn, createLayer, el, longPress, pressable, swEl } from './dom.js';
+import { btn, createLayer, el, issueText, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
@@ -540,11 +540,14 @@ export function createApp(deps) {
         const it = el('div', `item ent st-${strategyOf(e)}`);
         it.dataset.uid = e.uid;
         if (S.select) it.append(check(S.select.has(e.uid)));
+        // Just the strategy stripe (no icon: it was the same on every row), and the teal dot desktop shows for an
+        // entry with story logic.
         const i = el('div', 'ic');
-        i.innerHTML = ic('entry');
         const tx = el('div', 'txt');
         const t = el('div', 't');
         t.append(el('span', 'nm', titleOf(e)));
+        const c = configOf(e);
+        if (c && Object.keys(c).some(k => k !== 'id')) { const d = el('i', 'ldot'); d.title = 'Has story logic'; t.append(d); }
         if (problemsOf(model, e.uid, book).length) { const b = el('span', 'bang', '!'); b.title = 'This entry has a problem'; t.append(b); }
         tx.append(t, el('div', 'm', e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`));
         it.append(i, tx);
@@ -1117,6 +1120,7 @@ export function createApp(deps) {
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
             tapTarget: hit => barTap(book, hit),
+            focused: () => (H.insp?.book === book ? H.insp.key : null),
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (S.desk) { H.insp = null; heroInspector(book, data); return; }
@@ -1458,12 +1462,17 @@ export function createApp(deps) {
             dot.addEventListener('pointerdown', ev => {
                 if (ev.button) return;
                 start = { x: ev.clientX, y: ev.clientY };
-                dot.setPointerCapture?.(ev.pointerId);
+                // A phone's dot is small: captured at once, so a quick drag can't leave it before it counts. A desktop
+                // row is captured only once it is a drag, so a click on its dot still reaches the dot.
+                if (!desk) dot.setPointerCapture?.(ev.pointerId);
             });
             dot.addEventListener('pointermove', ev => {
                 if (!start) return;
                 if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 8) return;
                 if (!ghost) {
+                    // Captured only once it is a drag, so a plain click still reaches what was clicked (the row's dot
+                    // on desktop places the entry, the row itself inspects it).
+                    if (desk) dot.setPointerCapture?.(ev.pointerId);
                     ghost = el('div', 'dragghost', title);
                     cancel = el('div', 'dropcancel');
                     cancel.innerHTML = ic('x');
@@ -1891,7 +1900,7 @@ export function createApp(deps) {
             const data = library.peek(book);
             if (data) {
                 const issues = modelOf(book, data).issues;
-                if (issues.length) sh.append(layer.opt(`Problems (${issues.length})`, () => problemsSheet(book), { val: '›', cls: 'probs' }));
+                if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs' }));
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›' }));
         }
@@ -1970,7 +1979,7 @@ export function createApp(deps) {
                 switchRow(sh, 'Show disabled entries', S.showOff, v => { S.showOff = v; render(); });
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
-                    if (issues.length) sh.append(layer.opt(`Problems (${issues.length})`, () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
+                    if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
                 }
                 sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›' }));
             }
@@ -2018,7 +2027,7 @@ export function createApp(deps) {
         if (!data) return;
         const issues = modelOf(book, data).issues;
         const sorted = [...issues.filter(i => !i.warning), ...issues.filter(i => i.warning)];
-        layer.sheet(`Problems (${issues.length})`, sh => {
+        layer.sheet(issueText(issues, { menu: true }), sh => {
             for (const i of sorted) {
                 const uid = i.stKey ? Number(i.stKey.slice(i.stKey.lastIndexOf('.') + 1)) : null;
                 const o = layer.opt(i.label, () => {
@@ -2496,7 +2505,17 @@ export function createApp(deps) {
                 done: v => pack(v.replace(/^#/, '')),
             }), { icon: 'plus' }));
         }));
-        act('Add all to a gate…', 'canvas', () => layer.sheet('Which card waits for all of them?', s2 => {
+        // Hold the group back until one card fires: each selected card waits for it (and for what it already waits for).
+        act('Make these wait for…', 'canvas', () => layer.sheet(`Which card do these ${uids.length} wait for?`, s2 => {
+            for (const x of sortEntries(entriesShown(book, data), sortBy()).filter(x => !uids.includes(x.uid))) {
+                s2.append(layer.opt(titleOf(x), () => {
+                    layer.close();
+                    const src = { t: 'entry', uid: x.uid };
+                    if (barAct(book, (ed, d) => { for (const u of uids) addLink(ed, d, 'open', src, { t: 'entry', uid: u }, { join: 'and' }); })) layer.toast(`${uids.length} entries wait for ${titleOf(x)}`);
+                }, { dot: strategyColor(x) }));
+            }
+        }, { help: 'They open once it has fired.' }));
+        act('Make one wait for all of these…', 'canvas', () => layer.sheet('Which card waits for all of them?', s2 => {
             for (const x of sortEntries(entriesShown(book, data), sortBy()).filter(x => !uids.includes(x.uid))) {
                 s2.append(layer.opt(titleOf(x), () => {
                     layer.close();

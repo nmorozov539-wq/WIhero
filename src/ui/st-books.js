@@ -135,7 +135,18 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         return null;
     }
 
-    async function create(name) {
+    const create = (...a) => quietly(() => createNow(...a));
+    // While WI Hero makes, copies, renames or deletes a book, ST refreshes its own editor's book list, and that
+    // fires the dropdown's change as if the user picked a book there: `busy()` tells the listener to let it pass.
+    let busyN = 0;
+    let busyTill = 0;
+    async function quietly(fn) {
+        busyN++;
+        try { return await fn(); } finally { busyN--; busyTill = Date.now() + 500; }
+    }
+    const busy = () => busyN > 0 || Date.now() < busyTill;
+
+    async function createNow(name) {
         const clean = await sanitize(name.trim());
         const data = { entries: {} };
         seeded.add(clean);
@@ -155,7 +166,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         return old;
     }
 
-    async function duplicate(name) {
+    const duplicate = (...a) => quietly(() => duplicateNow(...a));
+    async function duplicateNow(name) {
         const data = structuredClone(await get(name));
         let n = `${name} copy`;
         for (let i = 2; names().includes(n); i++) n = `${name} copy ${i}`;
@@ -165,7 +177,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         return clean;
     }
 
-    async function remove(name) {
+    const remove = (...a) => quietly(() => removeNow(...a));
+    async function removeNow(name) {
         clearTimeout(timers.get(name));
         timers.delete(name);
         copies.delete(name);
@@ -176,7 +189,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
      * Renames a book: saved under the new name, links moved (global, characters, the open chat, personas), old
      * file deleted. ST's own renameWorldInfo isn't exported and asks with popups, so this does the same quietly.
      */
-    async function rename(from, to) {
+    const rename = (...a) => quietly(() => renameNow(...a));
+    async function renameNow(from, to) {
         const target = await sanitize(to.trim());
         if (target === from) return from;
         await flush();
@@ -335,7 +349,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     const edited = name => settings.books?.[name]?.edited ?? null;
 
     return {
-        edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename,
+        edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }

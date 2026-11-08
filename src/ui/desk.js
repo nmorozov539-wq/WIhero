@@ -2,7 +2,7 @@
 // a list, a book as two panes (its entries on the left, one entry, the bulk pane or Book settings on the right),
 // Ctrl/Shift-click selection instead of a selection mode, the search overlay and the keys. Phones never get here.
 // Everything it needs from the app comes in `A` (see app.js deskApi).
-import { btn, el, swEl } from './dom.js';
+import { btn, el, issueText, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
@@ -538,7 +538,7 @@ export function deskNormal(A) {
         const blocking = model.issues.filter(i => !i.warning && i.blocking !== false && i.stKey?.startsWith(`${book}.`));
         if (model.issues.length) {
             const first = blocking[0] ?? model.issues[0];
-            const b = btn(`linkish probs${blocking.length ? '' : ' warn'}`, `${ic('alert', 's')} ${plural(model.issues.length, 'problem')}`, () => {
+            const b = btn(`linkish probs${blocking.length ? '' : ' warn'}`, `${ic('alert', 's')} ${issueText(model.issues)}`, () => {
                 const uid = first.stKey ? Number(first.stKey.slice(first.stKey.lastIndexOf('.') + 1)) : null;
                 if (uid !== null && data.entries[uid]) { select(p, uid); return; }
                 A.problemsSheet(book);

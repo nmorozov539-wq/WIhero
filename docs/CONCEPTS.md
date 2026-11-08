@@ -285,6 +285,11 @@ model.
 - An entry with links can't be taken off the canvas; remove its links first.
   One that loses its last link stays where it was.
 - An entry without links can be placed by hand and taken off again.
+- A pack shows as a frame round its members on the canvas as soon as one of
+  them is there. Only a rule that reads or targets the pack pulls all its
+  members onto the canvas.
+- Links have one direction rule: the first card picked is the source, the one
+  doing the verb (*Road* opens *Mill*, *Storm* closes *Mill*).
 - Pieces pick their targets from a searchable list of entries and packs, or,
   from the piece bar, by dragging a link's loose end onto a card.
 - Positions on the canvas, and which side a port sits on, are only for the
