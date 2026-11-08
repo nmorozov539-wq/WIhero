@@ -172,6 +172,8 @@ export function deskNormal(A) {
     function render() {
         const p = A.page();
         main.innerHTML = '';
+        // The page's name: Hero's three-column grid (and anything else keyed on it) must not outlive Hero.
+        main.dataset.page = `desk:${p.type}`;
         if (p.type === 'home') renderHome();
         else if (p.type === 'book') renderBook(p);
         else renderEntryTab(p);

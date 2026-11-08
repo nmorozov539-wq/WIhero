@@ -905,3 +905,10 @@ select.pgc option { background: var(--tint); color: var(--fg); }
   .tsearch span, .tsearch kbd, .tmode span { display: none; }
   .tbook { max-width: 150px; }
 }
+
+/* Desktop: no backdrop blur. Without a GPU (many laptops), a blurred box as big as the drawer or the window is blurred
+   again on every frame anything inside it moves: Hero's canvas fell to a few frames a second. The tint is laid over
+   its own opaque color instead. */
+.wih[data-desk="1"], [data-desk="1"] .sheet, [data-desk="1"] .dlg { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.wih[data-desk="1"] { background: var(--tint); background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
+[data-desk="1"] .sheet, [data-desk="1"] .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
