@@ -823,7 +823,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .tmode:hover { color: var(--fg); }
 
 /* Three columns: the entry list, the canvas over the piece bar, the inspector. */
-[data-desk="1"] .main[data-page="hero:canvas"] { display: grid; grid-template-columns: var(--lw, 250px) minmax(0, 1fr) var(--iw, 320px); grid-template-rows: minmax(0, 1fr) auto; }
+[data-desk="1"] .main[data-page="hero:canvas"] { display: grid; grid-template-columns: var(--lw, 250px) minmax(0, 1fr) min(var(--iw, 320px), 50%); grid-template-rows: minmax(0, 1fr) auto; }
 [data-desk="1"] .main[data-page="hero:canvas"] > .vp { grid-column: 2; grid-row: 1; }
 [data-desk="1"] .main[data-page="hero:canvas"] > .pbar { grid-column: 2; grid-row: 2; }
 [data-desk="1"] .panel.dock { position: relative; grid-column: 1; grid-row: 1 / 3; width: auto; max-width: none; transform: none; box-shadow: none; transition: none; z-index: 3; }
@@ -899,3 +899,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pchips { gap: 6px; padding: 7px 12px; }
 [data-desk="1"] .pchip { height: 30px; padding: 0 8px 0 10px; gap: 6px; border-radius: 15px; }
 [data-desk="1"] .pchip.armed kbd { color: #16171a; border-color: rgba(0, 0, 0, .3); }
+/* A narrow drawer: the tab row's right side keeps its icons, so the tabs keep their room. */
+[data-desk="1"] .tabbar { container-type: inline-size; }
+@container (max-width: 760px) {
+  .tsearch span, .tsearch kbd, .tmode span { display: none; }
+  .tbook { max-width: 150px; }
+}
