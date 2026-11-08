@@ -74,8 +74,12 @@ result in ST's default themes, light ones included.
 - **Thin lines** for one-choice controls: "Strategy: Keywords ▾", the
   secondary-keyword logic line. Tapping opens a sheet.
 - **Keyword box**: bordered, with chips.
-- **Toggles**: a light knob; the On track is the accent mixed about 50% with
-  the background; Off is gray.
+- **Toggles**: a light knob on every theme (it doesn't follow the text color,
+  which is dark on a light theme); the On track is the accent mixed about 50%
+  with the background; Off is gray. In the phone book list an entry's switch
+  is quiet while on (gray track) and stands out only when off (accent outline).
+- **Badges** like "Global" mix their color about 60% toward the text color, so
+  they read on light themes too.
 - **Sheets** from the bottom, with a dimmed backdrop. Rows show their current
   value at the right. Section captions are `--t-xs`, muted, uppercase.
 - **Story logic rows**: a short stripe in the piece's color, a small label, a
@@ -112,7 +116,9 @@ tells the pieces apart.
 | Mask | #f07cc8 pink | Masks |
 | Pack | #cfccc2 light gray | Packs, drawn dashed |
 
-Who triggers has no color of its own; it uses `--muted`.
+Who triggers has no color of its own; it uses `--muted`. Neither do Lock and
+Wait: on the canvas they take their row's color (teal in a gate, red in a close
+gate), and their piece bar chips use `--muted`.
 
 ### 6.3 Checks
 
@@ -150,6 +156,8 @@ built.
 - Pieces are drawn as **marks on the card** (ports) and **links between
   cards**, never as blocks wrapping the card or as boxes between cards.
 - Cards move only by the grip.
+- On desktop the title takes up to two lines, so a name like "Road: leaving
+  the village" reads whole at 100%. Phones keep one line.
 
 ### 7.2 Ports
 
@@ -178,8 +186,8 @@ built.
 | Switch | The fork's solid red knob; its paths' gate links leave from it |
 | Glue, ride along | Solid yellow line from the host's knob to the rider's socket, no arrowhead (like Opens) |
 | Glue, hold | A yellow bar along the held card's right edge; it ends through the red close gate |
-| Lock, Wait | A chip (lock icon and phrase, or clock and message count) sitting on its row's line: on the link when the row has one, on the line from the AND junction to the card when it has several, on a short line out of the socket when it has none |
-| Pack | A dashed light-gray frame around the members, `#name` on it. A link that reads the pack carries its reading by the frame's knob: "any", "all", "2+" |
+| Lock, Wait | A chip (lock icon and phrase, or clock and message count) sitting on its row's line: on the link when the row has one, on the line from the AND junction to the card when it has several, on a short line out of the socket when it has none. A chip never sits on a card: it moves out along its line until it is clear |
+| Pack | A dashed light-gray frame around the members on the canvas, `#name` on it. It shows as soon as one member is on the canvas (not only once a rule reads or targets the pack), so "Pack into…" makes a frame at once and a link can be dropped on it. A link that reads the pack carries its reading by the frame's knob: "any", "all", "2+" |
 
 - **Junctions**: where a gate (or close gate) has more than one item, its
   items meet at a small junction chip in the gate's color before the socket,
@@ -234,7 +242,11 @@ Drawn in sketch 7 (in the git history).
   glue, closes.
 - On desktop, resting the pointer on a card for 350ms dims everything not
   linked to it, the same look as a phone's tap-to-focus.
-- The canvas fits itself to the screen on first open. Fit, + and − sit on the
+- On phones a Closes line that runs back up the canvas (its closer sits below
+  the card it closes) is drawn faint until one of its two cards is inspected,
+  so the long lines climbing the page don't drown the story running down it.
+- The canvas fits itself to the screen on first open. On phones that means the
+  width, never below 80% zoom, from the top; the canvas then scrolls down. Fit, + and − sit on the
   right; the zoom level shows bottom left.
 - The legend, when shown, names the five link colors.
 

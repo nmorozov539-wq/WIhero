@@ -139,6 +139,17 @@ export function canvasSet(m, g, placed) {
     return new Set([...s].filter(id => m.byId(id)));
 }
 
+/**
+ * The pack frames to draw: every pack a rule reads or targets (`g.packs`, whose members are all on the canvas),
+ * and every pack with at least one member on the canvas, so "Pack into…" makes a frame at once and a link can be
+ * dropped on it. Returns a graph with those packs; canvasSet must be given the graph from buildGraph, not this one.
+ */
+export function withFrames(m, g, ids) {
+    const packs = new Set(g.packs);
+    for (const id of ids) for (const p of m.byId(id)?.packs ?? []) packs.add(p);
+    return packs.size === g.packs.length ? g : { ...g, packs: [...packs] };
+}
+
 /** Layout directions (VISUAL 7.6): phones run top to bottom, desktop left to right. */
 export const TB = 'tb';
 export const LR = 'lr';

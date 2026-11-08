@@ -73,43 +73,46 @@ await run(async () => {
     await shot('bar');
     ok('the bar is under the canvas with its eight chips and a divider, and folds');
 
-    // ── Opens: tap the chip, tap Mill, drag the loose end to Road ──
+    // ── Opens: tap the chip, tap Road (the source, doing the verb), drag the loose end to Mill ──
     await chip('Opens').click();
     assert.equal(await chip('Opens').getAttribute('aria-pressed'), 'true', 'armed');
+    assert.match(await $('.armban').textContent(), /Tap the card that opens something/, 'an armed chip says what to tap');
     await chip('Opens').click();
     assert.equal(await chip('Opens').getAttribute('aria-pressed'), 'false', 'a second tap disarms');
+    assert.equal(await $('.armban').count(), 0, 'disarmed, the banner goes');
     await chip('Opens').click();
-    await card('Mill').locator('.t').click();
+    await card('Road').locator('.t').click();
     await strip().waitFor();
-    assert.match(await say(), /Mill waits for …/);
+    assert.match(await say(), /Road opens …/);
+    assert.match(await $('.pstrip .phint').first().textContent(), /Now tap the card it opens/);
     assert.ok(await $('.pstrip .pbtn.done').isDisabled(), 'Done waits for the link');
     await shot('opens-loose');
-    await drag(await center($('.loosend')), await center(card('Road')));
-    assert.match(await say(), /Mill waits for Road/);
+    await drag(await center($('.loosend')), await center(card('Mill')));
+    assert.match(await say(), /Road opens Mill · Mill waits for Road/);
     await done();
     assert.deepEqual((await cfg('Mill')).gate, [['road']]);
-    ok('Opens: tap the chip (again to disarm), tap Mill, drag the loose end onto Road: Mill waits for Road');
+    ok('Opens: tap the chip (a banner; again to disarm), tap Road, drag the loose end onto Mill: Road opens Mill');
 
-    // ── Opens by dragging the chip; a second link asks both or either ──
-    await drag(await chipAt('Opens'), await center(card('Mill')));
+    // ── Opens by dragging the chip onto the source; a second link asks both or either ──
+    await drag(await chipAt('Opens'), await center(card('Bridge')));
     await strip().waitFor();
-    await pick('Bridge');
+    await pick('Mill');
     assert.ok(await $('.pstrip .pbtn.done').isDisabled(), 'Done waits for both or either');
     await $('.pstrip .pseg button:has-text("(both)")').click();
     await wait(250);
     assert.deepEqual((await cfg('Mill')).gate, [['road', 'bridge']]);
     await done();
-    ok('Opens: a chip dragged onto Mill, Bridge picked from the list, "both" chosen: one row of two');
+    ok('Opens: a chip dragged onto Bridge, Mill picked from the list, "both" chosen: one row of two');
 
     // ── A line reopens its strip; ⇄ turns it around; Cancel puts it back ──
     await page.mouse.click(...await linePoint('id:road>id:mill'));
     await strip().waitFor();
-    assert.match(await say(), /Mill waits for Road/);
+    assert.match(await say(), /Road opens Mill/);
     assert.ok(await $('.pstrip .pbtn.bad:has-text("Remove")').count(), 'a link already there can be removed');
     assert.ok(await $('.pstrip .switch[aria-label="Road closes when Mill fires"]').count(), 'the story moves on, as a switch');
     await $('.pstrip .flipb').click();
     await wait(250);
-    assert.match(await say(), /Road waits for Mill/);
+    assert.match(await say(), /Mill opens Road · Road waits for Mill/);
     assert.match(await $('.pstrip .pnote').textContent(), /Road was needed together with Bridge\. Turned around, it's a rule of its own\./);
     assert.deepEqual((await cfg('Mill')).gate, [['bridge']]);
     assert.deepEqual((await cfg('Road')).gate, [['mill']]);
@@ -130,8 +133,8 @@ await run(async () => {
 
     // ── A loop is refused; closing itself points to Once ──
     await chip('Opens').click();
-    await card('Road').locator('.t').click();
-    await pick('Mill');
+    await card('Mill').locator('.t').click();
+    await pick('Road');
     assert.match(await $('.pstrip .pnote.bad').textContent(), /^Not done: .*loop/);
     assert.equal((await cfg('Road')).gate, undefined, 'nothing written');
     await $('.pstrip .pbtn:text-is("Cancel")').click();

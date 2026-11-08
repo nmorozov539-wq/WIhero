@@ -188,6 +188,20 @@ await run(async () => {
     assert.equal(await $('.tab').count(), 2, 'Back closes the entry tabs one by one, then shows the canvas');
     ok('the inspector\'s Open entry opens a tab; Show on canvas finds it again; Back closes the tabs');
 
+    // The canvas scrolls rather than shrinks on a phone: pan the frame into view first.
+    {
+        const fb = await $('.packframe').boundingBox();
+        const vb = await $('.vp').boundingBox();
+        const dy = (vb.y + vb.height / 3) - (fb.y + 30);
+        const dx = (vb.x + 40) - fb.x;
+        const sx = vb.x + vb.width / 2; const sy = vb.y + vb.height / 2;
+        for (let left = [dx, dy]; Math.abs(left[0]) > 1 || Math.abs(left[1]) > 1;) {
+            const step = [Math.max(-250, Math.min(250, left[0])), Math.max(-250, Math.min(250, left[1]))];
+            await page.mouse.move(sx, sy); await page.mouse.down(); await page.mouse.move(sx + step[0], sy + step[1], { steps: 6 }); await page.mouse.up();
+            left = [left[0] - step[0], left[1] - step[1]];
+            await wait(150);
+        }
+    }
     await $('.packframe').click({ position: { x: 6, y: 30 } });
     await $('.sheet h2:text-is("#town")').waitFor();
     assert.deepEqual(await $('.sheet .opt .lab').allTextContents(), ['Tavern (#town)', 'Market (#town, after the tavern)', 'Rumor (after anything in #town)', 'Gatehouse (gates all of #town)', 'Blaze (closes all of #town)']);

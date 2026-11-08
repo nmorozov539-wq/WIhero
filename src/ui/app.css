@@ -35,7 +35,7 @@
   --s-key: #6fd09a; --s-perm: #6fa8ff; --s-vec: #b48cff; --s-off: #6b6d72;
   /* pieces (VISUAL 6.2), with the color vision modes below (6.4) */
   --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2;
-  --p-cond: #b9b4ff;
+  --p-cond: var(--muted); /* Lock and Wait: no family color (VISUAL 6.2); on the canvas they take their row's */
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
   background: var(--tint); color: var(--fg);
@@ -104,10 +104,19 @@ svg.i.s { width: 16px; height: 16px; }
 .item.ent.st-vec .ic::before { background: repeating-linear-gradient(var(--s-vec) 0 5px, transparent 5px 8px); }
 .item.ent.st-off .ic::before { background: var(--s-off); }
 .item.ent.st-off .txt { opacity: .5; }
+/* The phone book list, quieter: the stripe without an icon box, and a switch that stands out only when the entry
+   is off. */
+.item.ent { min-height: 54px; gap: 10px; }
+.item.ent .ic { width: 4px; height: 38px; background: none; border-radius: 0; }
+.item.ent .ic::before { top: 0; bottom: 0; }
+.item.ent .t .ldot { width: 6px; height: 6px; border-radius: 3px; background: var(--p-open); flex-shrink: 0; }
+.item.ent .switch.on { background: var(--raised); }
+.item.ent .switch:not(.on) { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.item.ent .switch:not(.on)::after { background: var(--accent); box-shadow: none; }
 .bang { flex-shrink: 0; width: 17px; height: 17px; border-radius: 9px; background: var(--bad); color: #1a0d0b; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
-.badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.badge { font-size: var(--t-xs); font-weight: 600; padding: 1px 7px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
 .badge svg { width: 11px; height: 11px; }
-.badge.g { color: var(--s-key); }
+.badge.g { color: color-mix(in srgb, var(--s-key) 62%, var(--fg)); } /* mixed toward the text color: readable on light themes too */
 .badge.l { color: var(--fg); border-color: var(--line); }
 .badge.o { color: var(--muted); border-color: var(--line); }
 .check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -117,13 +126,13 @@ svg.i.s { width: 16px; height: 16px; }
 
 /* Toggle: a light knob; the On track is the accent mixed about half with the background */
 .switch { width: 40px; height: 24px; border-radius: 12px; background: var(--line); position: relative; flex-shrink: 0; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: color-mix(in srgb, var(--fg) 55%, var(--tint)); transition: left .15s, background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: left .15s, background .15s; }
 .switch.on { background: color-mix(in srgb, var(--accent) 50%, var(--tint)); }
-.switch.on::after { left: 19px; background: var(--fg); }
+.switch.on::after { left: 19px; background: #fbfaf7; } /* the knob stays light on every theme */
 
 /* Book page */
 .bkname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
-.bkname .car, .thin .car { color: var(--muted); font-size: 11px; }
+.bkname .car, .thin .car { color: var(--muted); font-size: var(--t-xs); }
 .bkchips { display: flex; gap: 8px; padding: 2px 16px 0; flex-wrap: wrap; }
 .chip2 { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--line); color: var(--muted); font-size: var(--t-s); white-space: nowrap; max-width: 230px; overflow: hidden; }
 .chip2 .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--muted); flex-shrink: 0; }
@@ -273,6 +282,9 @@ svg.lk path.head { stroke-width: 0; }
 .card { position: absolute; padding: 9px 10px 0 30px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); cursor: pointer; z-index: 2; }
 .card:hover { border-color: color-mix(in srgb, var(--fg) 34%, transparent); }
 .card .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
+/* Desktop: a title takes two lines, so "Road: leaving the village" reads whole at 100%. */
+[data-desk="1"] .card:not(.greet) .t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+[data-desk="1"] .card:not(.greet) { padding-top: 7px; }
 .card .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; display: flex; gap: 5px; align-items: center; }
 .card .k > span { overflow: hidden; text-overflow: ellipsis; }
 .card .k svg { width: 12px; height: 12px; flex-shrink: 0; }
@@ -316,7 +328,7 @@ svg.lk path.head { stroke-width: 0; }
 .panelBtn.open { left: calc(100% - 54px); }
 .zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; }
 .cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
-.legend { position: absolute; left: 62px; top: 14px; right: 10px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); pointer-events: none; }
+.legend { position: absolute; left: 62px; top: 14px; right: 10px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: var(--t-xs); color: var(--muted); pointer-events: none; }
 .legend span { display: inline-flex; align-items: center; gap: 4px; }
 .legend i { width: 14px; height: 3px; border-radius: 2px; background: currentColor; }
 .legend i.d { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px); }
@@ -392,7 +404,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .ped { display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 0 0; }
 .phelp { color: var(--muted); font-size: var(--t-xs); line-height: 1.45; margin: 2px 0; }
 .rowbox { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.orsep { text-align: center; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.orsep { text-align: center; color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .08em; }
 .chip { display: inline-flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 2px 0 10px; border-radius: 15px; background: var(--raised); font-size: var(--t-s); max-width: 100%; }
 .chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .chip > span svg { width: 13px; height: 13px; }
@@ -530,9 +542,11 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .pmid { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
 .pmid .say { font-size: var(--t-s); line-height: 1.45; }
 .pmid .say b { font-weight: 700; }
+.pmid .say .pecho { color: var(--muted); }
 .phint { color: var(--muted); font-size: var(--t-xs); }
-.pnote { color: var(--warn); font-size: var(--t-xs); }
-.pnote.bad { color: var(--bad); }
+/* The strip's own notes warn; Preview's note (also .pnote) stays muted. */
+.pstrip .pnote { color: var(--warn); font-size: var(--t-xs); }
+.pstrip .pnote.bad { color: var(--bad); }
 .prow2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .pbtn { height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; font-size: var(--t-s); display: inline-flex; align-items: center; gap: 5px; }
 .pbtn.done { background: var(--accent); border-color: var(--accent); color: #16171a; }
@@ -684,6 +698,8 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .more { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--muted); visibility: hidden; flex-shrink: 0; }
 .more:hover { background: var(--raised); color: var(--fg); }
 .tile:hover .more, .drow:hover .more, .brow:hover .more, .brow.on .more { visibility: visible; }
+/* The phone lists' ⋯ always shows: a phone has no hover to bring it out. */
+.item .more { visibility: visible; }
 .dempty { color: var(--muted); font-size: var(--t-xs); padding: 10px 2px; }
 .dtable { padding: 0 8px; }
 .drow { display: grid; grid-template-columns: 30px minmax(120px, 2fr) minmax(90px, 1.3fr) 70px 110px 36px; align-items: center; min-height: 38px; border-radius: 6px; padding: 0 4px; font-size: var(--t-s); cursor: pointer; }
@@ -772,7 +788,7 @@ button.flab:hover { color: var(--fg); }
 .fval { display: flex; align-items: center; gap: 8px; min-height: 32px; }
 .fmenu { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; margin-left: -8px; border-radius: 7px; font-size: var(--t-s); }
 .fmenu:hover { background: var(--hover); }
-.fmenu .car { color: var(--muted); font-size: 10px; }
+.fmenu .car { color: var(--muted); font-size: var(--t-xs); }
 .kchips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 36px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: text; }
 .kchips:focus-within { border-color: var(--accent); }
 .kchips .kchip { padding: 2px 4px 2px 9px; gap: 2px; }
@@ -876,6 +892,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pchips .dhint { white-space: nowrap; color: var(--muted); font-size: var(--t-xs); margin-left: 8px; }
 .armban { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 12px; font-size: var(--t-s); background: color-mix(in srgb, var(--c) 18%, transparent); border-bottom: 1px solid var(--line); }
 
+/* Phones: Closes lines running back up the canvas stay faint until one of their cards is inspected. */
+.lk .faint { opacity: .28; }
+
 /* Canvas mouse: hover handles, focus dimming, selection, link guide, box select. */
 .hhandles { position: absolute; transform: translateX(-50%); display: flex; gap: 8px; padding: 4px; z-index: 4; }
 .hh { width: 14px; height: 14px; border-radius: 7px; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); cursor: crosshair; }
@@ -915,3 +934,14 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .wih[data-desk="1"], [data-desk="1"] .sheet, [data-desk="1"] .dlg { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wih[data-desk="1"] { background: var(--tint); background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
 [data-desk="1"] .sheet, [data-desk="1"] .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
+
+/* Desktop piece bar: the fold arrow sits inside the bar, at its right end, so it never covers the canvas; on a
+   narrow canvas (1366 × 768 with both columns) the hint goes first, then the key letters, so Wait is never cut. */
+[data-desk="1"] .pbar { container-type: inline-size; }
+[data-desk="1"] .pbar .pchips { padding-right: 48px; }
+[data-desk="1"] .pfold { top: 50%; left: auto; right: 8px; transform: translateY(-50%); width: 30px; height: 30px; border: none; border-radius: 8px; background: none; }
+[data-desk="1"] .pfold:hover { background: var(--hover); color: var(--fg); }
+[data-desk="1"] .pbar:has(.pstrip) .pfold { display: none; }
+[data-desk="1"] .pbar.folded { min-height: 34px; }
+@container (max-width: 1080px) { .pchips .dhint { display: none; } }
+@container (max-width: 860px) { .pchip kbd { display: none; } }

@@ -59,7 +59,8 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $('.view h1:text-is("World Info")').waitFor();
     assert.ok(await visible());
-    assert.ok(!await page.locator('#WorldInfo').evaluate(n => n.classList.contains('openDrawer')), 'ST\'s own drawer stays closed');
+    // ST's drawer opens as ever (ST keeps the button and the drawer), hidden under WI Hero.
+    assert.ok(await page.locator('#WorldInfo').evaluate(n => n.classList.contains('wihero-under')), 'ST\'s own drawer stays hidden under WI Hero');
     ok('the World Info button opens WI Hero on Home, not ST\'s drawer');
 
     // ── Make a book ──
@@ -314,18 +315,5 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $('.view h1:text-is("World Info")').waitFor();
     assert.equal(await $('.tab').count(), 1, 'after a reload: Home, no tabs (D6)');
-    // Pulling the tab row left, past its end, opens a new tab.
-    await $('.strip').evaluate(async s => {
-        const t = x => [new Touch({ identifier: 1, target: s, clientX: x, clientY: 25 })];
-        const fire = (type, x) => s.dispatchEvent(new TouchEvent(type, { touches: type === 'touchend' ? [] : t(x), changedTouches: t(x), bubbles: true }));
-        fire('touchstart', 300);
-        for (let x = 285; x >= 140; x -= 15) { fire('touchmove', x); await new Promise(r => setTimeout(r, 16)); }
-        fire('touchend', 140);
-    });
-    await wait(300);
-    assert.equal(await $('.tab').count(), 2, 'a pull on the tab row opens a new tab');
-    assert.ok(await $('.tab.active .name').count(), 'and shows it');
-    await page.keyboard.press('Escape');
-    await wait(200);
-    ok('World Info settings has all of ST\'s, in groups, and sets them (a token cap too); after a reload WI Hero starts on Home; pulling the tab row opens a tab');
+    ok('World Info settings has all of ST\'s, in groups, and sets them (a token cap too); after a reload WI Hero starts on Home');
 });

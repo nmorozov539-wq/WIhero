@@ -1,7 +1,7 @@
 // The Hero canvas on screen (VISUAL 7): cards, ports, junctions, lock tags, links routed around cards, mask
 // stacks, pack frames; pan, pinch and wheel zoom, Fit, card and port dragging. Lifted from the demo. Positions,
 // port sides, the mask layer on each card and the camera are kept in the extension settings (D7, BUILD_SPEC 8.2).
-import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, computePorts, layout, makeGrid, nodeRects, placeNew, rounded, route, snap } from './canvas-graph.js';
+import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, makeGrid, nodeRects, placeNew, rounded, route, snap } from './canvas-graph.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 
@@ -25,9 +25,10 @@ export function canvasMemory(bookSettings) {
  * @returns {{ g, ids, pos, R, P }}
  */
 export function arrange(m, memory, center, dir = TB) {
-    const g = buildGraph(m);
+    const g0 = buildGraph(m);
     const placedByHand = Object.entries(memory.cards).filter(([, c]) => c.placed).map(([k]) => k);
-    const ids = canvasSet(m, g, placedByHand);
+    const ids = canvasSet(m, g0, placedByHand);
+    const g = withFrames(m, g0, ids);
     const pos = {};
     for (const [k, c] of Object.entries(memory.cards)) if (Number.isFinite(c.x) && ids.has(k)) pos[k] = { x: c.x, y: c.y };
     if (!memory.placed) {
@@ -55,6 +56,8 @@ export function arrange(m, memory, center, dir = TB) {
  * (open the inspector, pick a piece), and routing every link again was most of a tap's time on a phone.
  */
 const ROUTES = { sig: '', map: new Map() };
+/** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
+export const PHONE_FLOOR = 0.8;
 
 export function mountCanvas(vp, d) {
     const world = el('div', 'world');
@@ -241,21 +244,30 @@ export function mountCanvas(vp, d) {
             return s;
         };
         const color = kind => (kind === 'close' ? FAMILY_VAR.close : kind === 'ride' ? FAMILY_VAR.glue : FAMILY_VAR.open);
-        const path = (pts, kind, dashed) => {
-            put(lk, sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`));
+        const path = (pts, kind, dashed, cls = null) => {
+            const n = sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`);
+            if (cls) n.classList.add(cls);
+            put(lk, n);
             // Only Closes has a head (the bar of a stop); Opens and ride-along lines run knob to socket without one.
-            if (kind === 'close') arrow(pts, kind);
+            if (kind === 'close') arrow(pts, kind, cls);
         };
+        // Phones: a Closes line that runs back up the canvas is drawn faint until one of its cards is focused, so the
+        // long lines climbing the page don't drown the story running down it (VISUAL 7.6).
+        const focused = d.desk ? null : d.focused?.() ?? null;
+        const faint = x => (!d.desk && x.kind === 'close' && focused !== x.from && focused !== x.to
+            && (R.get(x.from)?.y ?? 0) > (R.get(x.to)?.y ?? 0) + CH ? 'faint' : null);
         // Arrowheads are drawn as paths (no SVG markers, which don't resolve reliably inside a shadow root).
-        const arrow = (pts, kind) => {
+        const arrow = (pts, kind, cls = null) => {
             const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]];
             const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
             const ux = (b[0] - a[0]) / len; const uy = (b[1] - a[1]) / len;
             const back = kind === 'close' ? 4 : 0;
             const tipX = b[0] - ux * back; const tipY = b[1] - uy * back;
             const bx = tipX - ux * 8; const by = tipY - uy * 8;
-            put(lk, sv('path', { d: `M${tipX},${tipY} L${bx - uy * 5},${by + ux * 5} L${bx + uy * 5},${by - ux * 5} Z` }, `fill:${color(kind)};stroke:none`));
-            if (kind === 'close') put(lk, sv('path', { d: `M${b[0] - uy * 6},${b[1] + ux * 6} L${b[0] + uy * 6},${b[1] - ux * 6}` }, `stroke:${color(kind)};stroke-width:2.5`));
+            const head = sv('path', { d: `M${tipX},${tipY} L${bx - uy * 5},${by + ux * 5} L${bx + uy * 5},${by - ux * 5} Z` }, `fill:${color(kind)};stroke:none`);
+            if (cls) head.classList.add(cls);
+            put(lk, head);
+            if (kind === 'close') { const bar = sv('path', { d: `M${b[0] - uy * 6},${b[1] + ux * 6} L${b[0] + uy * 6},${b[1] - ux * 6}` }, `stroke:${color(kind)};stroke-width:2.5`); if (cls) bar.classList.add(cls); put(lk, bar); }
         };
         const drawEdge = (x, endPt, endN, rawEnd) => owning(`${x.from} ${x.to}`, () => {
             const a = portOf(x.from, x.fromPort);
@@ -264,7 +276,7 @@ export function mountCanvas(vp, d) {
             const e1 = [endPt[0] + endN[0] * G, endPt[1] + endN[1] * G];
             const mid = routeOnce(snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
             const pts = mid ? [s0, ...mid, rawEnd ?? endPt] : [s0, s1, e1, rawEnd ?? endPt];
-            path(pts, x.kind);
+            path(pts, x.kind, undefined, faint(x));
             // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
             const hp = sv('path', { d: rounded(pts), class: 'lhit' });
             hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
@@ -312,6 +324,14 @@ export function mountCanvas(vp, d) {
                 n.style.color = col;
                 n.innerHTML = ic(x.lock ? 'lock' : 'clock');
                 n.append(el('span', '', x.lock ? x.lock[0] : `${x.wait} msg${x.wait === 1 ? '' : 's'}`));
+                // Clear of the cards: a pill is wider than the gap beside a card's side, so it moves out along the
+                // port's normal (or, on a top or bottom port, sideways) until it no longer sits on one.
+                const label = x.lock ? x.lock[0] : `${x.wait} msgs`;
+                const hw = Math.min(140, 30 + label.length * 6.5) / 2 + 4;
+                const hh = 15;
+                const on = ([cx, cy]) => [...R.values()].some(r => !r.pack && cx + hw > r.x && cx - hw < r.x + r.w && cy + hh > r.y && cy - hh < r.y + r.h);
+                const step = p.n[0] ? [p.n[0] * 6, 0] : [6, 0];
+                for (let i = 0; i < 24 && on(at); i++) at = [at[0] + step[0], at[1] + step[1]];
                 Object.assign(n.style, { left: `${at[0]}px`, top: `${at[1]}px` });
                 n.dataset.open = key;
                 n.dataset.piece = PORT[kind].piece;
@@ -522,7 +542,14 @@ export function mountCanvas(vp, d) {
         cam.scale = Math.min(1, Math.max(0.25, Math.min((W - 24) / (x1 - x0), (H - 60) / (y1 - y0))));
         cam.tx = (W - (x1 - x0) * cam.scale) / 2 - x0 * cam.scale;
         cam.ty = 60 + (H - 60 - (y1 - y0) * cam.scale) / 2 - y0 * cam.scale;
-        if (first && cam.scale < 0.55) { cam.scale = 0.55; cam.tx = W / 2 - ((x0 + x1) / 2) * cam.scale; cam.ty = 70 - y0 * cam.scale; }
+        if (!d.desk && (d.dir ?? TB) === TB) {
+            // Phones: fit the width, never below about 80%, and start at the top; the canvas scrolls down from there
+            // rather than shrinking until it is unreadable.
+            cam.scale = Math.min(1, Math.max(PHONE_FLOOR, (W - 24) / (x1 - x0)));
+            const wide = (x1 - x0) * cam.scale;
+            cam.tx = wide <= W - 24 ? (W - wide) / 2 - x0 * cam.scale : 12 - x0 * cam.scale;
+            cam.ty = 60 - y0 * cam.scale;
+        } else if (first && cam.scale < 0.55) { cam.scale = 0.55; cam.tx = W / 2 - ((x0 + x1) / 2) * cam.scale; cam.ty = 70 - y0 * cam.scale; }
         applyView();
         saveCamera();
     }
@@ -815,8 +842,8 @@ export function mountCanvas(vp, d) {
         if (!r || !e || OV) return;
         const box = el('div', 'hhandles');
         Object.assign(box.style, { left: `${r.x + r.w / 2}px`, top: `${r.y + r.h + 4}px` });
-        const kinds = e.greeting ? [['open', 'Opens: drag onto the card that waits for this one'], ['close', 'Closes: drag onto the card this one closes']]
-            : [['open', 'Opens: drag onto the card that waits for this one'], ['close', 'Closes: drag onto the card this one closes'], ['ride', 'Glue: drag onto the card that rides along with this one']];
+        const kinds = e.greeting ? [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes']]
+            : [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes'], ['ride', 'Glue: drag onto the card that rides along with this one']];
         for (const [k, label] of kinds) {
             const h = el('i', `hh ${k}`);
             h.dataset.handle = key;
@@ -931,8 +958,8 @@ export function mountCanvas(vp, d) {
         const before = structuredClone(mem.cards);
         const view = camera() ? { ...camera() } : null;
         const { m } = d.book();
-        const g = buildGraph(m);
         const ids = CV?.ids ?? new Set();
+        const g = withFrames(m, buildGraph(m), ids);
         const pos = layout(m, g, ids, { dir: d.dir ?? TB });
         for (const k of ids) { const c = (mem.cards[k] ??= {}); c.x = pos[k].x; c.y = pos[k].y; delete c.ports; }
         d.save();
