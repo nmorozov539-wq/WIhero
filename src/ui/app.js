@@ -24,6 +24,7 @@ import { renderGreetingInspector, renderInspector } from './inspector.js';
 import { editExisting, mountPieceBar, startPiece } from './piecebar.js';
 import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
+import { deskNormal } from './desk.js';
 
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
 
@@ -59,6 +60,16 @@ export function createApp(deps) {
     // Keys typed in WI Hero are its own: ST's hotkeys (arrows swipe, Enter sends) never see them.
     for (const type of ['keydown', 'keyup', 'keypress']) host.addEventListener(type, e => e.stopPropagation());
     // Escape is Back while WI Hero is open, wherever the focus is (LAYOUT "Back").
+    // Desktop keys (LAYOUT "Keys"): Ctrl K anywhere while WI Hero is open, the rest inside it.
+    window.addEventListener('keydown', e => {
+        if (!S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
+        if (document.querySelector('.popup[open], dialog[open]')) return;
+        const inside = e.composedPath().includes(host);
+        const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
+        if (!inside && !ctrlK) return;
+        const took = S.mode === 'hero' ? heroKey(e) : deskN.key(e);
+        if (took) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
     window.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
@@ -82,7 +93,13 @@ export function createApp(deps) {
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
         hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null } },
+        // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
+        desk: false,
     };
+    const deskQuery = window.matchMedia?.('(min-width: 1001px)');
+    S.desk = !!deskQuery?.matches;
+    deskQuery?.addEventListener?.('change', () => { S.desk = deskQuery.matches; layer.close(); if (!host.hidden) render(); else pendingRender = true; });
+    const deskSettings = () => (settings.desk ??= {});
     const tab = () => S.tabs.find(t => t.id === S.active) ?? S.tabs[0];
     const page = (t = tab()) => t.history.at(-1);
 
@@ -131,7 +148,8 @@ export function createApp(deps) {
     const counting = [];
     let countsRunning = 0;
     const countSpans = new Map(); // book → the span showing its count now
-    function countInto(name, span) {
+    function countInto(name, span, fmt = null) {
+        if (fmt) span.dataset.bare = '1';
         countSpans.set(name, span);
         if (!counting.includes(name)) counting.push(name);
         pumpCounts();
@@ -142,7 +160,7 @@ export function createApp(deps) {
             countsRunning++;
             library.get(name).then(d => {
                 const span = countSpans.get(name);
-                if (d && span?.isConnected) span.textContent = `${entriesShown(name, d).length} entries`;
+                if (d && span?.isConnected) span.textContent = span.dataset.bare ? String(entriesShown(name, d).length) : `${entriesShown(name, d).length} entries`;
             }, () => {}).finally(() => { countsRunning--; pumpCounts(); });
         }
     }
@@ -174,7 +192,9 @@ export function createApp(deps) {
         root.dataset.colors = settings.colorMode ?? 'standard';
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
+        shape();
         if (S.mode === 'hero') { renderHero(); return; }
+        if (S.desk) { renderTabs(); deskN.render(); return; }
         renderTabs();
         const p = page();
         const old = main.querySelector('.view');
@@ -191,6 +211,19 @@ export function createApp(deps) {
     }
     const pageId = p => `${tab().id}:${p.type}:${p.book ?? ''}:${p.uid ?? ''}`;
 
+    /**
+     * Desktop size and place (LAYOUT "Size and place"): normal mode, and Hero mode at drawer size, take ST's World
+     * Info drawer's box (under the top bar, Chat width wide, above the send form); Hero mode opens widened, over the
+     * whole window under the top bar. Phones keep the whole screen.
+     */
+    function shape() {
+        const wide = S.desk && S.mode === 'hero' && deskSettings().heroWide !== false;
+        root.dataset.desk = S.desk ? '1' : '';
+        host.classList.toggle('desk', S.desk);
+        host.classList.toggle('wide', wide);
+        layer.pop.desk = S.desk;
+    }
+
     function pageTitle(p) {
         if (p.type === 'home') return 'Home';
         if (p.type === 'book') return p.book;
@@ -200,7 +233,9 @@ export function createApp(deps) {
 
     function renderTabs() {
         strip.innerHTML = '';
+        tabbar.querySelector('.tright')?.remove();
         if (S.mode === 'hero') { renderHeroTabs(); return; }
+        if (S.desk) { deskN.renderTabs(strip, tabbar); revealActiveTab(); return; }
         for (const t of S.tabs) {
             const p = page(t);
             const active = t.id === S.active;
@@ -256,6 +291,11 @@ export function createApp(deps) {
 
     /** Opens a page: from Home's tab (or with `newTab`) in a new tab, otherwise in this tab's history. */
     function openIn(p, { newTab = false, background = false } = {}) {
+        if (S.desk && S.mode === 'normal') {
+            // Desktop: a book opens in a tab of its own; an entry shows in its book's tab, or its own tab when asked.
+            if (p.type === 'book') { deskN.openBook(p.book, { background }); return; }
+            if (p.type === 'entry') { if (newTab || background) deskN.openEntryTab(p.book, p.uid, { background }); else deskN.showInBook(p.book, p.uid); return; }
+        }
         const t = tab();
         S.select = null;
         S.search = null;
@@ -296,6 +336,7 @@ export function createApp(deps) {
 
     /** Back (Android) and Escape: sheet → search → selection → the tab's history → close the tab → close the editor. */
     function back() {
+        if (S.desk && S.mode === 'normal') return deskN.back();
         if (layer.isOpen()) { layer.close(); return true; }
         if (S.mode === 'hero') return heroBack();
         if (S.search) { S.search = null; render(); return true; }
@@ -665,11 +706,11 @@ export function createApp(deps) {
     }
 
     // ---------------------------------------------------------------- entry page
-    function renderEntry(p, nav = null) {
+    function renderEntry(p, nav = null, into = main, extra = {}) {
         const data = need(p.book);
-        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', library.names().includes(p.book) ? 'Loading…' : 'This book was deleted or renamed.')); main.append(v); return; }
+        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', library.names().includes(p.book) ? 'Loading…' : 'This book was deleted or renamed.')); into.append(v); return; }
         const e = data.entries[p.uid];
-        if (!e || hiddenIn(p.book).has(p.uid)) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'This entry was deleted.')); main.append(v); return; }
+        if (!e || hiddenIn(p.book).has(p.uid)) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'This entry was deleted.')); into.append(v); return; }
         const book = p.book;
         const model = modelOf(book, data);
         const node = model.byStKey.get(`${book}.${e.uid}`);
@@ -693,7 +734,7 @@ export function createApp(deps) {
             }
         }
         S.ui.condition = !!p.condition;
-        renderEntryPage(main, {
+        renderEntryPage(into, {
             entry: e,
             bookName: book,
             folder: entryFolder(book, e),
@@ -737,6 +778,7 @@ export function createApp(deps) {
                 }
             }),
             menu: () => entryMenu(book, e.uid, { onPage: !nav, heroTab: nav }),
+            ...extra,
             tokens: text => (ctx().getTokenCountAsync ? ctx().getTokenCountAsync(text) : Promise.resolve(null)),
         });
     }
@@ -1799,6 +1841,7 @@ export function createApp(deps) {
             else if (p.type === 'home') {
                 sh.append(el('div', 'lbl', 'View'));
                 choiceRow(sh, 'Open books in', [['normal', 'Normal mode'], ['hero', 'Hero mode']], settings.openInHero ? 'hero' : 'normal', k => { settings.openInHero = k === 'hero'; saveSettings(); });
+                if (S.desk) choiceRow(sh, 'Show books as', [['tiles', 'Tiles'], ['list', 'List']], deskSettings().homeView === 'list' ? 'list' : 'tiles', k => { deskSettings().homeView = k; saveSettings(); render(); });
             } else if (p.type === 'book') {
                 const data = library.peek(p.book);
                 sh.append(el('div', 'lbl', 'View'));
@@ -1913,41 +1956,11 @@ export function createApp(deps) {
             if (fromPage) {
                 sh.append(layer.opt('List', () => layer.close(), { cur: true, icon: 'entry', sub: 'This page' }));
                 sh.append(el('div', 'div'));
-                sh.append(layer.opt('New folder…', () => layer.askText({
-                    title: 'New folder', placeholder: 'Folder name (Places/Town for one inside another)', ok: 'Create',
-                    done: f => {
-                        const b = bookSettings(settings, book);
-                        b.folderList = [...new Set([...(b.folderList ?? []), f.split('/').map(x => x.trim()).filter(Boolean).join('/')])];
-                        saveSettings();
-                        render();
-                    },
-                }), { icon: 'folder' }));
+                sh.append(layer.opt('New folder…', () => newEntryFolder(book), { icon: 'folder' }));
             }
             if (fromHome) sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'book', book }, { newTab: true }); }, { icon: 'tab' }));
-            sh.append(layer.opt('Rename', () => layer.askText({
-                title: 'Rename book', placeholder: 'Book name', value: book, check: n => library.nameProblem(n, book),
-                done: async n => {
-                    if (n === book) return;
-                    try {
-                        const to = await library.rename(book, n);
-                        renameBookSettings(settings, book, to);
-                        saveSettings();
-                        for (const t of S.tabs) for (const p of t.history) if (p.book === book) p.book = to;
-                        render();
-                        layer.toast(`Renamed to ${to}`);
-                    } catch (e) { layer.toast(e.message); }
-                },
-            }), { icon: 'edit' }));
-            if (fromPage) {
-                sh.append(layer.opt('Duplicate', async () => {
-                    layer.close();
-                    const to = await library.duplicate(book);
-                    copyBookSettings(settings, book, to);
-                    saveSettings();
-                    openIn({ type: 'book', book: to }, { newTab: true });
-                    layer.toast(`Made ${to}`);
-                }, { icon: 'copy' }));
-            }
+            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit' }));
+            if (fromPage) sh.append(layer.opt('Duplicate', () => { layer.close(); duplicateBook(book); }, { icon: 'copy' }));
             sh.append(layer.opt('Move to folder', () => bookFolderSheet(f => { setBookFolder(settings, book, f); saveSettings(); render(); }), { icon: 'move', val: bookFolderOf(settings, book) || 'No folder' }));
             sh.append(layer.opt('Export', () => { layer.close(); library.exportBook(book); layer.toast(`${book}.json exported`); }, { icon: 'code' }));
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›' }));
@@ -1955,11 +1968,74 @@ export function createApp(deps) {
         });
     }
 
-    function entryMenu(book, uid, { onPage = false, heroTab = null } = {}) {
+    function newEntryFolder(book) {
+        layer.askText({
+            title: 'New folder', placeholder: 'Folder name (Places/Town for one inside another)', ok: 'Create',
+            done: f => {
+                const b = bookSettings(settings, book);
+                b.folderList = [...new Set([...(b.folderList ?? []), f.split('/').map(x => x.trim()).filter(Boolean).join('/')])];
+                saveSettings();
+                render();
+            },
+        });
+    }
+    function renameBook(book) {
+        layer.askText({
+            title: 'Rename book', placeholder: 'Book name', value: book, check: n => library.nameProblem(n, book),
+            done: async n => {
+                if (n === book) return;
+                try {
+                    const to = await library.rename(book, n);
+                    renameBookSettings(settings, book, to);
+                    saveSettings();
+                    for (const t of S.tabs) for (const p of t.history) if (p.book === book) p.book = to;
+                    if (H.book === book) H.book = to;
+                    for (const t of H.tabs) if (t.book === book) t.book = to;
+                    render();
+                    layer.toast(`Renamed to ${to}`);
+                } catch (e) { layer.toast(e.message); }
+            },
+        });
+    }
+    async function duplicateBook(book) {
+        const to = await library.duplicate(book);
+        copyBookSettings(settings, book, to);
+        saveSettings();
+        openIn({ type: 'book', book: to }, { newTab: true });
+        layer.toast(`Made ${to}`);
+    }
+    /** Moves entries to another book; links to entries of this one don't travel. */
+    function moveToBookSheet(book, uids, after = () => {}) {
+        layer.sheet('Move to', s2 => {
+            for (const n of visibleNames().filter(x => x !== book)) {
+                s2.append(layer.opt(n, async () => {
+                    layer.close();
+                    const target = await library.get(n);
+                    if (!target) return;
+                    const moved = [];
+                    library.change(book, from => {
+                        for (const uid of uids) {
+                            if (!from.entries[uid]) continue;
+                            delete bookSettings(settings, book).folders[cardKey(from.entries[uid])];
+                            moved.push(moveEntry(from, uid, target));
+                        }
+                    });
+                    library.change(n, () => {});
+                    saveSettings();
+                    after(n, moved);
+                    render();
+                    layer.toast(moved.length === 1 ? `Moved to ${n}` : `Moved ${moved.length} entries to ${n}`);
+                }, { icon: 'book' }));
+            }
+        }, { help: 'Links to other entries of this book don\'t travel; the other book lists them as problems.' });
+    }
+
+    function entryMenu(book, uid, { onPage = false, heroTab = null, desk = null } = {}) {
         const ht = heroTab ? H.tabs[H.active] : null;
         const data = library.peek(book);
         const e = data?.entries[uid];
         if (!e) return;
+        if (desk) { deskEntryMenu(book, uid, e, desk); return; }
         layer.sheet(titleOf(e), sh => {
             if (ht) sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, cardKey(e)); }, { icon: 'canvas' }));
             else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab' }));
@@ -2003,6 +2079,44 @@ export function createApp(deps) {
                 deleteEntries(book, [uid]);
             }, { icon: 'trash', danger: true }));
         });
+    }
+
+    /**
+     * Desktop's entry menu (right-click, ⋯, ⋮): Open in new tab · Turn off · Duplicate · Move to folder · Move to
+     * another book · Copy as text · Delete. In an entry tab, "Show in its book" stands for Open in new tab.
+     */
+    function deskEntryMenu(book, uid, e, d) {
+        const p = page();
+        layer.sheet(null, sh => {
+            if (d.openTab) sh.append(layer.opt('Open in new tab', () => { layer.close(); d.openTab(); }, { icon: 'tab', val: 'Double-click' }));
+            if (d.inBook) sh.append(layer.opt('Show in its book', () => { layer.close(); d.inBook(); }, { icon: 'book' }));
+            sh.append(layer.opt(e.disable ? 'Turn on' : 'Turn off', () => { layer.close(); library.change(book, x => { x.entries[uid].disable = !e.disable; }); }, { icon: e.disable ? 'on' : 'off', val: 'Space' }));
+            sh.append(layer.opt('Duplicate', () => {
+                layer.close();
+                const copy = library.change(book, x => duplicateEntry(x, uid), { quiet: true });
+                const f = entryFolder(book, e);
+                if (f) { setFolder(settings, book, copy, f); saveSettings(); }
+                if (p.type === 'book') { p.sel = copy.uid; p.anchor = copy.uid; p.select = null; }
+                render();
+                layer.toast(`Made ${titleOf(copy)}`);
+            }, { icon: 'copy', val: 'Ctrl D' }));
+            sh.append(layer.opt('Move to folder', () => folderSheet(book, entryFolder(book, e), f => { setFolder(settings, book, e, f); saveSettings(); render(); }), { icon: 'folder', val: entryFolder(book, e) || 'No folder' }));
+            sh.append(layer.opt('Move to another book', () => moveToBookSheet(book, [uid], (n, moved) => {
+                if (p.type === 'entry') Object.assign(p, { book: n, uid: moved[0].uid });
+                else if (p.type === 'book') p.sel = null;
+            }), { icon: 'move' }));
+            sh.append(layer.opt('Copy as text', async () => {
+                layer.close();
+                try { await navigator.clipboard.writeText(entryAsText(e)); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
+            }, { icon: 'entry' }));
+            sh.append(el('div', 'div'));
+            sh.append(layer.opt('Delete', () => {
+                layer.close();
+                if (d.afterDelete) { d.afterDelete(); return; }
+                if (p.type === 'entry' && p.book === book && p.uid === uid) { const t = tab(); S.tabs.splice(S.tabs.indexOf(t), 1); S.active = S.tabs[0].id; }
+                deleteEntries(book, [uid]);
+            }, { icon: 'trash', danger: true, val: 'Delete' }));
+        }, { at: d.at });
     }
 
     /** The entry folders of a book, No folder, and + New folder. This is the main way folders get made. */
@@ -2094,6 +2208,46 @@ export function createApp(deps) {
         };
         draw();
     }
+
+    // ---------------------------------------------------------------- desktop
+    function heroKey() { return false; }
+    /** Discards a new entry left completely empty when the book pane moves on from it. */
+    function leaveEntry(p) {
+        if (p.fresh == null || p.fresh !== p.sel) return;
+        const uid = p.fresh;
+        p.fresh = null;
+        const e = library.peek(p.book)?.entries[uid];
+        if (e && isBlank(e)) { library.change(p.book, d => { delete d.entries[uid]; }, { quiet: true }); layer.toast('Empty entry removed'); }
+    }
+    /** A new entry in a book (and folder), with the book's defaults, not opened anywhere yet. */
+    function createEntryIn(book, folder = '') {
+        if (!library.peek(book)) return null;
+        const x = createEntry(book, '');
+        if (folder) { setFolder(settings, book, x, folder); saveSettings(); }
+        return x;
+    }
+    function openHero(book) {
+        leave();
+        H.book = book;
+        S.mode = 'hero';
+        S.select = null;
+        S.search = null;
+        H.active = 'canvas';
+        H.panel = false;
+        render();
+    }
+    const deskN = deskNormal({
+        S, settings, library, layer, main, root, shadow,
+        saveSettings: () => saveSettings(),
+        tab, page, leave, render, renderTabs, closeTab, newTab, hide, need, modelOf, entriesShown, hiddenIn, entryFolder,
+        problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, wiSettingsSheet,
+        bookFolderSheet, folderSheet, snapshotsSheet, problemsSheet, renameBook, duplicateBook, newEntryFolder, openHero,
+        createEntryIn, entryMenu, moveToBookSheet, applyParam, leaveEntry,
+        hasLogic: e => { const c = configOf(e); return !!c && Object.keys(c).some(k => k !== 'id'); },
+        nextTabId: () => ++tabUid,
+        typing: () => typing(),
+        renderEntryInto: (into, p, extra) => renderEntry(p, null, into, extra),
+    });
 
     return {
         show, hide, toggle, isOpen, refresh, host, back, openBook,
