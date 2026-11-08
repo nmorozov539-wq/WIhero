@@ -223,7 +223,7 @@ export function renderInspector(box, x) {
         tap.type = 'button';
         tap.append(el('b', '', p.label), el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
-        ph.append(tap, btn('pq', ic('help'), () => layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help))), `What is ${p.label}?`));
+        ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
         if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); layer.toast(`${p.label} removed`); }, `Remove ${p.label}`));
         pc.append(ph);
         if (open) pc.append(editorOf(p.key, x, update));
@@ -247,6 +247,7 @@ export function renderInspector(box, x) {
                     x.setOpen(p.key);
                 }, { sub: p.help, dot: FAMILY_COLOR[p.family] }));
             }
+            if (x.guide) sh.append(layer.opt('How each piece works', () => { layer.close(); x.guide(null); }, { icon: 'help', val: 'Guide ›' }));
         }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' })));
     }
 

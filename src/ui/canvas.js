@@ -300,6 +300,7 @@ export function mountCanvas(vp, d) {
             const hp = sv('path', { d: rounded(pts), class: 'lhit' });
             hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
             hp.dataset.ends = `${x.from}>${x.to}`;
+            hp.dataset.kind = x.kind;
             put(lk, hp);
             if (x.mode) {
                 const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
@@ -354,6 +355,7 @@ export function mountCanvas(vp, d) {
                 Object.assign(n.style, { left: `${at[0]}px`, top: `${at[1]}px` });
                 n.dataset.open = key;
                 n.dataset.piece = PORT[kind].piece;
+                n.dataset.kind = x.lock ? 'lock' : 'wait';
                 n.dataset.cond = CV.conds.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null, cond: x.lock ? { lock: x.lock, ...(x.by ? { by: x.by } : {}) } : { wait: x.wait, ...(x.by ? { by: x.by } : {}) } }) - 1;
                 put(world, n);
             };

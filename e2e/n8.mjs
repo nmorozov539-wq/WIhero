@@ -124,6 +124,23 @@ await run(async () => {
     ok('the panel\'s Moments group lists all three; the entry list has none of them');
     // From here Missing tooth opens Dentist (Gates for), and Storm breaks no longer does.
 
+    // ── Explain mode on a phone: "?" then a tap on a Moment card opens the Guide at Moment ──
+    await $('.panelBtn').click();
+    await $('button[aria-label="Fit to screen"]').click();
+    await $('.explainq').click();
+    await $('.explainban').waitFor();
+    const mb = await card('Missing tooth').boundingBox();
+    await page.mouse.click(mb.x + mb.width / 2, mb.y + 10);
+    await $('.guide .gpage[data-anchor="moment"]').waitFor();
+    assert.equal(await $('.insp').count(), 0, 'the tap did not inspect the card');
+    await shot('guide');
+    await $('.tab[aria-label="Canvas"]').click();
+    await card('Missing tooth').locator('.t').click();
+    await $('.insp .pc[data-piece="gatesFor"] .pq').first().click();
+    await $('.guide .gpage[data-anchor="opens"]').waitFor();
+    await $('.tab[aria-label="Canvas"]').click();
+    ok('explain mode on a phone: "?" then a tap on a Moment opens the Guide at Moment; an inspector row\'s "?" opens its page');
+
     // ── Normal mode hides them ──
     await ev(() => { wihero.settings.openInHero = false; });
     await $('.panelBtn').click();

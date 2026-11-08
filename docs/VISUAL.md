@@ -256,6 +256,17 @@ Drawn in sketch 7 (in the git history).
   right; the zoom level shows bottom left.
 - The legend, when shown, names the five link colors.
 
+### 7.7 Explain mode and the Guide
+
+- Explain mode outlines each explainable element with a 1.5px dashed accent
+  line, 2px out; the canvas and the piece bar dim slightly (less saturation,
+  a little darker). The banner is a pill with an accent border over the piece
+  bar, its text in `--t-s`, Cancel as a small button.
+- Guide pages carry a stripe in their piece's family color down the left
+  edge; the anchor a page was opened at flashes a faint accent tint. Pictures
+  are small SVGs drawn with the same card, line, knob and chip shapes and
+  colors as the canvas. The example is set in the content font.
+
 ## 8. Preview
 
 - Highlights use the **strategy color** of the entry they trigger: solid

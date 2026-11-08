@@ -17,7 +17,7 @@ mode like a board. They share the chrome, the components, the type and the
 entry page; only the main area differs (lists and pages, or the canvas with its
 panel).
 
-Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-mode) · [Desktop: normal mode](#desktop-normal-mode) · [Desktop: Hero mode](#desktop-hero-mode) · [Back](#back) · [Not in the demo](#not-in-the-demo)
+Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-mode) · [Desktop: normal mode](#desktop-normal-mode) · [Desktop: Hero mode](#desktop-hero-mode) · [Guide and explain mode](#guide-and-explain-mode) · [Back](#back) · [Not in the demo](#not-in-the-demo)
 
 ## Shared
 
@@ -722,7 +722,8 @@ The shared entry page, as in Normal mode, with Story logic always open and
 
 | Key | What it does |
 |-----|--------------|
-| O C G S M P L W | Arm that piece; with a card selected, put it on that card |
+| O C G S M P L W E | Arm that piece (E is Moment); with a card selected, put it on that card |
+| ? | Explain mode (one click) |
 | F | Fit |
 | T | Tidy, left to right |
 | + − | Zoom |
@@ -735,6 +736,45 @@ real router (lanes on a 12px lattice, never through a card, VISUAL 7.3) keeps
 its rules on desktop.
 
 ---
+
+## Guide and explain mode
+
+### Guide
+
+A tab of its own in Hero mode, opened at an anchor; on phones it sits next to
+Canvas and Preview (a "?" tab with ×), on desktop it is a tab like an entry's.
+Also reachable from ⌄ › Guide. The text is in `src/ui/guide.js`.
+
+- An index of chips, then one page per piece, in this order: Opens, Closes,
+  Glue, Switch, Mask, Pack, Lock, Wait, Moment, Once, Who triggers, Greeting.
+- Each page: one line, a small picture drawn in the canvas's colors, an
+  example, the fine print (the rules that bite), common mistakes, and **Show
+  me in the Sample book** (opens the Sample book on a matching card, when the
+  Sample book is there).
+- Then "On the screen": Cards and lines, Fit, Tidy layout, Entry panel, the
+  strip, the inspector, Preview highlights and Also active.
+- Back closes the Guide (phones); its × closes the tab.
+
+### Explain mode
+
+A "?" at the top right of the canvas (phones), or in the tab row (desktop;
+also the ? key), turns explain mode on **for one tap**:
+
+- Everything that can be explained gets a thin dashed accent outline and the
+  rest dims slightly. A banner at the bottom reads "Tap anything to learn about
+  it · Cancel" ("Click…" on desktop).
+- A tap opens the Guide at that element's anchor instead of doing the
+  element's own action, and ends the mode. Back or Escape cancels.
+- What can be explained: piece bar chips, ports, lines, and/or junctions, lock
+  and wait pills, pack frames, mask stacks, greeting and Moment cards, other
+  cards, the strip, inspector rows, Fit, Tidy, the panel button, Preview
+  highlights and Also active.
+
+### Direct "?"
+
+The "?" on an inspector row, a "?" in every strip (between its settings and
+Done) and "How each piece works" in "+ Add logic" open the Guide at that
+piece, skipping explain mode.
 
 ## Back
 
