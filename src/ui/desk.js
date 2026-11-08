@@ -764,7 +764,11 @@ export function deskNormal(A) {
         const go = uid => () => select(p, uid);
         const e = data.entries[p.sel];
         const folder = A.entryFolder(book, e);
-        A.renderEntryInto(right, { type: 'entry', book, uid: p.sel, fresh: p.fresh === p.sel }, {
+        // The entry's page state (an open condition, …) lives as long as this entry stays selected: a fresh object
+        // every draw dropped it, and "Add condition" did nothing.
+        if (p.entry?.uid !== p.sel || p.entry.book !== book) p.entry = { type: 'entry', book, uid: p.sel };
+        p.entry.fresh = p.fresh === p.sel;
+        A.renderEntryInto(right, p.entry, {
             desk: {
                 crumbs: [{ label: book }, ...(folder ? folder.split('/').map(f => ({ label: f })) : [])],
                 prev: i > 0 ? go(order[i - 1]) : null,

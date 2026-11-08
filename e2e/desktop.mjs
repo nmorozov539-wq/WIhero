@@ -79,6 +79,10 @@ async function normalMode(w, h, drawer) {
     await $(page, '.en-line').waitFor();
     assert.ok(await $(page, '.br').evaluate(n => n.innerText.includes('Mill: arrival') || [...n.querySelectorAll('input, textarea')].some(i => i.value.includes('Mill: arrival'))), 'the entry shows on the right');
     ok(`${w}: a book opens in two panes, a row shows its entry on the right`);
+    await $(page, '.br .kchips input').first().click();
+    await $(page, '.br button.linkish').filter({ hasText: 'Add condition' }).click();
+    await $(page, '.br .fmenu.flab').waitFor();
+    ok(`${w}: Add condition shows the condition, with a key word box focused`);
     await $(page, '.brow').filter({ hasText: 'Ferry (sticky' }).click({ button: 'right' });
     await $(page, '.sheet.pop').waitFor();
     const pop = await $(page, '.sheet.pop').boundingBox();

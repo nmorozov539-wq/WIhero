@@ -187,9 +187,16 @@ export function renderEntryPage(main, o) {
         } else {
             const ac = btn('linkish', `${ic('plus', 's')} Add condition`, () => {
                 ui.condition = true;
+                // A key word box still focused (a tap doesn't always take focus) holds back the redraw that shows the
+                // condition: let it go first, then draw.
+                main.getRootNode().activeElement?.blur?.();
                 o.change(x => { x.selective = true; x.selectiveLogic ??= 0; });
+                o.redraw();
                 setTimeout(() => main.querySelectorAll('.kbox')[1]?.click(), 0);
             });
+            // Pressing it would blur a focused key word box, whose commit redraws the page under the press, and the
+            // click then lands on nothing. Keep the focus until the click, which lets it go itself.
+            ac.addEventListener('mousedown', e => e.preventDefault());
             en.append(ac);
         }
     }
@@ -362,9 +369,16 @@ function deskFields(en, o, main) {
         } else {
             const ac = btn('linkish', `${ic('plus', 's')} Add condition`, () => {
                 ui.condition = true;
+                // A key word box still focused (a tap doesn't always take focus) holds back the redraw that shows the
+                // condition: let it go first, then draw.
+                main.getRootNode().activeElement?.blur?.();
                 o.change(x => { x.selective = true; x.selectiveLogic ??= 0; });
+                o.redraw();
                 setTimeout(() => main.querySelectorAll('.kchips input')[1]?.focus(), 0);
             });
+            // Pressing it would blur a focused key word box, whose commit redraws the page under the press, and the
+            // click then lands on nothing. Keep the focus until the click, which lets it go itself.
+            ac.addEventListener('mousedown', e => e.preventDefault());
             g.append(el('div', 'flab'), ac);
         }
     }
