@@ -64,7 +64,8 @@ await run(async () => {
     ok('the World Info button opens WI Hero on Home, not ST\'s drawer');
 
     // ── Make a book ──
-    await $('.bottombar button[aria-label="New book"]').click();
+    await $('.bottombar button[aria-label="New book or import"]').click();
+    await opt('New book').click();
     await ask(BOOK);
     await $(`.bkname h1:text-is("${BOOK}")`).waitFor();
     assert.ok(await ev(n => SillyTavern.getContext().getWorldInfoNames().includes(n), BOOK));
@@ -237,6 +238,28 @@ await run(async () => {
     assert.ok(await visible(), 'Android Back steps back inside WI Hero');
     assert.equal(await $('.tab.active').getAttribute('aria-label'), 'Home');
     ok('Back and Escape step back one layer; the World Info button hides and shows it as it was');
+
+    // ── Import a file from Home; an Off book says how to use it ──
+    {
+        const IMP = 'N2 Import';
+        await ev(async n => { const c = SillyTavern.getContext(); if (c.getWorldInfoNames().includes(n)) await (await import('/scripts/world-info.js')).deleteWorldInfo(n); }, IMP);
+        await $('.bottombar button[aria-label="New book or import"]').click();
+        const chooser = page.waitForEvent('filechooser');
+        await opt('Import a file…').click();
+        await (await chooser).setFiles({ name: `${IMP}.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ entries: { 0: { uid: 0, key: ['lantern'], keysecondary: [], comment: 'Lantern', content: 'A lantern.', extensions: { wihero: { id: 'lantern', once: true } } } } })) });
+        await $(`.bkname h1:text-is("${IMP}")`).waitFor();
+        await $('.item.ent:has(.nm:text-is("Lantern")) .ldot').waitFor();
+        assert.ok(await $('.offhint').filter({ hasText: 'No chat uses this book yet' }).count(), 'an Off book says how to use it');
+        await $('.offhint button:text-is("Make it global")').click();
+        await wait(300);
+        assert.equal(await $('.offhint').count(), 0, 'and the hint goes once it is used');
+        assert.ok(await ev(async n => (await import('/scripts/world-info.js')).selected_world_info.includes(n), IMP));
+        await shot('import');
+        await ev(n => wihero.library.remove(n), IMP);
+        await page.keyboard.press('Escape');
+        await wait(300);
+        ok('+ on Home imports a file through ST and opens it, story logic kept; the Off hint links it or makes it global');
+    }
 
     // ── Delete a book with Undo ──
     await $(`.item[data-book="${SHELF}"] .more`).click();

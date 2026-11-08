@@ -128,8 +128,18 @@ The same page in both modes. Top to bottom:
 - **Parameters**, in groups:
   - Placement: Position; Depth and Role (only for "At depth"); Order
   - Chance and timing: Probability, Sticky, Cooldown, Delay
-  - Matching: Scan depth, Case-sensitive, Whole words, Recursion, Who triggers
-  - Limits: Inclusion group, Characters, Generation types
+  - Matching: Scan depth, Case-sensitive, Whole words, Recursion (can't be
+    triggered by other entries, doesn't trigger other entries, only triggered by
+    other entries with its level), the extra sources ST can match (persona
+    description, character description, personality, character's note,
+    scenario, creator's notes), Who triggers
+  - Limits: Inclusion group, and with a group: Prioritize, Group weight, Group
+    scoring; Ignore budget; Characters (Any, Only the ones picked, All but the
+    ones picked; characters and tags); Generation types (several, none is all);
+    Automation ID
+  - Every one of ST's entry settings has a control. One WI Hero doesn't show
+    (ST's "use probability" switch turned off) is named at the end of the
+    folded summary, "Also set: probability off", so nothing is ever hidden.
 - **Story logic section**: one row per rule, each with a short stripe in the
   piece's color, a small label and a plain sentence ("Gate: Opens when Mill has
   fired", "Glue: Holds: once fired it stays on until its close gate", "Closed
@@ -154,7 +164,7 @@ Shown on Home and the book page, hidden on the entry page.
 | Button | What it does |
 |--------|--------------|
 | Search | Opens the search overlay |
-| + New  | Home: new book. Book page: new entry |
+| + New  | Home: a small sheet, New book or Import a file…. Book page: new entry |
 | Select | Starts selection mode |
 
 ### Search overlay
@@ -172,11 +182,15 @@ Shown on Home and the book page, hidden on the entry page.
 |------|-----------------------|
 | Header | "World Info", and a gear for ST's World Info settings |
 | Book folders | Collapsible groups of books (WI Hero's own, not ST's) |
-| Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯ |
+| Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯. Off leads to the book's page, which says how to use it |
 | Tap a book | Opens it in a new tab |
 | Long press | Opens it in a background tab |
 | Book ⋯ | Open in new tab · Rename · Move to folder · Export · Delete |
-| + New (bottom bar) | Asks for a name, then opens the new book in a new tab |
+| + New (bottom bar) | New book (asks for a name, then opens it in a new tab) or Import a file… |
+
+**Import** takes a lorebook file and opens it in a new tab. It goes through ST's
+own import, so it takes what ST takes: ST's JSON, NovelAI (JSON or PNG), Agnai
+and Risu books. ST asks before replacing a book with the same name.
 
 **World Info settings** (sheet): every one of ST's World Info settings, so ST's
 own panel is never needed. They are ST's own and apply to every book.
@@ -191,7 +205,7 @@ own panel is never needed. They are ST's own and apply to every book.
 Switches flip in place; numbers ask in a small form.
 
 **Selection on Home**: top bar ✕, count, All/None, Invert, Delete. Bottom bar:
-Move (to a folder, No folder, + New folder) and Export.
+Move (to a folder, No folder, + New folder), Export and Import.
 
 ### Book page
 
@@ -200,6 +214,7 @@ Move (to a folder, No folder, + New folder) and Export.
 | Name ▾ | The book's name. Tap for List (this page) or Story canvas (opens the book in Hero mode), then New folder… · Rename · Duplicate · Move to folder · Export · Delete |
 | Global chip | Tap to make the book active globally or not |
 | Linked chip | First linked character or chat plus a count ("Seraphina +2"). Tap for the links sheet |
+| Off hint | Only while the book is neither global nor linked: "Off · No chat uses this book yet", then **Use it in this chat** (links it to the open chat; with no chat open, **Link it to a character…** opens the links sheet) and **Make it global** |
 | New entry defaults | Folded. The header sums up what isn't default. What new entries in this book start with |
 | Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (⌄) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe (no icon), name with a teal dot when the entry has story logic, keywords, on/off switch, ⋯. The switch is quiet while the entry is on (a gray track) and stands out only when it is off (an accent outline) |
@@ -485,7 +500,7 @@ for another), Ctrl Enter opens in a background tab, Esc closes.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "World Info", List/Tiles switch (icons only: rows, a grid; the name on hover), New folder, **+ New book**, gear (ST's World Info settings). No filter box: Search (Ctrl K) finds books |
+| Header | "World Info", List/Tiles switch (icons only: rows, a grid; the name on hover), Import, New folder, **+ New book**, gear (ST's World Info settings). No filter box: Search (Ctrl K) finds books |
 | Tiles (default) | The sketch's tiles: name, status chips, entry count and edited date. Fills as many columns as fit. A checkbox shows on hover |
 | List | A table: checkbox (on hover), Name, Active (Global, first link +n, or Off), Entries, Edited, ⋯ (on hover). Click a header to sort. Folders are collapsible rows inside the table; "Not in a folder" last |
 | Not in a folder | Last, in both views. Hidden when every book is in a folder, except while a book is dragged (dropping it there takes it out of its folder) |
@@ -493,7 +508,7 @@ for another), Ctrl Enter opens in a background tab, Esc closes.
 | Middle-click, Ctrl-click | Opens it in a new tab and stays on Home |
 | Right-click, ⋯ | Open · New tab (stays on Home) · Make global · Rename · Move to folder · Export · Snapshots · Delete |
 | Drag a book | Onto a folder header to move it there |
-| Selection bar | Replaces the header while books are selected: ✕, "N selected", Move to folder, Export, Select all, Delete (Undo toast) |
+| Selection bar | Replaces the header while books are selected: ✕, "N selected", Move to folder, Export, Import, Select all, Delete (Undo toast) |
 
 Tiles are the default; the List/Tiles switch in the header (and ⌄ › View)
 changes it, and the choice is remembered.
@@ -510,6 +525,7 @@ the edge to reset):
 |------|-----------------------|
 | Book name ▾ | Open in Hero mode · Book settings · Rename · Duplicate · Move to folder · Export · Snapshots · Delete book |
 | Status line | Global chip (click to toggle), Linked chip (click for the links menu: each link with Unlink, Link to this chat, Link to the character), entry count |
+| Off hint | Under the status line while the book is Off, as on phones |
 | Filter box | Filters the list by name and keyword. "/" focuses it |
 | + | New entry (Alt N); it opens on the right with the name ready to type |
 | Folder header | Name, count, collapse arrow, + on hover for a new entry in it. Drop entries on it to move them there |

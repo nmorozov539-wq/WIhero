@@ -3,7 +3,7 @@
 import { btn, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
-    LOGIC, PARAMS, STRATEGY_HELP, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
+    LOGIC, PARAMS, STRATEGY_HELP, filterChoices, paramChanged, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
 } from './data.js';
 import { FAMILY_COLOR, logicSummary } from './logic-text.js';
 
@@ -26,6 +26,25 @@ export function sdot(e) {
  * @param {(value) => void} set
  */
 export function editParam(layer, p, current, set) {
+    if (p.type === 'multi') {
+        // Several picks, none meaning all: the sheet stays open, each row a switch.
+        let cur = [...(current ?? [])];
+        layer.sheet(p.label, sh => {
+            const draw = () => {
+                sh.querySelectorAll('.opt').forEach(n => n.remove());
+                for (const [value, label] of p.options) {
+                    sh.append(layer.opt(label, () => {
+                        cur = cur.includes(value) ? cur.filter(x => x !== value) : [...cur, value];
+                        set(cur);
+                        draw();
+                    }, { cur: cur.includes(value) }));
+                }
+            };
+            draw();
+        }, { help: `None picked: ${p.none.toLowerCase()} of them.` });
+        return;
+    }
+    if (p.type === 'chars') { editCharacters(layer, p, current, set); return; }
     if (p.type === 'enum') {
         layer.sheet(p.label, sh => {
             for (const [value, label] of p.options) {
@@ -53,6 +72,35 @@ export function editParam(layer, p, current, set) {
             done: v => set(isNum ? (v === '' ? (p.optional ? null : p.def) : Number(v)) : v),
         });
     }
+}
+
+/** The character filter: Only these or All but these, then characters and tags to pick. */
+function editCharacters(layer, p, current, set) {
+    let v = { isExclude: !!current?.isExclude, names: [...(current?.names ?? [])], tags: [...(current?.tags ?? [])] };
+    const { chars, tags } = filterChoices.get();
+    layer.sheet(p.label, sh => {
+        const draw = () => {
+            sh.querySelectorAll('.opt, .lbl').forEach(n => n.remove());
+            const any = !v.names.length && !v.tags.length;
+            sh.append(layer.opt('Any character', () => { v = { isExclude: false, names: [], tags: [] }; set(null); draw(); }, { cur: any }));
+            sh.append(layer.opt('Only the ones picked', () => { v.isExclude = false; if (!any) set({ ...v }); draw(); }, { cur: !any && !v.isExclude }));
+            sh.append(layer.opt('All but the ones picked', () => { v.isExclude = true; if (!any) set({ ...v }); draw(); }, { cur: !any && v.isExclude }));
+            const pick = (list, field, label, prefix) => {
+                if (!list.length) return;
+                sh.append(el('div', 'lbl', label));
+                for (const c of list) {
+                    sh.append(layer.opt(`${prefix}${c.name}`, () => {
+                        v[field] = v[field].includes(c.key) ? v[field].filter(x => x !== c.key) : [...v[field], c.key];
+                        set(v.names.length || v.tags.length ? { ...v } : null);
+                        draw();
+                    }, { cur: v[field].includes(c.key) }));
+                }
+            };
+            pick(chars, 'names', 'Characters', '');
+            pick(tags, 'tags', 'Tags', '#');
+        };
+        draw();
+    }, { help: 'Which characters this entry can fire for. Any character, unless some are picked.' });
 }
 
 /** A row of the Parameters list. */
@@ -251,14 +299,14 @@ export function renderEntryPage(main, o) {
     pd.append(el('span', 'sum', paramSummary(e)));
     pd.addEventListener('click', () => { ui.params = !ui.params; o.redraw(); });
     en.append(pd);
-    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x)));
+    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x), { layer }));
     else if (ui.params) {
         for (const [group, list] of PARAMS) {
             en.append(el('div', 'plbl', group));
             for (const p of list) {
                 if (p.when && !p.when(e)) continue;
                 const value = paramValue(e, p);
-                const changed = !(value === p.def || (value === null && p.def === null) || (!value && !p.def));
+                const changed = paramChanged(e, p);
                 en.append(paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x))));
             }
         }
@@ -461,12 +509,18 @@ export function paramGrid(e, set, o = {}) {
         for (const p of shown) {
             const value = valueOf(p);
             const mixed = !!o.mixed?.(p);
-            const changed = o.changed ? o.changed(p) : !(value === p.def || (value === null && p.def === null) || (!value && !p.def));
+            const changed = o.changed ? o.changed(p) : paramChanged(e, p);
             const id = `p-${p.field}`;
             const l = el('label', `pgl${changed ? ' ch' : ''}`, p.label);
             l.htmlFor = id;
             let c;
-            if (p.type === 'enum') {
+            if ((p.type === 'multi' || p.type === 'chars') && o.layer) {
+                // Several values: a button with the current ones, opening the same sheet as on phones.
+                c = btn('pgc pgb', '', () => editParam(o.layer, p, value, x => set(p, x)));
+                c.textContent = mixed ? 'Mixed' : paramText(e, p);
+            } else if (p.type === 'multi' || p.type === 'chars') {
+                continue; // no sheet to edit it with here
+            } else if (p.type === 'enum') {
                 c = el('select', 'pgc');
                 if (mixed) c.append(new Option('Mixed', '\u0000'));
                 for (const [k, label] of p.options) c.append(new Option(label, k === null ? '\u0001' : String(k)));

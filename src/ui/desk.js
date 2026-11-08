@@ -197,6 +197,7 @@ export function deskNormal(A) {
             h.append(el('span', 'sp'));
             h.append(btn('dbtn', `${ic('move', 's')}<span>Move to folder</span>`, () => A.bookFolderSheet(f => { for (const n of selected) setBookFolder(settings, n, f); save(); clearSel(); })));
             h.append(btn('dbtn', `${ic('code', 's')}<span>Export</span>`, async () => { for (const n of selected) await library.exportBook(n); layer.toast(`Exported ${plural(selected.size, 'book')}`); }));
+            h.append(btn('dbtn', `${ic('import', 's')}<span>Import</span>`, () => { clearSel(); A.importBook(); }));
             h.append(btn('dbtn', 'Select all', () => { S.select = new Set(shown); A.render(); }));
             h.append(btn('dbtn danger', `${ic('trash', 's')}<span>Delete</span>`, () => { const list = [...selected]; clearSel(); A.deleteBooks(list); }));
         } else {
@@ -213,6 +214,7 @@ export function deskNormal(A) {
                 seg.append(b);
             }
             h.append(seg);
+            h.append(btn('dbtn', `${ic('import', 's')}<span>Import</span>`, () => A.importBook(), 'Import a lorebook file'));
             h.append(btn('dbtn', `${ic('folder', 's')}<span>New folder</span>`, newBookFolder));
             h.append(btn('dbtn pri', `${ic('plus', 's')}<span>New book</span>`, () => A.newBook(), 'New book (Alt N)'));
             const gear = btn('iconbtn', ic('gear'), A.wiSettingsSheet, 'World Info settings');
@@ -339,7 +341,7 @@ export function deskNormal(A) {
         const lt = A.linkText(name);
         if (global) out.push(el('span', 'badge g', 'Global'));
         if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); out.push(l); }
-        if (!global && !lt) out.push(el('span', 'badge o', 'Off'));
+        if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; out.push(o); }
         return out;
     }
     function countSpan(name) {
@@ -476,6 +478,8 @@ export function deskNormal(A) {
         st.append(g, lk);
         head.append(st, el('div', 'blcount', plural(all.length, 'entry', 'entries')));
         left.append(head);
+        const off = A.offHint(book);
+        if (off) left.append(off);
 
         const fr = el('div', 'blfilter');
         const f = el('input');

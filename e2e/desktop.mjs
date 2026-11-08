@@ -58,7 +58,8 @@ async function normalMode(w, h, drawer) {
     assert.equal(Math.round(box.y), 35, 'under the top bar');
     ok(`${w}: Normal mode in the drawer box (${drawer}px)`);
     await $(page, '.tile').first().waitFor();
-    ok(`${w}: Home shows tiles`);
+    assert.ok(await $(page, '.dhead .dbtn').filter({ hasText: 'Import' }).isVisible(), 'Import in the header');
+    ok(`${w}: Home shows tiles, with Import in the header`);
     assert.equal(await $(page, '.tadd, .dfilter').count(), 0, 'no + tab and no Filter books box');
     assert.equal(await $(page, '.dseg button span').count(), 0, 'the view switch is icons only');
     const loose = await $(page, '.dfolder').filter({ hasText: 'Not in a folder' });

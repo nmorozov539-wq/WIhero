@@ -199,3 +199,34 @@ test('snapshot helpers', () => {
     assert.deepEqual(sortSnapshots([{ at: 1, imported: true }, { at: 2 }, { at: 3 }]).map(s => s.at), [3, 2, 1]);
     assert.equal(Buffer.from(toBase64('Ünïcode ✓'), 'base64').toString('utf8'), 'Ünïcode ✓');
 });
+
+test('ST settings without a control of their own: groups, recursion, extra sources, characters, generation types', async () => {
+    const { PARAM_LIST: L, paramSummary: sum, paramText: txt, setParam: put, filterChoices } = await import('../src/ui/data.js');
+    const p = f => L.find(x => x.field === f);
+    const ent = { uid: 0, comment: 'A', key: ['a'], content: '' };
+    assert.equal(sum(ent), 'Defaults');
+    assert.equal(p('groupWeight').when(ent), false, 'group settings only with a group');
+    ent.group = 'weather';
+    assert.equal(p('groupWeight').when(ent), true);
+    ent.groupOverride = true;
+    ent.delayUntilRecursion = true;
+    assert.equal(txt(ent, p('delayUntilRecursion')), '1', 'true is level 1');
+    ent.delayUntilRecursion = 0;
+    assert.equal(txt(ent, p('delayUntilRecursion')), 'No');
+    ent.matchScenario = true;
+    ent.triggers = ['swipe', 'normal'];
+    assert.equal(txt(ent, p('triggers')), 'Normal, Swipe');
+    assert.equal(txt({ ...ent, triggers: [] }, p('triggers')), 'All');
+    const was = filterChoices.get;
+    filterChoices.get = () => ({ chars: [{ key: 'Seraphina', name: 'Seraphina' }], tags: [{ key: 't1', name: 'fantasy' }] });
+    const data = { entries: { 0: ent } };
+    put(data, 0, p('characterFilter'), { isExclude: true, names: ['Seraphina'], tags: ['t1'] });
+    assert.deepEqual(ent.characterFilter, { isExclude: true, names: ['Seraphina'], tags: ['t1'] });
+    assert.equal(txt(ent, p('characterFilter')), 'All but Seraphina, #fantasy');
+    put(data, 0, p('characterFilter'), null);
+    assert.equal(txt(ent, p('characterFilter')), 'Any', 'cleared, as ST keeps it: an empty filter');
+    filterChoices.get = was;
+    ent.useProbability = false;
+    const s = sum(ent);
+    for (const part of ['Inclusion group weather', 'Prioritize in its group Yes', 'Also match the scenario Yes', 'Generation types Normal, Swipe', 'Also set: probability off']) assert.ok(s.includes(part), `${part} in "${s}"`);
+});
