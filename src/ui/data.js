@@ -109,6 +109,15 @@ const POSITIONS = [[0, 'Before character'], [1, 'After character'], [5, 'Before 
 const ROLES = [[0, 'System'], [1, 'User'], [2, 'Assistant']];
 const TRI = [[null, 'Use global'], [true, 'Yes'], [false, 'No']];
 const BY = [[null, 'Anyone'], ['user', 'Your messages'], ['char', 'Character\'s replies']];
+/** ST's generation types (an entry's `triggers`); none picked means all of them. */
+export const GEN_TYPES = [['normal', 'Normal'], ['continue', 'Continue'], ['impersonate', 'Impersonate'], ['swipe', 'Swipe'], ['regenerate', 'Regenerate'], ['quiet', 'Quiet']];
+const hasGroup = e => !!String(e.group ?? '').trim();
+
+/**
+ * Where the character filter gets its choices: the app sets it to read ST's characters and tags
+ * ({ chars: [{ key, name }], tags: [{ key, name }] }). Empty until then (tests, the harness).
+ */
+export const filterChoices = { get: () => ({ chars: [], tags: [] }) };
 
 /**
  * The entry page's Parameters (LAYOUT "Entry page"), in groups. Each: { field, label, type, options?, def, unit?, when? }.
@@ -134,11 +143,24 @@ export const PARAMS = [
         { field: 'matchWholeWords', label: 'Whole words', type: 'enum', options: TRI, def: null },
         { field: 'excludeRecursion', label: 'Can\'t be triggered by other entries', type: 'bool', def: false },
         { field: 'preventRecursion', label: 'Doesn\'t trigger other entries', type: 'bool', def: false },
+        { field: 'delayUntilRecursion', label: 'Only triggered by other entries', type: 'int', def: 0, min: 0, zero: 'No', unit: '', hint: 'A number is the recursion level it waits for' },
+        { field: 'matchPersonaDescription', label: 'Also match the persona description', type: 'bool', def: false },
+        { field: 'matchCharacterDescription', label: 'Also match the character description', type: 'bool', def: false },
+        { field: 'matchCharacterPersonality', label: 'Also match the character personality', type: 'bool', def: false },
+        { field: 'matchCharacterDepthPrompt', label: 'Also match the character\'s note', type: 'bool', def: false },
+        { field: 'matchScenario', label: 'Also match the scenario', type: 'bool', def: false },
+        { field: 'matchCreatorNotes', label: 'Also match the creator\'s notes', type: 'bool', def: false },
         { field: 'by', label: 'Who triggers', type: 'enum', options: BY, def: null, logic: true },
     ]],
     ['Limits', [
         { field: 'group', label: 'Inclusion group', type: 'text', def: '' },
+        { field: 'groupOverride', label: 'Prioritize in its group', type: 'bool', def: false, when: hasGroup },
+        { field: 'groupWeight', label: 'Group weight', type: 'int', def: 100, min: 1, when: hasGroup },
+        { field: 'useGroupScoring', label: 'Group scoring', type: 'enum', options: TRI, def: null, when: hasGroup },
         { field: 'ignoreBudget', label: 'Ignore budget', type: 'bool', def: false },
+        { field: 'characterFilter', label: 'Characters', type: 'chars', def: null },
+        { field: 'triggers', label: 'Generation types', type: 'multi', options: GEN_TYPES, def: [], none: 'All' },
+        { field: 'automationId', label: 'Automation ID', type: 'text', def: '' },
     ]],
 ];
 export const PARAM_LIST = PARAMS.flatMap(([, list]) => list);
@@ -146,6 +168,9 @@ export const PARAM_LIST = PARAMS.flatMap(([, list]) => list);
 export function paramValue(e, p) {
     if (p.logic) return configOf(e)?.[p.field] ?? p.def;
     const v = e[p.field];
+    if (p.field === 'delayUntilRecursion') return v === true ? 1 : Number(v) || 0; // ST stores true for level 1
+    if (p.type === 'multi') return Array.isArray(v) ? v : [];
+    if (p.type === 'chars') return v && ((v.names ?? []).length || (v.tags ?? []).length) ? v : null;
     return v === undefined || (v === null && p.def !== null) ? p.def : v;
 }
 
@@ -153,19 +178,46 @@ export function paramText(e, p) {
     const v = paramValue(e, p);
     if (p.type === 'enum') return (p.options.find(([k]) => k === v || (k !== null && v !== null && String(k) === String(v))) ?? p.options[0])[1];
     if (p.type === 'bool') return v ? 'Yes' : 'No';
+    if (p.type === 'multi') return v.length ? p.options.filter(([k]) => v.includes(k)).map(([, l]) => l).join(', ') || p.none : p.none;
+    if (p.type === 'chars') return charsText(v);
+    if (p.zero && !v) return p.zero;
     if (v === null || v === '' || v === undefined) return p.optional ? 'Use global' : p.type === 'text' ? 'None' : String(p.def);
     return `${v}${p.unit ?? ''}`;
 }
 
+/** The character filter in words: "Any", "Only Seraphina, #fantasy", "All but Seraphina". */
+export function charsText(v) {
+    if (!v) return 'Any';
+    const { chars, tags } = filterChoices.get();
+    const nameOf = (list, k) => list.find(x => String(x.key) === String(k))?.name ?? k;
+    const names = [...(v.names ?? []).map(n => nameOf(chars, n)), ...(v.tags ?? []).map(t => `#${nameOf(tags, t)}`)];
+    return `${v.isExclude ? 'All but' : 'Only'} ${names.join(', ')}`;
+}
+
+export const paramChanged = (e, p) => !isDefault(e, p);
 const isDefault = (e, p) => {
     const v = paramValue(e, p);
+    if (p.type === 'multi') return !v.length;
+    if (p.type === 'chars') return v === null;
     return v === p.def || (v === undefined) || (p.def === null && v === null) || (p.type === 'text' && !v && !p.def) || (p.type === 'bool' && !v && !p.def);
 };
 
-/** The folded Parameters header: what isn't default, or "Defaults". */
+/**
+ * ST settings WI Hero has no control for. A value that isn't the default is still named in the Parameters summary
+ * ("Also set: …"), so nothing is ever hidden.
+ */
+const UNSHOWN = [
+    { field: 'useProbability', def: true, text: v => (v === false ? 'probability off' : null) },
+    { field: 'addMemo', def: false, text: () => null }, // ST's own "show the title" switch: nothing to say
+];
+
+/** The folded Parameters header: what isn't default, or "Defaults"; then "Also set: …" for anything it can't show. */
 export function paramSummary(e) {
     const changed = PARAM_LIST.filter(p => (!p.when || p.when(e)) && !isDefault(e, p));
-    return changed.length ? changed.map(p => `${p.label} ${paramText(e, p)}`).join(', ') : 'Defaults';
+    const parts = changed.map(p => `${p.label} ${paramText(e, p)}`);
+    const also = UNSHOWN.map(u => (e[u.field] === undefined || e[u.field] === u.def ? null : u.text(e[u.field]))).filter(Boolean);
+    if (also.length) parts.push(`Also set: ${also.join(', ')}`);
+    return parts.length ? parts.join(', ') : 'Defaults';
 }
 
 /** Sets a parameter on an entry. `by` goes into the story logic; probability also turns useProbability on, like ST. */
@@ -178,6 +230,7 @@ export function setParam(data, uid, p, value) {
         writeConfig(data, uid, Object.keys(config).filter(k => k !== 'id').length ? config : (config.id && rawConfig(e) ? config : null));
         return;
     }
+    if (p.type === 'chars') { e.characterFilter = value && ((value.names ?? []).length || (value.tags ?? []).length) ? { isExclude: !!value.isExclude, names: value.names ?? [], tags: value.tags ?? [] } : { isExclude: false, names: [], tags: [] }; return; }
     e[p.field] = value;
     if (p.field === 'probability') e.useProbability = true;
 }

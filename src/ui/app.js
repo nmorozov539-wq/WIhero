@@ -6,7 +6,7 @@ import { buildModel } from '../engine/model.js';
 import { btn, createLayer, el, issueText, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
-    MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
+    MIXED, PARAM_LIST, addEntry, filterChoices, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
     deleteBookSettings, duplicateEntry, entriesOf, entryAsText, folderOf, groupEntries, SORT_NAMES, sortEntries, idOf, isBlank, moveEntry,
     paramSummary, paramText, paramValue, rekeyEntry, removeEntry, renameBookSettings, search, setBookFolder, setFolder, setParam,
     strategyOf, titleOf,
@@ -35,6 +35,13 @@ const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], 
  */
 export function createApp(deps) {
     const { ctx, library, snapshots, hooks, settings, saveSettings } = deps;
+    // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
+    filterChoices.get = () => {
+        const c = ctx();
+        const chars = (c.characters ?? []).filter(x => x?.avatar).map(x => ({ key: String(x.avatar).replace(/\.[^.]+$/, ''), name: x.name }));
+        const tags = (c.tags ?? []).filter(t => t?.id !== undefined).map(t => ({ key: t.id, name: t.name }));
+        return { chars, tags };
+    };
 
     // ---------------------------------------------------------------- DOM
     const host = document.createElement('div');
@@ -468,7 +475,7 @@ export function createApp(deps) {
         const lt = linkText(name);
         if (global) m.append(el('span', 'badge g', 'Global'));
         if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); m.append(l); }
-        if (!global && !lt) m.append(el('span', 'badge o', 'Off'));
+        if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; m.append(o); }
         tx.append(m);
         it.append(i, tx);
         if (!S.select) it.append(btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`));
@@ -514,6 +521,8 @@ export function createApp(deps) {
             lk.querySelector('span').textContent = linkText(book) || 'Not linked';
             chips.append(g, lk);
             v.append(chips);
+            const off = offHint(book);
+            if (off) v.append(off);
             v.append(...defaultsBlock(book));
         }
 
@@ -615,7 +624,7 @@ export function createApp(deps) {
     function bottomBar(p) {
         const bb = el('nav', 'bottombar');
         bb.append(btn('', ic('search'), () => { S.search = { query: '' }; render(); }, 'Search'));
-        bb.append(btn('', ic('plus'), () => (p.type === 'book' ? newEntry(p.book) : newBook()), p.type === 'book' ? 'New entry' : 'New book'));
+        bb.append(btn('', ic('plus'), () => (p.type === 'book' ? newEntry(p.book) : homePlus()), p.type === 'book' ? 'New entry' : 'New book or import'));
         bb.append(btn('', ic('select'), () => { S.select = new Set(); render(); }, 'Select'));
         return bb;
     }
@@ -666,6 +675,8 @@ export function createApp(deps) {
                 render();
             }));
             act('code', 'Export', async () => { for (const n of S.select) await library.exportBook(n); });
+            const imp = btn('', `${ic('import')}<span>Import</span>`, importBook);
+            bar.append(imp); // needs no selection
         }
         return bar;
     }
@@ -834,6 +845,49 @@ export function createApp(deps) {
         }, { quiet: true });
         if (folder) { setFolder(settings, book, entry, folder); saveSettings(); }
         openIn({ type: 'entry', book, uid: entry.uid, fresh: true });
+    }
+
+    /**
+     * The Off hint (LAYOUT "Book page"): a book that is neither global nor linked reaches no chat, so its page says
+     * how to use it. Null when the book is used somewhere.
+     */
+    function offHint(book) {
+        if (library.isGlobal(book) || linkText(book)) return null;
+        const box = el('div', 'offhint');
+        box.append(el('b', '', 'Off'), el('span', '', 'No chat uses this book yet.'));
+        const acts = el('span', 'acts');
+        if (library.chatOpen()) acts.append(btn('linkish acc', 'Use it in this chat', async () => { await library.linkChat(book); layer.toast(`${book} is linked to this chat`); render(); }));
+        else acts.append(btn('linkish acc', 'Link it to a character…', () => linksSheet(book)));
+        acts.append(btn('linkish', 'Make it global', () => { library.setGlobal(book, true); layer.toast(`${book} is active everywhere`); render(); }));
+        box.append(acts);
+        return box;
+    }
+
+    /** Import (LAYOUT "Home"): a lorebook file through ST's own import, then the book opens in a tab. */
+    function importBook() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,.png,application/json,image/png';
+        input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+                const name = await library.importFile(file);
+                if (!name) return; // ST said why (or the overwrite was declined)
+                S.select = null;
+                openIn({ type: 'book', book: name }, { newTab: true });
+                layer.toast(`Imported ${name}`);
+            } catch (e) { layer.toast(`Could not import ${file.name}: ${e.message}`); }
+        });
+        input.click();
+    }
+
+    /** Phones: + on Home is a small menu, New book or Import. */
+    function homePlus() {
+        layer.sheet('Add', sh => {
+            sh.append(layer.opt('New book', () => { layer.close(); newBook(); }, { icon: 'plus' }));
+            sh.append(layer.opt('Import a file…', () => { layer.close(); importBook(); }, { icon: 'import', sub: 'A lorebook from SillyTavern (JSON), NovelAI, Agnai or Risu' }));
+        });
     }
 
     function newBook() {
@@ -2611,7 +2665,7 @@ export function createApp(deps) {
         S, settings, library, layer, main, root, shadow,
         saveSettings: () => saveSettings(),
         tab, page, leave, render, renderTabs, closeTab, hide, need, loadingNote, modelOf, entriesShown, hiddenIn, entryFolder,
-        problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, wiSettingsSheet,
+        problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, importBook, offHint, wiSettingsSheet,
         bookFolderSheet, folderSheet, snapshotsSheet, problemsSheet, renameBook, duplicateBook, newEntryFolder, openHero,
         createEntryIn, entryMenu, moveToBookSheet, applyParam, leaveEntry,
         hasLogic: e => { const c = configOf(e); return !!c && Object.keys(c).some(k => k !== 'id'); },

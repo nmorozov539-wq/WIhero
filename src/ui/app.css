@@ -945,3 +945,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pbar.folded { min-height: 34px; }
 @container (max-width: 1080px) { .pchips .dhint { display: none; } }
 @container (max-width: 860px) { .pchip kbd { display: none; } }
+
+/* The Off hint on a book's page: how to use a book no chat reaches. */
+.offhint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 4px 16px 8px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line); font-size: var(--t-s); color: var(--muted); }
+.offhint b { color: var(--fg); font-weight: 600; }
+.offhint .acts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+[data-desk="1"] .blhead + .offhint { margin: 0 12px 8px; }
