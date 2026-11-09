@@ -3,7 +3,7 @@
 import { FIELD } from './model.js';
 import { anyRowMet, itemTime, newestTexts, rowMet } from './rows.js';
 import { initialState, readState } from './state.js';
-import { parseRegex } from './util.js';
+import { getStringHash, parseRegex } from './util.js';
 
 const greetingOk = model => key => model.greetings?.get(key)?.ok ?? true;
 
@@ -277,6 +277,8 @@ export function advance(working, pending, model, chat, mesId) {
     }
     // 2. Closes worked out in the scan.
     for (const [key, by] of victims) close(next, key, mesId, by);
+    // 2b. Dice: a fork that fired for the first time picks its path now; the others close from the next message.
+    rollDice(next, model, fired, chat, mesId);
     // 3. New holds.
     for (const key of fired) {
         if (model.nodes.get(key)?.glue?.mode === 'hold' && !next.closed[key] && !next.holding[key]) next.holding[key] = { since: mesId };
@@ -290,6 +292,30 @@ export function advance(working, pending, model, chat, mesId) {
     // 5–6. Close rules met now (Once, this turn's fires, new latches, waits) close from the next message.
     applyCloses(next, model, chat, mesId);
     return next;
+}
+
+/**
+ * Dice for switches (AFTER_V1). When a dice fork fires and its switch hasn't been decided (no roll yet, no path
+ * fired or closed), one open path is picked and every other path closes. The roll is saved in `state.rolls`.
+ * It is seeded by the message before the reply (its text and time) and the fork, so a swipe or a regenerate of
+ * the same reply gets the same roll, and going back past that message and writing it again rolls again.
+ */
+export function rollDice(state, model, fired, chat, mesId) {
+    for (const sw of model.switches) {
+        if (!sw.dice || !fired.includes(sw.fork) || state.rolls[sw.fork]) continue;
+        if (sw.paths.some(p => (state.fired[p] ?? 0) > 0 || state.closed[p])) continue;
+        const open = sw.paths.filter(p => !model.nodes.get(p)?.blocked);
+        if (!open.length) continue;
+        const path = open[diceRoll(sw.fork, chat, mesId) % open.length];
+        state.rolls[sw.fork] = { path, at: mesId };
+        for (const p of sw.paths) if (p !== path) close(state, p, mesId, `dice:${path}`);
+    }
+}
+
+/** The roll's number: a hash of the fork and the message before the reply. */
+export function diceRoll(fork, chat, mesId) {
+    const before = chat?.[mesId - 1];
+    return Math.abs(getStringHash(`${fork}|${mesId}|${before?.send_date ?? ''}|${before?.mes ?? ''}`));
 }
 
 /**

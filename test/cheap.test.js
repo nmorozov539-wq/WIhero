@@ -1,10 +1,11 @@
-// The cheap AFTER_V1 additions: keyword clash finder and the static dead branch report.
+// The cheap AFTER_V1 additions: keyword clash finder, the static dead branch report and dice for switches.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import { deadBranches } from '../src/engine/dead.js';
 import { keywordClashes } from '../src/ui/clashes.js';
-import { e } from './sim.js';
+import { e, Sim } from './sim.js';
+import { diceRoll } from '../src/engine/turn.js';
 
 const report = entries => Object.fromEntries(deadBranches(buildModel(entries), entries).map(f => [f.label, { dead: f.dead, reasons: f.reasons }]));
 
@@ -95,4 +96,54 @@ test('dead branches: a mask that can never turn on; blocked entries are left to 
     assert.match(r.inn.reasons[0], /mask "both" can never turn on/);
     assert.equal(r.inn.dead, false);
     assert.equal(r.bad, undefined);
+});
+
+// ---------------------------------------------------------------- dice for switches
+
+const diceBook = () => [
+    e(0, 'crossroads', { id: 'fork', switch: ['left', 'right', 'ahead'], dice: true }),
+    e(1, 'road', { id: 'left', gate: [['fork']] }),
+    e(2, 'road', { id: 'right', gate: [['fork']] }),
+    e(3, 'road', { id: 'ahead', gate: [['fork']] }),
+];
+
+test('dice: the fork picks one path when it first fires; the others close from the next message', () => {
+    const s = new Sim(diceBook());
+    s.send('the crossroads');
+    const roll = s.state.rolls['Book/fork'];
+    assert.ok(roll, 'the roll is saved in chat state');
+    const closed = Object.keys(s.state.closed).sort();
+    assert.equal(closed.length, 2);
+    assert.ok(!closed.includes(roll.path));
+    const uid = { 'Book/left': 1, 'Book/right': 2, 'Book/ahead': 3 }[roll.path];
+    assert.deepEqual(s.send('down the road'), [uid]);
+    assert.equal(s.state.closed[roll.path], undefined);
+    s.send('the crossroads again');
+    assert.deepEqual(s.state.rolls['Book/fork'], roll, 'a fork rolls only once');
+});
+
+test('dice: a swipe keeps the roll; rewriting the message before it rolls again', () => {
+    const s = new Sim(diceBook());
+    s.chat.push({ is_user: true, mes: 'the crossroads', name: 'User', send_date: 'a' });
+    s.generate('Reply.');
+    const first = s.state.rolls['Book/fork'].path;
+    for (let i = 0; i < 3; i++) { s.swipe(`Swipe ${i}.`); assert.equal(s.state.rolls['Book/fork'].path, first); }
+    // Going back: different words or a different time for the user's message give a new roll (eventually a new path).
+    const seen = new Set();
+    for (let i = 0; i < 30; i++) seen.add(diceRoll('Book/fork', [{}, { mes: 'the crossroads', send_date: `t${i}` }], 2) % 3);
+    assert.equal(seen.size, 3);
+});
+
+test('dice: no roll when a path was already taken; dice without a switch is a warning', () => {
+    const entries = [
+        e(0, 'crossroads', { id: 'fork', switch: ['left', 'right'], dice: true }),
+        e(1, 'left', { id: 'left' }),
+        e(2, 'right', { id: 'right' }),
+        e(3, 'lone', { id: 'lone', dice: true }),
+    ];
+    const s = new Sim(entries);
+    s.send('left');
+    s.send('crossroads');
+    assert.equal(s.state.rolls['Book/fork'], undefined);
+    assert.ok(s.model.issues.some(i => i.id === 'lone' && i.warning && /no switch/.test(i.message)));
 });
