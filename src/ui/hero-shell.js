@@ -19,7 +19,7 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroShell(A) {
     const {
-        H, S, barApi, barTap, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, main, modelOf, need, packSheet, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
@@ -214,6 +214,7 @@ export function createHeroShell(A) {
             const sig = canvasSig(keepBook);
             heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
             if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); kept.sig = canvasSig(keepBook); } // a draw can place cards
+            else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
             heroAround(keepBook, kept.data);
             return;
         }
@@ -267,6 +268,8 @@ export function createHeroShell(A) {
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
             tapTarget: hit => barTap(book, hit),
+            shaping: () => barShaping(book),
+            shapeSet: (pick, changed) => barShapeSet(pick, changed),
             focused: () => (H.insp?.book === book ? H.insp.key : null),
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }

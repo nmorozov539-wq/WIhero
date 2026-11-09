@@ -39,6 +39,9 @@ links.layout([{
 links.path(id);       // → { d, startTangent, endTangent, drawn: [per segment], clear }
 links.polyline(id);   // → [x0, y0, x1, y1, …] flattened, for tests and hit areas
 links.nearest(id, { x, y });  // → { segment, t, dist, x, y }
+links.ends(id);       // → { from, to } the anchors a shape's dots are stored against
+links.segmentD(id, i);  // → SVG d of segment i alone (the part picked in the editor)
+links.midpoints(id);  // → [{ x, y }] halfway along each segment, where the ghost dots sit
 ```
 
 A 'members' obstacle (a pack frame) lets in links whose end card is a member. `layout` redoes a link only when its
@@ -61,10 +64,28 @@ Stored on the source card in the canvas settings, as the handout says, keyed `<p
 - `toLocal(point, ends)` / `toCanvas(dot, ends)` convert.
 - A shape and `via` don't mix: a shaped link ignores `via`.
 
+## Shaping a link (the editor)
+
+A tap on a line opens its strip, as before; an Opens, Closes or Glue (ride along) strip now also shapes the line.
+
+- The other links fade; the picked one gets a band, a ghost dot halfway along each part, and its dots. Only those
+  handles catch a drag (32px hit area on a phone, 18px with a mouse). A line itself still pans, picked or not.
+- Drag a ghost dot to make a dot there, drag a dot to move it. With a mouse dots go on the grid (Alt: anywhere); on a
+  phone a dot level with a neighbour snaps level, so a straight run stays straight. A dot inside a card outlines the
+  card, dashed. The line is laid out again every frame of a drag (only it, and whatever lanes it moves, redraw).
+- Tap a dot to pick it, tap it again quickly (double-click) to remove it. Tap a part of the line (or its ghost) to
+  pick that part. Desktop: double-click the line to add a dot there.
+- The strip's Shape row: Curve · Arc · Straight · Step, Flip and Bend (curve and arc), for the picked part or, with
+  none picked, the whole line. Then Remove dot, Reset shape and the link's Remove on one row. Desktop keys: 1–4,
+  X (flip), Delete (picked dot). Right-click a line: Shape link · Reset shape · Remove.
+- Cancel puts the shape back with the rest of the book; a tap on empty canvas is Done.
+- A card or a dot held within 32px of the view's edge scrolls the view, faster nearer the edge.
+- Phones: a line just picked has its ghost dots panned into view above the strip.
+- `e2e/shape.mjs` checks all of this in the desktop harness (1366 × 768 and a phone).
+
 ## Not done yet
 
-- The editing UI (gestures, handles, where Reset lives). Shapes are read from the settings but nothing makes them yet.
 - Removing the old router (`route`, `heap`, `buffers`, `makeGrid`, `rounded` for links, and its tests) from
   `canvas-graph.js`.
 - Bundling is lanes side by side; links heading the same way don't merge into one line.
-- The SillyTavern e2e runs (n3, n7, perf) on this branch. The desktop harness run passes.
+- The SillyTavern e2e runs (n3, n7, perf) on this branch. The desktop harness runs (`desktop.mjs`, `shape.mjs`) pass.

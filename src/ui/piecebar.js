@@ -274,8 +274,11 @@ export function mountPieceBar(x) {
             mid.append(row(swEl(on, v => run((ed2, d2) => (v ? L.addLink(ed2, d2, 'close', e.dst, e.src) : L.removeLink(ed2, d2, 'close', e.dst, e.src))), `${name(e.src)} closes when ${name(e.dst)} fires`),
                 el('span', 'plabel2', `${name(e.src)} closes when ${name(e.dst)} fires`)));
         }
+        const tools = shapeRow();
         note();
-        if (!e.isNew) mid.append(row(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); })));
+        // The shape's buttons share a row with the link's Remove, so the strip stays short on a phone.
+        if (!e.isNew) tools.push(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); }));
+        if (tools.length) mid.append(row(...tools));
         right.disabled = !!e.ask;
         canvas.overlay({ sel: new Set([x.keyOf(e.src), x.keyOf(e.dst)]) });
 
@@ -296,6 +299,35 @@ export function mountPieceBar(x) {
             e.note = shared.length ? `${name(e.dst)} was needed together with ${shared.map(refText).join(', ')}. Turned around, it's a rule of its own.` : null;
             x.render();
         }
+    }
+    // The line's shape: its type, which way it bows and how far, for the part picked on the canvas (or all of it).
+    function shapeRow() {
+        const st = canvas.shapeState?.();
+        if (!st) return [];
+        const dsk = x.desk;
+        const types = [['curve', 'Curve'], ['arc', 'Arc'], ['straight', 'Straight'], ['step', 'Step']];
+        const r1 = row(seg(types, st.type, v => canvas.patchShape({ type: v }), 'Line type'));
+        r1.classList.add('pshape');
+        if (st.type === 'curve' || st.type === 'arc') {
+            const f = small('Flip', () => canvas.patchShape({ flip: !st.flip }));
+            f.setAttribute('aria-pressed', String(st.flip));
+            if (st.flip) f.classList.add('on');
+            const bend = el('input', 'pbend');
+            Object.assign(bend, { type: 'range', min: '0', max: '1', step: '0.05', value: String(st.tension) });
+            bend.setAttribute('aria-label', 'Bend');
+            bend.addEventListener('input', () => canvas.patchShape({ tension: Number(bend.value) }, true));
+            bend.addEventListener('change', () => canvas.patchShape({ tension: Number(bend.value) }));
+            const lb = el('label', 'pbendl', 'Bend');
+            lb.append(bend);
+            r1.append(f, lb);
+        }
+        mid.append(r1);
+        const tools = [];
+        if (st.segs > 1) tools.push(el('span', 'phint', st.dot != null ? `Dot ${st.dot + 1} of ${st.segs - 1}` : st.seg != null ? `Part ${st.seg + 1} of ${st.segs}` : 'The whole line'));
+        else if (dsk) tools.push(el('span', 'phint', 'Drag a ghost dot or double-click the line to bend it · keys 1–4, X'));
+        if (st.dot != null) tools.push(small('Remove dot', () => canvas.removeShapeDot()));
+        if (st.shaped) tools.push(small('Reset shape', () => { canvas.resetShape(); x.toast('Shape reset'); }));
+        return tools;
     }
     function needsAsk(E, kind, dst, mask = null) {
         if (kind === 'ride' || dst?.t !== 'entry') return false;
