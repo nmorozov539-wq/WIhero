@@ -451,6 +451,15 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .card.greet .t { line-height: 1.2; }
 .card.greet .k.gk { font-family: var(--content-font, var(--serif)); font-style: italic; display: block; margin-top: 0; }
 .card.greet.missing { background: none; border: 1.5px dashed var(--line); }
+/* A Moment (VISUAL 7.5): the start card's shape turned around, a spark, its phrases in the content font. */
+.card.moment { padding: 6px 10px 0 40px; border-radius: 10px 30px 30px 10px; background: var(--card); border-style: dashed; }
+.card.moment .grip.gicon { left: 8px; width: 26px; height: 26px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); display: flex; color: var(--accent); }
+.card.moment .grip.gicon svg { width: 15px; height: 15px; }
+.card.moment .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.card.moment .t { line-height: 1.2; }
+.card.moment .k.gk { font-family: var(--content-font, var(--serif)); font-style: italic; display: block; margin-top: 0; }
+.card.moment.happened { border-style: solid; border-color: var(--accent); }
+.card.moment.happened .tag { color: var(--accent); }
 .prow.greet::before { background: var(--muted); }
 .prow.greet .nm { display: flex; flex-direction: column; }
 .prow.greet .nm small { color: var(--muted); font-size: var(--t-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--content-font, var(--serif)); font-style: italic; }
@@ -951,3 +960,14 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .offhint b { color: var(--fg); font-weight: 600; }
 .offhint .acts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 [data-desk="1"] .blhead + .offhint { margin: 0 12px 8px; }
+
+/* A Moment in the inspector: a spark for the strategy dot, its phrases as chips with a box to add one. */
+.ihead .mspark { display: flex; color: var(--accent); }
+.imphr { margin: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+.ichips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ichip { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 2px 0 10px; border-radius: 14px; border: 1px solid var(--line); font-family: var(--content-font, var(--serif)); font-style: italic; font-size: var(--t-s); }
+.ichip .x { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.iseg { margin: 0 16px; }
+.imoment { margin: 10px 16px 0; }
+.ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }
+.ihappened.on { color: var(--accent); }

@@ -64,14 +64,14 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $(`.item[data-book="${BOOK}"]`).click();
     await card('Mill').waitFor();
-    assert.deepEqual(await $('.pchip').allTextContents(), ['Opens', 'Closes', 'Glue', 'Switch', 'Mask', 'Pack', 'Lock', 'Wait']);
+    assert.deepEqual(await $('.pchip').allTextContents(), ['Opens', 'Closes', 'Glue', 'Switch', 'Mask', 'Pack', 'Lock', 'Wait', 'Moment']);
     assert.equal(await $('.pchips .pdiv').count(), 1, 'a divider before Lock and Wait');
     await $('.pfold').click();
     assert.equal(await $('.pchip').count(), 0, 'folded');
     await $('.pfold').click();
-    assert.equal(await $('.pchip').count(), 8);
+    assert.equal(await $('.pchip').count(), 9);
     await shot('bar');
-    ok('the bar is under the canvas with its eight chips and a divider, and folds');
+    ok('the bar is under the canvas with its nine chips and a divider, and folds');
 
     // ── Opens: tap the chip, tap Road (the source, doing the verb), drag the loose end to Mill ──
     await chip('Opens').click();

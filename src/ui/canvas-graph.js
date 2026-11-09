@@ -71,6 +71,7 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set(), gr
             masks: Array.isArray(c.masks) ? c.masks.filter(isObject).map(m => ({ name: m.name, content: m.content, gate: rows(m.gate), closeGate: rows(m.closeGate) })) : [],
             packs: Array.isArray(c.packs) ? c.packs.filter(p => typeof p === 'string') : [],
             once: c.once === true, by: c.by ?? null,
+            ...(c.moment === true ? momentNode(entry, c) : {}),
         };
     });
     // The open chat's character's greetings: start cards with out ports only (VISUAL 7.5).
@@ -86,6 +87,20 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set(), gr
     const packMembers = name => E.filter(e => e.packs.some(p => p === name || p.startsWith(`${name}/`)));
     return { E, byId, packMembers };
 }
+
+/**
+ * A Moment's card (CONCEPTS 3.13): its name without "Moment: ", its phrases, who says them. It sends nothing, so it
+ * has no strategy, is never drawn off, and takes no glue, masks, switch, Once or close gate.
+ */
+function momentNode(entry, c) {
+    return {
+        moment: { phrases: (entry.key ?? []).filter(k => typeof k === 'string' && k.trim()), by: c.by ?? null },
+        title: momentName(entry), off: false, glue: null, masks: [], switch: [], once: false, closeGate: [], by: null,
+    };
+}
+
+/** A Moment's name: its title without the "Moment: " ST shows. */
+export const momentName = entry => String(entry?.comment ?? '').replace(/^Moment:\s*/i, '') || (entry?.key ?? [])[0] || 'Moment';
 
 /** All links of a book as edges between node keys (card keys or `pack:<name>`), and the rows that meet at junctions. */
 export function buildGraph(m) {

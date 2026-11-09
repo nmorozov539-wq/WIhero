@@ -221,6 +221,12 @@ Drawn in sketch 7 (in the git history).
   border, hollow grip dots).
 - **Problems**: a red round "!" on the card's top left corner, whether chat
   state is on or not.
+- **Moment cards** turn the start card around: rounded on the right, dashed,
+  a spark icon, "MOMENT" (with "· YOU" or "· CHARACTER" when only one side
+  can say it) above the name, the phrases in quotes in the content font, in
+  italics. No strategy stripe and never dimmed (it is stored off on purpose).
+  Out ports, plus the gate socket when it has a gate. With chat state on the
+  tag reads "HAPPENED" (solid accent border) or "NOT YET".
 - **Greeting cards** are start cards: rounded on the left like a speech bubble,
   a chat icon, "START" above the name ("Greeting", "Alt 2"), the greeting's
   opening words in the content font, in italics. No color of their own; out

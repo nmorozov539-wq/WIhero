@@ -1,7 +1,7 @@
 // The ST side of one turn (BUILD_SPEC 6): reads ST's events, calls the engine, applies its decisions to ST's
 // entry lists and activated Map. SillyTavern is reached only through `ctx()` and the `st` functions passed in,
 // so this can be tested with a stand-in.
-import { buildModel, FIELD, rawConfig, stKey } from './engine/model.js';
+import { buildModel, FIELD, isMoment, rawConfig, stKey } from './engine/model.js';
 import { advance, baseState, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
 import { pickMask, reopen } from './engine/manual.js';
 import { greetingFpOf, greetingSignature, openingGreeting, writeSnapshot } from './chat-state.js';
@@ -59,7 +59,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     const greetingFp = greetingFpOf(() => ctx().characters, st.getStringHash);
 
     function rebuild(entries) {
-        const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}`).join('\n')
+        const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}${isMoment(e) ? `|${JSON.stringify(e.key)}` : ''}`).join('\n')
             + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;
