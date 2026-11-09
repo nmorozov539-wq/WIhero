@@ -7,26 +7,22 @@ import { btn, html, createLayer, el, issueText } from './dom.js';
 import { ic } from './icons.js';
 import {
     PARAM_LIST, addEntry, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
-    SORT_NAMES, sortEntries, isBlank, removeEntry, search, setFolder, setParam, titleOf,
+    SORT_NAMES, isBlank, removeEntry, search, setFolder, setParam, titleOf,
 } from './data.js';
 import { strategyColor } from './entry-page.js';
-import { closedText } from './logic-text.js';
-import { LR, canvasBook } from './canvas-graph.js';
-import { canvasMemory, mountCanvas } from './canvas.js';
-import { entryStatus } from '../engine/turn.js';
+import { canvasBook } from './canvas-graph.js';
 import { getStringHash } from '../engine/util.js';
 import { greetingFpOf, greetingSignature } from '../chat-state.js';
-import { addToList, packsOf } from './pieces.js';
-import { addLink } from './links.js';
-import { BAR, mountPieceBar } from './piecebar.js';
 import { createPreview } from './preview-view.js';
 import { createHeroPanel } from './hero-panel.js';
 import { createMenus } from './menus.js';
+import { createHeroShell } from './hero-shell.js';
+import { createHeroDesk } from './hero-desk.js';
 import { createNormal } from './normal.js';
 import { createHeroBar } from './hero-bar.js';
 import { createHeroInspector } from './hero-inspector.js';
 import { SAMPLE, createExplain } from './explain.js';
-import { deskNormal, resizer } from './desk.js';
+import { deskNormal } from './desk.js';
 
 /**
  * @param {object} deps
@@ -576,292 +572,34 @@ export function createApp(deps) {
         });
     }
 
-    // ---------------------------------------------------------------- Hero mode (N3): one book's canvas, entry tabs
+    // ---------------------------------------------------------------- Hero mode (N3): its shell (hero-shell.js)
     const H = S.hero;
-    let heroCanvas = null;
-
-    /** The book Hero mode shows: the one picked, else the first one there is. */
-    function heroBook() {
-        const names = visibleNames();
-        if (!H.book || !names.includes(H.book)) H.book = names[0] ?? null;
-        return H.book;
-    }
-
-    const blockingUids = (book, model) => new Set(model.issues
-        .filter(i => !i.warning && i.blocking !== false && i.stKey?.startsWith(`${book}.`))
-        .map(i => Number(i.stKey.slice(book.length + 1))));
-
-    /** The canvas's view of a book, worked out once per draw. */
-    function heroData(book, data) {
-        const problems = blockingUids(book, modelOf(book, data));
-        const live = entriesOf(data).filter(e => !hiddenIn(book).has(e.uid));
-        const m = canvasBook({ entries: Object.fromEntries(live.map(e => [e.uid, e])) }, { folderOf: e => entryFolder(book, e), problems, greetings: chatGreetings(data) });
-        return { m, memory: canvasMemory(bookSettings(settings, book)), problems, chatState: H.chatState, status: H.chatState ? chatStatus(book) : () => null };
-    }
-
-    /** D17: each card's state in the open chat, at its latest message. Cards of books the chat doesn't use get none. */
-    function chatStatus(book) {
-        const chat = ctx().chat ?? [];
-        const model = hooks.model;
-        if (!chat.length || !model?.nodes?.size) return () => null;
-        let state;
-        try { state = hooks.state(); } catch { return () => null; }
-        const nameOf = key => model.nodes.get(key)?.label ?? (key.startsWith('@') ? 'a greeting' : null);
-        return key => {
-            if (!key.startsWith('id:')) return null;
-            const node = model.nodes.get(`${book}/${key.slice(3)}`);
-            if (!node) return null;
-            const s = entryStatus(node, state, chat, model);
-            return {
-                fired: state.fired[node.key] ?? 0,
-                closed: s.status === 'closed' ? closedText(state.closed[node.key].by, nameOf) : null,
-                holding: s.status === 'holding',
-                waiting: s.status === 'waiting',
-                happened: node.moment ? s.status === 'happened' : undefined,
-                mask: s.mask,
-            };
-        };
-    }
-
-    function renderHeroTabs() {
-        const mk = (label, active, onOpen, onClose, { icon, dot } = {}) => {
-            const b = el('button', `tab${active ? ' active' : ''}${icon ? ' fixed' : ''}`);
-            b.type = 'button';
-            if (icon) { b.innerHTML = ic(icon); b.setAttribute('aria-label', label); } else {
-                if (dot) { const d = el('i', 'sd'); d.style.background = dot; b.append(d); }
-                b.append(el('span', 'name', label));
-            }
-            if (S.desk) b.title = label;
-            if (S.desk && onClose) {
-                // Desktop: × on hover too, and middle-click closes.
-                b.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); onClose(); } });
-                b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-            }
-            if ((active || S.desk) && onClose) {
-                const x = el('span', 'x');
-                x.innerHTML = ic('x');
-                x.setAttribute('role', 'button');
-                x.setAttribute('aria-label', 'Close tab');
-                x.addEventListener('click', e => { e.stopPropagation(); onClose(); });
-                b.append(x);
-            }
-            b.addEventListener('click', onOpen);
-            strip.append(b);
-        };
-        mk('Canvas', H.active === 'canvas', () => { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } }, null, { icon: 'canvas' });
-        mk('Preview', H.active === 'preview', () => { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } }, null, { icon: 'eye' });
-        if (H.guide) mk('Guide', H.active === 'guide', () => { if (H.active !== 'guide') { H.active = 'guide'; render(); } }, () => { H.guide = null; if (H.active === 'guide') H.active = 'canvas'; render(); }, { icon: 'help' });
-        H.tabs.forEach((t, i) => {
-            const e = library.peek(t.book)?.entries[t.uid];
-            mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
-        });
-        if (S.desk) heroTabsRight();
-        revealActiveTab();
-    }
-
-    /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search, Normal mode, Widen/Drawer size, ×. */
-    function heroTabsRight() {
-        const right = el('div', 'tright');
-        const book = heroBook();
-        const bp = btn('tbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
-        bp.querySelector('span').textContent = book ?? 'No book';
-        bp.title = 'Switch book';
-        const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
-        const nm = btn('tmode', html`${ic('entry', 's')}<span>Normal mode</span>`, () => switchMode(), 'Switch to Normal mode');
-        const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
-        eq.title = 'Explain (?)';
-        const wide = deskSettings().heroWide !== false;
-        const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => {
-            deskSettings().heroWide = !wide;
-            saveSettings();
-            H.dlist = null; // the list and the inspector start as the new size has them
-            H.dinsp = null;
-            render();
-            requestAnimationFrame(() => heroCanvas?.fit());
-        }, wide ? 'Drawer size' : 'Widen');
-        wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(bp, sb, eq, nm, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
-        tabbar.append(right);
-    }
+    // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
+    // callable from anywhere above, as the functions were.
+    let heroShellView = null;
+    const heroShell = () => (heroShellView ??= createHeroShell({
+        H, S, barApi, barTap, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
+        loadingNote, main, modelOf, need, packSheet, panelState, placePicker, render: () => render(), renderEntry,
+        renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
+        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN,
+    }));
+    function chatStatus(...a) { return heroShell().chatStatus(...a); }
+    function heroBack(...a) { return heroShell().heroBack(...a); }
+    function heroBook(...a) { return heroShell().heroBook(...a); }
+    function heroData(...a) { return heroShell().heroData(...a); }
+    function openHeroTab(...a) { return heroShell().openHeroTab(...a); }
+    function renderHero(...a) { return heroShell().renderHero(...a); }
+    function renderHeroTabs(...a) { return heroShell().renderHeroTabs(...a); }
+    function closeHeroTab(...a) { return heroShell().closeHeroTab(...a); }
+    /** The mounted Hero canvas, or null (hero-shell.js owns it). */
+    const heroCanvas = () => heroShellView?.canvas() ?? null;
 
     // ---------------------------------------------------------------- the Guide and explain mode (explain.js)
     const { openGuide, startExplain, stopExplain, renderGuideTab } = createExplain({
         S, H, root, layer, library, render: () => render(),
         showMe: key => { showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
     });
-
-    function closeHeroTab(i) {
-        H.tabs.splice(i, 1);
-        if (H.active === i) H.active = i < H.tabs.length ? i : i > 0 ? i - 1 : 'canvas'; // the next tab slides into its place
-        else if (typeof H.active === 'number' && H.active > i) H.active--;
-        render();
-    }
-
-    /** Opens an entry in a Hero tab (the inspector comes in N4). */
-    function openHeroTab(book, uid, mask = null) {
-        let i = H.tabs.findIndex(t => t.book === book && t.uid === uid);
-        if (i < 0) { H.tabs.push({ book, uid }); i = H.tabs.length - 1; }
-        H.tabs[i].mask = mask;
-        H.active = i;
-        H.panel = false;
-        render();
-    }
-
-    function heroBack() {
-        if (H.explain) { stopExplain(); return true; }
-        if (S.desk) return heroBackDesk();
-        // Back on an open strip is its Cancel; on an armed chip it disarms.
-        if (H.active === 'canvas' && H.bar.edit) {
-            const e = H.bar.edit;
-            if (e.dirty) barApi(e.book).restore(e.snap);
-            H.bar.edit = null;
-            render();
-            return true;
-        }
-        if (H.active === 'canvas' && H.bar.armed) { H.bar.armed = null; render(); return true; }
-        if (H.insp && H.active === 'canvas') { H.insp = null; render(); return true; }
-        if (H.panel) { H.panel = false; render(); return true; }
-        if (typeof H.active === 'number') { closeHeroTab(H.active); return true; }
-        if (H.active === 'guide') { H.active = 'canvas'; render(); return true; }
-        if (H.active === 'preview') {
-            if (H.pv?.page) H.pv.page = null;
-            else H.active = 'canvas';
-            render();
-            return true;
-        }
-        hide();
-        return false;
-    }
-
-    /**
-     * What the canvas draws from, as one string: when a Hero draw finds it unchanged (a piece bar step that only
-     * changes the strip, the inspector opening, the panel), the cards and links stay as they are. The camera is left
-     * out: it moves without a draw. Show chat state always draws, since the chat moves under it.
-     */
-    function canvasSig(book) {
-        if (H.chatState) return null;
-        const bs = settings.books?.[book] ?? {};
-        const { camera, ...canvas } = bs.canvas ?? {};
-        const top = Object.entries(settings).filter(([k, v]) => k !== 'books' && (v === null || typeof v !== 'object'));
-        const c = ctx();
-        return JSON.stringify([library.version, { ...bs, canvas }, top, [...hiddenIn(book)], c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null]);
-    }
-    /** The canvas kept between Hero draws of the same book: { book, data, vp, sig, data() cache }. */
-    let heroMount = null;
-
-    function renderHero() {
-        renderTabs();
-        // Explain mode: outlines on what can be explained, a banner with Cancel (LAYOUT "Explain mode").
-        root.classList.toggle('explaining', !!H.explain);
-        root.querySelector(':scope > .explainban')?.remove();
-        if (H.explain) {
-            const ban = el('div', 'explainban');
-            ban.setAttribute('role', 'status');
-            ban.append(el('span', '', S.desk ? 'Click anything to learn about it' : 'Tap anything to learn about it'), btn('pbtn sm', 'Cancel', stopExplain));
-            root.append(ban);
-        }
-        if (typeof H.active === 'number' && !H.tabs[H.active]) H.active = 'canvas';
-        const keepBook = H.active === 'canvas' ? heroBook() : null;
-        const kept = heroMount && heroCanvas && keepBook && heroMount.book === keepBook && library.peek(keepBook) === heroMount.data
-            && main.dataset.page === 'hero:canvas' && heroMount.vp.parentNode === main ? heroMount : null;
-        if (kept) {
-            // Same canvas: everything around it is drawn again (cheap), the cards and links only if they changed.
-            for (const n of [...main.children]) if (n !== kept.vp) n.remove();
-            kept.vp.querySelector('.legend')?.remove();
-            if (H.legend) kept.vp.append(legendBox());
-            const sig = canvasSig(keepBook);
-            heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
-            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); kept.sig = canvasSig(keepBook); } // a draw can place cards
-            heroAround(keepBook, kept.data);
-            return;
-        }
-        main.innerHTML = '';
-        heroCanvas = null;
-        heroMount = null;
-        if (typeof H.active === 'number') {
-            const t = H.tabs[H.active];
-            main.dataset.page = `hero:${H.active}`;
-            const nav = { up: () => closeHeroTab(H.active), go: uid => { t.uid = uid; t.mask = null; render(); }, tab: t };
-            if (S.desk) {
-                // Desktop: the shared entry page, Story logic always open, "Show on canvas ›".
-                S.ui.logic = true;
-                const e = library.peek(t.book)?.entries[t.uid];
-                const folder = e ? entryFolder(t.book, e) : '';
-                renderEntry({ type: 'entry', book: t.book, uid: t.uid }, nav, main, {
-                    desk: {
-                        crumbs: [{ label: t.book }, ...(folder ? folder.split('/').map(f => ({ label: f })) : [])],
-                        showOnCanvas: e ? () => { showOnCanvas(t.book, cardKey(e)); inspect(t.book, cardKey(e)); } : null,
-                    },
-                });
-                if (S.search) deskN.renderSearch();
-                return;
-            }
-            renderEntry({ type: 'entry', book: t.book, uid: t.uid }, nav);
-            return;
-        }
-        if (H.active === 'preview') { renderPreviewTab(); if (S.desk && S.search) deskN.renderSearch(); return; }
-        if (H.active === 'guide' && H.guide) {
-            renderGuideTab(main);
-            if (S.desk && S.search) deskN.renderSearch();
-            return;
-        }
-        main.dataset.page = 'hero:canvas';
-        const book = heroBook();
-        if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
-        const data = need(book);
-        if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', loadingNote(book))); main.append(v); return; }
-
-        if (S.desk) deskColumns(); // the columns first, so the canvas fits the room it really has
-        const vp = el('div', 'vp');
-        vp.tabIndex = -1;
-        main.append(vp);
-        if (H.legend) vp.append(legendBox());
-        const mount = { book, data, vp, sig: null, cache: null };
-        heroCanvas = mountCanvas(vp, {
-            book: () => (mount.cache ??= heroData(book, data)),
-            save: saveSettings,
-            open: (key, piece) => inspect(book, key, piece),
-            pack: name => packSheet(book, data, name),
-            toast: text => layer.toast(text),
-            holdEmpty: at => placePicker(book, data, at),
-            tapTarget: hit => barTap(book, hit),
-            focused: () => (H.insp?.book === book ? H.insp.key : null),
-            tapEmpty: () => {
-                if (H.panel) { H.panel = false; panelState(); }
-                if (S.desk) { H.insp = null; heroInspector(book, data); return; }
-                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
-            },
-            ...(S.desk ? deskCanvas(book, data) : {}),
-        });
-        heroMount = mount;
-        heroCanvas.render();
-        mount.sig = canvasSig(book); // after the draw, which can place cards
-        heroAround(book, data);
-    }
-    /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
-    function heroAround(book, data) {
-        if (S.desk) deskColumns();
-        if (!S.desk) {
-            // Phones: the "?" sits at the top right of the canvas.
-            const q = btn('explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: tap something to learn about it');
-            main.append(q);
-        }
-        heroPanel(book, data);
-        if (H.bar.edit && H.bar.edit.book !== book) H.bar.edit = null;
-        mountPieceBar(barApi(book));
-        if (S.desk) { heroInspector(book, data); if (S.search) deskN.renderSearch(); return; }
-        if (H.insp?.book === book) inspectorFor(book, data);
-    }
-    function legendBox() {
-        const lg = el('div', 'legend');
-        for (const [v, label, dashed] of [['open', 'opens'], ['close', 'closes', true], ['glue', 'glue'], ['mask', 'mask'], ['pack', 'pack', true]]) {
-            const s = el('span');
-            s.style.color = `var(--p-${v})`;
-            s.append(el('i', dashed ? 'd' : ''), label);
-            lg.append(s);
-        }
-        return lg;
-    }
 
     // ---------------------------------------------------------------- the piece bar (hero-bar.js)
     // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
@@ -870,7 +608,7 @@ export function createApp(deps) {
     const heroBar = () => (heroBarView ??= createHeroBar({
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
         render: () => render(), root, saveSettings, settings, sortBy: () => sortBy(), tidyNow,
-        canvas: () => heroCanvas,
+        canvas: () => heroCanvas(),
         entryTemplate: deps.entryTemplate,
     }));
     function barAct(...a) { return heroBar().barAct(...a); }
@@ -892,7 +630,7 @@ export function createApp(deps) {
     const renderPreviewTab = () => preview().renderPreviewTab();
     let heroPanelView = null;
     const panelView = () => (heroPanelView ??= createHeroPanel({
-        S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas,
+        S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
         entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker,
     }));
@@ -935,7 +673,7 @@ export function createApp(deps) {
     const heroInsp = () => (heroInspView ??= createHeroInspector({
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
         layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf,
-        render: () => render(), saveSettings, settings, canvas: () => heroCanvas, isRenderQueued: () => renderQueued,
+        render: () => render(), saveSettings, settings, canvas: () => heroCanvas(), isRenderQueued: () => renderQueued,
     }));
     function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
     function inspect(...a) { return heroInsp().inspect(...a); }
@@ -1041,275 +779,28 @@ export function createApp(deps) {
     function switchRow(...a) { return menus().switchRow(...a); }
     function wiSettingsSheet(...a) { return menus().wiSettingsSheet(...a); }
 
-    // ---------------------------------------------------------------- desktop
-    // Hero mode on desktop (LAYOUT "Desktop: Hero mode"): three columns, the canvas's mouse, keys.
-    /** The entry list shows when asked; else as the size has it (widened: shown, drawer size: hidden). */
-    const listShown = () => H.dlist ?? (deskSettings().heroWide !== false);
-    /** The inspector shows unless hidden; in a narrow drawer it starts hidden, so the canvas keeps some room. */
-    const inspShown = () => H.dinsp ?? (deskSettings().heroInsp !== false && (deskSettings().heroWide !== false || (main.clientWidth || 9999) >= 800));
-    function deskColumns() {
-        main.style.setProperty('--lw', listShown() ? `${deskSettings().heroListW ?? 250}px` : '0px');
-        main.style.setProperty('--iw', inspShown() ? `${deskSettings().heroInspW ?? 320}px` : '0px');
-    }
+    // ---------------------------------------------------------------- Hero mode on desktop (hero-desk.js)
+    // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
+    // callable from anywhere above, as the functions were.
+    let heroDeskView = null;
+    const heroDesk = () => (heroDeskView ??= createHeroDesk({
+        H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
+        inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
+        placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
+        startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),
+    }));
+    function createEntryIn(...a) { return heroDesk().createEntryIn(...a); }
+    function deskCanvas(...a) { return heroDesk().deskCanvas(...a); }
+    function deskColumns(...a) { return heroDesk().deskColumns(...a); }
+    function heroBackDesk(...a) { return heroDesk().heroBackDesk(...a); }
+    function heroInspector(...a) { return heroDesk().heroInspector(...a); }
+    function heroKey(...a) { return heroDesk().heroKey(...a); }
+    function inspShown(...a) { return heroDesk().inspShown(...a); }
+    function leaveEntry(...a) { return heroDesk().leaveEntry(...a); }
+    function listShown(...a) { return heroDesk().listShown(...a); }
+    function openHero(...a) { return heroDesk().openHero(...a); }
+    function tidyNow(...a) { return heroDesk().tidyNow(...a); }
 
-    function tidyNow() {
-        const undo = heroCanvas?.tidy();
-        if (undo) layer.toast('Tidied', { action: ['Undo', () => { undo(); layer.toast('Layout put back'); }] });
-    }
-
-    /** Takes the selected cards off the canvas; a card with links stays, and the toast says so. */
-    function takeOffPicked(keys = heroCanvas?.picked() ?? []) {
-        const book = H.book;
-        const view = heroCanvas?.view;
-        if (!book || !view || !keys.length) return;
-        const mem = canvasMemory(bookSettings(settings, book));
-        const linked = k => view.g.edges.some(x => x.from === k || x.to === k) || (view.m.byId(k)?.packs.length ?? 0) > 0;
-        const off = keys.filter(k => !linked(k) && mem.cards[k]?.placed);
-        const stay = keys.filter(k => linked(k));
-        for (const k of off) delete mem.cards[k];
-        if (off.length) { saveSettings(); H.insp = null; heroCanvas.setPicked(new Set(), true); render(); }
-        const nm = k => view.m.byId(k)?.title ?? 'It';
-        if (stay.length) layer.toast(stay.length === 1 ? `${nm(stay[0])} stays: it has links. Remove them first` : `${stay.length} cards stay: they have links`);
-        else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} taken off the canvas` : `${off.length} cards taken off the canvas`);
-    }
-
-    /** What the canvas does with a mouse on desktop: left to right, link drags, menus, selection. */
-    function deskCanvas(book, data) {
-        return {
-            desk: true,
-            dir: LR,
-            tools: box => {
-                box.append(btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)'));
-                const t = btn('itoggle', ic('drawer'), () => {
-                    const v = !inspShown();
-                    H.dinsp = v;
-                    if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
-                    render();
-                }, 'Show or hide the inspector');
-                t.title = 'Show or hide the inspector';
-                box.append(t);
-                for (const b of box.querySelectorAll('button')) b.title ||= b.getAttribute('aria-label') ?? '';
-            },
-            link: (kind, from, to) => {
-                const x = barApi(book);
-                const src = nodeOf(book, from);
-                const dst = nodeOf(book, to);
-                if (!src || !dst) return;
-                if (kind === 'ride' && (src.t !== 'entry' || dst.t !== 'entry')) { layer.toast('Glue goes between entries.'); return; }
-                const piece = { open: 'opens', close: 'closes', ride: 'glue' }[kind];
-                openStrip(book, { piece, isNew: true, snap: x.snapshot(), dirty: false, note: null, src, dst: null, ...(kind === 'ride' ? { mode: 'ride' } : {}) });
-                H.bar.loosePick?.(dst);
-            },
-            openText: key => inspect(book, key, null, { tab: 'text' }),
-            onPick: keys => {
-                H.pick = keys;
-                if (keys.length === 1) { inspect(book, keys[0]); return; }
-                H.insp = null;
-                heroInspector(book, data);
-            },
-            cardMenu: key => cardMenu(book, data, key),
-            emptyMenu: at => placePicker(book, data, at),
-        };
-    }
-
-    function cardMenu(book, data, key) {
-        const end = nodeOf(book, key);
-        if (!end) return;
-        if (end.t === 'pack') { packSheet(book, data, end.name); return; }
-        const e = end.t === 'entry' ? data.entries[end.uid] : null;
-        const title = e ? titleOf(e) : chatGreetings(data).find(g => g.key === key)?.title ?? 'Greeting';
-        const view = heroCanvas?.view;
-        const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
-        layer.sheet(title, sh => {
-            sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: 'Click' }));
-            if (e) {
-                sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: 'New tab' }));
-                sh.append(layer.opt('Edit text', () => { layer.close(); inspect(book, key, null, { tab: 'text' }); }, { icon: 'edit', val: 'Double-click' }));
-            }
-            sh.append(el('div', 'lbl', 'Add piece'));
-            for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key }));
-            if (e) sh.append(layer.opt('Data', () => { layer.close(); dataSheet(e); }, { icon: 'code' }));
-            sh.append(layer.opt('Take off canvas', () => { layer.close(); takeOffPicked([key]); }, { icon: 'trash', val: linked ? 'Remove its links first' : 'Del', cls: linked ? 'muted' : undefined }));
-        });
-    }
-
-    /** The right column: the card's inspector, the selected cards, or the book. */
-    function heroInspector(book, data) {
-        main.querySelector('.hinsp')?.remove();
-        main.querySelector('.insp')?.remove();
-        deskColumns();
-        if (!inspShown()) return;
-        const col = el('aside', 'hinsp');
-        main.append(col);
-        col.append(resizer(() => deskSettings().heroInspW ?? 320, w => { deskSettings().heroInspW = w; deskColumns(); }, { min: 260, max: 560, def: 320, side: 'left', onEnd: () => saveSettings() }));
-        if (H.insp?.book === book) {
-            inspectorFor(book, data, col);
-            if (H.insp) return;
-        }
-        const picked = (heroCanvas?.picked() ?? []).filter(k => nodeOf(book, k));
-        if (picked.length > 1) groupPane(col, book, data, picked);
-        else bookPane(col, book, data);
-    }
-
-    function bookPane(col, book, data) {
-        const sh = el('div', 'insp book');
-        const body = el('div', 'ibody');
-        sh.append(body);
-        col.append(sh);
-        const head = el('div', 'ihead');
-        head.append(el('h2', '', book));
-        body.append(head);
-        const issues = modelOf(book, data).issues;
-        body.append(el('div', 'lbl', 'Problems'));
-        if (!issues.length) body.append(el('p', 'help', 'No problems in this book.'));
-        for (const i of [...issues.filter(x => !x.warning), ...issues.filter(x => x.warning)]) {
-            const uid = i.stKey ? Number(i.stKey.slice(i.stKey.lastIndexOf('.') + 1)) : null;
-            body.append(layer.opt(i.label, () => {
-                const x = uid === null ? null : data.entries[uid];
-                if (x) { showOnCanvas(book, cardKey(x)); inspect(book, cardKey(x)); }
-            }, { sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)' }));
-        }
-        body.append(el('div', 'lbl', 'Links'));
-        const lg = el('div', 'ilegend');
-        for (const [v, label, dashed] of [['open', 'Opens: waits for, then opens'], ['close', 'Closes', true], ['glue', 'Glue: rides along'], ['mask', 'Masks (stacked cards)'], ['pack', 'Pack frame', true]]) {
-            const r = el('span');
-            r.style.color = `var(--p-${v})`;
-            r.append(el('i', dashed ? 'd' : ''), el('span', '', label));
-            lg.append(r);
-        }
-        body.append(lg);
-        body.append(el('div', 'lbl', 'Mouse'));
-        body.append(el('p', 'help', 'Rest the pointer on a card to see its links. Click to inspect, double-click to edit its text. Drag a card to move it, drag empty space to pan, Shift-drag to select several. The wheel zooms. Drag a colored port or a handle under a card onto another card to link them. Right-click a card or the canvas for more.'));
-    }
-
-    function groupPane(col, book, data, keys) {
-        const ends = keys.map(k => nodeOf(book, k));
-        const uids = ends.filter(x => x?.t === 'entry').map(x => x.uid);
-        const names = keys.map(k => heroCanvas?.view?.m.byId(k)?.title ?? k);
-        const sh = el('div', 'insp group');
-        const body = el('div', 'ibody');
-        sh.append(body);
-        col.append(sh);
-        const head = el('div', 'ihead');
-        head.append(el('h2', '', `${keys.length} cards selected`), btn('round flat', ic('x'), () => { heroCanvas?.setPicked(new Set()); }, 'Clear the selection'));
-        body.append(head);
-        body.append(el('p', 'help', `${names.join(', ')}. Drag any of them to move them together.`));
-        const act = (label, icon, fn) => body.append(layer.opt(label, fn, { icon }));
-        act('Pack into…', 'tag', () => layer.sheet('Pack into', s2 => {
-            const pack = name => {
-                layer.close();
-                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${uids.length} entries packed into #${name}`);
-            };
-            for (const p of packsOf(data)) s2.append(layer.opt(`#${p}`, () => pack(p), { icon: 'tag' }));
-            s2.append(layer.opt('New pack…', () => layer.askText({
-                title: 'New pack', placeholder: 'Pack name (town/inn for one inside another)', ok: 'Add',
-                check: v => (/^[A-Za-z0-9][A-Za-z0-9_.\-/]*$/.test(v.replace(/^#/, '')) ? null : 'Letters, numbers, - _ . and / only'),
-                done: v => pack(v.replace(/^#/, '')),
-            }), { icon: 'plus' }));
-        }));
-        // Hold the group back until one card fires: each selected card waits for it (and for what it already waits for).
-        act('Make these wait for…', 'canvas', () => layer.sheet(`Which card do these ${uids.length} wait for?`, s2 => {
-            for (const x of sortEntries(entriesShown(book, data), sortBy()).filter(x => !uids.includes(x.uid))) {
-                s2.append(layer.opt(titleOf(x), () => {
-                    layer.close();
-                    const src = { t: 'entry', uid: x.uid };
-                    if (barAct(book, (ed, d) => { for (const u of uids) addLink(ed, d, 'open', src, { t: 'entry', uid: u }, { join: 'and' }); })) layer.toast(`${uids.length} entries wait for ${titleOf(x)}`);
-                }, { dot: strategyColor(x) }));
-            }
-        }, { help: 'They open once it has fired.' }));
-        act('Make one wait for all of these…', 'canvas', () => layer.sheet('Which card waits for all of them?', s2 => {
-            for (const x of sortEntries(entriesShown(book, data), sortBy()).filter(x => !uids.includes(x.uid))) {
-                s2.append(layer.opt(titleOf(x), () => {
-                    layer.close();
-                    const dst = { t: 'entry', uid: x.uid };
-                    if (barAct(book, (ed, d) => { for (const u of uids) addLink(ed, d, 'open', { t: 'entry', uid: u }, dst, { join: 'and' }); })) layer.toast(`${titleOf(x)} waits for all ${uids.length}`);
-                }, { dot: strategyColor(x) }));
-            }
-        }, { help: 'It opens once every selected entry has fired.' }));
-        act('Turn off', 'on', () => {
-            library.change(book, d => { for (const u of uids) if (d.entries[u]) d.entries[u].disable = true; });
-            layer.toast(`${uids.length} entries turned off`);
-        });
-        act('Take off canvas', 'trash', () => takeOffPicked(keys));
-    }
-
-    function heroKey(e) {
-        const k = e.key;
-        const ctrl = e.ctrlKey || e.metaKey;
-        if (ctrl && !e.altKey && k.toLowerCase() === 'k') { S.search = { query: S.search?.query ?? '', at: 0 }; render(); return true; }
-        if (S.search || layer.isOpen() || typing() || ctrl || e.altKey) return false;
-        if (H.active !== 'canvas' || !heroCanvas || !H.book) return false;
-        const book = H.book;
-        const up = k.length === 1 ? k.toUpperCase() : k;
-        if (k === '?') { H.explain ? stopExplain() : startExplain(); return true; }
-        const piece = !e.shiftKey && BAR.find(p => p.key === up);
-        if (piece) {
-            if (H.bar.edit) return false;
-            const sel = heroCanvas.picked();
-            if (sel.length === 1) { dropPiece(book, piece.k, { card: sel[0] }); return true; }
-            H.bar.armed = H.bar.armed === piece.k ? null : piece.k;
-            render();
-            return true;
-        }
-        if (up === 'F') { heroCanvas.fit(); return true; }
-        if (up === 'T') { tidyNow(); return true; }
-        if (k === '+' || k === '=') { heroCanvas.zoomAt(1.2); return true; }
-        if (k === '-') { heroCanvas.zoomAt(1 / 1.2); return true; }
-        if (k === '/') { H.dlist = true; render(); main.querySelector('.panel .phead input')?.focus(); return true; }
-        if (k === 'Delete' || k === 'Backspace') { takeOffPicked(); return true; }
-        return false;
-    }
-
-    /** Esc on desktop: menu, search, armed piece, strip (Cancel), text box, selection, then closes WI Hero. */
-    function heroBackDesk() {
-        if (S.search) { S.search = null; render(); return true; }
-        if (H.active === 'canvas') {
-            if (H.bar.armed) { H.bar.armed = null; render(); return true; }
-            if (H.bar.edit) {
-                const ed = H.bar.edit;
-                if (ed.dirty) barApi(ed.book).restore(ed.snap);
-                H.bar.edit = null;
-                H.bar.loosePick = null;
-                render();
-                return true;
-            }
-        }
-        if (typing()) { shadow.activeElement?.blur(); return true; }
-        if (H.active === 'canvas' && (H.insp || heroCanvas?.picked().length)) {
-            H.insp = null;
-            heroCanvas?.setPicked(new Set(), true);
-            render();
-            return true;
-        }
-        if (H.active === 'preview' && H.pv?.page) { H.pv.page = null; render(); return true; }
-        hide();
-        return false;
-    }
-    /** Discards a new entry left completely empty when the book pane moves on from it. */
-    function leaveEntry(p) {
-        if (p.fresh == null || p.fresh !== p.sel) return;
-        const uid = p.fresh;
-        p.fresh = null;
-        const e = library.peek(p.book)?.entries[uid];
-        if (e && isBlank(e)) { library.change(p.book, d => { removeEntry(d, uid); }, { quiet: true }); layer.toast('Empty entry removed'); }
-    }
-    /** A new entry in a book (and folder), with the book's defaults, not opened anywhere yet. */
-    function createEntryIn(book, folder = '') {
-        if (!library.peek(book)) return null;
-        const x = createEntry(book, '');
-        if (folder) { setFolder(settings, book, x, folder); saveSettings(); }
-        return x;
-    }
-    function openHero(book) {
-        leave();
-        H.book = book;
-        S.mode = 'hero';
-        S.select = null;
-        S.search = null;
-        H.active = 'canvas';
-        H.panel = false;
-        render();
-    }
     const deskN = deskNormal({
         S, settings, library, layer, main, root, shadow,
         saveSettings: () => saveSettings(),
