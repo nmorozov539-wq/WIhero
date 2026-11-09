@@ -8,6 +8,7 @@ import {
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
 import { keywordClashes } from './clashes.js';
+import { deadBranches } from '../engine/dead.js';
 
 /** The color modes (D22), as [value, label]. */
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
@@ -133,10 +134,34 @@ export function createMenus(A) {
         }, { help: 'Problems (red) stop an entry from firing. Warnings (yellow) only point at something odd.' });
     }
 
-    /** The ⌄ menu's "Keyword clashes (n) ›" row, when the book has any. */
+    /** The ⌄ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
     function clashRow(sh, book, data) {
         const n = keywordClashes(data, hiddenIn(book)).groups.length;
         if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));
+        const d = deadOf(book, data).length;
+        if (d) sh.append(layer.opt(`Dead branches (${d})`, () => deadSheet(book), { val: '›' }));
+    }
+
+    const deadOf = (book, data) => deadBranches(modelOf(book, data), entriesOf(data).map(e => ({ ...e, world: book })));
+
+    /** What the book alone says can never happen: entries that can never fire, gate rows and masks that can never open. */
+    function deadSheet(book) {
+        const data = library.peek(book);
+        if (!data) return;
+        const found = deadOf(book, data).sort((a, b) => Number(b.dead) - Number(a.dead));
+        layer.sheet(`Dead branches (${found.length})`, sh => {
+            if (!found.length) sh.append(el('div', 'lbl', 'Everything in this book can happen.'));
+            for (const f of found) {
+                const uid = Number(f.stKey.slice(f.stKey.lastIndexOf('.') + 1));
+                const why = f.reasons.join('; ');
+                sh.append(layer.opt(f.label, () => {
+                    layer.close();
+                    const e = data.entries[uid];
+                    if (!e) return;
+                    if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
+                }, { sub: f.dead ? `Can never fire: ${why}` : why.replace(/^./, c => c.toUpperCase()), dot: f.dead ? 'var(--bad)' : 'var(--warn)' }));
+            }
+        }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its gate rows or masks never will.' });
     }
 
     /** Every key word that fires two or more entries, with those entries; a tap opens one. */
@@ -458,5 +483,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, clashRow, clashesSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, clashRow, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }
