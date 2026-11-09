@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addDot, createLinkEngine, moveDot, removeDot, reset, setSegment, toCanvas, toLocal } from '../src/link-engine/index.js';
+import { addDot, createLinkEngine, crosses, moveDot, removeDot, reset, setSegment, toCanvas, toLocal } from '../src/link-engine/index.js';
 import { segHitsRect } from '../src/link-engine/geom.js';
 import { LR, TB, bookScene } from '../tools/link-scenes.js';
+import { bigScene } from '../tools/link-bench.js';
 
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} is not within ${eps} of ${b}`);
 const def = (id, from, to) => ({ id, from, to });
@@ -467,4 +468,41 @@ test('changing a stored shape redoes the link, and it ends on its ports along th
     assert.deepEqual(e.layout([{ ...base, shape }]).changed, []);
     const { startTangent: s, endTangent: t } = e.path('a');
     close(s.x, 1); close(t.x, 1);
+});
+
+// ---- calm updates
+
+test('dropping one card redoes only the links near it; every other link keeps its exact path', () => {
+    const { cards, defs } = bigScene();
+    const e = createLinkEngine();
+    e.setObstacles(cards);
+    e.layout(defs);
+    const before = new Map(defs.map(d => [d.id, e.path(d.id).d]));
+    const shift = p => (p.card === 'c7_3' ? { ...p, x: p.x + 36, y: p.y + 24 } : p);
+    e.setObstacles(cards.map(c => (c.id === 'c7_3' ? { ...c, x: c.x + 36, y: c.y + 24 } : c)));
+    const { changed } = e.layout(defs.map(d => ({ ...d, from: shift(d.from), to: shift(d.to) })));
+    const own = defs.filter(d => d.from.card === 'c7_3' || d.to.card === 'c7_3').map(d => d.id);
+    for (const id of own) assert.ok(changed.includes(id), `${id} touches the card and must be redone`);
+    assert.ok(changed.length < defs.length / 8, `${changed.length} of ${defs.length} redone`);
+    for (const d of defs) if (!changed.includes(d.id)) assert.equal(e.path(d.id).d, before.get(d.id), `${d.id} moved`);
+});
+
+test('a big canvas: every link is clear of every card', () => {
+    const { cards, defs } = bigScene();
+    const e = createLinkEngine();
+    e.setObstacles(cards);
+    e.layout(defs);
+    for (const d of defs) {
+        assert.ok(e.path(d.id).clear, d.id);
+        const pts = e.polyline(d.id);
+        for (const r of cards) assert.ok(!enters(pts, r, -1), `${d.id} enters ${r.id}`);
+    }
+});
+
+test('crosses: curve-aware, it sees a curve that bows into a card between its ends', () => {
+    const A = card('A', 0, 0); const B = card('B', 300, 0); const M = card('M', 150, 60, 40, 40);
+    const e = run([{ ...def('a', at(A, 'right'), at(B, 'left')), shape: { dots: [], segments: [{ type: 'arc', flip: true, tension: 1 }] } }], [A, B]);
+    assert.ok(crosses(e.polyline('a'), M), 'the arc dips through M');
+    assert.ok(!crosses([60, 30, 300, 30], M), 'the straight line does not');
+    assert.ok(!crosses(e.polyline('a'), A), 'starting on a card\'s border is not crossing it');
 });

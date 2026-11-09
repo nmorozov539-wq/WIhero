@@ -1,5 +1,5 @@
 // Draws scenes with the link engine and writes tools/link-gallery.html: small fixture scenes, then the example
-// books laid out by the real canvas code, today's grid router beside the engine. Run: node tools/link-gallery.mjs
+// books laid out by the real canvas code, today's grid router beside the engine. Run: node tools/link-gallery.js
 import { writeFileSync } from 'node:fs';
 import { addDot, createLinkEngine, setSegment } from '../src/link-engine/index.js';
 import { rounded } from '../src/ui/canvas-graph.js';

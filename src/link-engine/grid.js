@@ -98,7 +98,9 @@ export function search(grid, s, sn, e, en, { bend = 4, limit = 80000 } = {}) {
             const ns = k * 4 + nd;
             if (stamp[ns] !== gen || nc < cost[ns]) {
                 stamp[ns] = gen; cost[ns] = nc; prev[ns] = s1;
-                h.push(ns, nc + Math.abs(ni - ei) + Math.abs(nj - ej));
+                // Manhattan distance, plus one turn when the end is off both axes (still a lower bound, so still A*).
+                const hi = Math.abs(ni - ei); const hj = Math.abs(nj - ej);
+                h.push(ns, nc + hi + hj + (hi && hj ? bend : 0));
             }
         }
     }

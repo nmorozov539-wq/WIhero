@@ -18,6 +18,15 @@ import { EPS, axisToward, boxOf, flatten, normal, num, overlaps, pathD, segHitsR
 import { inside, makeGrid, mark, search } from './grid.js';
 import { normalize, toCanvas } from './shape.js';
 
+/**
+ * Whether a link's flattened points (from engine.polyline) pass through a rectangle's inside, `pad` in from its
+ * border: the curve-aware version of canvas-graph's crosses, for tests that check links never cross cards.
+ */
+export function crosses(pts, r, pad = 1) {
+    for (let i = 0; i + 3 < pts.length; i += 2) if (segHitsRect(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], r, -pad)) return true;
+    return false;
+}
+
 export { TYPES, addDot, moveDot, normalize, removeDot, reset, setSegment, toCanvas, toLocal } from './shape.js';
 
 
@@ -26,6 +35,7 @@ export function createLinkEngine(options = {}) {
     const opts = { grid: 12, clearance: 14, margin: 2, stub: 12, tension: 0.5, bend: 4, radius: 40, laneGap: 8, scales: [1, 0.6, 1.5, 0.35], ...options };
     let rects = new Map();
     let dirty = []; // obstacles added, removed or moved since the last layout (old and new rects)
+    let buckets = null; // obstacles by coarse cell, for quick lookups near a point or box
     let grid = null; // built lazily, the first time a link needs routing after the obstacles change
     const links = new Map(); // id -> { sig, path, box }
     let computes = 0;
@@ -41,6 +51,7 @@ export function createLinkEngine(options = {}) {
         }
         for (const [id, o] of rects) if (!next.has(id)) dirty.push(o);
         rects = next;
+        buckets = null;
         if (dirty.length) grid = null;
     }
 
@@ -63,18 +74,47 @@ export function createLinkEngine(options = {}) {
     /** Whether a flat point list stays clear of every card it may not enter. End cards may be touched, not entered. */
     function clear(pts, pass, ends) {
         const box = boxOf(pts);
-        for (const [id, r] of rects) {
-            if (pass.has(id)) continue;
+        const bx1 = box.x + box.w; const by1 = box.y + box.h;
+        for (const [id, r] of near(box.x, box.y, bx1, by1, opts.margin)) {
             const m = ends.has(id) ? 0 : opts.margin;
-            if (!overlaps({ x: box.x - m - 1, y: box.y - m - 1, w: box.w + 2 * m + 2, h: box.h + 2 * m + 2 }, r)) continue;
+            if (r.x - m > bx1 || r.x + r.w + m < box.x || r.y - m > by1 || r.y + r.h + m < box.y || pass.has(id)) continue;
             for (let i = 0; i + 3 < pts.length; i += 2) if (segHitsRect(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], r, m)) return false;
         }
         return true;
     }
 
     /** Line of sight for string pulling: against obstacles grown by the full clearance. */
+    const CELL = 256;
+    const seen = new Set();
+    /** The obstacles whose rectangles, grown by m, might touch the box x0..x1, y0..y1. */
+    function near(x0, y0, x1, y1, m) {
+        if (!buckets) {
+            buckets = new Map();
+            for (const [id, r] of rects) {
+                for (let j = Math.floor((r.y - 32) / CELL); j <= Math.floor((r.y + r.h + 32) / CELL); j++) {
+                    for (let i = Math.floor((r.x - 32) / CELL); i <= Math.floor((r.x + r.w + 32) / CELL); i++) {
+                        const k = `${i},${j}`;
+                        if (!buckets.has(k)) buckets.set(k, []);
+                        buckets.get(k).push([id, r]);
+                    }
+                }
+            }
+        }
+        // Huge boxes: just go through everything.
+        if ((x1 - x0) * (y1 - y0) > 64 * CELL * CELL) return rects;
+        seen.clear();
+        const out = [];
+        for (let j = Math.floor((y0 - m) / CELL); j <= Math.floor((y1 + m) / CELL); j++) {
+            for (let i = Math.floor((x0 - m) / CELL); i <= Math.floor((x1 + m) / CELL); i++) {
+                const b = buckets.get(`${i},${j}`);
+                if (b) for (const e of b) if (!seen.has(e[0])) { seen.add(e[0]); out.push(e); }
+            }
+        }
+        return out;
+    }
+
     function sees(a, b, pass, ends) {
-        for (const [id, r] of rects) {
+        for (const [id, r] of near(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]), opts.clearance)) {
             if (pass.has(id)) continue;
             if (segHitsRect(a[0], a[1], b[0], b[1], r, ends.has(id) ? opts.margin : opts.clearance)) return false;
         }
@@ -416,25 +456,30 @@ export function createLinkEngine(options = {}) {
     function shallow(pts, self, a, b) {
         const box = boxOf(pts);
         const g = opts.laneGap;
-        const near = (x, y, p) => Math.hypot(x - p[0], y - p[1]) < 3 * opts.stub;
+        const keep = 3 * opts.stub;
+        const near = (x, y, p) => Math.abs(x - p[0]) < keep && Math.abs(y - p[1]) < keep && Math.hypot(x - p[0], y - p[1]) < keep;
         let total = 0;
         for (const [id, e] of links) {
-            if (id === self || !e.flat || !overlaps({ x: box.x - g, y: box.y - g, w: box.w + 2 * g, h: box.h + 2 * g }, e.box)) continue;
+            if (id === self || !e.flat) continue;
+            const eb = e.box;
+            if (eb.x > box.x + box.w + g || eb.x + eb.w < box.x - g || eb.y > box.y + box.h + g || eb.y + eb.h < box.y - g) continue;
             const o = e.flat;
             for (let i = 0; i + 3 < pts.length; i += 2) {
                 const x0 = pts[i]; const y0 = pts[i + 1]; const x1 = pts[i + 2]; const y1 = pts[i + 3];
-                if (near(x0, y0, a) || near(x1, y1, b) || near(x0, y0, b) || near(x1, y1, a)) continue;
-                const u = unit(x1 - x0, y1 - y0);
-                if (!u) continue;
-                const len = Math.hypot(x1 - x0, y1 - y0);
                 const mx = (x0 + x1) / 2; const my = (y0 + y1) / 2;
+                if (mx < eb.x - g || mx > eb.x + eb.w + g || my < eb.y - g || my > eb.y + eb.h + g) continue;
+                if (near(x0, y0, a) || near(x1, y1, b) || near(x0, y0, b) || near(x1, y1, a)) continue;
+                const len = Math.hypot(x1 - x0, y1 - y0);
+                if (len < EPS) continue;
+                const ux = (x1 - x0) / len; const uy = (y1 - y0) / len;
                 for (let j = 0; j + 3 < o.length; j += 2) {
-                    const v = unit(o[j + 2] - o[j], o[j + 3] - o[j + 1]);
-                    if (!v || Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.5) continue; // steeper than 30°: a clean crossing
-                    // Distance from this piece's midpoint to the other piece.
-                    const vx = o[j + 2] - o[j]; const vy = o[j + 3] - o[j + 1];
-                    const t = Math.max(0, Math.min(1, ((mx - o[j]) * vx + (my - o[j + 1]) * vy) / (vx * vx + vy * vy)));
-                    if (Math.hypot(mx - (o[j] + vx * t), my - (o[j + 1] + vy * t)) < g) { total += len; break; }
+                    const ox = o[j]; const oy = o[j + 1]; const vx = o[j + 2] - ox; const vy = o[j + 3] - oy;
+                    // Cheap reject first: the other piece's box, grown by a lane, must hold the midpoint.
+                    if (mx < Math.min(ox, ox + vx) - g || mx > Math.max(ox, ox + vx) + g || my < Math.min(oy, oy + vy) - g || my > Math.max(oy, oy + vy) + g) continue;
+                    const vl = Math.hypot(vx, vy);
+                    if (vl < EPS || Math.abs(ux * vy - uy * vx) / vl > 0.5) continue; // steeper than 30°: a clean crossing
+                    const t = Math.max(0, Math.min(1, ((mx - ox) * vx + (my - oy) * vy) / (vl * vl)));
+                    if (Math.hypot(mx - (ox + vx * t), my - (oy + vy * t)) < g) { total += len; break; }
                 }
             }
         }
@@ -456,16 +501,31 @@ export function createLinkEngine(options = {}) {
         return hi - lo > opts.laneGap * 2;
     }
 
+    /** A link's runs as pieces { c, d, first, last, x0, y0, x1, y1 }, kept with the link for quick lookups. */
+    function pieces(runs) {
+        const out = [];
+        for (const R of runs ?? []) {
+            for (let i = 0; i + 1 < R.length; i++) {
+                const c = R[i]; const d = R[i + 1];
+                out.push({ c, d, first: i === 0, last: i + 2 === R.length, x0: Math.min(c[0], d[0]), y0: Math.min(c[1], d[1]), x1: Math.max(c[0], d[0]), y1: Math.max(c[1], d[1]) });
+            }
+        }
+        return out;
+    }
+
     function crowded(a, b, self, P) {
+        const g = opts.laneGap;
+        const x0 = Math.min(a[0], b[0]) - g; const x1 = Math.max(a[0], b[0]) + g;
+        const y0 = Math.min(a[1], b[1]) - g; const y1 = Math.max(a[1], b[1]) + g;
+        const s = P[0]; const z = P[P.length - 1];
         for (const [id, e] of links) {
-            if (id === self || !e.path.runs) continue;
-            for (const R of e.path.runs) {
+            if (id === self || !e.pieces?.length) continue;
+            if (e.box.x > x1 || e.box.x + e.box.w < x0 || e.box.y > y1 || e.box.y + e.box.h < y0) continue;
+            for (const q of e.pieces) {
+                if (q.x0 > x1 || q.x1 < x0 || q.y0 > y1 || q.y1 < y0) continue;
                 // Links leaving the same port (or junction) travel together from it: their first runs don't count.
-                for (let i = 0; i + 1 < R.length; i++) {
-                    const c = R[i]; const d = R[i + 1];
-                    if ((i === 0 && c[0] === P[0][0] && c[1] === P[0][1]) || (i + 2 === R.length && d[0] === P.at(-1)[0] && d[1] === P.at(-1)[1])) continue;
-                    if (onTop(a, b, c, d)) return true;
-                }
+                if ((q.first && q.c[0] === s[0] && q.c[1] === s[1]) || (q.last && q.d[0] === z[0] && q.d[1] === z[1])) continue;
+                if (onTop(a, b, q.c, q.d)) return true;
             }
         }
         return false;
@@ -527,7 +587,7 @@ export function createLinkEngine(options = {}) {
             if (prev && prev.sig === sig && !near(prev.box)) continue;
             const path = compile(def, list);
             const flat = flatten(path.parts, 2);
-            links.set(def.id, { sig, path, flat, box: boxOf(flat) });
+            links.set(def.id, { sig, path, flat, box: boxOf(flat), pieces: pieces(path.runs) });
             computes++;
             changed.push(def.id);
         }
