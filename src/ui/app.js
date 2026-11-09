@@ -746,7 +746,7 @@ export function createApp(deps) {
             if (data) {
                 const issues = modelOf(book, data).issues;
                 if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs' }));
-                menus().clashRow(sh, book, data);
+                menus().checkRows(sh, book, data);
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›' }));
         }

@@ -73,7 +73,7 @@ export function createMenus(A) {
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
                     if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
-                    clashRow(sh, p.book, data);
+                    checkRows(sh, p.book, data);
                 }
                 sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›' }));
             }
@@ -135,7 +135,7 @@ export function createMenus(A) {
     }
 
     /** The ⌄ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
-    function clashRow(sh, book, data) {
+    function checkRows(sh, book, data) {
         const n = keywordClashes(data, hiddenIn(book)).groups.length;
         if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));
         const d = deadOf(book, data).length;
@@ -483,5 +483,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, clashRow, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, checkRows, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }
