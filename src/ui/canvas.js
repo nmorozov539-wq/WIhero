@@ -1,7 +1,8 @@
 // The Hero canvas on screen (VISUAL 7): cards, ports, junctions, lock tags, links routed around cards, mask
 // stacks, pack frames; pan, pinch and wheel zoom, Fit, card and port dragging. Lifted from the demo. Positions,
 // port sides, the mask layer on each card and the camera are kept in the extension settings (D7, BUILD_SPEC 8.2).
-import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, makeGrid, nodeRects, placeNew, rounded, route, snap } from './canvas-graph.js';
+import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, nodeRects, placeNew, rounded, snap } from './canvas-graph.js';
+import { createLinkEngine } from '../link-engine/index.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 
@@ -40,6 +41,13 @@ export function arrange(m, memory, center, dir = TB) {
     for (const [k, p] of Object.entries(pos)) { const c = (memory.cards[k] ??= {}); c.x = p.x; c.y = p.y; }
     const manual = {};
     for (const [k, c] of Object.entries(memory.cards)) for (const [kind, side] of Object.entries(c.ports ?? {})) if (SIDE_OF[side]) manual[`${k}:${kind}`] = SIDE_OF[side];
+    // Hand-made link shapes go with their link: one whose link is gone is dropped.
+    const live = new Set(g.edges.map(x => `${x.from} ${linkKey(x)}`));
+    for (const [k, c] of Object.entries(memory.cards)) {
+        if (!c.links) continue;
+        for (const lk of Object.keys(c.links)) if (!live.has(`${k} ${lk}`)) delete c.links[lk];
+        if (!Object.keys(c.links).length) delete c.links;
+    }
     const R = nodeRects(m, g, ids, pos);
     const P = computePorts(g, R, manual, { dir });
     return { g, ids, pos, R, P };
@@ -52,10 +60,13 @@ export function arrange(m, memory, center, dir = TB) {
  *   save(), open(key, piece), pack(name), toast(text), onFirstFit? }
  */
 /**
- * Routed links, kept across draws while nothing on the canvas moved: Hero mode redraws the canvas on every tap
- * (open the inspector, pick a piece), and routing every link again was most of a tap's time on a phone.
+ * The link engine (src/link-engine): smooth links that go around cards. It keeps each link's path across draws and
+ * only redoes the ones whose ends, shape or nearby cards changed: Hero mode redraws the canvas on every tap (open the
+ * inspector, pick a piece), and routing every link again was most of a tap's time on a phone.
  */
-const ROUTES = { sig: '', map: new Map() };
+const LINKS = createLinkEngine({ grid: G });
+/** Where a link's hand-made shape is kept: on its source card, `canvas.cards[<from>].links[<this>]`. */
+export const linkKey = x => `${x.fromPort}>${x.to}${x.mask != null ? `@${x.mask}` : ''}`;
 /** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
 export const PHONE_FLOOR = 0.8;
 
@@ -135,25 +146,24 @@ export function mountCanvas(vp, d) {
         const lk = sv('svg', { class: 'lk', width: 1, height: 1 });
         const pt = sv('svg', { class: 'pt', width: 1, height: 1 });
 
-        // Decorations links must route around: mask layers and their ‹ › control.
-        const extra = [];
+        // Where each masked card's ‹ › control goes: under the card, or beside it when its bottom edge has a port.
         for (const r of R.values()) {
             if (!r.e?.masks.length) continue;
             const n = Math.min(2, r.e.masks.length);
-            extra.push({ x: r.x, y: r.y - 6 * n, w: CW + 6 * n, h: CH });
             const bottomTaken = [...(P.get(r.key)?.values() ?? [])].some(p => p.side === 'b');
             r.nav = bottomTaken ? { v: true, x: r.x + CW + 6 * n + 8, y: r.y + CH / 2 - 36, w: 26, h: 72 } : { v: false, x: r.x + CW / 2 - 44, y: r.y + CH + 10, w: 88, h: 24 };
-            extra.push(r.nav);
         }
-        const grid = makeGrid(R, extra);
-        const sig = [...R.values()].map(r => `${r.key}:${r.x},${r.y},${r.w},${r.h}`).join('|') + extra.map(r => `${r.x},${r.y},${r.w},${r.h}`).join('|');
-        if (sig !== ROUTES.sig) { ROUTES.sig = sig; ROUTES.map.clear(); }
-        const routeOnce = (sx, sy, ex, ey, al) => {
-            const k = `${sx},${sy},${ex},${ey}|${[...al].sort().join(',')}`;
-            if (!ROUTES.map.has(k)) ROUTES.map.set(k, route(grid, sx, sy, ex, ey, al));
-            const pts = ROUTES.map.get(k);
-            return pts && pts.map(q => [...q]);
-        };
+        // What links go around: cards, mask stacks and their ‹ › control, and pack frames (only their members' links
+        // go in). A card's own stack sits over its top edge, so its links may touch it.
+        const obstacles = [];
+        for (const r of R.values()) {
+            if (r.pack) obstacles.push({ id: r.key, x: r.x, y: r.y, w: r.w, h: r.h, pass: 'members', members: new Set(r.members) });
+            else obstacles.push({ id: r.key, x: r.x, y: r.y, w: r.w, h: r.h });
+            if (!r.e?.masks.length) continue;
+            const n = Math.min(2, r.e.masks.length);
+            obstacles.push({ id: `${r.key}#stack`, x: r.x, y: r.y - 6 * n, w: CW + 6 * n, h: CH }, { id: `${r.key}#nav`, x: r.nav.x, y: r.nav.y, w: r.nav.w, h: r.nav.h });
+        }
+        LINKS.setObstacles(obstacles);
 
         for (const r of R.values()) {
             if (!r.pack) continue;
@@ -263,8 +273,8 @@ export function mountCanvas(vp, d) {
             return s;
         };
         const color = kind => (kind === 'close' ? FAMILY_VAR.close : kind === 'ride' ? FAMILY_VAR.glue : FAMILY_VAR.open);
-        const path = (pts, kind, dashed, cls = null) => {
-            const n = sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`);
+        const path = (pts, kind, dashed, cls = null, dd = rounded(pts)) => {
+            const n = sv('path', { d: dd }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`);
             if (cls) n.classList.add(cls);
             put(lk, n);
             // Only Closes has a head (the bar of a stop); Opens and ride-along lines run knob to socket without one.
@@ -288,27 +298,57 @@ export function mountCanvas(vp, d) {
             put(lk, head);
             if (kind === 'close') { const bar = sv('path', { d: `M${b[0] - uy * 6},${b[1] + ux * 6} L${b[0] + uy * 6},${b[1] - ux * 6}` }, `stroke:${color(kind)};stroke-width:2.5`); if (cls) bar.classList.add(cls); put(lk, bar); }
         };
-        const drawEdge = (x, endPt, endN, rawEnd) => owning(`${x.from} ${x.to}`, () => {
+        // Links are laid out together (so they keep a lane apart and cross cleanly), then drawn: drawEdge queues one,
+        // and `then(pts)` runs once it's drawn, with its points (pills sit on them).
+        const queue = [];
+        const linkIds = new Set();
+        const drawEdge = (x, endPt, endN, rawEnd, then = null) => {
             const a = portOf(x.from, x.fromPort);
-            if (!a) return undefined;
-            const s0 = tip(a, 7); const s1 = tip(a, G);
-            const e1 = [endPt[0] + endN[0] * G, endPt[1] + endN[1] * G];
-            const mid = routeOnce(snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
-            const pts = mid ? [s0, ...mid, rawEnd ?? endPt] : [s0, s1, e1, rawEnd ?? endPt];
-            path(pts, x.kind, undefined, faint(x));
-            // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
-            const hp = sv('path', { d: rounded(pts), class: 'lhit' });
-            hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
-            hp.dataset.ends = `${x.from}>${x.to}`;
-            hp.dataset.kind = x.kind;
-            put(lk, hp);
-            if (x.mode) {
-                const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
-                Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
-                put(world, lb);
+            if (!a) return;
+            const end = rawEnd ?? endPt;
+            let id = `${x.from}>${x.fromPort}>${x.to}>${x.port}${x.mask != null ? `@${x.mask}` : ''}`;
+            while (linkIds.has(id)) id += '+';
+            linkIds.add(id);
+            const shape = mem.cards[x.from]?.links?.[linkKey(x)] ?? null;
+            const s0 = tip(a, 7);
+            queue.push({
+                x, a, then,
+                def: {
+                    id,
+                    from: { x: s0[0], y: s0[1], n: a.n, card: x.from },
+                    to: { x: end[0], y: end[1], n: endN, card: R.has(x.to) && !isJunction(endPt, x) ? x.to : undefined },
+                    owner: new Set([...allow(x.from, x.to), `${x.from}#stack`, `${x.to}#stack`]),
+                    shape,
+                },
+            });
+        };
+        // A link that ends on a junction (an AND or OR point off the card) doesn't end on its card.
+        const isJunction = (pt, x) => { const p = portOf(x.to, x.port); return !p || Math.hypot(pt[0] - p.x, pt[1] - p.y) > 6; };
+        const drawQueued = () => {
+            LINKS.layout(queue.map(q => q.def));
+            for (const { x, a, then, def } of queue) {
+                owning(`${x.from} ${x.to}`, () => {
+                    const lp = LINKS.path(def.id);
+                    const flat = LINKS.polyline(def.id, 1);
+                    const pts = [];
+                    for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
+                    path(pts, x.kind, undefined, faint(x), lp.d);
+                    // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
+                    const hp = sv('path', { d: lp.d, class: 'lhit' });
+                    hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null, id: def.id }) - 1;
+                    hp.dataset.ends = `${x.from}>${x.to}`;
+                    hp.dataset.kind = x.kind;
+                    put(lk, hp);
+                    if (x.mode) {
+                        const s1 = tip(a, G);
+                        const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
+                        Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
+                        put(world, lb);
+                    }
+                    then?.(pts);
+                });
             }
-            return pts;
-        });
+        };
         /** The point `d` back from the end of a line. */
         const along = (pts, d) => {
             for (let k = pts.length - 1; k > 0; k--) {
@@ -362,8 +402,7 @@ export function mountCanvas(vp, d) {
             const STEP = 30;
             if (rows.length === 1 && linksOf(rows[0]).length === 1) {
                 const x = linksOf(rows[0])[0];
-                const pts = drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt);
-                if (pts) owning(`${x.from} ${x.to}`, () => condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP))));
+                drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt, pts => condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP))));
                 continue;
             }
             const out = d => [snap(p.x + p.n[0] * d), snap(p.y + p.n[1] * d)];
@@ -404,8 +443,7 @@ export function mountCanvas(vp, d) {
                     put(world, jr);
                     links.forEach(x => drawEdge(x, target, p.n, target));
                 } else if (links.length === 1) {
-                    const pts = drawEdge(links[0], J0, p.n, J0);
-                    if (pts) owning(`${links[0].from} ${links[0].to}`, () => cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP))));
+                    drawEdge(links[0], J0, p.n, J0, pts => cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP))));
                 } else {
                     // Only locks and waits, as one of several rows: a stub off the OR junction.
                     const kk = ri - (rows.length - 1) / 2;
@@ -423,6 +461,7 @@ export function mountCanvas(vp, d) {
             const p = portOf(x.to, x.port);
             if (p) drawEdge(x, tip(p, 2), p.n, x.kind === 'ride' ? tip(p, 3) : tip(p, 2));
         }
+        drawQueued();
 
         // Ports, on top of the cards: socket = in, knob = out (VISUAL 7.2).
         for (const [key, ports] of P) {

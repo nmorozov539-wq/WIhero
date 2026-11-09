@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {
     CH, CW, G, LR, buildGraph, canvasBook, canvasSet, withFrames, computePorts, crosses, layout, makeGrid, nodeRects, placeNew, route, snap,
 } from '../src/ui/canvas-graph.js';
-import { arrange } from '../src/ui/canvas.js';
+import { arrange, linkKey } from '../src/ui/canvas.js';
 
 const sample = () => JSON.parse(fs.readFileSync(new URL('../examples/WIHero-Sample.json', import.meta.url), 'utf8'));
 const overlap = (a, b, gap = 0) => Math.abs(a.x - b.x) < CW + gap && Math.abs(a.y - b.y) < CH + gap;
@@ -178,6 +178,17 @@ test('arrange lays a book out once, then keeps every card where it was', () => {
     arrange(m, memory, { x: 0, y: 0 });
     assert.equal(memory.cards[key].x, first[key].x + 240);
     for (const k of Object.keys(first)) if (k !== key) assert.deepEqual(memory.cards[k], first[k]);
+});
+
+test('a hand-made link shape is kept with its link and dropped when the link goes', () => {
+    const m = canvasBook(sample());
+    const memory = { camera: null, cards: {}, placed: false };
+    const { g } = arrange(m, memory, { x: 0, y: 0 });
+    const x = g.edges.find(e => e.from.startsWith('id:') && memory.cards[e.from]);
+    const shape = { dots: [{ u: 0.5, v: 0.2 }], segments: [{ type: 'curve' }, { type: 'arc' }] };
+    memory.cards[x.from].links = { [linkKey(x)]: shape, 'gout>id:nowhere': shape };
+    arrange(m, memory, { x: 0, y: 0 });
+    assert.deepEqual(memory.cards[x.from].links, { [linkKey(x)]: shape });
 });
 
 test('a card placed by hand never lands inside a pack frame it isn\'t in', () => {
