@@ -13,16 +13,18 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: complete for review (2026-11-02). Decisions D1–D26 agreed with the owner (D24–D26 added with N6).
-- Building follows the roadmap's N1–N5 (section 13).
+- Status: built. This page matches the code as of **0.22.0** (2026-11-09).
+  Decisions D1–D31 are agreed with the owner: D1–D23 in planning, D24–D26 with
+  N6, D27–D31 with the UI audit (#19–#22).
+- Building followed N1–N6 (section 13); what came after is in
+  [ROADMAP.md](ROADMAP.md).
 
-### Start here (for the coding thread)
+### Start here (for a coding thread)
 
 1. Read section 1 (the decisions), then sections 2–7 (the engine).
-2. Restore the old build as in 9.1 and start **N1** (section 13): the engine,
-   pure and tested, then its ST wiring. No new UI is needed for N1.
-3. Run the tests with `node --test`. The in-ST checks follow the old `e2e/`
-   scripts (9.3), against SillyTavern 1.19.0.
+2. Section 9 maps the code: which file holds what, and where the tests are.
+3. Run the tests with `node --test`. The in-ST checks are in
+   [e2e/](../e2e/README.md), against SillyTavern 1.19.0.
 4. Keep the decisions as they are. If something here turns out impossible in
    ST, stop and ask the owner rather than choosing a different behavior.
 
@@ -32,7 +34,8 @@ Contents: [1 Decisions](#1-decisions) · [2 Data](#2-data-on-the-book) ·
 [7 Manual actions](#7-manual-actions) · [8 Editor and canvas memory](#8-editor-and-canvas-memory) ·
 [9 Code layout and tests](#9-code-layout-and-tests) · [10 Known limits](#10-known-limits) · [11 Snapshots](#11-snapshots-d21) ·
 [12 Screens](#12-screens) · [13 Build order](#13-build-order) · [14 Docs to update](#14-docs-to-update) ·
-[15 Greetings](#15-greetings-d23)
+[15 Greetings](#15-greetings-d23) ·
+[17 Safety and the chat bubble](#17-safety-and-the-chat-bubble-n6)
 
 ---
 
@@ -65,6 +68,7 @@ to be changed while building.
 | D20 | **Editing story logic mid-play is safe.** The chat's state is mostly history (what fired and when); after an edit, the next message is worked out with the new rules on the same history. Deleted entries' history is ignored. Closed stays closed even when the rule that closed it is removed; Reopen (D18) is the way back. |
 | D21 | **Snapshots are manual.** A "Snapshot" button saves a named copy of the whole book; nothing is copied automatically except one "As imported" copy, kept the first time WI Hero opens or changes a book. Restore puts the book back (with Undo) and leaves the chat's story state alone. Saving stays automatic. Details in section 11. |
 | D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ⌄ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
+| D23 | **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
 | D24 | **A chat that ran without WI Hero is caught up on request.** Replies with no snapshot after the last one that has one (WI Hero switched off, or not yet installed) leave the story behind. When WI Hero is switched on or the chat opens, it asks once: **Catch up** replays the skipped turns through the engine, oldest first, each starting from the one before, with Preview's keyword matching (ST doesn't save what it sent); **Keep as is** carries the old state on; **Start from here** starts the state again; **Not now** leaves the choice on the chat bubble and the panel. Details in section 17.1. |
 | D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and ST internal the engine needs) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
 | D26 | **A chat bubble shows what reached the model.** A book in a circle over the chat, with how many World Info entries were sent with the last reply (from WORLD_INFO_ACTIVATED, all books, also with the engine off). Tap it for their names (and mask). Stored per reply and swipe; on by default, with a "Chat bubble" switch in the extension settings. Details in section 17.3. |
@@ -73,7 +77,6 @@ to be changed while building.
 | D29 | **Nothing ST stores is hidden.** Every ST entry setting has a control on the entry page's Parameters; a value WI Hero has no control for is still named in the folded summary ("Also set: …"). The character filter is stored as ST stores it (`characterFilter: { isExclude, names, tags }`, names being character file names), and generation types as `triggers`. |
 | D30 | **Moments are entries that are never sent.** A Moment (CONCEPTS 3.13) is stored as an entry flagged `moment: true`, with its phrases as `key`, empty content, `disable: true` and the title "Moment: *name*". The model gives it happen rows: each of its gate rows (or one empty row) plus a lock on its phrases, with its `by`. The engine checks them with the locks (D1): in `stateForScan` against the newest user message and reply, in `advance` against the new reply. When one is met it writes the Moment as fired at that message, once, so everything that reads fired entries (rows, Gates for, Closes for, Preview, rewind) works unchanged. `keepAtLoad` never keeps a Moment. Hidden from Normal mode and Hero's entry list; the panel has a Moments group. |
 | D31 | **One Guide, reached from everywhere.** The pieces are explained in one data file (`src/ui/guide.js`, kept in step with CONCEPTS) and shown in a Guide tab (`guide-page.js`). Explain mode is one capture-phase listener on WI Hero's root: while it is on, presses never reach the elements, and a click maps its target to a Guide anchor by selector (chips by `data-piece`, lines and pills by `data-kind`, ports through `PORT`). The inspector's "?", the strip's "?" and "+ Add logic" open the same anchors directly. |
-| D23 | **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
 
 ---
 
@@ -479,7 +482,7 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
 
 ### 9.1 Starting point
 
-Restore the old build from git history (`git checkout 02adbda~1 -- src test
+*How N1 started; kept for history.* Restore the old build from git history (`git checkout 02adbda~1 -- src test
 index.js manifest.json package.json`) and change it, rather than starting over
 or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 `generation.js`, the save path in `editor.js` and `entry-model.js`, and
@@ -489,14 +492,44 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 
 | File | Holds |
 |------|-------|
-| `src/engine/model.js` | `normalize` (2.3), `buildModel` (3), problems |
+| `src/engine/model.js` | `normalize` (2.3), `buildModel` (3), problems and warnings, `isMoment` |
 | `src/engine/rows.js` | `rowMet`, done times, lock matching (5) |
 | `src/engine/state.js` | v2 shape, `readState` (with v1), `initialState` |
-| `src/engine/turn.js` | `stateForScan`, `mayFire`, `settleScan` (6.4 steps 1, 3, 4, 5 as data in, decisions out), `advance` |
+| `src/engine/turn.js` | `stateForScan`, `mayFire`, `keepAtLoad`, `settleScan` (6.4 steps 1, 3, 4, 5 as data in, decisions out), `advance`, `entryStatus`; Moments happen here (`happenMoments`, D30) |
 | `src/engine/manual.js` | `reopen`, `pickMask` |
+| `src/engine/util.js` | ST's string hash, slugs and ids, phrase and regex matching |
 
-`index.js` and an `src/st-hooks.js` do the ST side: read events, call the
-engine, apply its decisions to ST's arrays and Map.
+### 9.2a The ST side
+
+| File | Holds |
+|------|-------|
+| `index.js` | Startup: settings, the health check (17.2), the hooks, the editor, following ST's World Info drawer (TECHNICAL_NOTES 13) |
+| `src/st-hooks.js` | One turn in ST (6): reads ST's events, calls the engine, applies its decisions to ST's arrays and Map |
+| `src/st.js` | The only module importing ST internals that `getContext()` doesn't expose, as namespaces (D25) |
+| `src/chat-state.js` | Snapshots on messages and swipes (4.1) |
+| `src/generation.js` | Which generations move the story (6.1) |
+| `src/timers.js` | ST's sticky, read so gating never cuts it short (TECHNICAL_NOTES 2a) |
+| `src/book.js` | Writing story logic onto entries (2) |
+| `src/catch-up.js`, `src/compat.js`, `src/bubble.js` | Catch-up (17.1), compatibility and health (17.2), the chat bubble (17.3) |
+| `src/panel.js` | The small panel in ST's Extensions drawer: the Enabled and Chat bubble switches, notices, and a status table from N1 testing |
+| `src/settings.js` | The extension settings object |
+
+### 9.2b The editor (`src/ui/`)
+
+| File | Holds |
+|------|-------|
+| `app.js`, `app.css` | The editor overlay (8.1): shell, tabs, Home, normal mode on phones, Hero mode's frame, ⌄ menus, explain mode (D31) |
+| `desk.js` | Normal mode on desktop (LAYOUT "Desktop: normal mode") |
+| `entry-page.js` | The entry page, with every ST setting (D29) |
+| `canvas-graph.js`, `canvas.js` | The canvas as data (layout, placement, router, pack frames) and on screen |
+| `piecebar.js`, `links.js` | The piece bar and the links it writes (D27) |
+| `inspector.js`, `pieces.js` | The inspector and the piece editing behind it, including Moments |
+| `logic-text.js` | The plain sentences for each rule |
+| `preview.js`, `preview-page.js` | Preview on the real engine (D13) and its tab |
+| `guide.js`, `guide-page.js` | The Guide's text and its tab (D31) |
+| `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
+| `snapshots.js` | Snapshots (11) |
+| `data.js`, `dom.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, the icon set |
 
 ### 9.3 Tests (`node:test`)
 
@@ -529,8 +562,15 @@ Each rule gets a test, using the sample book where possible:
   through `convertWorldInfoToCharacterBook` and `convertCharacterBook` keeps
   `extensions.wihero` (copy the two functions into a test fixture).
 
-The old e2e scripts (`e2e/*.mjs` in history) are the base for the in-ST
-checks: a chain advancing, swipe rewind, a rider, a lock, a card round trip.
+- Moments: same-reply and next-message timing, who says it, its own gate,
+  swipe rewind, problems and warnings, Preview (`test/moments.test.js`).
+
+The tests live in `test/`, one file per area (`engine`, `moments`, `timers`,
+`chat-state`, `generation`, `st-hooks`, `compat`, `preview`, `pieces`,
+`links`, `canvas`, `book`, `st-books`, `sample`, `ui`); `test/sim.js` plays
+turns and `test/fixtures/card-book.js` holds ST's card conversion. The
+in-ST checks are `e2e/n1.mjs` to `e2e/n8.mjs` and `e2e/desktop.mjs`
+([e2e/README.md](../e2e/README.md)).
 
 ---
 
@@ -633,6 +673,10 @@ something testable, as in ROADMAP.md.
 | **N4 Inspector** | D14, D15 (entry page chips), D18 Reopen, D19 Problems sheet, target picker, Story moves on, greeting cards and their inspector (15.4). Greeting refs in the engine (15.1–15.3) go in N1. | As ROADMAP N4, plus: Reopen works and rewinds, and mask text is edited through the chips. |
 | **N5 Preview** | LAYOUT's Preview on the real engine (D13). | As ROADMAP N5, plus: Preview and a real chat agree on the sample book. |
 | **N6 Safety and the bubble** | Section 17: catch-up (D24), compatibility and health (D25), the chat bubble (D26). | Replies written with WI Hero off are caught up oldest first and land where always-on play would; an untested ST version is named; a missing thread stands the engine down to plain World Info; the bubble counts and names what reached the prompt. |
+
+After N6 came the phone rounds, the piece bar, the desktop layout and the UI
+audit's four phases (D27–D31). [ROADMAP.md](ROADMAP.md) lists them with their
+PRs.
 
 ---
 

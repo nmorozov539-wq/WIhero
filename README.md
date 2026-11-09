@@ -26,4 +26,4 @@ for the first release.
 
 ## License
 
-GPLv3. See [LICENSE](LICENSE).
+AGPL-3.0, the same license as SillyTavern. See [LICENSE](LICENSE).

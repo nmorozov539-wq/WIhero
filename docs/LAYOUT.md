@@ -798,6 +798,8 @@ book ⋯ menus, Duplicate and Move to another book, waits (CONCEPTS 3.11).
 Decided after the demo and drawn in sketch 7 (in the git history)
 instead: the half-height inspector, the Reopen line, mask chips, greeting
 cards, "Show chat state", problem badges and the color vision modes. Not drawn
-anywhere yet, built from the tables above: the Problems and Snapshots sheets.
+anywhere yet, built from the tables above: the Problems and Snapshots sheets,
+and everything from the UI audit (Import and the Off hint, the full
+Parameters, Moments, the Guide and explain mode).
 In the demo's Preview, a lock phrase in the pretend reply opens its gate in the
 same turn; the build shows it as "from the next message" (CONCEPTS 2.1).
