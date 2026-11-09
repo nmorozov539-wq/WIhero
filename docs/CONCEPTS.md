@@ -21,7 +21,9 @@ demo (in the git history) follows this model.
   **which text it injects**. It never changes an entry's order, depth,
   position or other injection parameters.
 - Nothing WI Hero adds is sent to the model. Only the entry text that gets
-  injected reaches the LLM, as with plain World Info.
+  injected reaches the LLM, as with plain World Info. The one exception is
+  opt-in per book: a book whose trackers WI Hero teaches sends one short
+  instruction ([TRACKERS.md](TRACKERS.md) 3.2).
 
 ## 2. Core rules
 
@@ -313,6 +315,15 @@ breaks", "She learns his name".
   (lists, search, entry counts), and Hero mode lists them only in the entry
   panel's Moments group.
 
+### 3.14 Tracker
+
+Text the model writes. The main text or any mask of an entry can be **written
+by the model**: WI Hero reads each new reply for the slot's line (in the book's
+syntax, such as `[Gold: 7]`) and sends the newest value from the next message
+on. The entry's own text is the start value; a written mask is on while it
+holds a value. Values are story state, so they rewind. The full rules are in
+[TRACKERS.md](TRACKERS.md).
+
 ## 4. Linking and the canvas
 
 - **Anything with a link is on the canvas.** Linking to an entry that isn't
@@ -349,6 +360,9 @@ These are reported while editing. An entry with a problem never fires.
   fire until it is re-picked.
 - A Moment with no phrases (it can never happen), and Closes for aimed at a
   Moment (a Moment can't be closed).
+- Trackers (these never block the entry; only the tracker isn't read): two
+  written slots in a book with the same label, a syntax that can't be compiled,
+  and a written slot on a Moment.
 
 Warnings, which don't block:
 
@@ -361,6 +375,9 @@ Warnings, which don't block:
 - A Moment nothing uses yet.
 - A Moment carrying a piece it takes none of (glue, masks, Once, a switch, a
   close gate): it is ignored.
+- A written main on an entry that can never fire (switched off, or no key
+  words and not Permanent or held), and, with WI Hero teaching, a tracker with
+  no description.
 
 Problems put a red "!" on the card and on the entry's row; ⌄ lists them all
 under "Problems".
@@ -459,6 +476,7 @@ Rows are lists of refs.
 | `moment`    | `true` on a Moment (3.13); left out on every other entry       |
 | `dice`      | `true` on a switch's fork: it picks its path at random (3.5)   |
 | `note`      | The card's sticky note: for the author only, never sent        |
+| `written`   | The main text is a tracker (TRACKERS 7); also on a mask        |
 
 Example:
 
@@ -481,9 +499,6 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
 - Greetings in group chats.
-- **Trackers** (designed, not built): text the model writes into an entry or
-  a mask, read from the chat and kept in story state. See
-  [TRACKERS.md](TRACKERS.md).
 - Bigger ideas kept out of V1 (locks that match by meaning, among others) are
   in [AFTER_V1.md](AFTER_V1.md).
 - Out of scope for now: several books on one canvas, cross-book links,

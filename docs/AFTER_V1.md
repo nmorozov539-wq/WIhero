@@ -32,7 +32,7 @@ Big ideas we agreed are worth doing, but not in V1. Each has a short note on why
 
 ## Masks the model writes → Trackers
 
-Grew into its own spec: [TRACKERS.md](TRACKERS.md). Any text slot (an entry's main or a mask) can be written by the model, read from the chat with a syntax the user designs, and kept in the chat's story state so it rewinds. The preset findings from 2026-11-09 are in its section 10.
+Grew into its own spec, [TRACKERS.md](TRACKERS.md), built in 0.37.0. Any text slot (an entry's main or a mask) can be written by the model, read from the chat with a syntax the user designs, and kept in the chat's story state so it rewinds. The preset findings from 2026-11-09 are in its section 10.
 
 ## Brainstorm, 2026-11-09
 

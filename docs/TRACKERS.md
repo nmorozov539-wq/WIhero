@@ -1,6 +1,7 @@
 # WI Hero — Trackers
 
-Design spec for text the model writes into the book. **Designed, not built.**
+Design spec for text the model writes into the book. **Built in 0.37.0**;
+section 9 records how its open questions were settled.
 It follows the rules in [CONCEPTS.md](CONCEPTS.md) and the turn in
 [BUILD_SPEC.md](BUILD_SPEC.md) 6; where this file needs a change to either, it
 says so. Grown out of "Masks the model writes" in [AFTER_V1.md](AFTER_V1.md)
@@ -209,17 +210,38 @@ Added to CONCEPTS 5.
   v12); a template the user writes ages better.
 - Anything that needs a separate model call. WI Hero never makes one.
 
-## 9. Open questions
+## 9. Decisions (were open questions)
 
-- Should Show in chat hide by WI Hero's own render hook, or by writing a
-  display-only ST regex script? The second survives WI Hero being off.
-- Which ST hook strips old lines from the prompt for both chat and text
-  completion. To be checked against ST's code in TECHNICAL_NOTES.
-- Default depth for the instruction, and whether it should be a setting at all.
-- Whether bring-your-own needs a way to read a label the preset varies
-  (Nemo's model-chosen labels), or whether that stays out.
-- Whether written values should show in Normal mode's entry page too, or only
-  in Hero mode.
+Settled with the user on 2026-11-10.
+
+- **Show in chat** hides lines with WI Hero's own render hook (the message is
+  rendered again without them), not with a regex script written into ST's
+  list. It touches nothing outside the book; the lines show again while WI Hero
+  is off.
+- **Stripping old lines** uses ST's generate interceptor
+  (`generate_interceptor` in the manifest, script.js `runGenerationInterceptors`),
+  which runs for both chat and text completion before the prompt is built. Its
+  list holds the chat's own message objects, so changed ones are replaced by
+  copies, never edited. A continue keeps the message it continues.
+- **Instruction depth** is a per-book setting in the builder, default 1 (it
+  travels with the book's syntax as `written.teach.depth`). With several
+  teaching books, the shallowest depth is used for the one instruction.
+- **Labels a preset varies** (Nemo's model-chosen labels): left out.
+- **Normal mode** shows written values too: the entry page has the value with
+  Edit and Clear, above the text (which is the start value).
+
+Built details not spelled out above:
+
+- The Tracker piece (inspector, "Tracker") switches each slot on or off and
+  sets its label, shape, description and Show in chat; "Syntax and teaching…"
+  opens the builder.
+- A tracker that reads the user's messages is one whose entry has Who triggers
+  "only you" (`by: "user"`); otherwise only replies are read.
+- `/wihero-set` and the Edit and Clear buttons store the value on the latest
+  message's snapshot (`wrote`), like the other manual actions.
+- The instruction asks for the trackers whose value changed, at the very end of
+  the reply, and lists each slot's form, its description and (for one-line
+  slots) the current value.
 
 ## 10. Background: what big presets print
 

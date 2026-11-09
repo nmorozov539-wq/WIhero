@@ -1049,3 +1049,5 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 .trktips { margin: 0; padding-left: 1.2em; }
 .trkrow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .card .k.wval { color: var(--p-track); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trkb .kin { width: 100%; box-sizing: border-box; }
+.trkb .trkdepth .kin { width: 5em; }

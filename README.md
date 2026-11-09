@@ -37,6 +37,12 @@ point, and retire once it moves past.
   swap their text as the story moves on, and more. Preview checks a pretend
   exchange against the book before you play it, and the **?** button explains
   anything on screen.
+- **Trackers** let the model write an entry's text: gold, an inventory, a
+  temporary configuration. WI Hero reads each reply for the tracker's line,
+  sends the newest value, and rewinds it with swipes. Your preset can ask for
+  the lines, or WI Hero can teach the model with one short instruction (the only
+  thing WI Hero ever adds to the prompt, and only for books you switch it on
+  for).
 
 ## Feedback and bugs
 
