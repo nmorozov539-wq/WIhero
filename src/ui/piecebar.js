@@ -168,7 +168,9 @@ export function mountPieceBar(x) {
     const right = btn('pbtn done', 'Done', () => finish());
     const strip = el('div', 'pstrip');
     strip.style.setProperty('--c', colorOf(e.piece));
-    strip.append(left, mid, right);
+    // "?" opens this piece's page in the Guide.
+    const help = x.guide ? btn('pbtn sq pq', ic('help', 's'), () => x.guide(e.piece), `How ${CHIP[e.piece]?.label ?? 'this piece'} works`) : null;
+    strip.append(left, mid, ...(help ? [help] : []), right);
     bottom.append(strip);
     const note = () => { if (e.note) mid.append(el('div', `pnote${e.noteBad ? ' bad' : ''}`, e.note)); };
     const row = (...kids) => { const r = el('div', 'prow2'); r.append(...kids); return r; };

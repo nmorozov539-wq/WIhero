@@ -186,6 +186,24 @@ async function heroMode(w, h, drawer) {
     await $(page, '.vp .card').first().waitFor();
     await shot(page, `${w}-hero`);
 
+    // Explain mode: the "?" in the tab row, then a click on a lock pill opens the Guide at Lock, not the pill's strip.
+    await $(page, '.tright .explainq').click();
+    await $(page, '.explainban').waitFor();
+    assert.ok(await page.evaluate(() => wihero.app.state.hero.explain), 'explain mode is on');
+    const pillBox = await $(page, '.lockp').first().boundingBox();
+    await page.mouse.click(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2);
+    await $(page, '.guide .gpage[data-anchor="lock"]').waitFor();
+    assert.equal(await $(page, '.pstrip').count(), 0, 'the pill did not open its strip');
+    assert.equal(await $(page, '.explainban').count(), 0, 'one click, then explain mode ends');
+    await shot(page, `${w}-guide`);
+    await $(page, '.tab[aria-label="Canvas"]').click();
+    await $(page, '.vp .card').first().waitFor();
+    await page.keyboard.press('?');
+    await $(page, '.explainban').waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await $(page, '.explainban').count(), 0, 'Escape cancels explain mode');
+    ok(`${w}: explain mode: "?" outlines, a click on a lock pill opens the Guide at Lock; ? and Escape`);
+
     // The entry list: a click on a row's hollow dot places it; a click on the row only inspects.
     const hollow = $(page, '.panel.dock .prow').filter({ has: page.locator('.dotc:not(.in)') }).first();
     if (await hollow.count()) {

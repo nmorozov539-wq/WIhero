@@ -25,6 +25,8 @@ import { renderGreetingInspector, renderInspector } from './inspector.js';
 import { BAR, editExisting, mountPieceBar, startPiece } from './piecebar.js';
 import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
+import { renderGuide } from './guide-page.js';
+import { PIECE_ANCHOR } from './guide.js';
 import { deskNormal, resizer } from './desk.js';
 
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
@@ -101,7 +103,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [] },
+        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [] },
         // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
         desk: false,
     };
@@ -1029,6 +1031,7 @@ export function createApp(deps) {
         };
         mk('Canvas', H.active === 'canvas', () => { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } }, null, { icon: 'canvas' });
         mk('Preview', H.active === 'preview', () => { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } }, null, { icon: 'eye' });
+        if (H.guide) mk('Guide', H.active === 'guide', () => { if (H.active !== 'guide') { H.active = 'guide'; render(); } }, () => { H.guide = null; if (H.active === 'guide') H.active = 'canvas'; render(); }, { icon: 'help' });
         H.tabs.forEach((t, i) => {
             const e = library.peek(t.book)?.entries[t.uid];
             mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
@@ -1046,6 +1049,8 @@ export function createApp(deps) {
         bp.title = 'Switch book';
         const sb = btn('tsearch', `${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
         const nm = btn('tmode', `${ic('entry', 's')}<span>Normal mode</span>`, () => switchMode(), 'Switch to Normal mode');
+        const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
+        eq.title = 'Explain (?)';
         const wide = deskSettings().heroWide !== false;
         const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => {
             deskSettings().heroWide = !wide;
@@ -1056,9 +1061,76 @@ export function createApp(deps) {
             requestAnimationFrame(() => heroCanvas?.fit());
         }, wide ? 'Drawer size' : 'Widen');
         wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(bp, sb, nm, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
+        right.append(bp, sb, eq, nm, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
         tabbar.append(right);
     }
+
+    // ---------------------------------------------------------------- the Guide and explain mode (LAYOUT "Guide")
+    const SAMPLE = 'WIHero-Sample';
+    /** Opens the Guide tab at an anchor (a piece's page, or a topic). */
+    function openGuide(anchor) {
+        H.explain = false;
+        H.guide = { anchor };
+        H.active = 'guide';
+        H.panel = false;
+        render();
+    }
+    /** Explain mode: for one tap, everything explainable is outlined and a tap opens the Guide there. */
+    function startExplain() {
+        H.explain = true;
+        H.bar.armed = null;
+        render();
+    }
+    function stopExplain() { H.explain = false; render(); }
+    /** The Guide anchor of what was tapped in explain mode, or null (LAYOUT "Explain mode"). */
+    function explainAnchor(t) {
+        const at = sel => t.closest?.(sel);
+        const chipEl = at('.pchip[data-piece]');
+        if (chipEl) return PIECE_ANCHOR[chipEl.dataset.piece] ?? null;
+        if (at('.pstrip')) { const k = H.bar.edit?.piece; return PIECE_ANCHOR[k] ?? 'strip'; }
+        const pc = at('.pc[data-piece]');
+        if (pc) return PIECE_ANCHOR[pc.dataset.piece] ?? 'inspector';
+        if (at('.insp, .hinsp')) return 'inspector';
+        const port = at('[data-port]');
+        if (port) return PIECE_ANCHOR[PORT[port.dataset.port.split('|')[1]]?.piece] ?? 'canvas';
+        const pill = at('.lockp');
+        if (pill) return pill.dataset.kind === 'wait' ? 'wait' : 'lock';
+        const line = at('.lhit');
+        if (line) return { open: 'opens', close: 'closes', ride: 'glue' }[line.dataset.kind] ?? 'canvas';
+        if (at('.junc')) return 'opens';
+        if (at('.packframe')) return 'pack';
+        if (at('.mnav, .layercard')) return 'mask';
+        if (at('.card.moment')) return 'moment';
+        if (at('.card.greet')) return 'greeting';
+        if (at('.card')) return 'canvas';
+        const b = at('button');
+        const label = b?.getAttribute('aria-label') ?? '';
+        if (/^Fit/.test(label)) return 'fit';
+        if (/^Tidy/.test(label)) return 'tidy';
+        if (at('.panelBtn, .panel, .pfold')) return 'panel';
+        if (at('.hl, mark, .hit')) return 'highlights';
+        if (at('.also')) return 'also';
+        return null;
+    }
+    // In explain mode a press anywhere in WI Hero is caught before the element's own handlers: it never acts.
+    for (const type of ['pointerdown', 'pointerup', 'mousedown', 'touchstart', 'dblclick', 'contextmenu']) {
+        root.addEventListener(type, e => {
+            if (!H.explain || S.mode !== 'hero' || e.composedPath().some(n => n.classList?.contains('explainban'))) return;
+            e.stopPropagation();
+            if (e.cancelable && type !== 'touchstart') e.preventDefault();
+        }, { capture: true, passive: false });
+    }
+    root.addEventListener('click', e => {
+        if (!H.explain || S.mode !== 'hero') return;
+        const path = e.composedPath();
+        if (path.some(n => n.classList?.contains('explainban'))) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const t = path[0];
+        const anchor = t instanceof Element ? explainAnchor(t) : null;
+        if (anchor) openGuide(anchor);
+        else layer.toast('Nothing to explain there. Tap something outlined, or Cancel.');
+    }, true);
 
     function closeHeroTab(i) {
         H.tabs.splice(i, 1);
@@ -1078,6 +1150,7 @@ export function createApp(deps) {
     }
 
     function heroBack() {
+        if (H.explain) { stopExplain(); return true; }
         if (S.desk) return heroBackDesk();
         // Back on an open strip is its Cancel; on an armed chip it disarms.
         if (H.active === 'canvas' && H.bar.edit) {
@@ -1091,6 +1164,7 @@ export function createApp(deps) {
         if (H.insp && H.active === 'canvas') { H.insp = null; render(); return true; }
         if (H.panel) { H.panel = false; render(); return true; }
         if (typeof H.active === 'number') { closeHeroTab(H.active); return true; }
+        if (H.active === 'guide') { H.active = 'canvas'; render(); return true; }
         if (H.active === 'preview') {
             if (H.pv?.page) H.pv.page = null;
             else H.active = 'canvas';
@@ -1119,6 +1193,15 @@ export function createApp(deps) {
 
     function renderHero() {
         renderTabs();
+        // Explain mode: outlines on what can be explained, a banner with Cancel (LAYOUT "Explain mode").
+        root.classList.toggle('explaining', !!H.explain);
+        root.querySelector(':scope > .explainban')?.remove();
+        if (H.explain) {
+            const ban = el('div', 'explainban');
+            ban.setAttribute('role', 'status');
+            ban.append(el('span', '', S.desk ? 'Click anything to learn about it' : 'Tap anything to learn about it'), btn('pbtn sm', 'Cancel', stopExplain));
+            root.append(ban);
+        }
         if (typeof H.active === 'number' && !H.tabs[H.active]) H.active = 'canvas';
         const keepBook = H.active === 'canvas' ? heroBook() : null;
         const kept = heroMount && heroCanvas && keepBook && heroMount.book === keepBook && library.peek(keepBook) === heroMount.data
@@ -1159,6 +1242,17 @@ export function createApp(deps) {
             return;
         }
         if (H.active === 'preview') { renderPreviewTab(); if (S.desk && S.search) deskN.renderSearch(); return; }
+        if (H.active === 'guide' && H.guide) {
+            main.dataset.page = 'hero:guide';
+            renderGuide(main, {
+                anchor: H.guide.anchor,
+                hasSample: library.names().includes(SAMPLE),
+                showMe: (_id, key) => { H.guide.anchor = null; showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
+            });
+            H.guide.anchor = null; // scrolled there once; a redraw keeps the reader's place
+            if (S.desk && S.search) deskN.renderSearch();
+            return;
+        }
         main.dataset.page = 'hero:canvas';
         const book = heroBook();
         if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
@@ -1195,6 +1289,11 @@ export function createApp(deps) {
     /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
     function heroAround(book, data) {
         if (S.desk) deskColumns();
+        if (!S.desk) {
+            // Phones: the "?" sits at the top right of the canvas.
+            const q = btn('explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: tap something to learn about it');
+            main.append(q);
+        }
         heroPanel(book, data);
         if (H.bar.edit && H.bar.edit.book !== book) H.bar.edit = null;
         mountPieceBar(barApi(book));
@@ -1303,6 +1402,7 @@ export function createApp(deps) {
             toast: t => layer.toast(t),
             place: (k, hit) => dropPiece(book, k, hit),
             entryTemplate: deps.entryTemplate,
+            guide: piece => openGuide(PIECE_ANCHOR[piece] ?? 'strip'),
             makeMoment: made => {
                 const mem = canvasMemory(bookSettings(settings, book));
                 const key = cardKey(made);
@@ -1905,6 +2005,7 @@ export function createApp(deps) {
         const nameOfId = id => { const x = entriesOf(data).find(y => idOf(y) === id); return x ? titleOf(x) : id; };
         const common = {
             layer, full: I.full, scroll: I.scroll, nameOfId, packs: packsOf(data),
+            guide: key => openGuide(key ? PIECE_ANCHOR[key] ?? key : null),
             setFull: v => { I.full = v; render(); },
             onScroll: v => { I.scroll = v; },
             close: () => { H.insp = null; if (S.desk) heroCanvas?.setPicked(new Set(), true); render(); },
@@ -2044,6 +2145,7 @@ export function createApp(deps) {
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›' }));
         }
+        sh.append(layer.opt('Guide', () => { layer.close(); openGuide(null); }, { icon: 'help', val: '›' }));
         sh.append(el('div', 'lbl', 'Canvas'));
         sh.append(layer.opt('Tidy layout', () => {
             layer.close();
@@ -2679,6 +2781,7 @@ export function createApp(deps) {
         if (H.active !== 'canvas' || !heroCanvas || !H.book) return false;
         const book = H.book;
         const up = k.length === 1 ? k.toUpperCase() : k;
+        if (k === '?') { H.explain ? stopExplain() : startExplain(); return true; }
         const piece = !e.shiftKey && BAR.find(p => p.key === up);
         if (piece) {
             if (H.bar.edit) return false;
