@@ -14,7 +14,7 @@
 // Ports: { x, y, n, card? }, n = outward normal as a side name, [x, y] or { x, y }; card = the obstacle id the
 // port sits on.
 
-import { EPS, axisToward, boxOf, flatten, normal, num, overlaps, pathD, segHitsRect, tangents } from './geom.js';
+import { EPS, axisToward, boxOf, flatten, normal, num, overlaps, pathD, segHitsRect, tangents, unit } from './geom.js';
 import { inside, makeGrid, mark, search } from './grid.js';
 
 
@@ -215,14 +215,47 @@ export function createLinkEngine(options = {}) {
         return out;
     }
 
+    /**
+     * A link from its first port through each `via` point to its last port. A via is a fixed point the link passes
+     * through (a junction the host owns): { x, y, n? }, n = the way the link travels through it; without one, the
+     * link travels from the point before it towards the point after it.
+     */
     function compile(def, defs) {
-        const A = def.from || {};
-        const B = def.to || {};
+        const stops = [def.from || {}, ...(Array.isArray(def.via) ? def.via : []), def.to || {}];
+        if (stops.length === 2) { const one = leg(stops[0], stops[1], def, defs); return finish(one.parts, one.kind, one.clear, one.runs ? [one.runs] : null); }
+        const pass = passable(def);
+        const at = s => [num(s.x), num(s.y)];
+        const pts = stops.map(at);
+        const ports = stops.map((s, i) => {
+            if (i === 0 || i === stops.length - 1) return s;
+            const d = normal(s.n) || unit(pts[i + 1][0] - pts[i - 1][0], pts[i + 1][1] - pts[i - 1][1]) || [1, 0];
+            return { x: pts[i][0], y: pts[i][1], d };
+        });
+        const parts = [];
+        const runs = [];
+        let kind = 'curve';
+        let isClear = true;
+        for (let i = 0; i + 1 < ports.length; i++) {
+            const a = ports[i]; const b = ports[i + 1];
+            const A = a.d ? { x: a.x, y: a.y, n: a.d } : a;
+            const B = b.d ? { x: b.x, y: b.y, n: [-b.d[0], -b.d[1]] } : b;
+            const one = leg(A, B, def, defs, pass);
+            parts.push(...one.parts);
+            if (one.runs) runs.push(one.runs);
+            if (one.kind === 'route') kind = 'route';
+            isClear &&= one.clear;
+        }
+        return finish(parts, kind, isClear, runs.length ? runs : null);
+    }
+
+    /** One stretch between two ports: { parts, kind, clear, runs }. */
+    function leg(A, B, def, defs, pass = passable(def)) {
         const ax = num(A.x); const ay = num(A.y); const bx = num(B.x); const by = num(B.y);
         const chord = Math.hypot(bx - ax, by - ay);
         const straight = () => [{ k: 'L', p: [ax, ay, bx, by] }];
         const ra = rects.get(A.card); const rb = rects.get(B.card);
-        if (chord < 1 || (A.card !== B.card && ra && rb && overlaps(ra, rb))) return finish(straight(), 'straight', true);
+        const out = (parts, kind, isClear, runs = null) => ({ parts, kind, clear: isClear, runs });
+        if (chord < 1 || (A.card !== B.card && ra && rb && overlaps(ra, rb))) return out(straight(), 'straight', true);
 
         const n = normal(A.n) || axisToward(bx - ax, by - ay);
         const m = normal(B.n) || axisToward(ax - bx, ay - by);
@@ -238,14 +271,13 @@ export function createLinkEngine(options = {}) {
             return parts;
         };
         const lo = l ? 1 : 0;
-        const pass = passable(def);
         const ends = new Set([A.card, B.card].filter(c => c !== undefined));
         const ok = (parts) => clear(flatten(parts, 1, lo, parts.length - lo), pass, ends);
 
         // One S-curve, if it's clear (at full tension, or a little flatter).
         for (const s of [1, 0.6]) {
             const parts = wrap(direct(A, n, B, m, q, r, s));
-            if (ok(parts)) return finish(parts, 'curve', true);
+            if (ok(parts)) return out(parts, 'curve', true);
         }
 
         // Find a way round.
@@ -255,14 +287,14 @@ export function createLinkEngine(options = {}) {
         routes++;
         const C = search(g, q, n, r, [-m[0], -m[1]], { bend: opts.bend });
         for (const o of opened) mark(g, o, opts.clearance, 1);
-        if (!C) return finish(wrap(direct(A, n, B, m, q, r, 1)), 'curve', false);
+        if (!C) return out(wrap(direct(A, n, B, m, q, r, 1)), 'curve', false);
         const W = pull(C, pass, ends);
         W[0] = stretch([ax, ay], n, W, pass, ends);
         const rev = W.slice().reverse();
         W[W.length - 1] = stretch([bx, by], m, rev, pass, ends);
         const P = lanes([[ax, ay], ...W, [bx, by]], def.id, n, m, pass, ends);
         const parts = rounded(P, pass, ends);
-        return { ...finish(parts, 'route', ok(parts)), runs: P };
+        return out(parts, 'route', ok(parts), P);
     }
 
     // ---- lanes (rule 3): a run that would sit on top of another link's run moves over by a lane
@@ -283,12 +315,13 @@ export function createLinkEngine(options = {}) {
     function crowded(a, b, self, P) {
         for (const [id, e] of links) {
             if (id === self || !e.path.runs) continue;
-            const R = e.path.runs;
-            // Links leaving the same port travel together from it: their first runs don't count.
-            for (let i = 0; i + 1 < R.length; i++) {
-                const c = R[i]; const d = R[i + 1];
-                if ((i === 0 && c[0] === P[0][0] && c[1] === P[0][1]) || (i + 2 === R.length && d[0] === P.at(-1)[0] && d[1] === P.at(-1)[1])) continue;
-                if (onTop(a, b, c, d)) return true;
+            for (const R of e.path.runs) {
+                // Links leaving the same port (or junction) travel together from it: their first runs don't count.
+                for (let i = 0; i + 1 < R.length; i++) {
+                    const c = R[i]; const d = R[i + 1];
+                    if ((i === 0 && c[0] === P[0][0] && c[1] === P[0][1]) || (i + 2 === R.length && d[0] === P.at(-1)[0] && d[1] === P.at(-1)[1])) continue;
+                    if (onTop(a, b, c, d)) return true;
+                }
             }
         }
         return false;
@@ -323,14 +356,14 @@ export function createLinkEngine(options = {}) {
         return P;
     }
 
-    function finish(parts, kind, isClear) {
-        return { parts, d: pathD(parts), ...tangents(parts), drawn: [kind], clear: isClear };
+    function finish(parts, kind, isClear, runs = null) {
+        return { parts, d: pathD(parts), ...tangents(parts), drawn: [kind], clear: isClear, runs };
     }
 
     const sigOf = (def) => {
         const f = def.from || {}; const t = def.to || {};
         const own = def.owner ? [...def.owner].sort() : null;
-        return JSON.stringify([f.x, f.y, f.n, f.card, t.x, t.y, t.n, t.card, own]);
+        return JSON.stringify([f.x, f.y, f.n, f.card, t.x, t.y, t.n, t.card, own, def.via ?? null]);
     };
 
     /** Lays out the links. Only links whose ends changed, or that run near an obstacle that changed, are redone. */

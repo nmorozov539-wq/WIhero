@@ -275,3 +275,53 @@ test('the example books: no link enters a card, on phones and on desktop', () =>
         }
     }
 });
+
+// ---- junctions
+
+const passesThrough = (pts, x, y) => {
+    let best = Infinity;
+    for (let i = 0; i < pts.length; i += 2) best = Math.min(best, Math.hypot(pts[i] - x, pts[i + 1] - y));
+    return best;
+};
+
+test('a link passes through its via points, in order, travelling the way each one says', () => {
+    const A = card('A', 0, 0); const B = card('B', 300, 300);
+    const via = [{ x: 200, y: 100, n: 'bottom' }];
+    const e = run([{ ...def('a', at(A, 'right'), at(B, 'top')), via }], [A, B]);
+    const pts = e.polyline('a', 0.25);
+    close(passesThrough(pts, 200, 100), 0, 1e-6);
+    // Travelling down through the junction: the points just around it line up vertically.
+    const i = pts.findIndex((v, k) => k % 2 === 0 && v === 200 && pts[k + 1] === 100);
+    assert.ok(i > 0);
+    close(pts[i - 2], 200, 1e-6); close(pts[i + 2], 200, 1e-6);
+    assert.ok(pts[i - 1] < 100 && pts[i + 3] > 100);
+    assert.ok(e.path('a').clear);
+});
+
+test('several links into one junction share the run from it, and each still goes round cards', () => {
+    const S = card('S', 200, 300, 120, 60);
+    const K = [card('K1', 0, 0), card('K2', 200, 0), card('K3', 400, 0)];
+    const M = card('M', 230, 120, 60, 40);
+    const J = { x: 260, y: 250, n: 'bottom' };
+    const defs = K.map(k => ({ ...def(k.id, at(k, 'bottom'), at(S, 'top')), via: [J] }));
+    const e = run(defs, [S, M, ...K]);
+    for (const d of defs) {
+        assert.ok(e.path(d.id).clear, d.id);
+        close(passesThrough(e.polyline(d.id, 0.25), J.x, J.y), 0, 1e-6);
+        assert.ok(!enters(e.polyline(d.id), M, 2), `${d.id} enters M`);
+    }
+});
+
+test('a via without a direction travels from the point before it to the point after it', () => {
+    const e = run([{ ...def('a', { x: 0, y: 0, n: 'right' }, { x: 400, y: 0, n: 'left' }), via: [{ x: 200, y: 80 }] }]);
+    const pts = e.polyline('a', 0.25);
+    close(passesThrough(pts, 200, 80), 0, 1e-6);
+    assert.ok(e.path('a').d.startsWith('M0 0'));
+});
+
+test('moving a via point redoes the link', () => {
+    const e = createLinkEngine();
+    const d1 = { ...def('a', { x: 0, y: 0, n: 'right' }, { x: 400, y: 0, n: 'left' }), via: [{ x: 200, y: 80 }] };
+    e.layout([d1]);
+    assert.deepEqual(e.layout([{ ...d1, via: [{ x: 200, y: 120 }] }]).changed, ['a']);
+});
