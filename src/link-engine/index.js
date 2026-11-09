@@ -19,7 +19,8 @@ import { inside, makeGrid, mark, search } from './grid.js';
 
 
 export function createLinkEngine(options = {}) {
-    const opts = { grid: 12, clearance: 14, margin: 2, stub: 12, tension: 0.5, bend: 4, radius: 40, laneGap: 8, ...options };
+    // scales: handle lengths tried for the one-curve link, in order of preference.
+    const opts = { grid: 12, clearance: 14, margin: 2, stub: 12, tension: 0.5, bend: 4, radius: 40, laneGap: 8, scales: [1, 0.6, 1.5, 0.35], ...options };
     let rects = new Map();
     let dirty = []; // obstacles added, removed or moved since the last layout (old and new rects)
     let grid = null; // built lazily, the first time a link needs routing after the obstacles change
@@ -274,11 +275,17 @@ export function createLinkEngine(options = {}) {
         const ends = new Set([A.card, B.card].filter(c => c !== undefined));
         const ok = (parts) => clear(flatten(parts, 1, lo, parts.length - lo), pass, ends);
 
-        // One S-curve, if it's clear (at full tension, or a little flatter).
-        for (const s of [1, 0.6]) {
+        // One S-curve, if one is clear. Of the clear ones, the one that runs along other links the least (rule 2:
+        // links cross near a right angle, not in a long shallow overlap); the first is the default.
+        let best = null;
+        for (const s of opts.scales) {
             const parts = wrap(direct(A, n, B, m, q, r, s));
-            if (ok(parts)) return out(parts, 'curve', true);
+            if (!ok(parts)) continue;
+            const score = shallow(flatten(parts, 2), def.id, [ax, ay], [bx, by]);
+            if (!best || score < best.score - 1) best = { parts, score };
+            if (score === 0) break;
         }
+        if (best) return out(best.parts, 'curve', true);
 
         // Find a way round.
         const g = ensureGrid(defs);
@@ -295,6 +302,41 @@ export function createLinkEngine(options = {}) {
         const P = lanes([[ax, ay], ...W, [bx, by]], def.id, n, m, pass, ends);
         const parts = rounded(P, pass, ends);
         return out(parts, 'route', ok(parts), P);
+    }
+
+    // ---- crossings (rule 2)
+
+    /**
+     * How much of a candidate runs along other links: the length of its pieces that lie within a lane of another
+     * link's piece at a shallow angle (under 30°), or cross one at such an angle. Pieces near the link's own ports
+     * don't count, since links sharing a port start out together on purpose.
+     */
+    function shallow(pts, self, a, b) {
+        const box = boxOf(pts);
+        const g = opts.laneGap;
+        const near = (x, y, p) => Math.hypot(x - p[0], y - p[1]) < 3 * opts.stub;
+        let total = 0;
+        for (const [id, e] of links) {
+            if (id === self || !e.flat || !overlaps({ x: box.x - g, y: box.y - g, w: box.w + 2 * g, h: box.h + 2 * g }, e.box)) continue;
+            const o = e.flat;
+            for (let i = 0; i + 3 < pts.length; i += 2) {
+                const x0 = pts[i]; const y0 = pts[i + 1]; const x1 = pts[i + 2]; const y1 = pts[i + 3];
+                if (near(x0, y0, a) || near(x1, y1, b) || near(x0, y0, b) || near(x1, y1, a)) continue;
+                const u = unit(x1 - x0, y1 - y0);
+                if (!u) continue;
+                const len = Math.hypot(x1 - x0, y1 - y0);
+                const mx = (x0 + x1) / 2; const my = (y0 + y1) / 2;
+                for (let j = 0; j + 3 < o.length; j += 2) {
+                    const v = unit(o[j + 2] - o[j], o[j + 3] - o[j + 1]);
+                    if (!v || Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.5) continue; // steeper than 30°: a clean crossing
+                    // Distance from this piece's midpoint to the other piece.
+                    const vx = o[j + 2] - o[j]; const vy = o[j + 3] - o[j + 1];
+                    const t = Math.max(0, Math.min(1, ((mx - o[j]) * vx + (my - o[j + 1]) * vy) / (vx * vx + vy * vy)));
+                    if (Math.hypot(mx - (o[j] + vx * t), my - (o[j + 1] + vy * t)) < g) { total += len; break; }
+                }
+            }
+        }
+        return total;
     }
 
     // ---- lanes (rule 3): a run that would sit on top of another link's run moves over by a lane
@@ -379,7 +421,8 @@ export function createLinkEngine(options = {}) {
             const prev = links.get(def.id);
             if (prev && prev.sig === sig && !near(prev.box)) continue;
             const path = compile(def, list);
-            links.set(def.id, { sig, path, box: boxOf(flatten(path.parts, 2)) });
+            const flat = flatten(path.parts, 2);
+            links.set(def.id, { sig, path, flat, box: boxOf(flat) });
             computes++;
             changed.push(def.id);
         }

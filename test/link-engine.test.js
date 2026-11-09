@@ -325,3 +325,50 @@ test('moving a via point redoes the link', () => {
     e.layout([d1]);
     assert.deepEqual(e.layout([{ ...d1, via: [{ x: 200, y: 120 }] }]).changed, ['a']);
 });
+
+// ---- readability
+
+/** Length of link pieces that run within 6px of another link at under 30°, away from the ports. */
+function overlapLength(e, defs) {
+    let total = 0;
+    const P = defs.map(d => e.polyline(d.id, 2));
+    P.forEach((p, a) => {
+        const ends = [[p[0], p[1]], [p.at(-2), p.at(-1)]];
+        for (let i = 0; i + 3 < p.length; i += 2) {
+            if (ends.some(([x, y]) => Math.hypot(p[i] - x, p[i + 1] - y) < 40)) continue;
+            const ux = p[i + 2] - p[i]; const uy = p[i + 3] - p[i + 1]; const ul = Math.hypot(ux, uy);
+            const mx = p[i] + ux / 2; const my = p[i + 1] + uy / 2;
+            const hit = P.some((o, b) => {
+                if (a === b) return false;
+                for (let j = 0; j + 3 < o.length; j += 2) {
+                    const vx = o[j + 2] - o[j]; const vy = o[j + 3] - o[j + 1]; const vl = Math.hypot(vx, vy);
+                    if (!vl || !ul || Math.abs(ux * vy - uy * vx) / (ul * vl) > 0.5) continue;
+                    const t = Math.max(0, Math.min(1, ((mx - o[j]) * vx + (my - o[j + 1]) * vy) / (vl * vl)));
+                    if (Math.hypot(mx - o[j] - vx * t, my - o[j + 1] - vy * t) < 6) return true;
+                }
+                return false;
+            });
+            if (hit) total += ul;
+        }
+    });
+    return total;
+}
+
+test('links cross cleanly: choosing among curve shapes cuts long shallow overlaps on the desktop sample', () => {
+    const s = bookScene('WIHero-Sample.json', LR);
+    const lay = (o) => { const e = createLinkEngine(o); e.setObstacles(s.obstacles); e.layout(s.defs); return e; };
+    const plain = overlapLength(lay({ scales: [1] }), s.defs);
+    const picked = overlapLength(lay(), s.defs);
+    assert.ok(picked < plain * 0.6, `overlap ${picked.toFixed(0)} vs ${plain.toFixed(0)} with one shape`);
+});
+
+test('no two links sit on top of each other for long in the phone sample', () => {
+    const s = bookScene('WIHero-Sample.json', TB);
+    const e = createLinkEngine();
+    e.setObstacles(s.obstacles);
+    e.layout(s.defs);
+    const lanesOff = createLinkEngine({ laneGap: 0.5 });
+    lanesOff.setObstacles(s.obstacles);
+    lanesOff.layout(s.defs);
+    assert.ok(overlapLength(e, s.defs) < overlapLength(lanesOff, s.defs) * 0.5);
+});
