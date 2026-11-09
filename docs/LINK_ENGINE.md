@@ -1,8 +1,8 @@
 # Link engine
 
 Smooth canvas links that go around cards. Built from the link engine handout (project files,
-`wihero/link-engine-handout.md`). Lives on the `link-engine` branch and is **not wired into the canvas yet**:
-`src/ui/canvas.js` still uses the grid router in `src/ui/canvas-graph.js`.
+`wihero/link-engine-handout.md`). Lives on the `link-engine` branch, which is not merged. `src/ui/canvas.js` draws its links with it there; the
+old grid router is still in `src/ui/canvas-graph.js`, unused by the canvas.
 
 Code: `src/link-engine/` (pure: no DOM, no ST, no pieces). Tests: `test/link-engine.test.js`.
 Tools: `node tools/link-gallery.js` (writes `tools/link-gallery.html`, today's router beside the engine on the
@@ -63,8 +63,8 @@ Stored on the source card in the canvas settings, as the handout says, keyed `<p
 
 ## Not done yet
 
-- Wiring into `src/ui/canvas.js` (after the app.js split): build defs from `buildGraph` and `computePorts`, pass
-  cards, mask stacks, their ‹ › control and pack frames as obstacles, draw `path(id).d` in `drawEdge`, keep the
-  straight drag guides, store shapes in `canvas.cards[<key>].links`.
+- The editing UI (gestures, handles, where Reset lives). Shapes are read from the settings but nothing makes them yet.
+- Removing the old router (`route`, `heap`, `buffers`, `makeGrid`, `rounded` for links, and its tests) from
+  `canvas-graph.js`.
 - Bundling is lanes side by side; links heading the same way don't merge into one line.
-- The editing UI (gestures, handles, where Reset lives).
+- The SillyTavern e2e runs (n3, n7, perf) on this branch. The desktop harness run passes.
