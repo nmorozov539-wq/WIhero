@@ -53,6 +53,27 @@ Questions to settle when it's designed:
 - **Prepared syntaxes.** Ship about five tested presets, each as three parts that travel together: the format, the instruction that teaches it to the model, and the parser. Candidates: `[Mill: burned]`, `<!-- mill=burned -->`, a `<state>` block at the end of the reply, a status line like `Mill — burned`, a short JSON block. On top, a custom template such as `[{entry}: {value}]` that WI Hero compiles to a regex, tested on the last few replies to show what it caught. Presets are what would make people actually use this (brainstorm 2026-11-09).
 - **Scope.** CONCEPTS 9 keeps variables and math out of story logic. This doesn't change that: the model does the math, and WI Hero only copies the result. Gating on the value (opening an entry when gold reaches 100) would be a separate, bigger step.
 
+### Discussion, 2026-11-09: presets and how the model learns the syntax
+
+The hard part isn't reading the chat, it's getting the model to write the line. Popular presets already run their own trackers, and editing someone's preset to add ours would mean taking it over.
+
+**How the instruction gets in.** Not through the preset, and not as plain entry text. ST lets an extension inject its own prompt at a chosen depth and role (`setExtensionPrompt`), the way Author's Note, Summarize and Vectors do. A short system line at depth 0–1, sent only when the book has tracked masks, sits right before the reply, where models follow it closely. This replaces the glued-entry option above.
+
+**Two modes.**
+- **Bring your own tracker:** the preset already makes the model print the value, and WI Hero only reads it, with a template the user writes. WI Hero adds nothing to the prompt, so nothing clashes.
+- **WI Hero's own syntax:** for plain presets. Start with 2 prepared syntaxes, not 5. Strip our lines from the context the model reads, and let the mask be the current value it sees.
+
+**What the big presets actually print** (read from their source, 2026-11-09):
+- **Nemo Engine v12.3:** trackers are optional modules with three render modes. The default is HTML/CSS the model designs itself, which changes every reply and can't be parsed reliably. Its Regex mode is parseable (`<st-row k="Gold" v="120"/>`), but the model picks the labels and prints a tracker only when something changes. A strict "Final Output Manifest" orders everything at the end of a reply, so an injected line has to fit into it, not compete.
+- **Megumin Suite V11:** structured lines such as `{{user}}.Carrying: sword, 12 gold`, `Time:` and `Loc:`. By default the model writes only what changed, and the extension holds the full state. It can also hand tracking to a second model ("Chomusuke"), in which case the main reply may not carry the block at all (not checked).
+- **Freaky Frankenstein:** only on MediaFire links from Reddit, not read.
+
+**What this means.**
+- Bring your own works for structured text and fails for free-form HTML. Every reader needs "keep the last value when the line is missing", since trackers often print only on change.
+- Megumin already built the storage this section asks for: changes journaled per message and swipe in `chat_metadata`, so swipes and rewinds undo them, and old blocks stripped from history with the current values fed back once. That's good evidence that per-message story state is the right home for the value.
+- Presets change often (Nemo is on v12), so readers we ship for specific presets will go stale. Templates the user writes age better.
+- Still to test: a heavy preset plus our injected line, to see whether the model writes two blocks or garbles one.
+
 ## Brainstorm, 2026-11-09
 
 A no-commitment brainstorm. Nothing here is planned; each line is the idea plus any catch we spotted.
