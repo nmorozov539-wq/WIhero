@@ -506,3 +506,18 @@ test('crosses: curve-aware, it sees a curve that bows into a card between its en
     assert.ok(!crosses([60, 30, 300, 30], M), 'the straight line does not');
     assert.ok(!crosses(e.polyline('a'), A), 'starting on a card\'s border is not crossing it');
 });
+
+test('helpers for the shaping UI: the anchors, one segment\'s path, and where each ghost dot sits', () => {
+    const A = card('A', 0, 0); const B = card('B', 400, 0);
+    const shape = addDot(null, 0, { x: 230, y: -100 }, { from: A, to: B });
+    const e = run([{ ...def('a', at(A, 'right'), at(B, 'left')), shape }], [A, B]);
+    assert.deepEqual(e.ends('a'), { from: A, to: B });
+    assert.match(e.segmentD('a', 0), /^M60 30/);
+    assert.match(e.segmentD('a', 1), /^M230 -100/);
+    const mids = e.midpoints('a');
+    assert.equal(mids.length, 2);
+    assert.ok(mids[0].x > 60 && mids[0].x < 230 && mids[1].x > 230 && mids[1].x < 400);
+    // A junction end (no card): the anchor is the point itself.
+    const f = run([def('b', at(A, 'right'), { x: 300, y: 200, n: 'top' })], [A]);
+    assert.deepEqual(f.ends('b').to, { x: 300, y: 200, n: 'top' });
+});

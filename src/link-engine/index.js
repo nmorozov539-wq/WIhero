@@ -587,7 +587,7 @@ export function createLinkEngine(options = {}) {
             if (prev && prev.sig === sig && !near(prev.box)) continue;
             const path = compile(def, list);
             const flat = flatten(path.parts, 2);
-            links.set(def.id, { sig, path, flat, box: boxOf(flat), pieces: pieces(path.runs) });
+            links.set(def.id, { sig, path, flat, box: boxOf(flat), pieces: pieces(path.runs), ends: anchors(def) });
             computes++;
             changed.push(def.id);
         }
@@ -638,5 +638,42 @@ export function createLinkEngine(options = {}) {
 
     const stats = () => ({ links: links.size, computes, routes });
 
-    return { setObstacles, layout, path, polyline, nearest, stats };
+    /** The two anchors a link's dots are stored against, as the last layout saw them: pass them to the shape edits. */
+    function ends(id) {
+        const e = links.get(id);
+        return e ? { from: { ...e.ends.from }, to: { ...e.ends.to } } : null;
+    }
+
+    /** One segment of a link as SVG `d` (segment i of its shape; 0 is the whole link when it has none). */
+    function segmentD(id, i) {
+        const e = links.get(id);
+        if (!e) return null;
+        const { parts, spans } = e.path;
+        const from = i > 0 ? spans[i - 1] : 0;
+        const to = spans[i];
+        return to > from ? pathD(parts.slice(from, to)) : null;
+    }
+
+    /** The point halfway along each segment, where a ghost dot sits: [{ x, y }]. */
+    function midpoints(id) {
+        const e = links.get(id);
+        if (!e) return null;
+        const { parts, spans } = e.path;
+        let from = 0;
+        return spans.map(to => {
+            const pts = flatten(parts, 0.5, from, Math.max(from + 1, to));
+            from = to;
+            let total = 0;
+            for (let i = 0; i + 3 < pts.length; i += 2) total += Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
+            let half = total / 2;
+            for (let i = 0; i + 3 < pts.length; i += 2) {
+                const l = Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
+                if (half <= l && l > EPS) return { x: pts[i] + (pts[i + 2] - pts[i]) * half / l, y: pts[i + 1] + (pts[i + 3] - pts[i + 1]) * half / l };
+                half -= l;
+            }
+            return { x: pts.at(-2), y: pts.at(-1) };
+        });
+    }
+
+    return { setObstacles, layout, path, polyline, nearest, stats, ends, segmentD, midpoints };
 }
