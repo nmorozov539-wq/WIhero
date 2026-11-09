@@ -184,6 +184,25 @@ export function mountCanvas(vp, d) {
                 put(world, c);
                 continue;
             }
+            if (e.moment) {
+                // A Moment (VISUAL 7.5): a short card with a spark, MOMENT over its name, its phrases in quotes in the
+                // content font. No strategy stripe. With chat state on: happened, or not yet.
+                const st = chatState ? status(e.id) : null;
+                const c = el('div', `card moment${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}${picked.has(e.id) ? ' picked' : ''}${st?.happened ? ' happened' : ''}`);
+                c.dataset.id = e.id;
+                Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
+                const gr = el('div', 'grip gicon');
+                gr.innerHTML = ic('spark');
+                gr.dataset.grip = e.id;
+                gr.setAttribute('aria-label', `Move ${e.title}`);
+                const who = e.moment.by === 'user' ? ' · YOU' : e.moment.by === 'char' ? ' · CHARACTER' : '';
+                const tag = st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${who}`;
+                c.append(gr, el('div', 'tag', tag), el('div', 't', e.title),
+                    el('div', 'k gk', e.moment.phrases.length ? e.moment.phrases.map(p => `“${p}”`).join(' · ') : 'no phrases yet'));
+                if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This Moment has a problem'; c.append(b); }
+                put(world, c);
+                continue;
+            }
             const si = layerOf(e);
             const st = chatState ? status(e.id) : null;
             for (let i = Math.min(2, e.masks.length); i >= 1; i--) {
@@ -281,6 +300,7 @@ export function mountCanvas(vp, d) {
             const hp = sv('path', { d: rounded(pts), class: 'lhit' });
             hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
             hp.dataset.ends = `${x.from}>${x.to}`;
+            hp.dataset.kind = x.kind;
             put(lk, hp);
             if (x.mode) {
                 const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
@@ -335,6 +355,7 @@ export function mountCanvas(vp, d) {
                 Object.assign(n.style, { left: `${at[0]}px`, top: `${at[1]}px` });
                 n.dataset.open = key;
                 n.dataset.piece = PORT[kind].piece;
+                n.dataset.kind = x.lock ? 'lock' : 'wait';
                 n.dataset.cond = CV.conds.push({ key, port: kind, ri: row.ri, mask: row.mask ?? null, cond: x.lock ? { lock: x.lock, ...(x.by ? { by: x.by } : {}) } : { wait: x.wait, ...(x.by ? { by: x.by } : {}) } }) - 1;
                 put(world, n);
             };
@@ -842,7 +863,7 @@ export function mountCanvas(vp, d) {
         if (!r || !e || OV) return;
         const box = el('div', 'hhandles');
         Object.assign(box.style, { left: `${r.x + r.w / 2}px`, top: `${r.y + r.h + 4}px` });
-        const kinds = e.greeting ? [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes']]
+        const kinds = e.greeting || e.moment ? [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes']]
             : [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes'], ['ride', 'Glue: drag onto the card that rides along with this one']];
         for (const [k, label] of kinds) {
             const h = el('i', `hh ${k}`);

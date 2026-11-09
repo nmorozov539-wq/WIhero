@@ -451,6 +451,15 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .card.greet .t { line-height: 1.2; }
 .card.greet .k.gk { font-family: var(--content-font, var(--serif)); font-style: italic; display: block; margin-top: 0; }
 .card.greet.missing { background: none; border: 1.5px dashed var(--line); }
+/* A Moment (VISUAL 7.5): the start card's shape turned around, a spark, its phrases in the content font. */
+.card.moment { padding: 6px 10px 0 40px; border-radius: 10px 30px 30px 10px; background: var(--card); border-style: dashed; }
+.card.moment .grip.gicon { left: 8px; width: 26px; height: 26px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); display: flex; color: var(--accent); }
+.card.moment .grip.gicon svg { width: 15px; height: 15px; }
+.card.moment .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.card.moment .t { line-height: 1.2; }
+.card.moment .k.gk { font-family: var(--content-font, var(--serif)); font-style: italic; display: block; margin-top: 0; }
+.card.moment.happened { border-style: solid; border-color: var(--accent); }
+.card.moment.happened .tag { color: var(--accent); }
 .prow.greet::before { background: var(--muted); }
 .prow.greet .nm { display: flex; flex-direction: column; }
 .prow.greet .nm small { color: var(--muted); font-size: var(--t-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--content-font, var(--serif)); font-style: italic; }
@@ -945,3 +954,49 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pbar.folded { min-height: 34px; }
 @container (max-width: 1080px) { .pchips .dhint { display: none; } }
 @container (max-width: 860px) { .pchip kbd { display: none; } }
+
+/* The Off hint on a book's page: how to use a book no chat reaches. */
+.offhint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 4px 16px 8px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line); font-size: var(--t-s); color: var(--muted); }
+.offhint b { color: var(--fg); font-weight: 600; }
+.offhint .acts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+[data-desk="1"] .blhead + .offhint { margin: 0 12px 8px; }
+
+/* A Moment in the inspector: a spark for the strategy dot, its phrases as chips with a box to add one. */
+.ihead .mspark { display: flex; color: var(--accent); }
+.imphr { margin: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+.ichips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ichip { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 2px 0 10px; border-radius: 14px; border: 1px solid var(--line); font-family: var(--content-font, var(--serif)); font-style: italic; font-size: var(--t-s); }
+.ichip .x { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.iseg { margin: 0 16px; }
+.imoment { margin: 10px 16px 0; }
+.ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }
+.ihappened.on { color: var(--accent); }
+
+/* The Guide (LAYOUT "Guide"): an index of chips, then a page per piece, each with its picture. */
+.guide { padding: 0 16px 40px; user-select: text; -webkit-user-select: text; }
+.guide .ghead h1 { font-size: var(--t-xl); margin: 18px 0 4px; }
+.guide .ghead .help { margin: 0 0 10px; }
+.gidx { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.gchip { height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--c, var(--line)) 55%, var(--line)); font-size: var(--t-xs); color: var(--fg); }
+.gpage { border-top: 1px solid var(--line2); padding: 14px 0 6px; border-left: 3px solid var(--c, transparent); padding-left: 12px; margin-left: -12px; scroll-margin-top: 8px; }
+.gpage.flash { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.gpage h2 { font-size: var(--t-l); margin: 0 0 4px; }
+.gpage .gline { margin: 0 0 8px; }
+.gpage ul { margin: 0 0 6px; padding-left: 18px; color: var(--fg); font-size: var(--t-s); line-height: 1.5; }
+.gpage .gmis li::marker { color: var(--warn); }
+.gpage .gex { margin: 0 0 6px; font-family: var(--content-font, var(--serif)); font-size: var(--t-s); }
+.glbl { font-size: var(--t-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 8px 0 4px; }
+.gtopics { margin-top: 22px; }
+.gpic { margin: 4px 0 8px; }
+.gpic svg { display: block; max-width: 100%; height: auto; }
+.gshow { margin-top: 4px; }
+
+/* Explain mode: what can be explained is outlined, the rest dims a little, a banner at the bottom. */
+.explainq { position: absolute; right: 10px; top: 10px; z-index: 6; width: 40px; height: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+[data-desk="1"] .explainq { position: static; width: 46px; height: auto; border: none; border-radius: 0; background: none; }
+.explaining .explainq { color: var(--accent); }
+.explaining .main { cursor: help; }
+.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .canvas-tools button, .pfold, .plist .phdr) { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+.explaining .vp .world, .explaining .pchips { filter: saturate(.7) brightness(.92); }
+.explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; }
+.pstrip .pq { width: 32px; padding: 0; justify-content: center; color: var(--muted); }

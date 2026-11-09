@@ -221,6 +221,12 @@ Drawn in sketch 7 (in the git history).
   border, hollow grip dots).
 - **Problems**: a red round "!" on the card's top left corner, whether chat
   state is on or not.
+- **Moment cards** turn the start card around: rounded on the right, dashed,
+  a spark icon, "MOMENT" (with "· YOU" or "· CHARACTER" when only one side
+  can say it) above the name, the phrases in quotes in the content font, in
+  italics. No strategy stripe and never dimmed (it is stored off on purpose).
+  Out ports, plus the gate socket when it has a gate. With chat state on the
+  tag reads "HAPPENED" (solid accent border) or "NOT YET".
 - **Greeting cards** are start cards: rounded on the left like a speech bubble,
   a chat icon, "START" above the name ("Greeting", "Alt 2"), the greeting's
   opening words in the content font, in italics. No color of their own; out
@@ -249,6 +255,17 @@ Drawn in sketch 7 (in the git history).
   width, never below 80% zoom, from the top; the canvas then scrolls down. Fit, + and − sit on the
   right; the zoom level shows bottom left.
 - The legend, when shown, names the five link colors.
+
+### 7.7 Explain mode and the Guide
+
+- Explain mode outlines each explainable element with a 1.5px dashed accent
+  line, 2px out; the canvas and the piece bar dim slightly (less saturation,
+  a little darker). The banner is a pill with an accent border over the piece
+  bar, its text in `--t-s`, Cancel as a small button.
+- Guide pages carry a stripe in their piece's family color down the left
+  edge; the anchor a page was opened at flashes a faint accent tint. Pictures
+  are small SVGs drawn with the same card, line, knob and chip shapes and
+  colors as the canvas. The example is set in the content font.
 
 ## 8. Preview
 

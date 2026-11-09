@@ -17,7 +17,7 @@ mode like a board. They share the chrome, the components, the type and the
 entry page; only the main area differs (lists and pages, or the canvas with its
 panel).
 
-Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-mode) · [Desktop: normal mode](#desktop-normal-mode) · [Desktop: Hero mode](#desktop-hero-mode) · [Back](#back) · [Not in the demo](#not-in-the-demo)
+Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-mode) · [Desktop: normal mode](#desktop-normal-mode) · [Desktop: Hero mode](#desktop-hero-mode) · [Guide and explain mode](#guide-and-explain-mode) · [Back](#back) · [Not in the demo](#not-in-the-demo)
 
 ## Shared
 
@@ -128,8 +128,18 @@ The same page in both modes. Top to bottom:
 - **Parameters**, in groups:
   - Placement: Position; Depth and Role (only for "At depth"); Order
   - Chance and timing: Probability, Sticky, Cooldown, Delay
-  - Matching: Scan depth, Case-sensitive, Whole words, Recursion, Who triggers
-  - Limits: Inclusion group, Characters, Generation types
+  - Matching: Scan depth, Case-sensitive, Whole words, Recursion (can't be
+    triggered by other entries, doesn't trigger other entries, only triggered by
+    other entries with its level), the extra sources ST can match (persona
+    description, character description, personality, character's note,
+    scenario, creator's notes), Who triggers
+  - Limits: Inclusion group, and with a group: Prioritize, Group weight, Group
+    scoring; Ignore budget; Characters (Any, Only the ones picked, All but the
+    ones picked; characters and tags); Generation types (several, none is all);
+    Automation ID
+  - Every one of ST's entry settings has a control. One WI Hero doesn't show
+    (ST's "use probability" switch turned off) is named at the end of the
+    folded summary, "Also set: probability off", so nothing is ever hidden.
 - **Story logic section**: one row per rule, each with a short stripe in the
   piece's color, a small label and a plain sentence ("Gate: Opens when Mill has
   fired", "Glue: Holds: once fired it stays on until its close gate", "Closed
@@ -147,6 +157,9 @@ The same page in both modes. Top to bottom:
 
 ## Normal mode
 
+Normal mode never shows Moments (CONCEPTS 3.13): not in the book's list, the
+search, the entries drawer or any entry count. They live in Hero mode.
+
 ### Bottom bar
 
 Shown on Home and the book page, hidden on the entry page.
@@ -154,7 +167,7 @@ Shown on Home and the book page, hidden on the entry page.
 | Button | What it does |
 |--------|--------------|
 | Search | Opens the search overlay |
-| + New  | Home: new book. Book page: new entry |
+| + New  | Home: a small sheet, New book or Import a file…. Book page: new entry |
 | Select | Starts selection mode |
 
 ### Search overlay
@@ -172,11 +185,15 @@ Shown on Home and the book page, hidden on the entry page.
 |------|-----------------------|
 | Header | "World Info", and a gear for ST's World Info settings |
 | Book folders | Collapsible groups of books (WI Hero's own, not ST's) |
-| Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯ |
+| Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯. Off leads to the book's page, which says how to use it |
 | Tap a book | Opens it in a new tab |
 | Long press | Opens it in a background tab |
 | Book ⋯ | Open in new tab · Rename · Move to folder · Export · Delete |
-| + New (bottom bar) | Asks for a name, then opens the new book in a new tab |
+| + New (bottom bar) | New book (asks for a name, then opens it in a new tab) or Import a file… |
+
+**Import** takes a lorebook file and opens it in a new tab. It goes through ST's
+own import, so it takes what ST takes: ST's JSON, NovelAI (JSON or PNG), Agnai
+and Risu books. ST asks before replacing a book with the same name.
 
 **World Info settings** (sheet): every one of ST's World Info settings, so ST's
 own panel is never needed. They are ST's own and apply to every book.
@@ -191,7 +208,7 @@ own panel is never needed. They are ST's own and apply to every book.
 Switches flip in place; numbers ask in a small form.
 
 **Selection on Home**: top bar ✕, count, All/None, Invert, Delete. Bottom bar:
-Move (to a folder, No folder, + New folder) and Export.
+Move (to a folder, No folder, + New folder), Export and Import.
 
 ### Book page
 
@@ -200,6 +217,7 @@ Move (to a folder, No folder, + New folder) and Export.
 | Name ▾ | The book's name. Tap for List (this page) or Story canvas (opens the book in Hero mode), then New folder… · Rename · Duplicate · Move to folder · Export · Delete |
 | Global chip | Tap to make the book active globally or not |
 | Linked chip | First linked character or chat plus a count ("Seraphina +2"). Tap for the links sheet |
+| Off hint | Only while the book is neither global nor linked: "Off · No chat uses this book yet", then **Use it in this chat** (links it to the open chat; with no chat open, **Link it to a character…** opens the links sheet) and **Make it global** |
 | New entry defaults | Folded. The header sums up what isn't default. What new entries in this book start with |
 | Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (⌄) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe (no icon), name with a teal dot when the entry has story logic, keywords, on/off switch, ⋯. The switch is quiet while the entry is on (a gray track) and stands out only when it is off (an accent outline) |
@@ -278,7 +296,7 @@ and puts every port back on its default side.
 
 Under the canvas, always there, with a fold arrow (remembered). One row of chips
 that scrolls sideways: **Opens · Closes · Glue · Switch · Mask · Pack**, a
-divider, then **Lock · Wait**. The bar writes the same story logic as the
+divider, then **Lock · Wait · Moment**. The bar writes the same story logic as the
 inspector (CONCEPTS 3); it is the quick way to make links.
 
 **Placing.** Tap a chip and then a card (tap the chip again to disarm), or drag
@@ -308,6 +326,11 @@ itself, a broken switch) is refused with one line saying why.
 | Wait | The same places. 1, 2, 3, 5, 10 or a number of your own, and whose messages count. On a card it counts from the start of the chat |
 | Mask | Its name, **Write its text** (opens the entry on that mask), priority with ↑ ↓, "On when" (a loose end, a list, a phrase, a number of messages), and "Off when ▸" folded |
 | Pack | The book's packs as chips, and "+ New pack". `town/inn` sits inside `town` |
+| Moment | No strip of its own. Tapped on empty canvas: asks its name and places a new Moment, with its inspector open for the phrases. On an entry: the same, then "When *it* happens, *Mill*… opens / closes", which links them |
+
+**Make it a Moment** sits in an existing lock's strip, beside Remove: the
+lock's phrases (and who says them) move to a new Moment on the canvas, and the
+lock becomes a link from it, in the same row.
 
 **Turning a link around (⇄).** A link alone in its row moves with its locks
 and waits. One that shared a row leaves it, and the strip says so ("*Road* was
@@ -353,6 +376,13 @@ Piece cards:
 Picking a pack asks for the reading: Any of them, All of them, or a number.
 Where a lock is allowed there is a "Lock phrase…" row.
 
+**Moment inspector** (tap a Moment card): a spark and its name (no on/off
+switch), a line saying what a Moment is, its phrases as chips with × and a box
+to add one ("any one is enough"), Who says it (Anyone, You, The character),
+"Happened" or "Not yet" with chat state on, then its Gate, Gates for and Closes
+for rows and + Add logic for those. Footer: Rename · Take off canvas · Delete
+(only when nothing uses it) · Data.
+
 **Greeting inspector** (tap a greeting card): its name ("Greeting", "Alt 2"),
 the greeting's opening words (tap to read it all, read only), Gates for,
 Closes for, "Used by" (entries that read it), **Re-pick** when the
@@ -374,6 +404,7 @@ style: a list first, the book at the bottom.
 | + | New entry: asks for a name and makes it, without placing it: it waits in the panel with a hollow dot |
 | Folder header | Name, count, collapse arrow |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
+| Moments group | Under Greetings: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
 | Greetings group | First in the list. Only with a single-character chat open: that character's greetings (Greeting, Alt 1…, with their opening words), placed with the dot like entries |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
@@ -485,7 +516,7 @@ for another), Ctrl Enter opens in a background tab, Esc closes.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "World Info", List/Tiles switch (icons only: rows, a grid; the name on hover), New folder, **+ New book**, gear (ST's World Info settings). No filter box: Search (Ctrl K) finds books |
+| Header | "World Info", List/Tiles switch (icons only: rows, a grid; the name on hover), Import, New folder, **+ New book**, gear (ST's World Info settings). No filter box: Search (Ctrl K) finds books |
 | Tiles (default) | The sketch's tiles: name, status chips, entry count and edited date. Fills as many columns as fit. A checkbox shows on hover |
 | List | A table: checkbox (on hover), Name, Active (Global, first link +n, or Off), Entries, Edited, ⋯ (on hover). Click a header to sort. Folders are collapsible rows inside the table; "Not in a folder" last |
 | Not in a folder | Last, in both views. Hidden when every book is in a folder, except while a book is dragged (dropping it there takes it out of its folder) |
@@ -493,7 +524,7 @@ for another), Ctrl Enter opens in a background tab, Esc closes.
 | Middle-click, Ctrl-click | Opens it in a new tab and stays on Home |
 | Right-click, ⋯ | Open · New tab (stays on Home) · Make global · Rename · Move to folder · Export · Snapshots · Delete |
 | Drag a book | Onto a folder header to move it there |
-| Selection bar | Replaces the header while books are selected: ✕, "N selected", Move to folder, Export, Select all, Delete (Undo toast) |
+| Selection bar | Replaces the header while books are selected: ✕, "N selected", Move to folder, Export, Import, Select all, Delete (Undo toast) |
 
 Tiles are the default; the List/Tiles switch in the header (and ⌄ › View)
 changes it, and the choice is remembered.
@@ -510,6 +541,7 @@ the edge to reset):
 |------|-----------------------|
 | Book name ▾ | Open in Hero mode · Book settings · Rename · Duplicate · Move to folder · Export · Snapshots · Delete book |
 | Status line | Global chip (click to toggle), Linked chip (click for the links menu: each link with Unlink, Link to this chat, Link to the character), entry count |
+| Off hint | Under the status line while the book is Off, as on phones |
 | Filter box | Filters the list by name and keyword. "/" focuses it |
 | + | New entry (Alt N); it opens on the right with the name ready to type |
 | Folder header | Name, count, collapse arrow, + on hover for a new entry in it. Drop entries on it to move them there |
@@ -646,7 +678,7 @@ lanes beside it. (The phone keeps top to bottom, which suits a tall screen.)
 
 Under the canvas, as on phones, but every chip shows its color, name and key:
 **Opens O · Closes C · Glue G · Switch S · Mask M · Pack P**, a divider,
-**Lock L · Wait W**, and a hint "Or drag from a card's port to another card".
+**Lock L · Wait W · Moment E**, and a hint "Or drag from a card's port to another card".
 The fold arrow sits inside the bar at its right end. On a narrow canvas the
 hint goes first, then the key letters, so no chip is ever cut off.
 
@@ -690,7 +722,8 @@ The shared entry page, as in Normal mode, with Story logic always open and
 
 | Key | What it does |
 |-----|--------------|
-| O C G S M P L W | Arm that piece; with a card selected, put it on that card |
+| O C G S M P L W E | Arm that piece (E is Moment); with a card selected, put it on that card |
+| ? | Explain mode (one click) |
 | F | Fit |
 | T | Tidy, left to right |
 | + − | Zoom |
@@ -703,6 +736,45 @@ real router (lanes on a 12px lattice, never through a card, VISUAL 7.3) keeps
 its rules on desktop.
 
 ---
+
+## Guide and explain mode
+
+### Guide
+
+A tab of its own in Hero mode, opened at an anchor; on phones it sits next to
+Canvas and Preview (a "?" tab with ×), on desktop it is a tab like an entry's.
+Also reachable from ⌄ › Guide. The text is in `src/ui/guide.js`.
+
+- An index of chips, then one page per piece, in this order: Opens, Closes,
+  Glue, Switch, Mask, Pack, Lock, Wait, Moment, Once, Who triggers, Greeting.
+- Each page: one line, a small picture drawn in the canvas's colors, an
+  example, the fine print (the rules that bite), common mistakes, and **Show
+  me in the Sample book** (opens the Sample book on a matching card, when the
+  Sample book is there).
+- Then "On the screen": Cards and lines, Fit, Tidy layout, Entry panel, the
+  strip, the inspector, Preview highlights and Also active.
+- Back closes the Guide (phones); its × closes the tab.
+
+### Explain mode
+
+A "?" at the top right of the canvas (phones), or in the tab row (desktop;
+also the ? key), turns explain mode on **for one tap**:
+
+- Everything that can be explained gets a thin dashed accent outline and the
+  rest dims slightly. A banner at the bottom reads "Tap anything to learn about
+  it · Cancel" ("Click…" on desktop).
+- A tap opens the Guide at that element's anchor instead of doing the
+  element's own action, and ends the mode. Back or Escape cancels.
+- What can be explained: piece bar chips, ports, lines, and/or junctions, lock
+  and wait pills, pack frames, mask stacks, greeting and Moment cards, other
+  cards, the strip, inspector rows, Fit, Tidy, the panel button, Preview
+  highlights and Also active.
+
+### Direct "?"
+
+The "?" on an inspector row, a "?" in every strip (between its settings and
+Done) and "How each piece works" in "+ Add logic" open the Guide at that
+piece, skipping explain mode.
 
 ## Back
 

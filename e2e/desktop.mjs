@@ -58,7 +58,8 @@ async function normalMode(w, h, drawer) {
     assert.equal(Math.round(box.y), 35, 'under the top bar');
     ok(`${w}: Normal mode in the drawer box (${drawer}px)`);
     await $(page, '.tile').first().waitFor();
-    ok(`${w}: Home shows tiles`);
+    assert.ok(await $(page, '.dhead .dbtn').filter({ hasText: 'Import' }).isVisible(), 'Import in the header');
+    ok(`${w}: Home shows tiles, with Import in the header`);
     assert.equal(await $(page, '.tadd, .dfilter').count(), 0, 'no + tab and no Filter books box');
     assert.equal(await $(page, '.dseg button span').count(), 0, 'the view switch is icons only');
     const loose = await $(page, '.dfolder').filter({ hasText: 'Not in a folder' });
@@ -184,6 +185,24 @@ async function heroMode(w, h, drawer) {
     await $(page, '.tab[aria-label="Canvas"]').click();
     await $(page, '.vp .card').first().waitFor();
     await shot(page, `${w}-hero`);
+
+    // Explain mode: the "?" in the tab row, then a click on a lock pill opens the Guide at Lock, not the pill's strip.
+    await $(page, '.tright .explainq').click();
+    await $(page, '.explainban').waitFor();
+    assert.ok(await page.evaluate(() => wihero.app.state.hero.explain), 'explain mode is on');
+    const pillBox = await $(page, '.lockp').first().boundingBox();
+    await page.mouse.click(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2);
+    await $(page, '.guide .gpage[data-anchor="lock"]').waitFor();
+    assert.equal(await $(page, '.pstrip').count(), 0, 'the pill did not open its strip');
+    assert.equal(await $(page, '.explainban').count(), 0, 'one click, then explain mode ends');
+    await shot(page, `${w}-guide`);
+    await $(page, '.tab[aria-label="Canvas"]').click();
+    await $(page, '.vp .card').first().waitFor();
+    await page.keyboard.press('?');
+    await $(page, '.explainban').waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await $(page, '.explainban').count(), 0, 'Escape cancels explain mode');
+    ok(`${w}: explain mode: "?" outlines, a click on a lock pill opens the Guide at Lock; ? and Escape`);
 
     // The entry list: a click on a row's hollow dot places it; a click on the row only inspects.
     const hollow = $(page, '.panel.dock .prow').filter({ has: page.locator('.dotc:not(.in)') }).first();

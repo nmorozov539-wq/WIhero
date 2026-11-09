@@ -8,7 +8,7 @@ import { ic } from './icons.js';
 import { FAMILY_COLOR } from './logic-text.js';
 import { strategyColor } from './entry-page.js';
 import {
-    PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
+    MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
     moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting,
 } from './pieces.js';
 
@@ -145,10 +145,15 @@ export function renderInspector(box, x) {
     const d = el('i', 'sd');
     d.style.background = strategyColor(e);
     const h = el('h2', '', x.title);
-    head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on'), btn('round flat', ic('x'), x.close, 'Close the inspector'));
+    if (c.moment === true) {
+        // A Moment sends nothing: no strategy and no on/off switch (it is stored off).
+        const sp = el('span', 'mspark');
+        sp.innerHTML = ic('spark', 's');
+        head.append(sp, h, btn('round flat', ic('x'), x.close, 'Close the inspector'));
+    } else head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on'), btn('round flat', ic('x'), x.close, 'Close the inspector'));
     body.append(head);
 
-    if (x.desk) {
+    if (x.desk && c.moment !== true) {
         // Tabs Story logic and Text; Text edits the content in place.
         const tabs = el('div', 'itabs');
         tabs.setAttribute('role', 'tablist');
@@ -181,12 +186,15 @@ export function renderInspector(box, x) {
         }
     }
 
-    const pre = el('button', 'ipre');
-    pre.type = 'button';
-    pre.textContent = (e.content ?? '').trim() || (x.desk ? 'No text yet. Click to write it.' : 'No text yet. Tap to write it.');
-    if (!(e.content ?? '').trim()) pre.classList.add('empty');
-    pre.addEventListener('click', () => (x.desk ? x.setTab('text') : x.openEntry()));
-    body.append(pre);
+    if (c.moment === true) momentHead(body, x);
+    else {
+        const pre = el('button', 'ipre');
+        pre.type = 'button';
+        pre.textContent = (e.content ?? '').trim() || (x.desk ? 'No text yet. Click to write it.' : 'No text yet. Tap to write it.');
+        if (!(e.content ?? '').trim()) pre.classList.add('empty');
+        pre.addEventListener('click', () => (x.desk ? x.setTab('text') : x.openEntry()));
+        body.append(pre);
+    }
 
     if (x.closed) {
         const r = el('div', 'closedline ireopen');
@@ -204,6 +212,7 @@ export function renderInspector(box, x) {
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
     for (const p of PIECES) {
+        if (c.moment === true && !MOMENT_PIECES.includes(p.key)) continue;
         if (!hasPiece(c, p.key) && x.open !== p.key) continue;
         const open = x.open === p.key;
         const pc = el('div', `pc${open ? ' open' : ''}`);
@@ -214,7 +223,7 @@ export function renderInspector(box, x) {
         tap.type = 'button';
         tap.append(el('b', '', p.label), el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
-        ph.append(tap, btn('pq', ic('help'), () => layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help))), `What is ${p.label}?`));
+        ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
         if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); layer.toast(`${p.label} removed`); }, `Remove ${p.label}`));
         pc.append(ph);
         if (open) pc.append(editorOf(p.key, x, update));
@@ -238,14 +247,60 @@ export function renderInspector(box, x) {
                     x.setOpen(p.key);
                 }, { sub: p.help, dot: FAMILY_COLOR[p.family] }));
             }
+            if (x.guide) sh.append(layer.opt('How each piece works', () => { layer.close(); x.guide(null); }, { icon: 'help', val: 'Guide ›' }));
         }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' })));
     }
 
     const foot = el('div', 'ifoot');
-    foot.append(btn('linkish', `${ic('entry', 's')} Open entry`, () => x.openEntry()));
-    if (x.takeOff && !x.desk) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+    if (c.moment === true) {
+        foot.append(btn('linkish', `${ic('edit', 's')} Rename`, () => x.renameMoment?.()));
+        if (x.takeOff && !x.desk) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+        foot.append(btn('linkish', `${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
+    } else {
+        foot.append(btn('linkish', `${ic('entry', 's')} Open entry`, () => x.openEntry()));
+        if (x.takeOff && !x.desk) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+    }
     foot.append(btn('linkish', `${ic('code', 's')} Data`, x.data));
     body.append(foot);
+}
+
+/**
+ * A Moment's own part of the inspector (CONCEPTS 3.13): what it is, its phrases as chips (any one is enough) with a
+ * box to add one, and who says it.
+ */
+function momentHead(body, x) {
+    const { entry: e } = x;
+    body.append(el('p', 'help imoment', 'A Moment happens when one of its phrases is said. It sends nothing to the model; other cards wait for it or close when it happens.'));
+    const phrases = (e.key ?? []).filter(k => typeof k === 'string' && k.trim());
+    const setPhrases = list => x.edit((ed, data) => { data.entries[e.uid].key = list; });
+    const box = el('div', 'ichips');
+    for (const p of phrases) {
+        const ch = el('span', 'ichip');
+        ch.append(el('span', '', `“${p}”`), btn('x', ic('x', 's'), () => setPhrases(phrases.filter(q => q !== p)), `Remove "${p}"`));
+        box.append(ch);
+    }
+    const input = el('input', 'kin');
+    input.placeholder = phrases.length ? 'Another phrase…' : 'A phrase, like "missing tooth"';
+    input.setAttribute('aria-label', 'Add a phrase');
+    const add = () => { const v = input.value.trim(); input.value = ''; if (v && !phrases.includes(v)) setPhrases([...phrases, v]); };
+    input.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); add(); } });
+    input.addEventListener('blur', () => { if (input.value.trim()) add(); });
+    const wrap = el('div', 'imphr');
+    wrap.append(box, input);
+    body.append(el('div', 'lbl', 'Happens when someone says (any one)'), wrap);
+    const by = x.config.by ?? null;
+    const seg = el('div', 'pseg iseg');
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', 'Who says it');
+    for (const [v, label] of [[null, 'Anyone'], ['user', 'You'], ['char', 'The character']]) {
+        const b = btn(by === v ? 'on' : '', '', () => x.edit(ed => ed.update(e.uid, cc => { if (v) cc.by = v; else delete cc.by; })));
+        b.textContent = label;
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(by === v));
+        seg.append(b);
+    }
+    body.append(el('div', 'lbl', 'Who says it'), seg);
+    if (x.happened !== undefined && x.happened !== null) body.append(el('div', `ihappened${x.happened ? ' on' : ''}`, x.happened ? 'Happened in the open chat' : 'Not yet in the open chat'));
 }
 
 /** The editor of one piece, under its row. */

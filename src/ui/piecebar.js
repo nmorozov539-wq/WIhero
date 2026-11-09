@@ -6,6 +6,7 @@ import { btn, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { maskName, refLabel, same } from './pieces.js';
 import * as L from './links.js';
+import { addMoment } from './data.js';
 
 /** The chips, in bar order; the divider sits before the conditions. */
 export const BAR = [
@@ -17,6 +18,7 @@ export const BAR = [
     { k: 'pack', label: 'Pack', c: 'pack', key: 'P' },
     { k: 'lock', label: 'Lock', c: 'cond', cond: true, key: 'L' },
     { k: 'wait', label: 'Wait', c: 'cond', cond: true, key: 'W' },
+    { k: 'moment', label: 'Moment', c: 'cond', key: 'E' },
 ];
 const CHIP = Object.fromEntries(BAR.map(p => [p.k, p]));
 const FIELD = { gin: 'gate', cin: 'closeGate', mgin: 'gate', mcin: 'closeGate' };
@@ -27,6 +29,7 @@ const KIND_PIECE = { open: 'opens', close: 'closes', ride: 'glue' };
 export function armText(k, verb = 'Tap') {
     if (k === 'opens') return `${verb} the card that opens something`;
     if (k === 'closes') return `${verb} the card that closes something`;
+    if (k === 'moment') return `${verb} a card that reacts to a new Moment, or empty canvas for one on its own`;
     return `${verb} ${CHIP[k]?.cond ? 'a card, a line or a junction' : 'a card'} to add ${CHIP[k]?.label ?? k}`;
 }
 
@@ -34,6 +37,7 @@ export function armText(k, verb = 'Tap') {
 function whyNotOn(k, end) {
     if (!end) return 'That card is gone.';
     if (k === 'opens' || k === 'closes') return null;
+    if (k === 'moment') return end.t === 'entry' && !end.moment ? null : 'A Moment reacts on an entry: it opens or closes it.';
     if (end.t === 'greet') return 'A greeting only starts things. It can be the start of an Opens or a Closes line.';
     if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no gate of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
     return null;
@@ -164,7 +168,9 @@ export function mountPieceBar(x) {
     const right = btn('pbtn done', 'Done', () => finish());
     const strip = el('div', 'pstrip');
     strip.style.setProperty('--c', colorOf(e.piece));
-    strip.append(left, mid, right);
+    // "?" opens this piece's page in the Guide.
+    const help = x.guide ? btn('pbtn sq pq', ic('help', 's'), () => x.guide(e.piece), `How ${CHIP[e.piece]?.label ?? 'this piece'} works`) : null;
+    strip.append(left, mid, ...(help ? [help] : []), right);
     bottom.append(strip);
     const note = () => { if (e.note) mid.append(el('div', `pnote${e.noteBad ? ' bad' : ''}`, e.note)); };
     const row = (...kids) => { const r = el('div', 'prow2'); r.append(...kids); return r; };
@@ -461,7 +467,25 @@ export function mountPieceBar(x) {
             else if (links.length) mid.append(el('div', 'phint', `Counted from when ${links.join(' and ')} ${links.length > 1 ? 'have' : 'has'} fired.`));
         }
         note();
-        if (!e.isNew) mid.append(row(removeBtn(() => { x.act(ed2 => L.removeCond(ed2, e.at)); close(isLock ? 'Lock removed' : 'Wait removed'); })));
+        const remove = !e.isNew ? removeBtn(() => { x.act(ed2 => L.removeCond(ed2, e.at)); close(isLock ? 'Lock removed' : 'Wait removed'); }) : null;
+        // A lock already in the book can stand on its own card: its phrases move to a new Moment, and the lock
+        // becomes a link from it, in the same row (CONCEPTS 3.13).
+        if (isLock && e.at && (c.lock ?? []).length && x.makeMoment) {
+            const mk = small('Make it a Moment', () => {
+                const name = c.lock[0].replace(/^./, ch => ch.toUpperCase());
+                let made = null;
+                const ok = x.act((ed2, d2) => {
+                    made = addMoment(d2, x.entryTemplate ?? {}, name, c.lock);
+                    if (c.by) ed2.update(made.uid, cc => { cc.by = c.by; });
+                    L.setCond(ed2, e.at, ed2.config(made.uid).id);
+                });
+                if (!ok || !made) return;
+                x.makeMoment(made);
+                close(`Made the Moment "${name}"`);
+            });
+            mk.prepend(Object.assign(el('span', 'ri'), { innerHTML: ic('spark', 's') }));
+            mid.append(row(mk, ...(remove ? [remove] : [])));
+        } else if (remove) mid.append(row(remove));
         right.disabled = isLock ? !(c.lock ?? []).length : !(c.wait >= 1);
         canvas.overlay({ sel: new Set([x.keyOf({ t: 'entry', uid: p.uid })]) });
     }

@@ -178,6 +178,7 @@ function scanTurn({ entries, model, chat, opts, globals, words, current = chat.l
     for (const entry of entries) {
         const k = stKeyOf(entry);
         const node = model.byStKey.get(k);
+        if (node?.moment) continue; // a Moment is never sent: its phrases are shown as its own highlights
         const window = scanWindow(entry, chat, globals);
         const text = window.map(x => x.m.mes ?? '').join('\n');
         let match = null;
@@ -342,6 +343,13 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
         else if (c.by === 'once') change('close', `${name} closes after this: it fires once`, key, when);
         else change('close', `${name} closes: its close gate is met`, key, when);
     }
+    // Moments that happen (CONCEPTS 3.13): said in your message, this turn; said in the reply, from the next message.
+    const { state: atStart } = baseState(chatGen, model, opts);
+    for (const node of model.nodes.values()) {
+        if (!node.moment || (atStart.fired[node.key] ?? 0) > 0) continue;
+        if ((working.fired[node.key] ?? 0) > 0) change('moment', `${words.label(node.key)} happened`, node.key, 'This turn');
+        else if ((next.fired[node.key] ?? 0) > 0) change('moment', `${words.label(node.key)} happened, in the reply`, node.key, 'From the next message');
+    }
     for (const key of Object.keys(next.holding)) {
         if (working.holding[key]) continue;
         const node = model.nodes.get(key);
@@ -419,6 +427,27 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
                             : `the lock on ${nameOfLock(x)} doesn't open`;
                 }
                 for (const h of found) hits[side].push({ ...h, stKey: x.node.stKey, lock: phrase, close, ok, why });
+            }
+        }
+    }
+
+    // A Moment's phrases.
+    for (const node of model.nodes.values()) {
+        if (!node.moment || node.blocked) continue;
+        const name = words.label(node.key);
+        for (const side of ['user', 'reply']) {
+            for (const phrase of node.moment.phrases) {
+                const found = phraseHits(phrase, textOf[side]);
+                if (!found.length) continue;
+                const sideOk = !node.moment.by || node.moment.by === (side === 'user' ? 'user' : 'char');
+                const state = side === 'user' ? working : next;
+                let ok = false;
+                let why;
+                if ((before.fired[node.key] ?? 0) > 0) why = `${name} already happened earlier in the chat`;
+                else if (!sideOk) why = node.moment.by === 'user' ? `only your words make ${name} happen, and this was in the reply` : `only the character's words make ${name} happen, and this was in your message`;
+                else if ((state.fired[node.key] ?? 0) > 0) { ok = true; why = side === 'user' ? `${name} happens` : `${name} happens, from the next message`; }
+                else why = `${name} isn't armed yet: its gate isn't met`;
+                for (const h of found) hits[side].push({ ...h, stKey: node.stKey, lock: phrase, close: false, ok, why, moment: true });
             }
         }
     }

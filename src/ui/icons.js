@@ -5,7 +5,7 @@ export const ICON = {
     home: '<path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/>',
     canvas: '<path d="M4 5 H10 V10 H4 Z M14 14 H20 V19 H14 Z M7 10 V14 Q7 16.5 9.5 16.5 H14"/>',
     eye: '<path d="M2 12 Q12 3 22 12 Q12 21 2 12 Z M12 9 a3 3 0 1 0 0.01 0"/>',
-    search: '<path d="M11 4 a7 7 0 1 0 0.01 0 M20 20 L16 16"/>', plus: '<path d="M12 5 V19 M5 12 H19"/>', minus: '<path d="M5 12 H19"/>',
+    search: '<path d="M11 4 a7 7 0 1 0 0.01 0 M20 20 L16 16"/>', plus: '<path d="M12 5 V19 M5 12 H19"/>', spark: '<path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/>', import: '<path d="M12 4 V15 M7 10 L12 15 L17 10 M5 19 H19"/>', minus: '<path d="M5 12 H19"/>',
     select: '<path d="M4 4 H20 V20 H4 Z M8 12 L11 15 L16 9"/>', more: '<path d="M12 5 h.01 M12 12 h.01 M12 19 h.01" stroke-width="3"/>',
     book: '<path d="M5 4 H17 a2 2 0 0 1 2 2 V20 H7 a2 2 0 0 1 -2 -2 Z M5 18 a2 2 0 0 1 2 -2 H19"/>',
     folder: '<path d="M3 6 H9 L11 8 H21 V19 H3 Z"/>', entry: '<path d="M6 3 H14 L19 8 V21 H6 Z M14 3 V8 H19 M9 13 H16 M9 17 H14"/>',

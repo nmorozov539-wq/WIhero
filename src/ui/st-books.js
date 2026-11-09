@@ -189,6 +189,23 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
      * Renames a book: saved under the new name, links moved (global, characters, the open chat, personas), old
      * file deleted. ST's own renameWorldInfo isn't exported and asks with popups, so this does the same quietly.
      */
+    /**
+     * Imports a lorebook file through ST's own import (its endpoint, and its converters for NovelAI, Agnai and Risu
+     * books and NovelAI's PNG lorebooks; ST asks before overwriting a book of the same name). Returns the book's
+     * name, or null when nothing was imported.
+     */
+    const importFile = file => quietly(async () => {
+        if (typeof WI.importWorldInfo !== 'function') throw new Error('This SillyTavern has no lorebook import');
+        const before = new Set(names());
+        await WI.importWorldInfo(file);
+        const fresh = names().find(n => !before.has(n));
+        if (fresh) return fresh;
+        // Overwritten under the same name (ST asked first), or not imported at all.
+        const base = await sanitize(file.name.replace(/\.[^.]+$/, ''));
+        if (!names().includes(base)) return null;
+        copies.delete(base); // read it again from ST: its content may be new
+        return base;
+    });
     const rename = (...a) => quietly(() => renameNow(...a));
     async function renameNow(from, to) {
         const target = await sanitize(to.trim());
@@ -349,7 +366,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     const edited = name => settings.books?.[name]?.edited ?? null;
 
     return {
-        edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy,
+        edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }
