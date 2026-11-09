@@ -25,8 +25,8 @@ import { renderGreetingInspector, renderInspector } from './inspector.js';
 import { BAR, editExisting, mountPieceBar, startPiece } from './piecebar.js';
 import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
-import { renderGuide } from './guide-page.js';
 import { PIECE_ANCHOR } from './guide.js';
+import { SAMPLE, createExplain } from './explain.js';
 import { deskNormal, resizer } from './desk.js';
 
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
@@ -1066,72 +1066,11 @@ export function createApp(deps) {
         tabbar.append(right);
     }
 
-    // ---------------------------------------------------------------- the Guide and explain mode (LAYOUT "Guide")
-    const SAMPLE = 'WIHero-Sample';
-    /** Opens the Guide tab at an anchor (a piece's page, or a topic). */
-    function openGuide(anchor) {
-        H.explain = false;
-        H.guide = { anchor };
-        H.active = 'guide';
-        H.panel = false;
-        render();
-    }
-    /** Explain mode: for one tap, everything explainable is outlined and a tap opens the Guide there. */
-    function startExplain() {
-        H.explain = true;
-        H.bar.armed = null;
-        render();
-    }
-    function stopExplain() { H.explain = false; render(); }
-    /** The Guide anchor of what was tapped in explain mode, or null (LAYOUT "Explain mode"). */
-    function explainAnchor(t) {
-        const at = sel => t.closest?.(sel);
-        const chipEl = at('.pchip[data-piece]');
-        if (chipEl) return PIECE_ANCHOR[chipEl.dataset.piece] ?? null;
-        if (at('.pstrip')) { const k = H.bar.edit?.piece; return PIECE_ANCHOR[k] ?? 'strip'; }
-        const pc = at('.pc[data-piece]');
-        if (pc) return PIECE_ANCHOR[pc.dataset.piece] ?? 'inspector';
-        if (at('.insp, .hinsp')) return 'inspector';
-        const port = at('[data-port]');
-        if (port) return PIECE_ANCHOR[PORT[port.dataset.port.split('|')[1]]?.piece] ?? 'canvas';
-        const pill = at('.lockp');
-        if (pill) return pill.dataset.kind === 'wait' ? 'wait' : 'lock';
-        const line = at('.lhit');
-        if (line) return { open: 'opens', close: 'closes', ride: 'glue' }[line.dataset.kind] ?? 'canvas';
-        if (at('.junc')) return 'opens';
-        if (at('.packframe')) return 'pack';
-        if (at('.mnav, .layercard')) return 'mask';
-        if (at('.card.moment')) return 'moment';
-        if (at('.card.greet')) return 'greeting';
-        if (at('.card')) return 'canvas';
-        const b = at('button');
-        const label = b?.getAttribute('aria-label') ?? '';
-        if (/^Fit/.test(label)) return 'fit';
-        if (/^Tidy/.test(label)) return 'tidy';
-        if (at('.panelBtn, .panel, .pfold')) return 'panel';
-        if (at('.hl, mark, .hit')) return 'highlights';
-        if (at('.also')) return 'also';
-        return null;
-    }
-    // In explain mode a press anywhere in WI Hero is caught before the element's own handlers: it never acts.
-    for (const type of ['pointerdown', 'pointerup', 'mousedown', 'touchstart', 'dblclick', 'contextmenu']) {
-        root.addEventListener(type, e => {
-            if (!H.explain || S.mode !== 'hero' || e.composedPath().some(n => n.classList?.contains('explainban'))) return;
-            e.stopPropagation();
-            if (e.cancelable && type !== 'touchstart') e.preventDefault();
-        }, { capture: true, passive: false });
-    }
-    root.addEventListener('click', e => {
-        if (!H.explain || S.mode !== 'hero') return;
-        const path = e.composedPath();
-        if (path.some(n => n.classList?.contains('explainban'))) return;
-        e.stopPropagation();
-        e.preventDefault();
-        const t = path[0];
-        const anchor = t instanceof Element ? explainAnchor(t) : null;
-        if (anchor) openGuide(anchor);
-        else layer.toast('Nothing to explain there. Tap something outlined, or Cancel.');
-    }, true);
+    // ---------------------------------------------------------------- the Guide and explain mode (explain.js)
+    const { openGuide, startExplain, stopExplain, renderGuideTab } = createExplain({
+        S, H, root, layer, library, render: () => render(),
+        showMe: key => { showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
+    });
 
     function closeHeroTab(i) {
         H.tabs.splice(i, 1);
@@ -1244,13 +1183,7 @@ export function createApp(deps) {
         }
         if (H.active === 'preview') { renderPreviewTab(); if (S.desk && S.search) deskN.renderSearch(); return; }
         if (H.active === 'guide' && H.guide) {
-            main.dataset.page = 'hero:guide';
-            renderGuide(main, {
-                anchor: H.guide.anchor,
-                hasSample: library.names().includes(SAMPLE),
-                showMe: (_id, key) => { H.guide.anchor = null; showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
-            });
-            H.guide.anchor = null; // scrolled there once; a redraw keeps the reader's place
+            renderGuideTab(main);
             if (S.desk && S.search) deskN.renderSearch();
             return;
         }
