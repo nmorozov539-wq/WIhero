@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createLinkEngine } from '../src/link-engine.js';
+import { createLinkEngine } from '../src/link-engine/index.js';
+import { segHitsRect } from '../src/link-engine/geom.js';
+import { LR, TB, bookScene } from '../tools/link-scenes.js';
 
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} is not within ${eps} of ${b}`);
 const def = (id, from, to) => ({ id, from, to });
@@ -180,4 +182,96 @@ test('nearest finds the closest point and where along the link it is', () => {
     close(e.nearest('a', { x: 100, y: 100 }).t, 0, 1e-9);
     close(e.nearest('a', { x: 400, y: 300 }).t, 1, 1e-9);
     assert.ok(e.nearest('a', { x: 250, y: 20 }).dist > 10);
+});
+
+// ---- going around cards
+
+const enters = (pts, r, m = 0) => {
+    for (let i = 0; i + 3 < pts.length; i += 2) if (segHitsRect(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], r, m)) return true;
+    return false;
+};
+const card = (id, x, y, w = 60, h = 60, more = {}) => ({ id, x, y, w, h, ...more });
+const at = (r, side) => ({
+    x: side === 'left' ? r.x : side === 'right' ? r.x + r.w : r.x + r.w / 2,
+    y: side === 'top' ? r.y : side === 'bottom' ? r.y + r.h : r.y + r.h / 2,
+    n: side,
+    card: r.id,
+});
+
+test('a card in the way: the link goes round it and still meets both ports along their normals', () => {
+    const A = card('A', 20, 80); const B = card('B', 280, 80); const M = card('M', 150, 60, 60, 100);
+    const e = run([def('a', at(A, 'right'), at(B, 'left'))], [A, B, M]);
+    const p = e.path('a');
+    assert.deepEqual(p.drawn, ['route']);
+    assert.ok(p.clear);
+    for (const r of [A, B, M]) assert.ok(!enters(e.polyline('a'), r), `enters ${r.id}`);
+    close(p.startTangent.x, 1); close(p.endTangent.x, 1);
+    const pts = e.polyline('a');
+    assert.deepEqual([pts[0], pts[1], pts.at(-2), pts.at(-1)], [80, 110, 280, 110]);
+});
+
+test('a link skips a card in its column without touching it', () => {
+    const A = card('A', 130, 10, 100, 40); const M = card('M', 130, 90, 100, 40); const B = card('B', 130, 170, 100, 40);
+    const e = run([def('a', at(A, 'bottom'), at(B, 'top'))], [A, M, B]);
+    assert.ok(!enters(e.polyline('a'), M, 2));
+    close(e.path('a').endTangent.y, 1);
+});
+
+test('ports facing away loop round their own cards instead of crossing them', () => {
+    const A = card('A', 120, 80); const B = card('B', 220, 80);
+    for (const [sa, sb] of [['left', 'left'], ['left', 'right']]) {
+        const e = run([def('a', at(A, sa), at(B, sb))], [A, B]);
+        assert.ok(e.path('a').clear, `${sa} → ${sb}`);
+        for (const r of [A, B]) assert.ok(!enters(e.polyline('a'), r), `${sa} → ${sb} enters ${r.id}`);
+    }
+});
+
+test('a wall of cards: the link goes round the end of it', () => {
+    const A = card('A', 20, 80); const B = card('B', 290, 80);
+    const wall = [card('M1', 150, 10, 50, 60), card('M2', 150, 80, 50, 60), card('M3', 150, 150, 50, 60)];
+    const e = run([def('a', at(A, 'right'), at(B, 'left'))], [A, B, ...wall]);
+    for (const r of wall) assert.ok(!enters(e.polyline('a'), r, 2), `enters ${r.id}`);
+});
+
+test('pack frames: only links of its members go in; owner lets a link through anything it names', () => {
+    const A = card('A', 0, 100); const B = card('B', 400, 100);
+    const frame = card('F', 150, 0, 120, 260, { pass: 'members', members: new Set(['X']) });
+    const outsider = run([def('a', at(A, 'right'), at(B, 'left'))], [A, B, frame]);
+    assert.ok(!enters(outsider.polyline('a'), frame, 0), 'an outsider stays out of the frame');
+    const X = card('X', 180, 100);
+    const member = run([def('a', at(A, 'right'), at(X, 'left'))], [A, X, frame]);
+    assert.deepEqual(member.path('a').drawn, ['curve'], 'a member is reached straight through its frame');
+    const owned = run([{ ...def('a', at(A, 'right'), at(B, 'left')), owner: new Set(['F']) }], [A, B, frame]);
+    assert.deepEqual(owned.path('a').drawn, ['curve']);
+});
+
+test('moving a card near a link reroutes it; moving one far away does not', () => {
+    const A = card('A', 20, 80); const B = card('B', 280, 80); const M = card('M', 150, 60, 60, 100);
+    const e = createLinkEngine();
+    const defs = [def('a', at(A, 'right'), at(B, 'left'))];
+    e.setObstacles([A, B, M]);
+    e.layout(defs);
+    assert.deepEqual(e.path('a').drawn, ['route']);
+    e.setObstacles([A, B, { ...M, x: 1000, y: 1000 }]);
+    assert.deepEqual(e.layout(defs).changed, ['a']);
+    assert.deepEqual(e.path('a').drawn, ['curve']);
+    e.setObstacles([A, B, { ...M, x: 1200, y: 1000 }]);
+    assert.deepEqual(e.layout(defs).changed, []);
+});
+
+test('the example books: no link enters a card, on phones and on desktop', () => {
+    for (const file of ['WIHero-Sample.json', 'WIHero-N1.json']) {
+        for (const dir of [TB, LR]) {
+            const s = bookScene(file, dir);
+            const e = createLinkEngine();
+            e.setObstacles(s.obstacles);
+            e.layout(s.defs);
+            const cards = s.obstacles.filter(r => !r.pack && !String(r.id).includes('#'));
+            for (const d of s.defs) {
+                assert.ok(e.path(d.id).clear, `${file} ${dir}: ${d.id} is not clear`);
+                const pts = e.polyline(d.id);
+                for (const r of cards) assert.ok(!enters(pts, r, -1), `${file} ${dir}: ${d.id} enters ${r.id}`);
+            }
+        }
+    }
 });
