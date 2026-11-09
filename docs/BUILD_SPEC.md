@@ -545,6 +545,7 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `guide.js`, `guide-page.js` | The Guide's text and its tab (D31) |
 | `preview-view.js` | Hero mode's Preview tab: where it starts from (15.5) and running it (N5) |
 | `hero-panel.js` | Hero mode's entry panel: every entry, greetings and Moments, placing by dot or drag |
+| `normal.js` | Normal mode's views on phones: Home, the book page with its bottom bar and selection, search, the entry page |
 | `hero-inspector.js` | Hero mode's inspector wiring (N4): opening a card's inspector, closed reasons, Take off canvas, Show on canvas |
 | `hero-bar.js` | The piece bar's wiring (`piecebar.js` is the bar itself): edits checked on a copy, canvas taps seen by the bar, new entries and Moments, the place picker |
 | `menus.js` | The ⌄ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, colors, World Info settings |
