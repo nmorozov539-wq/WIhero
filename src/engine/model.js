@@ -121,7 +121,7 @@ export function normalize(raw) {
     return { config: c, ui, legacy };
 }
 
-const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice'];
+const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice', 'note'];
 /** What a Moment can't take (CONCEPTS 3.13): it sends nothing, so nothing that shapes what is sent. */
 const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate', dice: 'dice' };
 

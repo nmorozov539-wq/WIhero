@@ -70,6 +70,7 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set(), gr
             switch: list(c.switch),
             masks: Array.isArray(c.masks) ? c.masks.filter(isObject).map(m => ({ name: m.name, content: m.content, gate: rows(m.gate), closeGate: rows(m.closeGate) })) : [],
             packs: Array.isArray(c.packs) ? c.packs.filter(p => typeof p === 'string') : [],
+            note: typeof c.note === 'string' ? c.note.trim() : '',
             once: c.once === true, by: c.by ?? null,
             ...(c.moment === true ? momentNode(entry, c) : {}),
         };
