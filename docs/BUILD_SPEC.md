@@ -549,7 +549,8 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 
 ### 9.3 Tests (`node:test`)
 
-Each rule gets a test, using the sample book where possible:
+`.github/workflows/test.yml` runs `node --test` on every push to main and every
+PR (Node 22). Each rule gets a test, using the sample book where possible:
 
 - Gate rows: AND inside, OR between; pack readings any/all/n; Gates for adds
   AND; Gates for through a pack.

@@ -48,7 +48,8 @@ share it.
 
 ## Development
 
-Run the tests with `node --test`. The in-ST checks are in [e2e/](e2e/README.md),
+Run the tests with `node --test` (GitHub Actions runs them on every PR). The
+in-ST checks are in [e2e/](e2e/README.md),
 and the spec is in [docs/](docs/), starting at [BUILD_SPEC.md](docs/BUILD_SPEC.md).
 Every PR that changes the extension sets `version` in `manifest.json` to
 `0.<PR number>.0`.
