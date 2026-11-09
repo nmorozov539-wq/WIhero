@@ -3,7 +3,7 @@
 // mounted canvas; the rest of the app reads it through canvas(). Moved out of app.js; it reaches the app only
 // through the context given to it.
 import { bookSettings, cardKey, entriesOf } from './data.js';
-import { btn, el } from './dom.js';
+import { btn, el, html } from './dom.js';
 import { canvasBook } from './canvas-graph.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { closedText } from './logic-text.js';
