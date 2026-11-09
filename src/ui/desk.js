@@ -2,7 +2,7 @@
 // a list, a book as two panes (its entries on the left, one entry, the bulk pane or Book settings on the right),
 // Ctrl/Shift-click selection instead of a selection mode, the search overlay and the keys. Phones never get here.
 // Everything it needs from the app comes in `A` (see app.js deskApi).
-import { btn, el, issueText, swEl } from './dom.js';
+import { btn, html, el, issueText, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
@@ -106,6 +106,7 @@ export function deskNormal(A) {
                     if (e) { const d = el('i', 'sd'); d.style.background = strategyColor(e); b.append(d); }
                 } else if (p.type === 'book') b.insertAdjacentHTML('beforeend', ic('book', 's tbi'));
                 b.append(el('span', 'name', tabLabel(p)));
+                if (p.book && library.unsaved?.(p.book)) b.append(el('span', 'badge u', 'Not saved'));
                 b.title = tabLabel(p);
                 const x = el('span', 'x');
                 x.innerHTML = ic('x');
@@ -139,7 +140,7 @@ export function deskNormal(A) {
             strip.append(b);
         }
         const right = el('div', 'tright');
-        const sb = btn('tsearch', `${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
+        const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
         // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
         const wide = desk().normalWide === true;
         const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => { desk().normalWide = !wide; save(); A.render(); }, wide ? 'Drawer size' : 'Widen');
@@ -195,11 +196,11 @@ export function deskNormal(A) {
             h.classList.add('selbar2');
             h.append(btn('iconbtn', ic('x'), clearSel, 'Clear the selection'), el('b', 'cnt', `${selected.size} selected`));
             h.append(el('span', 'sp'));
-            h.append(btn('dbtn', `${ic('move', 's')}<span>Move to folder</span>`, () => A.bookFolderSheet(f => { for (const n of selected) setBookFolder(settings, n, f); save(); clearSel(); })));
-            h.append(btn('dbtn', `${ic('code', 's')}<span>Export</span>`, async () => { for (const n of selected) await library.exportBook(n); layer.toast(`Exported ${plural(selected.size, 'book')}`); }));
-            h.append(btn('dbtn', `${ic('import', 's')}<span>Import</span>`, () => { clearSel(); A.importBook(); }));
+            h.append(btn('dbtn', html`${ic('move', 's')}<span>Move to folder</span>`, () => A.bookFolderSheet(f => { for (const n of selected) setBookFolder(settings, n, f); save(); clearSel(); })));
+            h.append(btn('dbtn', html`${ic('code', 's')}<span>Export</span>`, async () => { for (const n of selected) await library.exportBook(n); layer.toast(`Exported ${plural(selected.size, 'book')}`); }));
+            h.append(btn('dbtn', html`${ic('import', 's')}<span>Import</span>`, () => { clearSel(); A.importBook(); }));
             h.append(btn('dbtn', 'Select all', () => { S.select = new Set(shown); A.render(); }));
-            h.append(btn('dbtn danger', `${ic('trash', 's')}<span>Delete</span>`, () => { const list = [...selected]; clearSel(); A.deleteBooks(list); }));
+            h.append(btn('dbtn danger', html`${ic('trash', 's')}<span>Delete</span>`, () => { const list = [...selected]; clearSel(); A.deleteBooks(list); }));
         } else {
             h.append(el('h1', '', 'World Info'));
             h.append(el('span', 'sp'));
@@ -214,9 +215,9 @@ export function deskNormal(A) {
                 seg.append(b);
             }
             h.append(seg);
-            h.append(btn('dbtn', `${ic('import', 's')}<span>Import</span>`, () => A.importBook(), 'Import a lorebook file'));
-            h.append(btn('dbtn', `${ic('folder', 's')}<span>New folder</span>`, newBookFolder));
-            h.append(btn('dbtn pri', `${ic('plus', 's')}<span>New book</span>`, () => A.newBook(), 'New book (Alt N)'));
+            h.append(btn('dbtn', html`${ic('import', 's')}<span>Import</span>`, () => A.importBook(), 'Import a lorebook file'));
+            h.append(btn('dbtn', html`${ic('folder', 's')}<span>New folder</span>`, newBookFolder));
+            h.append(btn('dbtn pri', html`${ic('plus', 's')}<span>New book</span>`, () => A.newBook(), 'New book (Alt N)'));
             const gear = btn('iconbtn', ic('gear'), A.wiSettingsSheet, 'World Info settings');
             gear.title = 'World Info settings';
             h.append(gear);
@@ -260,7 +261,7 @@ export function deskNormal(A) {
             const open = !S.collapsed.has(key);
             const target = table ?? body;
             if (f !== null) {
-                const fh = btn(`dfolder${open ? ' open' : ''}`, `${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); A.render(); });
+                const fh = btn(`dfolder${open ? ' open' : ''}`, html`${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); A.render(); });
                 fh.querySelector('span').textContent = f || 'Not in a folder';
                 if (!f && !list.length) fh.classList.add('dloose');
                 fh.querySelector('small').textContent = list.length;
@@ -339,6 +340,7 @@ export function deskNormal(A) {
         const out = [];
         const global = library.isGlobal(name);
         const lt = A.linkText(name);
+        if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; out.push(u); }
         if (global) out.push(el('span', 'badge g', 'Global'));
         if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); out.push(l); }
         if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; out.push(o); }
@@ -462,18 +464,18 @@ export function deskNormal(A) {
 
     function bookList(left, p, book, data, model, all) {
         const head = el('div', 'blhead');
-        const bn = btn('bkname2', `${ic('book', 's')}<b></b>${ic('down', 's')}`, e => bookPageMenu(p, book, e.currentTarget), 'Book menu');
+        const bn = btn('bkname2', html`${ic('book', 's')}<b></b>${ic('down', 's')}`, e => bookPageMenu(p, book, e.currentTarget), 'Book menu');
         bn.querySelector('b').textContent = book;
         head.append(bn);
         const st = el('div', 'blstat');
         const global = library.isGlobal(book);
-        const g = btn(`chip2 sm${global ? ' on' : ''}`, `<i class="dot"></i><span>${global ? 'Global' : 'Not global'}</span>`, () => {
+        const g = btn(`chip2 sm${global ? ' on' : ''}`, html`<i class="dot"></i><span>${global ? 'Global' : 'Not global'}</span>`, () => {
             library.setGlobal(book, !global);
             layer.toast(!global ? `${book} is active everywhere` : `${book} is no longer global`);
             A.render();
         }, 'Active globally');
         g.setAttribute('aria-pressed', String(global));
-        const lk = btn('chip2 sm', `${ic('chain', 's')}<span></span>`, e => linksMenu(book, e.currentTarget), 'Links');
+        const lk = btn('chip2 sm', html`${ic('chain', 's')}<span></span>`, e => linksMenu(book, e.currentTarget), 'Links');
         lk.querySelector('span').textContent = A.linkText(book) || 'Not linked';
         st.append(g, lk);
         head.append(st, el('div', 'blcount', plural(all.length, 'entry', 'entries')));
@@ -517,7 +519,7 @@ export function deskNormal(A) {
                 const open = !S.collapsed.has(key);
                 if (grp) {
                     const fh = el('div', `blfold${open ? ' open' : ''}`);
-                    const t = btn('ft', `${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); fill(); });
+                    const t = btn('ft', html`${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); fill(); });
                     t.querySelector('span').textContent = grp;
                     t.querySelector('small').textContent = items.length;
                     t.setAttribute('aria-expanded', String(open));
@@ -538,11 +540,11 @@ export function deskNormal(A) {
 
         const foot = el('div', 'blfoot');
         if (narrow() && p.select?.size > 1) foot.append(btn('linkish selgo', `${p.select.size} selected ›`, () => { p.listOpen = false; A.render(); }));
-        foot.append(btn('linkish', `${ic('gear', 's')} Book settings`, () => { p.pane = 'settings'; p.select = null; if (narrow()) p.listOpen = false; A.render(); }));
+        foot.append(btn('linkish', html`${ic('gear', 's')} Book settings`, () => { p.pane = 'settings'; p.select = null; if (narrow()) p.listOpen = false; A.render(); }));
         const blocking = model.issues.filter(i => !i.warning && i.blocking !== false && i.stKey?.startsWith(`${book}.`));
         if (model.issues.length) {
             const first = blocking[0] ?? model.issues[0];
-            const b = btn(`linkish probs${blocking.length ? '' : ' warn'}`, `${ic('alert', 's')} ${issueText(model.issues)}`, () => {
+            const b = btn(`linkish probs${blocking.length ? '' : ' warn'}`, html`${ic('alert', 's')} ${issueText(model.issues)}`, () => {
                 const uid = first.stKey ? Number(first.stKey.slice(first.stKey.lastIndexOf('.') + 1)) : null;
                 if (uid !== null && data.entries[uid]) { select(p, uid); return; }
                 A.problemsSheet(book);
@@ -732,7 +734,7 @@ export function deskNormal(A) {
     }
     function bulkActions(box, p, book, uids, asMenu) {
         const data = library.peek(book);
-        const opt = (label, fn, o = {}) => box.append(asMenu ? layer.opt(label, () => { layer.close(); fn(); }, o) : btn(`dbtn${o.danger ? ' danger' : ''}`, `${o.icon ? ic(o.icon, 's') : ''}<span>${label}</span>`, fn));
+        const opt = (label, fn, o = {}) => box.append(asMenu ? layer.opt(label, () => { layer.close(); fn(); }, o) : btn(`dbtn${o.danger ? ' danger' : ''}`, html`${o.icon ? ic(o.icon, 's') : ''}<span>${label}</span>`, fn));
         if (asMenu) opt('Open in new tabs', () => { for (const u of uids) openEntryTab(book, u, { background: true }); }, { icon: 'tab' });
         opt('Turn on', () => library.change(book, d => { for (const u of uids) if (d.entries[u]) d.entries[u].disable = false; }), { icon: 'on' });
         opt('Turn off', () => library.change(book, d => { for (const u of uids) if (d.entries[u]) d.entries[u].disable = true; }), { icon: 'off' });
@@ -859,7 +861,7 @@ export function deskNormal(A) {
             r.append(el('span', 'grow', l.name), btn('dbtn', 'Unlink', async () => { try { await library.unlink(book, l); layer.toast(`Unlinked from ${l.name}`); } catch (e) { layer.toast(e.message); } A.render(); }));
             box.append(r);
         }
-        if (library.chatOpen() && library.chatBook() !== book) box.append(btn('linkish', `${ic('plus', 's')} Link to this chat`, async () => { await library.linkChat(book); A.render(); }));
+        if (library.chatOpen() && library.chatBook() !== book) box.append(btn('linkish', html`${ic('plus', 's')} Link to this chat`, async () => { await library.linkChat(book); A.render(); }));
         box.append(el('div', 'plbl', 'New entry defaults'));
         box.append(el('p', 'help0', 'What new entries in this book start with.'));
         const defaults = bookSettings(settings, book).defaults ??= {};
@@ -871,10 +873,10 @@ export function deskNormal(A) {
         }, { value: q => paramValue(fake, q) }));
         const acts = el('div', 'bacts');
         acts.append(
-            btn('dbtn', `${ic('code', 's')}<span>Export</span>`, () => { library.exportBook(book); layer.toast(`${book}.json exported`); }),
-            btn('dbtn', `${ic('snap', 's')}<span>Snapshots</span>`, () => A.snapshotsSheet(book)),
-            btn('dbtn', `${ic('copy', 's')}<span>Duplicate</span>`, () => A.duplicateBook(book)),
-            btn('dbtn danger', `${ic('trash', 's')}<span>Delete book</span>`, () => A.deleteBooks([book])),
+            btn('dbtn', html`${ic('code', 's')}<span>Export</span>`, () => { library.exportBook(book); layer.toast(`${book}.json exported`); }),
+            btn('dbtn', html`${ic('snap', 's')}<span>Snapshots</span>`, () => A.snapshotsSheet(book)),
+            btn('dbtn', html`${ic('copy', 's')}<span>Duplicate</span>`, () => A.duplicateBook(book)),
+            btn('dbtn danger', html`${ic('trash', 's')}<span>Delete book</span>`, () => A.deleteBooks([book])),
         );
         box.append(acts);
         void data;

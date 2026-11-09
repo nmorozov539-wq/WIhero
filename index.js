@@ -58,6 +58,7 @@ const hooks = createHooks({
     ctx,
     settings,
     health,
+    saveSettings: () => saveSettingsDebounced(),
     onChange: refresh,
     st: {
         getSortedEntries: st.getSortedEntries,
@@ -180,8 +181,26 @@ const library = createLibrary({
             : final ? `Could not save ${name}. Your edits are kept here; the next change tries again.`
                 : `Could not save ${name}. Trying again in a few seconds.`, 'WI Hero');
     },
+    onMerged: (name, conflicts) => {
+        if (conflicts) globalThis.toastr?.warning(`${name} was also changed outside WI Hero while an edit was waiting to save. `
+            + `${conflicts === 1 ? 'One entry' : `${conflicts} entries`} changed in both places keep${conflicts === 1 ? 's' : ''} WI Hero's version; the rest take the outside changes.`, 'WI Hero');
+    },
 });
-snapshots = createSnapshots({ ctx, settings, saveSettings: saveSettingsDebounced, library });
+// An edit still inside its save delay is lost if the page goes away (a reload, or a phone switching apps): save it
+// now. Best effort, since the page may not live to see the save finish (review 2026-11-09, finding 5).
+const flushNow = () => library.flush().catch(() => {}); // a failed save is reported by the library
+globalThis.addEventListener?.('pagehide', flushNow);
+globalThis.document?.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+const seedWarned = new Set();
+snapshots = createSnapshots({
+    ctx, settings, saveSettings: saveSettingsDebounced, library,
+    // Users are told to count on this copy, so a failed one is said once per book and session, not only logged.
+    onSeedError: book => {
+        if (seedWarned.has(book)) return;
+        seedWarned.add(book);
+        globalThis.toastr?.warning(`Could not keep the "As imported" copy of ${book}. WI Hero tries again the next time you open it; take a snapshot or export the book to be safe.`, 'WI Hero');
+    },
+});
 
 // ---- ST's World Info button (LAYOUT "Opening the editor"). The button and its drawer stay ST's: ST opens and closes
 // the drawer, lights the button, and closes the drawer when another top bar drawer opens, the same for every way in

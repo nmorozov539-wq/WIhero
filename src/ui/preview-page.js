@@ -1,6 +1,6 @@
 // The Preview tab (LAYOUT "Preview tab", VISUAL 8): the two slots with highlights, Also active, the key, the
 // explanation sheet and the report page. What it shows comes from runPreview (src/ui/preview.js).
-import { btn, el } from './dom.js';
+import { btn, html, el } from './dom.js';
 import { ic } from './icons.js';
 import { explain } from './preview.js';
 
@@ -42,7 +42,7 @@ export function renderPreviewPage(main, x) {
 
     const head = el('div', 'pvhead');
     head.append(el('h2', '', 'Preview'));
-    const src = btn('srcchip', `<span></span>${ic('down', 's')}`, x.pickSeed, 'Where it starts from');
+    const src = btn('srcchip', html`<span></span>${ic('down', 's')}`, x.pickSeed, 'Where it starts from');
     src.querySelector('span').textContent = x.seedLabel;
     head.append(src);
     pg.append(head);

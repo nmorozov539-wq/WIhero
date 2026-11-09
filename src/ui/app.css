@@ -119,6 +119,8 @@ svg.i.s { width: 16px; height: 16px; }
 .badge.g { color: color-mix(in srgb, var(--s-key) 62%, var(--fg)); } /* mixed toward the text color: readable on light themes too */
 .badge.l { color: var(--fg); border-color: var(--line); }
 .badge.o { color: var(--muted); border-color: var(--line); }
+.badge.u { color: var(--bad); }
+.tab .badge.u { margin-left: 4px; flex-shrink: 0; }
 .check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--muted); flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .check.on { background: var(--accent); border-color: var(--accent); color: var(--tint); }
 .check svg { width: 14px; height: 14px; stroke-width: 3; }

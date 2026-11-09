@@ -3,7 +3,7 @@
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
 import { buildModel, isMoment } from '../engine/model.js';
-import { btn, createLayer, el, issueText, longPress, pressable, swEl } from './dom.js';
+import { btn, html, createLayer, el, issueText, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, addEntry, addMoment, filterChoices, bookFolderOf, bookSettings, cardKey, commonValue, configOf, copyBookSettings,
@@ -479,6 +479,7 @@ export function createApp(deps) {
         m.append(count);
         const global = library.isGlobal(name);
         const lt = linkText(name);
+        if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; m.append(u); }
         if (global) m.append(el('span', 'badge g', 'Global'));
         if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); m.append(l); }
         if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; m.append(o); }
@@ -517,13 +518,13 @@ export function createApp(deps) {
             v.append(h);
             const chips = el('div', 'bkchips');
             const global = library.isGlobal(book);
-            const g = btn(`chip2${global ? ' on' : ''}`, '<i class="dot"></i><span>Global</span>', () => {
+            const g = btn(`chip2${global ? ' on' : ''}`, html`<i class="dot"></i><span>Global</span>`, () => {
                 library.setGlobal(book, !global);
                 layer.toast(!global ? `${book} is active everywhere` : `${book} is no longer global`);
                 render();
             }, 'Active globally');
             g.setAttribute('aria-pressed', String(global));
-            const lk = btn('chip2', `${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links');
+            const lk = btn('chip2', html`${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links');
             lk.querySelector('span').textContent = linkText(book) || 'Not linked';
             chips.append(g, lk);
             v.append(chips);
@@ -613,7 +614,7 @@ export function createApp(deps) {
             c.addEventListener('click', () => { for (const x of selectable) all ? S.select.delete(x) : S.select.add(x); render(); });
             s.append(c);
         }
-        const b = btn(open ? 'open' : '', `${ic('right')}<span></span>`, onToggle);
+        const b = btn(open ? 'open' : '', html`${ic('right')}<span></span>`, onToggle);
         b.querySelector('span').textContent = text;
         b.setAttribute('aria-expanded', String(open));
         s.append(b);
@@ -659,7 +660,7 @@ export function createApp(deps) {
 
     function selBar(p) {
         const bar = el('div', 'selbar');
-        const act = (icon, label, fn) => { const b = btn('', `${ic(icon)}<span>${label}</span>`, fn); b.disabled = !S.select.size; bar.append(b); };
+        const act = (icon, label, fn) => { const b = btn('', html`${ic(icon)}<span>${label}</span>`, fn); b.disabled = !S.select.size; bar.append(b); };
         if (p.type === 'book') {
             const book = p.book;
             const sel = () => [...S.select];
@@ -681,7 +682,7 @@ export function createApp(deps) {
                 render();
             }));
             act('code', 'Export', async () => { for (const n of S.select) await library.exportBook(n); });
-            const imp = btn('', `${ic('import')}<span>Import</span>`, importBook);
+            const imp = btn('', html`${ic('import')}<span>Import</span>`, importBook);
             bar.append(imp); // needs no selection
         }
         return bar;
@@ -1044,11 +1045,11 @@ export function createApp(deps) {
     function heroTabsRight() {
         const right = el('div', 'tright');
         const book = heroBook();
-        const bp = btn('tbook', `${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
+        const bp = btn('tbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
         bp.querySelector('span').textContent = book ?? 'No book';
         bp.title = 'Switch book';
-        const sb = btn('tsearch', `${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
-        const nm = btn('tmode', `${ic('entry', 's')}<span>Normal mode</span>`, () => switchMode(), 'Switch to Normal mode');
+        const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
+        const nm = btn('tmode', html`${ic('entry', 's')}<span>Normal mode</span>`, () => switchMode(), 'Switch to Normal mode');
         const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
         eq.title = 'Explain (?)';
         const wide = deskSettings().heroWide !== false;
@@ -1728,7 +1729,7 @@ export function createApp(deps) {
             const greets = chatGreetings(data).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
             if (greets.length) {
                 const open = !H.closedFolders.has('\u0000greetings');
-                const hd = btn(`phdr${open ? ' open' : ''}`, `${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
+                const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
                 hd.querySelector('small').textContent = greets.length;
                 list.append(hd);
                 if (open) {
@@ -1741,7 +1742,7 @@ export function createApp(deps) {
                         r.append(nm);
                         if (g.changed) r.append(el('span', 'pbang', '!'));
                         const placed = on.has(g.key);
-                        const gd = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => {
+                        const gd = btn(`dotc${placed ? ' in' : ''}`, html`<i></i>`, ev => {
                             ev.stopPropagation();
                             if (dragged(ev)) return;
                             if (!placed) { canvasMemory(bookSettings(settings, book)).cards[g.key] = { placed: true }; saveSettings(); }
@@ -1759,7 +1760,7 @@ export function createApp(deps) {
             const moments = sortEntries(momentsOf(book, data), 'az').filter(e => !needle || titleOf(e).toLowerCase().includes(needle) || (e.key ?? []).some(k => String(k).toLowerCase().includes(needle)));
             if (moments.length) {
                 const open = !H.closedFolders.has('\u0000moments');
-                const hd = btn(`phdr${open ? ' open' : ''}`, `${ic('right')}<span>Moments</span><small></small>`, () => { open ? H.closedFolders.add('\u0000moments') : H.closedFolders.delete('\u0000moments'); fill(); });
+                const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Moments</span><small></small>`, () => { open ? H.closedFolders.add('\u0000moments') : H.closedFolders.delete('\u0000moments'); fill(); });
                 hd.querySelector('small').textContent = moments.length;
                 list.append(hd);
                 if (open) {
@@ -1774,7 +1775,7 @@ export function createApp(deps) {
                         if (heroCanvas?.view?.m?.byId(key)?.problem) r.append(el('span', 'pbang', '!'));
                         const placed = on.has(key);
                         const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
-                        const gd = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => { ev.stopPropagation(); if (!dragged(ev)) place(); }, placed ? `Show ${momentName(e)} on the canvas` : `Place ${momentName(e)} on the canvas`);
+                        const gd = btn(`dotc${placed ? ' in' : ''}`, html`<i></i>`, ev => { ev.stopPropagation(); if (!dragged(ev)) place(); }, placed ? `Show ${momentName(e)} on the canvas` : `Place ${momentName(e)} on the canvas`);
                         if (desk) { dotDrag(r, key, momentName(e)); r.classList.toggle('on', H.insp?.key === key); } else dotDrag(gd, key, momentName(e));
                         r.append(gd);
                         r.addEventListener('click', ev => { if (desk && dragged(ev)) return; if (placed || desk) inspect(book, key); else place(); });
@@ -1788,7 +1789,7 @@ export function createApp(deps) {
                 let box = list;
                 if (f) {
                     const open = !H.closedFolders.has(f);
-                    const hd = btn(`phdr${open ? ' open' : ''}`, `${ic('right')}<span></span><small></small>`, () => { open ? H.closedFolders.add(f) : H.closedFolders.delete(f); fill(); });
+                    const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span></span><small></small>`, () => { open ? H.closedFolders.add(f) : H.closedFolders.delete(f); fill(); });
                     hd.querySelector('span').textContent = f;
                     hd.querySelector('small').textContent = groups.get(f).length;
                     list.append(hd);
@@ -1805,7 +1806,7 @@ export function createApp(deps) {
                     if (model?.byId(key)?.problem) { const b = el('span', 'pbang', '!'); b.title = 'This entry has a problem'; r.append(b); }
                     const placed = on.has(key);
                     const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
-                    const d = btn(`dotc${placed ? ' in' : ''}`, '<i></i>', ev => { ev.stopPropagation(); if (!dragged(ev)) place(); },
+                    const d = btn(`dotc${placed ? ' in' : ''}`, html`<i></i>`, ev => { ev.stopPropagation(); if (!dragged(ev)) place(); },
                         placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas`);
                     r.append(d);
                     const rowMenu = () => layer.sheet(titleOf(e), sh => {
@@ -1845,7 +1846,7 @@ export function createApp(deps) {
             return;
         }
         const br = el('div', 'bookrow');
-        const bp = btn('bookpick', `<b><span></span>${ic('down', 's')}</b><span class="bchips"></span>`, () => bookPicker(), 'Switch book');
+        const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><span class="bchips"></span>`, () => bookPicker(), 'Switch book');
         bp.querySelector('b span').textContent = book;
         const bc = bp.querySelector('.bchips');
         const global = library.isGlobal(book);
@@ -2095,7 +2096,7 @@ export function createApp(deps) {
     /** The mode switch at the top of ⌄: tap once to arm it, again to switch (LAYOUT "Modes"). */
     function modeButton(sh) {
         const target = S.mode === 'hero' ? 'Normal mode' : 'Hero mode';
-        const b = btn('modebtn', `${ic(S.mode === 'hero' ? 'entry' : 'canvas')}<span>Switch to ${target}</span>`, () => {
+        const b = btn('modebtn', html`${ic(S.mode === 'hero' ? 'entry' : 'canvas')}<span>Switch to ${target}</span>`, () => {
             if (!b.classList.contains('arm')) { b.classList.add('arm'); b.querySelector('span').textContent = `Tap again to switch to ${target}`; return; }
             switchMode();
         });

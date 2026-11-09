@@ -68,9 +68,11 @@ function renameBooks(state, renamed) {
     };
     const keys = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [map(k), v]));
     const latch = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [map(k), v]));
+    // `round` holds ST keys, `book.uid`: only the whole book name before the last `.<uid>` counts, so a rename of
+    // "a" leaves "a.b.3" alone (review 2026-11-09, finding 9).
     const round = key => {
-        for (const [from, to] of Object.entries(renamed)) if (key.startsWith(`${from}.`)) return `${to}${key.slice(from.length)}`;
-        return key;
+        const m = /^(.*)\.(\d+)$/.exec(key);
+        return m && Object.hasOwn(renamed, m[1]) ? `${renamed[m[1]]}.${m[2]}` : key;
     };
     return {
         ...state,

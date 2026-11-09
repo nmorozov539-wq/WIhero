@@ -1,6 +1,6 @@
 // The entry page (LAYOUT "Entry page"), as normal mode shows it: title, book line, strategy and on/off, key words
 // and the secondary condition, the read-only Story logic, Parameters, and Content. Saving is automatic.
-import { btn, el, swEl } from './dom.js';
+import { btn, html, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     LOGIC, PARAMS, STRATEGY_HELP, filterChoices, paramChanged, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
@@ -169,7 +169,7 @@ export function renderEntryPage(main, o) {
     en.append(h1);
 
     if (!D) {
-        const bl = btn('bookline', `${ic('book', 's')}<span></span>`, o.up, 'Up to the book');
+        const bl = btn('bookline', html`${ic('book', 's')}<span></span>`, o.up, 'Up to the book');
         bl.querySelector('span').textContent = o.bookName + (o.folder ? ` · ${o.folder}` : '');
         en.append(bl);
     }
@@ -232,7 +232,7 @@ export function renderEntryPage(main, o) {
             cl.append(lt);
             en.append(cl, keyBox(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
         } else {
-            const ac = btn('linkish', `${ic('plus', 's')} Add condition`, () => {
+            const ac = btn('linkish', html`${ic('plus', 's')} Add condition`, () => {
                 ui.condition = true;
                 // A key word box still focused (a tap doesn't always take focus) holds back the redraw that shows the
                 // condition: let it go first, then draw.
@@ -281,7 +281,7 @@ export function renderEntryPage(main, o) {
             }
             const links = el('div', 'links');
             if (o.hero) {
-                links.append(btn('linkish', `${ic('canvas', 's')} Show on canvas`, o.showOnCanvas), btn('linkish', `${ic('code', 's')} Data`, o.data));
+                links.append(btn('linkish', html`${ic('canvas', 's')} Show on canvas`, o.showOnCanvas), btn('linkish', html`${ic('code', 's')} Data`, o.data));
             } else {
                 links.append(btn('linkish', D ? 'Edit in Hero mode ›' : 'Open in Hero mode ›', o.openInHero));
             }
@@ -420,7 +420,7 @@ function deskFields(en, o, main) {
             }, { at: lt }));
             g.append(lt, keyChips(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
         } else {
-            const ac = btn('linkish', `${ic('plus', 's')} Add condition`, () => {
+            const ac = btn('linkish', html`${ic('plus', 's')} Add condition`, () => {
                 ui.condition = true;
                 // A key word box still focused (a tap doesn't always take focus) holds back the redraw that shows the
                 // condition: let it go first, then draw.
