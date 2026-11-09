@@ -2,7 +2,7 @@
 // and pack frames become obstacles, its links become defs. Used by the link engine tests and the gallery.
 // Reads src/ui/canvas-graph.js; changes nothing there.
 import fs from 'node:fs';
-import { CH, CW, G, LR, TB, buildGraph, canvasBook, canvasSet, computePorts, layout, makeGrid, nodeRects, route, snap, withFrames } from '../src/ui/canvas-graph.js';
+import { CH, CW, LR, TB, buildGraph, canvasBook, canvasSet, computePorts, layout, nodeRects, withFrames } from '../src/ui/canvas-graph.js';
 
 const SIDE = { t: 'top', b: 'bottom', l: 'left', r: 'right' };
 
@@ -33,8 +33,6 @@ export function bookScene(file, dir = TB) {
     obstacles.push(...extra);
 
     const defs = [];
-    const old = new Map();
-    const grid = makeGrid(R, extra);
     for (const x of g.edges) {
         const a = P.get(x.from)?.get(x.fromPort);
         const b = P.get(x.to)?.get(x.port);
@@ -43,15 +41,8 @@ export function bookScene(file, dir = TB) {
         if (defs.some(d => d.id === id)) continue;
         const owner = new Set([`${x.from}#stack`, `${x.to}#stack`]);
         defs.push({ id, kind: x.kind, from: { x: a.x, y: a.y, n: SIDE[a.side], card: x.from }, to: { x: b.x, y: b.y, n: SIDE[b.side], card: x.to }, owner });
-        // Today's router, for comparison.
-        const s = [snap(a.x + a.n[0] * G), snap(a.y + a.n[1] * G)];
-        const e = [snap(b.x + b.n[0] * G), snap(b.y + b.n[1] * G)];
-        const allow = new Set([x.from, x.to].filter(k => k.startsWith('pack:')));
-        for (const r of R.values()) if (r.pack && (r.members.includes(x.from) || r.members.includes(x.to))) allow.add(r.key);
-        const pts = route(grid, s[0], s[1], e[0], e[1], allow);
-        old.set(id, pts ? [[a.x, a.y], ...pts, [b.x, b.y]] : null);
     }
-    return { obstacles, defs, old, dir };
+    return { obstacles, defs, dir };
 }
 
 export { LR, TB };

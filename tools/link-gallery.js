@@ -2,7 +2,6 @@
 // books laid out by the real canvas code, today's grid router beside the engine. Run: node tools/link-gallery.js
 import { writeFileSync } from 'node:fs';
 import { addDot, createLinkEngine, setSegment } from '../src/link-engine/index.js';
-import { rounded } from '../src/ui/canvas-graph.js';
 import { LR, TB, bookScene } from './link-scenes.js';
 
 const card = (id, x, y, w = 60, h = 60) => ({ id, x, y, w, h });
@@ -90,17 +89,15 @@ function book(file, dir) {
     const ms = performance.now() - t;
     let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
     for (const r of s.obstacles) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
-    for (const d of s.defs) for (const pts of [e.polyline(d.id, 4), (s.old.get(d.id) ?? []).flat()]) {
+    for (const d of s.defs) for (const pts of [e.polyline(d.id, 4)]) {
         for (let i = 0; i < pts.length; i += 2) { x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); y0 = Math.min(y0, pts[i + 1]); y1 = Math.max(y1, pts[i + 1]); }
     }
     const vb = `${x0 - 40} ${y0 - 40} ${x1 - x0 + 80} ${y1 - y0 + 80}`;
     const cards = s.obstacles.map(rectSvg).join('');
-    let a = ''; let b = '';
+    let b = '';
     for (const d of s.defs) {
         const col = KIND[d.kind] ?? 'var(--l1)';
         const dash = d.kind === 'close' ? ' stroke-dasharray="6 5"' : '';
-        const pts = s.old.get(d.id);
-        if (pts) a += `<path d="${rounded(pts)}" fill="none" stroke="${col}" stroke-width="2"${dash}/>`;
         const p = e.path(d.id);
         b += `<path d="${p.d}" fill="none" stroke="${p.clear ? col : 'red'}" stroke-width="2"${dash}/>`;
         b += head({ x: d.to.x, y: d.to.y, t: p.endTangent }, col);
@@ -108,8 +105,7 @@ function book(file, dir) {
     const st = e.stats();
     return `<h2>${file}, ${dir === TB ? 'top to bottom (phone)' : 'left to right (desktop)'}</h2>
 <p>${s.defs.length} links, ${st.routes} routed around something, ${ms.toFixed(1)} ms</p>
-<div class="pair"><figure><svg viewBox="${vb}">${cards}${a}</svg><figcaption>Today: grid router</figcaption></figure>
-<figure><svg viewBox="${vb}">${cards}${b}</svg><figcaption>Link engine</figcaption></figure></div>`;
+<figure><svg viewBox="${vb}">${cards}${b}</svg><figcaption>Link engine</figcaption></figure>`;
 }
 
 const html = `<!doctype html>

@@ -87,7 +87,7 @@ line nearest the pointer, not the one drawn last: a short line under a longer on
 
 ## Not done yet
 
-- Removing the old router (`route`, `heap`, `buffers`, `makeGrid`, `rounded` for links, and its tests) from
-  `canvas-graph.js`.
-- Bundling is lanes side by side; links heading the same way don't merge into one line.
-- The SillyTavern e2e runs (n3, n7, perf) on this branch. The desktop harness runs (`desktop.mjs`, `shape.mjs`) pass.
+- Bundling is lanes side by side; links heading the same way don't merge into one line (manual bundling: not now).
+
+The old grid router (`route`, `makeGrid` in `canvas-graph.js`) is gone; `rounded` stays for the short junction
+stubs. Benchmarks against it are in git history (`tools/link-bench.js`).
