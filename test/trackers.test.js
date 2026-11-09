@@ -148,3 +148,33 @@ test('ship config: a written mask is on while it holds a value, and falls back t
     s.send('next');
     assert.equal(s.maskOf(0), 'Custom', 'on again, as often as the story needs');
 });
+
+test('manual set, edit of the latest reply, the instruction, prompt stripping, show in chat, the bubble', async () => {
+    const { setSlot } = await import('../src/engine/manual.js');
+    const { rereadReply, stateForScan } = await import('../src/engine/turn.js');
+    const { instruction } = await import('../src/engine/written.js');
+    const { shownText } = await import('../src/show-in-chat.js');
+    const { wroteLines } = await import('../src/bubble.js');
+    const s = new Sim([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: { show: false, describe: 'coins the player carries', teach: { on: true, depth: 2 } } }, { comment: 'Gold' })]);
+    s.send('gold', 'Found coins. [Gold: 7]');
+    assert.deepEqual(wroteLines(s.chat, k => s.model.slots.get(k)), ['Gold → 7']);
+    assert.equal(shownText(s.chat.at(-1).mes, s.model), 'Found coins.');
+    // Edit the latest reply: read again.
+    const last = s.chat.length - 1;
+    s.chat[last].mes = 'Found coins. [Gold: 8]';
+    const before = s.chat.slice(0, last);
+    s.chat[last].extra.wihero = rereadReply(s.chat[last].extra.wihero, stateForScan(before, s.model, {}), s.model, s.chat, last);
+    assert.equal(slotValues(s.model, s.state, s.chat).get(K('gold')), '8');
+    // By hand, on the latest message.
+    s.send('x');
+    const at = s.chat.length - 1;
+    s.chat[at].extra.wihero = setSlot(s.chat[at].extra.wihero, K('gold'), '100', at);
+    assert.equal(slotValues(s.model, s.state, s.chat).get(K('gold')), '100');
+    s.chat[at].extra.wihero = setSlot(s.chat[at].extra.wihero, K('gold'), '', at);
+    assert.equal(slotValues(s.model, s.state, s.chat).get(K('gold')), '');
+    const t = s.model.trackers.get('Book');
+    assert.equal(t.teach.depth, 2);
+    const text = instruction(t, t.slots, new Map([[K('gold'), '8']]));
+    assert.match(text, /\[Gold: \(value\)\]\n {2}\(coins the player carries; now 8\)/);
+    assert.equal(t.reader.strip('Hi. [Gold: 3]'), 'Hi.');
+});

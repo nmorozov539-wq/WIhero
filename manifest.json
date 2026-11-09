@@ -4,6 +4,7 @@
     "requires": [],
     "optional": [],
     "js": "index.js",
+    "generate_interceptor": "wiheroInterceptor",
     "css": "style.css",
     "author": "Ebanit5000",
     "version": "0.36.0",

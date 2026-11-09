@@ -2,8 +2,13 @@
 // entry lists and activated Map. SillyTavern is reached only through `ctx()` and the `st` functions passed in,
 // so this can be tested with a stand-in.
 import { buildModel, FIELD, isMoment, rawConfig, stKey } from './engine/model.js';
-import { advance, baseState, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
-import { pickMask, reopen } from './engine/manual.js';
+import { advance, baseState, rereadReply, slotOpen, slotValues, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
+import { pickMask, reopen, setSlot } from './engine/manual.js';
+import { readState } from './engine/state.js';
+import { instruction } from './engine/written.js';
+
+/** The key of WI Hero's one extension prompt: the trackers' instruction (TRACKERS 3.2). */
+export const TEACH_KEY = 'wihero_trackers';
 import { greetingFpOf, greetingSignature, openingGreeting, writeSnapshot } from './chat-state.js';
 import { isCounted, scanChat } from './generation.js';
 import { entryHash, scanLength, stickyHeld } from './timers.js';
@@ -92,9 +97,53 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         pending = { type, uncounted: !isCounted(type), working: null, chat: null, sticky: new Set(), forced: new Set(), victims: new Map(), fired: [], sent: [], masks: new Map() };
     }
 
+    /**
+     * The trackers' instruction (TRACKERS 3.2): one system message in the chat at the books' depth, built from the
+     * open slots of every book in WI Hero's own mode. Cleared when there is nothing to teach.
+     */
+    function teach(chat) {
+        const c = ctx();
+        if (typeof c.setExtensionPrompt !== 'function') return;
+        const books = active() ? [...(model.trackers?.values() ?? [])].filter(t => t.teach.on && t.reader) : [];
+        let text = '';
+        let depth = Infinity;
+        if (books.length) {
+            const state = stateForScan(chat, model, stateOptions(chat));
+            const values = slotValues(model, state, chat);
+            const parts = [];
+            for (const t of books) {
+                const open = t.slots.filter(sl => !sl.bad && slotOpen(sl, state, chat, model));
+                const part = instruction(t, open, values);
+                if (part) { parts.push(part); depth = Math.min(depth, t.teach.depth); }
+            }
+            text = parts.join('\n\n');
+        }
+        c.setExtensionPrompt(TEACH_KEY, text, 1, Number.isFinite(depth) ? depth : 1, false, 0);
+    }
+
+    /**
+     * ST's generate interceptor (TRACKERS 3.3): in WI Hero's own mode, tracker lines are taken out of the messages
+     * the prompt is built from, so the model reads each value once, from its entry. ST's list holds the chat's own
+     * message objects: changed ones are replaced by copies, never edited. A continue keeps the message it continues.
+     */
+    function stripPrompt(list, type) {
+        if (!active() || !Array.isArray(list)) return;
+        const books = [...(model.trackers?.values() ?? [])].filter(t => t.teach.on && t.reader);
+        if (!books.length) return;
+        for (let i = 0; i < list.length; i++) {
+            const m = list[i];
+            if (!m || typeof m.mes !== 'string' || (type === 'continue' && i === list.length - 1)) continue;
+            let mes = m.mes;
+            for (const t of books) mes = t.reader.strip(mes);
+            if (mes !== m.mes.trim()) list[i] = { ...m, mes };
+        }
+    }
+
     // 6.2, glue: force-activate holds before the scan. ST clears forced entries after every scan.
     async function onAfterCommands(type, _options, dryRun) {
-        if (!active() || dryRun) return;
+        if (dryRun) return;
+        try { teach(scanChat(ctx().chat ?? [], type)); } catch (e) { console.error('[WI Hero] Could not build the trackers\' instruction', e); }
+        if (!active()) return;
         const entries = await st.getSortedEntries();
         if (!hashWarned && entries.some(e => hashes.has(stKey(e)) && hashes.get(stKey(e)) !== e.hash)) {
             hashWarned = true;
@@ -236,6 +285,30 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
 
     const reopenEntry = key => editState((state, now) => reopen(state, key, now));
     const pickEntryMask = (key, name) => editState(state => pickMask(state, key, name));
+    /** Sets a tracker's value by hand, or clears it (no text), from the latest message on (TRACKERS 2.3). */
+    const setSlotValue = (key, text) => editState((state, now) => setSlot(state, key, text, now - 1));
+
+    /** Every tracker's value the next generation starts from: slot key → text. */
+    function values() {
+        const chat = ctx().chat ?? [];
+        return slotValues(model, stateForScan(chat, model, stateOptions(chat)), chat);
+    }
+
+    /** An edit of the latest reply reads its trackers again (TRACKERS 2.4); older edits change nothing. */
+    async function onMessageEdited(mesId) {
+        if (!active() || !model.slots?.size) return;
+        const chat = ctx().chat ?? [];
+        const id = Number(mesId);
+        const message = chat[id];
+        if (id !== chat.length - 1 || !message || message.is_user) return;
+        const snapshot = readState(message.extra?.[FIELD], { at: id, renamed: settings.renamed ?? {} });
+        if (!snapshot) return;
+        const before = chat.slice(0, id);
+        const working = stateForScan(before, model, stateOptions(before));
+        writeSnapshot(message, rereadReply(snapshot, working, model, chat, id));
+        await ctx().saveChat();
+        onChange();
+    }
 
     /** Finds an entry by `book/id`, or by id alone when only one loaded book has it. */
     function findNode(ref) {
@@ -299,7 +372,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
 
     return {
         onGenerationStarted, onAfterCommands, onEntriesLoaded, onScanDone, onWorldInfoActivated, onMessageReceived, dropPending,
-        reopenEntry, pickEntryMask, findNode, view, loadModel, gap, fixGap, active,
+        reopenEntry, pickEntryMask, setSlotValue, values, onMessageEdited, stripPrompt, findNode, view, loadModel, gap, fixGap, active,
         get model() { return model; },
         get pending() { return pending; },
         get loaded() { return loaded; },

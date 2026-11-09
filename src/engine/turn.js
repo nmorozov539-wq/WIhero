@@ -392,6 +392,24 @@ export function advance(working, pending, model, chat, mesId) {
 }
 
 /**
+ * Reads an edited latest reply again (TRACKERS 2.4): its snapshot's tracker values are read afresh, with the
+ * openness of the state its turn scanned with. Everything else in the snapshot stays.
+ * @param {object} snapshot The reply's snapshot (readState).
+ * @param {object} working stateForScan of the chat before the reply.
+ */
+export function rereadReply(snapshot, working, model, chat, mesId) {
+    const next = structuredClone(snapshot);
+    for (const key of Object.keys(next.wrote ?? {})) {
+        if (Number.isInteger(working.written?.[key])) next.written[key] = working.written[key];
+        else delete next.written[key];
+    }
+    next.wrote = { ...(working.wrote ?? {}) };
+    readSlots(next, working, model, chat, mesId, 'char');
+    for (const key of Object.keys(next.wrote)) next.written[key] = mesId;
+    return next;
+}
+
+/**
  * Dice for switches (AFTER_V1). When a dice fork fires and its switch hasn't been decided (no roll yet, no path
  * fired or closed), one open path is picked and every other path closes. The roll is saved in `state.rolls`.
  * It is seeded by the message before the reply (its text and time) and the fork, so a swipe or a regenerate of

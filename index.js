@@ -9,6 +9,7 @@ import { createApp } from './src/ui/app.js';
 import { mountPanel, render, renderNotice } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
 import { createBubble } from './src/bubble.js';
+import { createChatHider } from './src/show-in-chat.js';
 import { checkHealth, createHealth, EVENTS, standDownText, stVersion } from './src/compat.js';
 import * as st from './src/st.js';
 
@@ -76,6 +77,7 @@ mountPanel({
             settings.enabled = value;
             saveSettingsDebounced();
             refresh();
+            hider.all();
             if (value) offerCatchUp();
         },
         onBubble(value) {
@@ -113,6 +115,28 @@ function registerCommands() {
             return '';
         },
     }));
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'wihero-set',
+        helpString: 'Sets the value of a WI Hero tracker (text the model writes) from the latest message on; it rewinds '
+            + 'with the chat. Without text, the value is cleared.',
+        namedArgumentList: [
+            SlashCommandNamedArgument.fromProps({ name: 'entry', description: 'WI Hero id of the entry (or book/id)', typeList: [ARGUMENT_TYPE.STRING], isRequired: true }),
+            SlashCommandNamedArgument.fromProps({ name: 'mask', description: 'the written mask, if not the main text', typeList: [ARGUMENT_TYPE.STRING], isRequired: false }),
+        ],
+        unnamedArgumentList: [SlashCommandArgument.fromProps({ description: 'the value', typeList: [ARGUMENT_TYPE.STRING], isRequired: false })],
+        callback: async (args, value) => {
+            const ref = String(args.entry ?? '').trim();
+            const mask = String(args.mask ?? '').trim();
+            const node = hooks.findNode(ref);
+            const key = node && (mask ? `${node.key}|m:${mask}` : node.key);
+            const problem = !node ? `no entry "${ref}" in the loaded books (or more than one: use book/id)`
+                : !hooks.model.slots?.has(key) ? `${mask ? `mask "${mask}" of ${node.id}` : node.id} is not written by the model`
+                    : !ctx().chat?.length ? 'open a chat first' : null;
+            if (problem) toastr.warning(`WI Hero: ${problem}.`);
+            else await hooks.setSlotValue(key, String(value ?? ''));
+            return '';
+        },
+    }));
 }
 registerCommands();
 
@@ -131,6 +155,16 @@ on('WORLDINFO_ENTRIES_LOADED', hooks.onEntriesLoaded);
 on('WORLDINFO_SCAN_DONE', hooks.onScanDone);
 on('WORLD_INFO_ACTIVATED', hooks.onWorldInfoActivated);
 on('MESSAGE_RECEIVED', hooks.onMessageReceived);
+on('MESSAGE_EDITED', hooks.onMessageEdited);
+// Show in chat (TRACKERS 4): hidden trackers' lines come out of the messages on screen.
+const hider = createChatHider({ ctx, model: () => hooks.model, active: () => hooks.active() });
+for (const type of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED']) on(type, id => setTimeout(() => hider.hide(id), 0));
+let rehideTimer = null;
+const rehide = () => { clearTimeout(rehideTimer); rehideTimer = setTimeout(() => hooks.loadModel().then(hider.all, () => {}), 400); };
+on('CHAT_CHANGED', rehide);
+on('WORLDINFO_UPDATED', rehide);
+// ST's generate interceptor (manifest.json): tracker lines out of the prompt in WI Hero's own mode (TRACKERS 3.3).
+globalThis.wiheroInterceptor = (chat, _size, _abort, type) => hooks.stripPrompt(chat, type);
 on('GENERATION_STOPPED', hooks.dropPending);
 on('CHAT_CHANGED', hooks.dropPending);
 for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED', 'MESSAGE_RECEIVED']) on(type, refresh);
@@ -225,7 +259,7 @@ function followEditor(open) {
 let askedBook = null;
 let askedTimer = null;
 
-bubble = createBubble({ ctx, settings, saveSettings: saveSettingsDebounced, gap: () => (hooks.active() ? hooks.gap() : null), onFixGap: fixGap });
+bubble = createBubble({ ctx, settings, saveSettings: saveSettingsDebounced, gap: () => (hooks.active() ? hooks.gap() : null), onFixGap: fixGap, slotOf: key => hooks.model.slots?.get(key) });
 stVersion().then(v => health.setVersion(v));
 if (!health.ok) showHealth(health);
 

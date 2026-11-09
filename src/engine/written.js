@@ -241,3 +241,24 @@ export function slotValue(state, chat, key, readGreeting) {
     }
     return undefined;
 }
+
+/**
+ * The one instruction WI Hero sends in its own mode (TRACKERS 3.2), built from the book's syntax and the slots that
+ * are open now. Empty when no slot is open.
+ * @param {{ syntax: object }} tracker A book's tracker settings (model.trackers).
+ * @param {object[]} open The book's slots that read now.
+ * @param {Map<string, string>} values Current values by slot key.
+ */
+export function instruction(tracker, open, values) {
+    if (!open.length) return '';
+    const lines = open.map(s => {
+        const v = values.get(s.key);
+        const notes = [s.describe ? s.describe.replace(/[.\s]+$/, '') : '', s.shape === 'line' && v ? `now ${v}` : ''].filter(Boolean);
+        const form = sample(tracker.syntax, s, s.shape === 'block' ? '(value, any number of lines)' : '(value)');
+        return `${form}${notes.length ? `\n  (${notes.join('; ')})` : ''}`;
+    });
+    return [
+        'Story trackers. At the very end of your reply, after everything else, write the trackers below whose value changed, each exactly in its format. To clear one, write it with an empty value. Never write them anywhere else in the reply.',
+        ...lines,
+    ].join('\n');
+}
