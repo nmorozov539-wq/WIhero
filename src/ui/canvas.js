@@ -1,7 +1,9 @@
 // The Hero canvas on screen (VISUAL 7): cards, ports, junctions, lock tags, links routed around cards, mask
 // stacks, pack frames; pan, pinch and wheel zoom, Fit, card and port dragging. Lifted from the demo. Positions,
 // port sides, the mask layer on each card and the camera are kept in the extension settings (D7, BUILD_SPEC 8.2).
-import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, makeGrid, nodeRects, placeNew, rounded, route, snap } from './canvas-graph.js';
+import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, nodeRects, placeNew, rounded, snap } from './canvas-graph.js';
+import { createLinkEngine } from '../link-engine/index.js';
+import { addDot, moveDot, normalize, removeDot, setSegment, toCanvas } from '../link-engine/shape.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 
@@ -9,6 +11,7 @@ const FAMILY_VAR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(
 const STRAT_VAR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
 const NS = 'http://www.w3.org/2000/svg';
 const sv = (tag, at, style) => { const n = document.createElementNS(NS, tag); for (const k in at) n.setAttribute(k, at[k]); if (style) n.setAttribute('style', style); return n; };
+const kindColor = kind => (kind === 'close' ? FAMILY_VAR.close : kind === 'ride' ? FAMILY_VAR.glue : FAMILY_VAR.open);
 
 /**
  * The saved canvas of a book: { camera: {x, y, zoom} | null, cards: {key: {x, y, ports, layer, placed}}, placed }.
@@ -40,6 +43,13 @@ export function arrange(m, memory, center, dir = TB) {
     for (const [k, p] of Object.entries(pos)) { const c = (memory.cards[k] ??= {}); c.x = p.x; c.y = p.y; }
     const manual = {};
     for (const [k, c] of Object.entries(memory.cards)) for (const [kind, side] of Object.entries(c.ports ?? {})) if (SIDE_OF[side]) manual[`${k}:${kind}`] = SIDE_OF[side];
+    // Hand-made link shapes go with their link: one whose link is gone is dropped.
+    const live = new Set(g.edges.map(x => `${x.from} ${linkKey(x)}`));
+    for (const [k, c] of Object.entries(memory.cards)) {
+        if (!c.links) continue;
+        for (const lk of Object.keys(c.links)) if (!live.has(`${k} ${lk}`)) delete c.links[lk];
+        if (!Object.keys(c.links).length) delete c.links;
+    }
     const R = nodeRects(m, g, ids, pos);
     const P = computePorts(g, R, manual, { dir });
     return { g, ids, pos, R, P };
@@ -52,10 +62,15 @@ export function arrange(m, memory, center, dir = TB) {
  *   save(), open(key, piece), pack(name), toast(text), onFirstFit? }
  */
 /**
- * Routed links, kept across draws while nothing on the canvas moved: Hero mode redraws the canvas on every tap
- * (open the inspector, pick a piece), and routing every link again was most of a tap's time on a phone.
+ * The link engine (src/link-engine): smooth links that go around cards. It keeps each link's path across draws and
+ * only redoes the ones whose ends, shape or nearby cards changed: Hero mode redraws the canvas on every tap (open the
+ * inspector, pick a piece), and routing every link again was most of a tap's time on a phone.
  */
-const ROUTES = { sig: '', map: new Map() };
+const LINKS = createLinkEngine({ grid: G });
+/** Where a link's hand-made shape is kept: on its source card, `canvas.cards[<from>].links[<this>]`. */
+export const linkKey = x => `${x.fromPort}>${x.to}${x.mask != null ? `@${x.mask}` : ''}`;
+/** The last tap on a shaped link's dot (kept across draws: a tap draws the app again), for a double tap. */
+let lastDotTap = null;
 /** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
 export const PHONE_FLOOR = 0.8;
 
@@ -135,25 +150,24 @@ export function mountCanvas(vp, d) {
         const lk = sv('svg', { class: 'lk', width: 1, height: 1 });
         const pt = sv('svg', { class: 'pt', width: 1, height: 1 });
 
-        // Decorations links must route around: mask layers and their ‹ › control.
-        const extra = [];
+        // Where each masked card's ‹ › control goes: under the card, or beside it when its bottom edge has a port.
         for (const r of R.values()) {
             if (!r.e?.masks.length) continue;
             const n = Math.min(2, r.e.masks.length);
-            extra.push({ x: r.x, y: r.y - 6 * n, w: CW + 6 * n, h: CH });
             const bottomTaken = [...(P.get(r.key)?.values() ?? [])].some(p => p.side === 'b');
             r.nav = bottomTaken ? { v: true, x: r.x + CW + 6 * n + 8, y: r.y + CH / 2 - 36, w: 26, h: 72 } : { v: false, x: r.x + CW / 2 - 44, y: r.y + CH + 10, w: 88, h: 24 };
-            extra.push(r.nav);
         }
-        const grid = makeGrid(R, extra);
-        const sig = [...R.values()].map(r => `${r.key}:${r.x},${r.y},${r.w},${r.h}`).join('|') + extra.map(r => `${r.x},${r.y},${r.w},${r.h}`).join('|');
-        if (sig !== ROUTES.sig) { ROUTES.sig = sig; ROUTES.map.clear(); }
-        const routeOnce = (sx, sy, ex, ey, al) => {
-            const k = `${sx},${sy},${ex},${ey}|${[...al].sort().join(',')}`;
-            if (!ROUTES.map.has(k)) ROUTES.map.set(k, route(grid, sx, sy, ex, ey, al));
-            const pts = ROUTES.map.get(k);
-            return pts && pts.map(q => [...q]);
-        };
+        // What links go around: cards, mask stacks and their ‹ › control, and pack frames (only their members' links
+        // go in). A card's own stack sits over its top edge, so its links may touch it.
+        const obstacles = [];
+        for (const r of R.values()) {
+            if (r.pack) obstacles.push({ id: r.key, x: r.x, y: r.y, w: r.w, h: r.h, pass: 'members', members: new Set(r.members) });
+            else obstacles.push({ id: r.key, x: r.x, y: r.y, w: r.w, h: r.h });
+            if (!r.e?.masks.length) continue;
+            const n = Math.min(2, r.e.masks.length);
+            obstacles.push({ id: `${r.key}#stack`, x: r.x, y: r.y - 6 * n, w: CW + 6 * n, h: CH }, { id: `${r.key}#nav`, x: r.nav.x, y: r.nav.y, w: r.nav.w, h: r.nav.h });
+        }
+        LINKS.setObstacles(obstacles);
 
         for (const r of R.values()) {
             if (!r.pack) continue;
@@ -262,9 +276,9 @@ export function mountCanvas(vp, d) {
             }
             return s;
         };
-        const color = kind => (kind === 'close' ? FAMILY_VAR.close : kind === 'ride' ? FAMILY_VAR.glue : FAMILY_VAR.open);
-        const path = (pts, kind, dashed, cls = null) => {
-            const n = sv('path', { d: rounded(pts) }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`);
+        const color = kindColor;
+        const path = (pts, kind, dashed, cls = null, dd = rounded(pts)) => {
+            const n = sv('path', { d: dd }, `stroke:${color(kind)};${kind === 'close' || dashed ? `stroke-dasharray:${dashed ?? '6 5'}` : ''}`);
             if (cls) n.classList.add(cls);
             put(lk, n);
             // Only Closes has a head (the bar of a stop); Opens and ride-along lines run knob to socket without one.
@@ -288,27 +302,75 @@ export function mountCanvas(vp, d) {
             put(lk, head);
             if (kind === 'close') { const bar = sv('path', { d: `M${b[0] - uy * 6},${b[1] + ux * 6} L${b[0] + uy * 6},${b[1] - ux * 6}` }, `stroke:${color(kind)};stroke-width:2.5`); if (cls) bar.classList.add(cls); put(lk, bar); }
         };
-        const drawEdge = (x, endPt, endN, rawEnd) => owning(`${x.from} ${x.to}`, () => {
+        // Links are laid out together (so they keep a lane apart and cross cleanly), then drawn: drawEdge queues one,
+        // and `then(pts)` runs once it's drawn, with its points (pills sit on them).
+        const queue = [];
+        const linkIds = new Set();
+        const drawEdge = (x, endPt, endN, rawEnd, then = null) => {
             const a = portOf(x.from, x.fromPort);
-            if (!a) return undefined;
-            const s0 = tip(a, 7); const s1 = tip(a, G);
-            const e1 = [endPt[0] + endN[0] * G, endPt[1] + endN[1] * G];
-            const mid = routeOnce(snap(s1[0]), snap(s1[1]), snap(e1[0]), snap(e1[1]), allow(x.from, x.to));
-            const pts = mid ? [s0, ...mid, rawEnd ?? endPt] : [s0, s1, e1, rawEnd ?? endPt];
-            path(pts, x.kind, undefined, faint(x));
-            // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
-            const hp = sv('path', { d: rounded(pts), class: 'lhit' });
-            hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null }) - 1;
-            hp.dataset.ends = `${x.from}>${x.to}`;
-            hp.dataset.kind = x.kind;
-            put(lk, hp);
-            if (x.mode) {
-                const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
-                Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
-                put(world, lb);
-            }
+            if (!a) return;
+            const end = rawEnd ?? endPt;
+            let id = `${x.from}>${x.fromPort}>${x.to}>${x.port}${x.mask != null ? `@${x.mask}` : ''}`;
+            while (linkIds.has(id)) id += '+';
+            linkIds.add(id);
+            const shape = mem.cards[x.from]?.links?.[linkKey(x)] ?? null;
+            const s0 = tip(a, 7);
+            queue.push({
+                x, a, then,
+                def: {
+                    id,
+                    from: { x: s0[0], y: s0[1], n: a.n, card: x.from },
+                    to: { x: end[0], y: end[1], n: endN, card: R.has(x.to) && !isJunction(endPt, x) ? x.to : undefined },
+                    owner: new Set([...allow(x.from, x.to), `${x.from}#stack`, `${x.to}#stack`]),
+                    shape,
+                },
+            });
+        };
+        // A link that ends on a junction (an AND or OR point off the card) doesn't end on its card.
+        const isJunction = (pt, x) => { const p = portOf(x.to, x.port); return !p || Math.hypot(pt[0] - p.x, pt[1] - p.y) > 6; };
+        // A link's own drawn nodes (its line and head) carry data-lid, so a dot drag can draw just that link again.
+        const lineOf = q => {
+            const n0 = lk.childNodes.length;
+            const flat = LINKS.polyline(q.def.id, 1);
+            const pts = [];
+            for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
+            path(pts, q.x.kind, undefined, faint(q.x), LINKS.path(q.def.id).d);
+            for (const n of [...lk.childNodes].slice(n0)) { n.dataset.lid = q.def.id; n.classList.add('ln'); }
             return pts;
-        });
+        };
+        const drawQueued = () => {
+            LINKS.layout(queue.map(q => q.def));
+            for (const q of queue) {
+                const { x, a, then, def } = q;
+                owning(`${x.from} ${x.to}`, () => {
+                    const pts = lineOf(q);
+                    // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
+                    const hp = sv('path', { d: LINKS.path(def.id).d, class: 'lhit' });
+                    hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null, id: def.id, key: linkKey(x) }) - 1;
+                    hp.dataset.ends = `${x.from}>${x.to}`;
+                    hp.dataset.kind = x.kind;
+                    hp.dataset.lid = def.id;
+                    put(lk, hp);
+                    if (x.mode) {
+                        const s1 = tip(a, G);
+                        const lb = el('div', 'plabel', x.mode === 'any' ? 'any' : x.mode === 'all' ? 'all' : `${x.mode}+`);
+                        Object.assign(lb.style, { left: `${s1[0] + a.n[0] * 8}px`, top: `${s1[1] + a.n[1] * 8}px` });
+                        put(world, lb);
+                    }
+                    then?.(pts);
+                });
+            }
+        };
+        // Draws some links again after a layout (a dot being dragged): their lines and hit paths, not their pills.
+        CV.queue = queue;
+        CV.relink = ids => {
+            for (const q of queue) {
+                if (!ids.has(q.def.id)) continue;
+                for (const n of [...lk.querySelectorAll('.ln')]) if (n.dataset.lid === q.def.id) n.remove();
+                owning(`${q.x.from} ${q.x.to}`, () => lineOf(q));
+                for (const n of lk.querySelectorAll('.lhit')) if (n.dataset.lid === q.def.id) n.setAttribute('d', LINKS.path(q.def.id).d);
+            }
+        };
         /** The point `d` back from the end of a line. */
         const along = (pts, d) => {
             for (let k = pts.length - 1; k > 0; k--) {
@@ -362,8 +424,7 @@ export function mountCanvas(vp, d) {
             const STEP = 30;
             if (rows.length === 1 && linksOf(rows[0]).length === 1) {
                 const x = linksOf(rows[0])[0];
-                const pts = drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt);
-                if (pts) owning(`${x.from} ${x.to}`, () => condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP))));
+                drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt, pts => condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP))));
                 continue;
             }
             const out = d => [snap(p.x + p.n[0] * d), snap(p.y + p.n[1] * d)];
@@ -404,8 +465,7 @@ export function mountCanvas(vp, d) {
                     put(world, jr);
                     links.forEach(x => drawEdge(x, target, p.n, target));
                 } else if (links.length === 1) {
-                    const pts = drawEdge(links[0], J0, p.n, J0);
-                    if (pts) owning(`${links[0].from} ${links[0].to}`, () => cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP))));
+                    drawEdge(links[0], J0, p.n, J0, pts => cs.forEach((c, li) => pill(c, row, along(pts, 26 + li * STEP))));
                 } else {
                     // Only locks and waits, as one of several rows: a stub off the OR junction.
                     const kk = ri - (rows.length - 1) / 2;
@@ -423,6 +483,7 @@ export function mountCanvas(vp, d) {
             const p = portOf(x.to, x.port);
             if (p) drawEdge(x, tip(p, 2), p.n, x.kind === 'ride' ? tip(p, 3) : tip(p, 2));
         }
+        drawQueued();
 
         // Ports, on top of the cards: socket = in, knob = out (VISUAL 7.2).
         for (const [key, ports] of P) {
@@ -465,6 +526,7 @@ export function mountCanvas(vp, d) {
         drawOverlay();
         if (d.desk && hoverKey && CV.R.has(hoverKey)) showHandles(hoverKey);
         if (d.desk && focusKey) applyFocus(focusKey);
+        drawShaping();
     }
 
     // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
@@ -521,6 +583,23 @@ export function mountCanvas(vp, d) {
         if (pf) return { card: `pack:${pf.dataset.pack}` };
         return null;
     }
+    /**
+     * Links into or out of one port run together near it, so a short line can lie mostly under a longer one. Of the
+     * lines whose hit paths are under a point, the one nearest it (the top one on a tie); any other node as it is.
+     */
+    function lineUnder(t, cx, cy) {
+        if (!t?.classList?.contains('lhit')) return t;
+        const root = vp.getRootNode();
+        const list = (root.elementsFromPoint ? root : document).elementsFromPoint(cx, cy).filter(n => n.classList?.contains('lhit') && vp.contains(n));
+        if (list.length < 2) return t;
+        const [x, y] = toWorld(cx, cy);
+        let best = t; let bd = Infinity;
+        for (const n of list) {
+            const dist = LINKS.nearest(n.dataset.lid, { x, y })?.dist ?? Infinity;
+            if (dist < bd - 0.5) { best = n; bd = dist; }
+        }
+        return best;
+    }
     /** What is under a screen point. */
     function hitAt(cx, cy) {
         const root = vp.getRootNode();
@@ -528,7 +607,7 @@ export function mountCanvas(vp, d) {
         for (const n of list) {
             if (n === vp) break;
             if (!vp.contains(n)) continue;
-            const h = hitOf(n);
+            const h = hitOf(lineUnder(n, cx, cy));
             if (h) return h;
         }
         return null;
@@ -589,6 +668,174 @@ export function mountCanvas(vp, d) {
         }
         applyView();
         saveCamera();
+    }
+
+    // ---- shaping a link: the strip of a drawn link shows its dots, a ghost dot on each part, and the part picked.
+    // Only these handles catch a drag; the line itself still pans, so links never become places a finger gets stuck.
+    let SH = null; // { sel: { kind, from, to, seg, dot }, l: the CV.links entry, q: its queued def }
+    function selLink(sel) {
+        return CV?.links.find(l => l.kind === sel.kind && l.from === sel.from && l.to === sel.to && (l.mask ?? null) === (sel.mask ?? null)) ?? null;
+    }
+    function drawShaping() {
+        vp.classList.remove('shaping');
+        world.querySelector('svg.hd')?.remove();
+        const sel = d.shaping?.() ?? null;
+        const l = sel && selLink(sel);
+        const q = l && CV.queue?.find(y => y.def.id === l.id);
+        const was = SH?.l.id;
+        SH = q ? { sel: { seg: 0, dot: null, ...sel }, l, q } : null;
+        if (!SH) return;
+        vp.classList.add('shaping');
+        drawHandles();
+        // Phones: a line just picked has its ghost dots brought into view once the strip has taken its room (half
+        // the screen). A mouse has room to spare, and moving the view under it would be a surprise.
+        if (!d.desk && was !== SH.l.id) requestAnimationFrame(() => showHandlesOf(SH?.l.id));
+    }
+    function showHandlesOf(id) {
+        const v = camera();
+        const mids = id && LINKS.midpoints(id);
+        if (!v || !mids?.length || !vp.clientWidth) return;
+        const W = vp.clientWidth;
+        const Hh = vp.clientHeight;
+        const M = 48;
+        const at = mids.map(m => [m.x * v.scale + v.tx, m.y * v.scale + v.ty]);
+        if (at.every(([x, y]) => x >= M && x <= W - M && y >= M && y <= Hh - M)) return;
+        const cx = at.reduce((s, p) => s + p[0], 0) / at.length;
+        const cy = at.reduce((s, p) => s + p[1], 0) / at.length;
+        v.tx += W / 2 - cx;
+        v.ty += Hh / 2 - cy;
+        applyView();
+        saveCamera();
+    }
+    const storedShape = () => normalize(memory().cards[SH.l.from]?.links?.[SH.l.key] ?? null);
+    function writeShape(shape) {
+        const c = (memory().cards[SH.l.from] ??= {});
+        if (shape) (c.links ??= {})[SH.l.key] = shape;
+        else if (c.links) { delete c.links[SH.l.key]; if (!Object.keys(c.links).length) delete c.links; }
+        SH.q.def.shape = shape;
+    }
+    /** The link's points in order: its start, each dot, its end. */
+    function shapePoints(shape) {
+        const ends = LINKS.ends(SH.l.id);
+        const { from, to } = SH.q.def;
+        return [{ x: from.x, y: from.y }, ...(shape?.dots ?? []).map(dt => toCanvas(dt, ends)), { x: to.x, y: to.y }];
+    }
+    function drawHandles() {
+        world.querySelector('svg.hd')?.remove();
+        for (const n of world.querySelectorAll('svg.lk .ln')) n.classList.toggle('shsel', n.dataset.lid === SH.l.id);
+        const id = SH.l.id;
+        const lp = LINKS.path(id);
+        if (!lp) return;
+        const k = 1 / (camera()?.scale || 1);
+        const hd = sv('svg', { class: 'hd', width: 1, height: 1 });
+        hd.style.color = kindColor(SH.l.kind);
+        hd.append(sv('path', { d: lp.d, class: 'sband' }));
+        const shape = storedShape();
+        const pts = shapePoints(shape);
+        const st = shapeState();
+        if (st.segs > 1 && st.seg != null) { const sd = LINKS.segmentD(id, st.seg); if (sd) hd.append(sv('path', { d: sd, class: 'sseg' })); }
+        // A dot inside a card: the card gets a dashed outline, so it's plain the line was sent through it on purpose.
+        for (const p of pts.slice(1, -1)) {
+            const r = [...CV.R.values()].find(b => !b.pack && p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h);
+            if (r) hd.append(sv('rect', { x: r.x - 5, y: r.y - 5, width: r.w + 10, height: r.h + 10, rx: 12, class: 'incard' }));
+        }
+        // Hit circles are 32px across on a phone and 18px with a mouse, whatever the zoom.
+        const hit = (cx, cy, attr, v) => { const c = sv('circle', { cx, cy, r: (d.desk ? 9 : 16) * k, class: 'hhit' }); c.dataset[attr] = v; return c; };
+        (LINKS.midpoints(id) ?? []).forEach((m, s) => hd.append(sv('circle', { cx: m.x, cy: m.y, r: 4.5 * k, class: 'ghost' }), hit(m.x, m.y, 'ghost', s)));
+        pts.slice(1, -1).forEach((p, i) => {
+            const on = st.dot === i;
+            hd.append(sv('circle', { cx: p.x, cy: p.y, r: (on ? 7.5 : 6) * k, class: `sdot${on ? ' on' : ''}` }), hit(p.x, p.y, 'dot', i));
+        });
+        world.append(hd);
+    }
+    /** What the strip shows: how many parts, which part or dot is picked, and that part's settings. */
+    function shapeState() {
+        if (!SH) return null;
+        const shape = storedShape();
+        const segs = (shape?.dots.length ?? 0) + 1;
+        const dot = SH.sel.dot != null && SH.sel.dot < segs - 1 ? SH.sel.dot : null;
+        const seg = dot == null && segs > 1 ? Math.min(SH.sel.seg ?? 0, segs - 1) : null;
+        const s = shape?.segments[seg ?? 0] ?? { type: 'curve' };
+        return { shaped: !!shape, segs, seg, dot, type: s.type, flip: !!s.flip, tension: s.tension ?? 0.5 };
+    }
+    let liveRaf = 0;
+    function relayout() {
+        liveRaf = 0;
+        if (!SH) return;
+        const { changed } = LINKS.layout(CV.queue.map(q => q.def));
+        CV.relink(new Set([...changed, SH.l.id]));
+        drawHandles();
+    }
+    const liveLater = () => { if (!liveRaf) liveRaf = requestAnimationFrame(relayout); };
+    /** Changes the shape. `live`: a slider being dragged, drawn at once without telling the app. */
+    function editShape(fn, live = false) {
+        if (!SH) return;
+        writeShape(normalize(fn(storedShape(), shapeState())));
+        if (live) { liveLater(); return; }
+        d.save();
+        d.shapeSet?.({ seg: SH.sel.seg, dot: SH.sel.dot }, true);
+    }
+    /** Sets the picked part (or every part, when none is picked) to `patch`: { type?, flip?, tension? }. */
+    function patchShape(patch, live = false) {
+        editShape((s, st) => {
+            const list = st.seg == null ? [...Array(st.segs).keys()] : [st.seg];
+            for (const i of list) s = setSegment(s, i, patch);
+            return s;
+        }, live);
+    }
+    function removeShapeDot(i = shapeState()?.dot) {
+        if (!SH || i == null) return;
+        writeShape(removeDot(storedShape(), i));
+        d.save();
+        d.shapeSet?.({ seg: i, dot: null }, true);
+    }
+    function resetShape() {
+        if (!SH) return;
+        writeShape(null);
+        d.save();
+        d.shapeSet?.({ seg: 0, dot: null }, true);
+    }
+    /** Drops a link's shape without opening its strip (the desktop's right-click menu). */
+    function resetShapeOf(l) {
+        const c = memory().cards[l.from];
+        if (!c?.links?.[l.key]) return;
+        delete c.links[l.key];
+        if (!Object.keys(c.links).length) delete c.links;
+        d.save();
+        render();
+    }
+    /** Where a dragged dot goes: on the grid with a mouse (Alt: anywhere); level with a neighbour on a phone. */
+    function dotPoint(cx, cy, free) {
+        let [x, y] = toWorld(cx, cy);
+        if (d.desk) return free ? { x, y } : { x: snap(x), y: snap(y) };
+        const P = shapePoints(storedShape());
+        const near = drag.dot == null ? [P[drag.ghost], P[drag.ghost + 1]] : [P[drag.dot], P[drag.dot + 2]];
+        const t = 8 / camera().scale;
+        for (const n of near) {
+            if (!n) continue;
+            if (Math.abs(x - n.x) < t) x = n.x;
+            if (Math.abs(y - n.y) < t) y = n.y;
+        }
+        return { x, y };
+    }
+    function dotTo(cx, cy, free) {
+        const p = dotPoint(cx, cy, free);
+        const ends = LINKS.ends(SH.l.id);
+        let shape = storedShape();
+        if (drag.dot == null) { shape = addDot(shape, drag.ghost, p, ends); drag.dot = drag.ghost; drag.ghost = null; } else shape = moveDot(shape, drag.dot, p, ends);
+        writeShape(shape);
+        SH.sel.dot = drag.dot;
+        liveLater();
+    }
+    /** Desktop: a double-click on the shaped line adds a dot there. */
+    function addDotAt(cx, cy, free) {
+        let [x, y] = toWorld(cx, cy);
+        if (!free) { x = snap(x); y = snap(y); }
+        const n = LINKS.nearest(SH.l.id, { x, y });
+        if (!n) return;
+        writeShape(addDot(storedShape(), n.segment, { x, y }, LINKS.ends(SH.l.id)));
+        d.save();
+        d.shapeSet?.({ seg: null, dot: n.segment }, true);
     }
 
     // ---- input
@@ -668,12 +915,18 @@ export function mountCanvas(vp, d) {
             return;
         }
         moved = false;
-        start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: e.target };
+        start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: lineUnder(e.target, e.clientX, e.clientY) };
         const gr = e.target.closest?.('[data-grip]');
         const port = e.target.closest?.('[data-port]');
         const card = d.desk && !port && !e.target.closest?.('[data-flip], .lockp, .junc') ? e.target.closest?.('.card[data-id]') : null;
         const handle = d.desk ? e.target.closest?.('[data-handle]') : null;
-        if (handle || (d.desk && port && PORT[port.dataset.port.split('|')[1]]?.dir === 'out' && !OV)) {
+        const sh = SH ? e.target.closest?.('[data-dot], [data-ghost]') : null;
+        if (sh) {
+            // A dot of the shaped link, or a ghost dot (dragging it makes a new dot; a tap picks its part).
+            mode = 'dot';
+            drag = { dot: sh.dataset.dot != null ? Number(sh.dataset.dot) : null, ghost: sh.dataset.ghost != null ? Number(sh.dataset.ghost) : null };
+            drag.tapped = drag.dot ?? drag.ghost;
+        } else if (handle || (d.desk && port && PORT[port.dataset.port.split('|')[1]]?.dir === 'out' && !OV)) {
             // Desktop: drag from a hover handle or a knob onto another card makes a link (LAYOUT "Canvas: mouse").
             const [key, kindOrPort] = handle ? [handle.dataset.handle, handle.dataset.kind] : port.dataset.port.split('|');
             const kind = handle ? kindOrPort : { gout: 'open', cout: 'close', glout: 'ride' }[kindOrPort];
@@ -724,19 +977,10 @@ export function mountCanvas(vp, d) {
         if (!start) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) { moved = true; clearTimeout(holdTimer); }
         if (!moved) return;
-        if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; gesture(true); viewLater(); } else if (mode === 'card') {
-            const [wx, wy] = toWorld(e.clientX, e.clientY);
-            moving = drag.id;
-            hideHandles();
-            const c = memory().cards[drag.id];
-            const nx = snap(wx - drag.dx);
-            const ny = snap(wy - drag.dy);
-            if (drag.group) {
-                const dx = nx - drag.at[drag.id].x;
-                const dy = ny - drag.at[drag.id].y;
-                for (const k of drag.group) Object.assign(memory().cards[k], { x: drag.at[k].x + dx, y: drag.at[k].y + dy });
-            } else Object.assign(c, { x: nx, y: ny });
-            later();
+        if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; gesture(true); viewLater(); } else if (mode === 'card' || mode === 'dot') {
+            edgeAt = { x: e.clientX, y: e.clientY, alt: e.altKey };
+            dragTo(edgeAt);
+            if (!edgeRaf) edgeRaf = requestAnimationFrame(edgeTick);
         } else if (mode === 'link') {
             drag.to = toWorld(e.clientX, e.clientY);
             drawLinkGuide();
@@ -756,8 +1000,47 @@ export function mountCanvas(vp, d) {
             markTarget(h?.card && !OV.dim?.(h.card) ? h : null);
         }
     });
+    /** A card or dot drag at a screen point (the pointer, or the same point again while the view edge-scrolls). */
+    function dragTo(at) {
+        if (mode === 'dot') { dotTo(at.x, at.y, at.alt); return; }
+        const [wx, wy] = toWorld(at.x, at.y);
+        moving = drag.id;
+        hideHandles();
+        const c = memory().cards[drag.id];
+        const nx = snap(wx - drag.dx);
+        const ny = snap(wy - drag.dy);
+        if (drag.group) {
+            const dx = nx - drag.at[drag.id].x;
+            const dy = ny - drag.at[drag.id].y;
+            for (const k of drag.group) Object.assign(memory().cards[k], { x: drag.at[k].x + dx, y: drag.at[k].y + dy });
+        } else Object.assign(c, { x: nx, y: ny });
+        later();
+    }
+    // Edge-scrolling: a card or dot held within 32px of the view's edge moves the camera, faster nearer the edge.
+    let edgeRaf = 0;
+    let edgeAt = null;
+    function edgeTick() {
+        edgeRaf = 0;
+        if (!edgeAt || !moved || (mode !== 'card' && mode !== 'dot')) return;
+        const r = vp.getBoundingClientRect();
+        const EDGE = 32;
+        const push = (p, lo, hi) => Math.max(-1, Math.min(1, p < lo + EDGE ? (lo + EDGE - p) / EDGE : p > hi - EDGE ? (hi - EDGE - p) / EDGE : 0));
+        const fx = push(edgeAt.x, r.left, r.right);
+        const fy = push(edgeAt.y, r.top, r.bottom);
+        if (!fx && !fy) return;
+        const v = camera();
+        v.tx += fx * 14;
+        v.ty += fy * 14;
+        applyView();
+        dragTo(edgeAt);
+        edgeRaf = requestAnimationFrame(edgeTick);
+    }
     const end = e => {
         clearTimeout(holdTimer);
+        if (edgeRaf) { cancelAnimationFrame(edgeRaf); edgeRaf = 0; }
+        const scrolled = edgeAt && moved && (mode === 'card' || mode === 'dot');
+        edgeAt = null;
+        if (scrolled) saveCamera();
         if (!pts.has(e.pointerId)) return;
         pts.delete(e.pointerId);
         if (mode === 'pinch') { if (pts.size === 0) { mode = null; gesture(false); } return; }
@@ -794,6 +1077,23 @@ export function mountCanvas(vp, d) {
             mode = null; start = null; drag = null;
             return;
         }
+        if (mode === 'dot') {
+            const was = drag;
+            mode = null; start = null; drag = null;
+            if (moved) {
+                if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
+                d.save();
+                d.shapeSet?.({ seg: null, dot: was.dot }, true);
+                return;
+            }
+            if (was.ghost != null) { d.shapeSet?.({ seg: was.ghost, dot: null }); return; }
+            // A tap picks a dot; a second tap on it soon after takes it away (a double-click, with a mouse).
+            const now = performance.now();
+            if (lastDotTap && lastDotTap.id === SH.l.id && lastDotTap.i === was.dot && now - lastDotTap.t < 350) { lastDotTap = null; removeShapeDot(was.dot); return; }
+            lastDotTap = { id: SH.l.id, i: was.dot, t: now };
+            d.shapeSet?.({ seg: null, dot: was.dot });
+            return;
+        }
         if (mode === 'card' && moved) { moving = null; DR = null; if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; } d.save(); render(); } else if (mode === 'port' && moved && drag.at) {
             const [key, kind] = drag.port.split('|');
             const r = CV.R.get(key);
@@ -814,6 +1114,11 @@ export function mountCanvas(vp, d) {
                 const s2 = new Set(picked);
                 s2.has(c.dataset.id) ? s2.delete(c.dataset.id) : s2.add(c.dataset.id);
                 setPicked(s2);
+            } else if (SH && start.target.closest?.('.lhit')?.dataset.lid === SH.l.id) {
+                // A tap on the shaped line picks the part of it under the finger.
+                const [x, y] = toWorld(e.clientX, e.clientY);
+                const n = LINKS.nearest(SH.l.id, { x, y });
+                d.shapeSet?.({ seg: n?.segment ?? 0, dot: null });
             } else {
                 if (d.desk && !OV) setPicked(c ? new Set([c.dataset.id]) : new Set(), true);
                 tapAt(start.target);
@@ -919,6 +1224,11 @@ export function mountCanvas(vp, d) {
         vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); hoverKey = null; hideHandles(); clearFocus(); });
         vp.addEventListener('dblclick', e => {
             // The press captured the pointer, so the event's target is the view: look under the pointer instead.
+            if (SH) {
+                const under = vp.getRootNode().elementFromPoint?.(e.clientX, e.clientY);
+                if (under?.closest?.('[data-dot], [data-ghost]')) return;
+                if (hitAt(e.clientX, e.clientY)?.link?.id === SH.l.id) { addDotAt(e.clientX, e.clientY, e.altKey); return; }
+            }
             const key = hitAt(e.clientX, e.clientY)?.card;
             if (key && (key.startsWith('id:') || key.startsWith('uid:'))) d.openText?.(key);
         });
@@ -927,6 +1237,12 @@ export function mountCanvas(vp, d) {
             e.preventDefault();
             const c = e.target.closest?.('.card[data-id]');
             if (c) { if (!picked.has(c.dataset.id)) setPicked(new Set([c.dataset.id]), true); d.cardMenu?.(c.dataset.id, { x: e.clientX, y: e.clientY }); return; }
+            const ln = lineUnder(e.target, e.clientX, e.clientY).closest?.('.lhit');
+            if (ln && CV.links[ln.dataset.link]) {
+                const l = CV.links[ln.dataset.link];
+                d.linkMenu?.(l, !!memory().cards[l.from]?.links?.[l.key], { x: e.clientX, y: e.clientY });
+                return;
+            }
             d.emptyMenu?.(pointAt(e.clientX, e.clientY), { x: e.clientX, y: e.clientY });
         });
     }
@@ -1022,6 +1338,7 @@ export function mountCanvas(vp, d) {
 
     return {
         render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt,
+        shapeState, patchShape, removeShapeDot, resetShape, resetShapeOf, refreshShaping: () => drawShaping(),
         picked: () => [...picked], setPicked,
         get view() { return CV; }, get camera() { return camera(); },
     };

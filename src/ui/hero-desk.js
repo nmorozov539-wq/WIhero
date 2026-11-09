@@ -19,7 +19,7 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroDesk(A) {
     const {
-        H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
+        H, S, barAct, barApi, barLinkMenu, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render, saveSettings, settings, shadow, showOnCanvas, sortBy, startExplain, stopExplain, typing,
         canvas,
@@ -90,6 +90,7 @@ export function createHeroDesk(A) {
                 heroInspector(book, data);
             },
             cardMenu: key => cardMenu(book, data, key),
+            linkMenu: (l, shaped) => barLinkMenu(book, l, shaped),
             emptyMenu: at => placePicker(book, data, at),
         };
     }
@@ -224,6 +225,14 @@ export function createHeroDesk(A) {
         const book = H.book;
         const up = k.length === 1 ? k.toUpperCase() : k;
         if (k === '?') { H.explain ? stopExplain() : startExplain(); return true; }
+        // A drawn link's strip is open: 1–4 pick the line type, X flips it, Delete takes away the picked dot.
+        const shp = H.bar.edit ? canvas().shapeState?.() : null;
+        if (shp && !e.shiftKey) {
+            const type = { 1: 'curve', 2: 'arc', 3: 'straight', 4: 'step' }[k];
+            if (type) { canvas().patchShape({ type }); return true; }
+            if (up === 'X') { canvas().patchShape({ flip: !shp.flip }); return true; }
+            if ((k === 'Delete' || k === 'Backspace') && shp.dot != null) { canvas().removeShapeDot(); return true; }
+        }
         const piece = !e.shiftKey && BAR.find(p => p.key === up);
         if (piece) {
             if (H.bar.edit) return false;

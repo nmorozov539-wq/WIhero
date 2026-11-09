@@ -1,14 +1,40 @@
-// The Hero canvas as data: cards from a book, the one-time layout, placing new cards, port sides, and the router.
+// The Hero canvas as data: cards from a book, the one-time layout, placing new cards, port sides, and its links.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-    CH, CW, G, LR, buildGraph, canvasBook, canvasSet, withFrames, computePorts, crosses, layout, makeGrid, nodeRects, placeNew, route, snap,
+    CH, CW, G, LR, buildGraph, canvasBook, canvasSet, withFrames, computePorts, layout, nodeRects, placeNew, snap,
 } from '../src/ui/canvas-graph.js';
-import { arrange } from '../src/ui/canvas.js';
+import { arrange, linkKey } from '../src/ui/canvas.js';
+import { createLinkEngine, crosses } from '../src/link-engine/index.js';
 
 const sample = () => JSON.parse(fs.readFileSync(new URL('../examples/WIHero-Sample.json', import.meta.url), 'utf8'));
 const overlap = (a, b, gap = 0) => Math.abs(a.x - b.x) < CW + gap && Math.abs(a.y - b.y) < CH + gap;
+
+const SIDE = { t: 'top', b: 'bottom', l: 'left', r: 'right' };
+/** Lays out a canvas's links with the link engine, as canvas.js does, and checks none crosses a card. */
+function linksClear(g, R, P) {
+    const e = createLinkEngine({ grid: G });
+    e.setObstacles([...R.values()].map(r => (r.pack ? { id: r.key, x: r.x, y: r.y, w: r.w, h: r.h, pass: 'members', members: new Set(r.members) } : { id: r.key, x: r.x, y: r.y, w: r.w, h: r.h })));
+    const defs = [];
+    for (const x of g.edges) {
+        const a = P.get(x.from)?.get(x.fromPort);
+        const b = P.get(x.to)?.get(x.port);
+        if (!a || !b) continue;
+        const id = `${x.from}>${x.fromPort}>${x.to}>${x.port}${x.mask != null ? `@${x.mask}` : ''}`;
+        if (defs.some(d => d.id === id)) continue;
+        defs.push({ id, from: { x: a.x, y: a.y, n: SIDE[a.side], card: x.from }, to: { x: b.x, y: b.y, n: SIDE[b.side], card: x.to } });
+    }
+    e.layout(defs);
+    const cards = [...R.values()].filter(r => !r.pack);
+    for (const d of defs) {
+        const pts = e.polyline(d.id, 1);
+        assert.ok(pts?.length >= 4, `${d.id} has a line`);
+        // A link starts and ends on its own cards' edges; it must not run through any card's inside.
+        for (const r of cards) assert.ok(!crosses(pts, r, 2), `${d.id} crosses ${r.key}`);
+    }
+    return defs.length;
+}
 
 function laidOut(data = sample()) {
     const m = canvasBook(data);
@@ -147,23 +173,7 @@ test('links are routed around cards, never through one', () => {
     const { m, g, ids, pos } = laidOut();
     const R = nodeRects(m, g, ids, pos);
     const P = computePorts(g, R);
-    const grid = makeGrid(R, []);
-    const cards = [...R.values()].filter(r => !r.pack);
-    let routed = 0;
-    for (const x of g.edges) {
-        const a = P.get(x.from)?.get(x.fromPort);
-        const b = P.get(x.to)?.get(x.port);
-        if (!a || !b) continue;
-        const s = [snap(a.x + a.n[0] * G), snap(a.y + a.n[1] * G)];
-        const e = [snap(b.x + b.n[0] * G), snap(b.y + b.n[1] * G)];
-        const allow = new Set([x.from, x.to].filter(k => k.startsWith('pack:')));
-        for (const r of R.values()) if (r.pack && (r.members.includes(x.from) || r.members.includes(x.to))) allow.add(r.key);
-        const pts = route(grid, s[0], s[1], e[0], e[1], allow);
-        assert.ok(pts, `${x.from} → ${x.to} found a way`);
-        routed++;
-        for (const r of cards) assert.ok(!crosses(pts, r), `${x.from} → ${x.to} crosses ${r.key}`);
-    }
-    assert.ok(routed >= 10);
+    assert.ok(linksClear(g, R, P) >= 10);
 });
 
 test('arrange lays a book out once, then keeps every card where it was', () => {
@@ -180,6 +190,17 @@ test('arrange lays a book out once, then keeps every card where it was', () => {
     for (const k of Object.keys(first)) if (k !== key) assert.deepEqual(memory.cards[k], first[k]);
 });
 
+test('a hand-made link shape is kept with its link and dropped when the link goes', () => {
+    const m = canvasBook(sample());
+    const memory = { camera: null, cards: {}, placed: false };
+    const { g } = arrange(m, memory, { x: 0, y: 0 });
+    const x = g.edges.find(e => e.from.startsWith('id:') && memory.cards[e.from]);
+    const shape = { dots: [{ u: 0.5, v: 0.2 }], segments: [{ type: 'curve' }, { type: 'arc' }] };
+    memory.cards[x.from].links = { [linkKey(x)]: shape, 'gout>id:nowhere': shape };
+    arrange(m, memory, { x: 0, y: 0 });
+    assert.deepEqual(memory.cards[x.from].links, { [linkKey(x)]: shape });
+});
+
 test('a card placed by hand never lands inside a pack frame it isn\'t in', () => {
     const { m, g, ids, pos } = laidOut();
     const R = nodeRects(m, g, ids, pos);
@@ -188,11 +209,6 @@ test('a card placed by hand never lands inside a pack frame it isn\'t in', () =>
     placeNew(m, g, new Set([...ids, lone]), pos, { x: frame.x + 10, y: frame.y + 10 });
     const p = pos[lone];
     assert.ok(p.x >= frame.x + frame.w || p.x + CW <= frame.x || p.y >= frame.y + frame.h || p.y + CH <= frame.y, JSON.stringify([p, frame]));
-});
-
-test('an empty canvas still makes a grid', () => {
-    const grid = makeGrid(new Map(), []);
-    assert.ok(grid.W > 0 && grid.H > 0);
 });
 
 test('the open chat\'s greetings are start cards; their rules on entries become links (BUILD_SPEC 15.4)', () => {
@@ -353,21 +369,5 @@ test('left to right: links are routed around cards, never through one', () => {
     const { m, g, ids, pos } = laidOutLR();
     const R = nodeRects(m, g, ids, pos);
     const P = computePorts(g, R, {}, { dir: LR });
-    const grid = makeGrid(R, []);
-    const cards = [...R.values()].filter(r => !r.pack);
-    let routed = 0;
-    for (const x of g.edges) {
-        const a = P.get(x.from)?.get(x.fromPort);
-        const b = P.get(x.to)?.get(x.port);
-        if (!a || !b) continue;
-        const s = [snap(a.x + a.n[0] * G), snap(a.y + a.n[1] * G)];
-        const e = [snap(b.x + b.n[0] * G), snap(b.y + b.n[1] * G)];
-        const allow = new Set([x.from, x.to].filter(k => k.startsWith('pack:')));
-        for (const r of R.values()) if (r.pack && (r.members.includes(x.from) || r.members.includes(x.to))) allow.add(r.key);
-        const pts = route(grid, s[0], s[1], e[0], e[1], allow);
-        assert.ok(pts, `${x.from} → ${x.to} found a way`);
-        routed++;
-        for (const r of cards) assert.ok(!crosses(pts, r), `${x.from} → ${x.to} crosses ${r.key}`);
-    }
-    assert.ok(routed >= 10);
+    assert.ok(linksClear(g, R, P) >= 10);
 });

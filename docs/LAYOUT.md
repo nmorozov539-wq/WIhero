@@ -267,14 +267,16 @@ little darker and cooler than the app, with a faint dot grid.
 | Drag empty canvas | Pan |
 | Pinch, or mouse wheel | Zoom around the fingers or pointer |
 | Tap a card | Opens the inspector for that entry (with a piece armed, the piece lands on it instead) |
-| Tap a line, or a lock or wait pill | Opens that piece's strip in the piece bar, with Remove |
+| Tap a line, or a lock or wait pill | Opens that piece's strip in the piece bar, with Remove. A line's strip also shapes it: the other links fade, and it shows its dots and a ghost dot halfway along each part |
+| Drag a ghost dot or a dot (of the picked line) | Makes a dot there, or moves it; the line bends through it. A dot level with a neighbour snaps level. Only these dots catch a drag: a line itself still pans |
+| Tap a dot, twice quickly | Picks it (Remove dot); a second tap removes it. A tap on a part of the line picks that part |
 | Tap a junction | Opens the inspector on that card's gate or close gate |
 | Tap a port | Opens the inspector scrolled to that piece. A knob whose links all go to a hidden mask layer flips that card to the layer instead |
 | Tap a pack frame | The pack sheet |
 | Tap ‹ or › under a card | Steps through its mask layers |
-| Drag a card's grip | Moves the card. Links reroute as it moves |
+| Drag a card's grip | Moves the card. Links reroute as it moves. Held within 32px of the view's edge, the view scrolls (faster nearer the edge); so does a dot |
 | Drag a port | Moves it to another free side of its card |
-| Tap empty canvas | With the panel open, closes the panel |
+| Tap empty canvas | With the panel open, closes the panel. With a line's strip open, it is Done |
 | Long press empty canvas | "Place here": a search box, New entry here, and the entries not on the canvas yet; the one picked is placed at that spot |
 
 Cards move only by the grip (the six dots), so a drag anywhere else pans.
@@ -315,6 +317,13 @@ What the strip sets is written straight away, so the canvas shows it; Cancel
 puts the book back as it was when the strip opened. Done stays grayed out until
 the piece is complete. Anything that would be a problem (a loop, a card closing
 itself, a broken switch) is refused with one line saying why.
+
+A drawn Opens, Closes or Glue (ride along) line's strip also has its **shape**:
+Curve · Arc · Straight · Step, Flip and Bend (curve and arc) for the part picked
+on the canvas, or the whole line when none is; then Remove dot and Reset shape,
+on one row with the link's Remove. The shape is kept with the link, in the
+canvas settings on its source card (docs/LINK_ENGINE.md). On a phone, the picked
+line's ghost dots are panned into view above the strip.
 
 | Piece | Strip |
 |-------|-------|
@@ -669,6 +678,8 @@ lanes beside it. (The phone keeps top to bottom, which suits a tall screen.)
 | Shift/Ctrl-click | Adds a card to the selection |
 | Wheel | Zooms around the pointer |
 | Drag from a knob or a hover handle onto another card | Makes a link from this card (the source): teal = this one opens it, red = this one closes it, yellow = it rides along with this one. The piece bar turns into the strip for it |
+| Click a line | Its strip, shaping it as on a phone; dots go on the 12px grid (Alt: anywhere). Double-click the line adds a dot, double-click a dot removes it. Keys 1–4: Curve, Arc, Straight, Step; X flips; Delete removes the picked dot |
+| Right-click a line | Shape link · Reset shape · Remove |
 | Right-click a card | Inspect · Open entry · Edit text · Add piece (all eight, with their keys) · Data · Take off canvas |
 | Right-click empty canvas | "Add to canvas here": a search box, New entry here, every unplaced entry, Fit, Tidy layout |
 | Click a lock or wait chip | Inspects its card with that rule open |

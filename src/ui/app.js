@@ -578,7 +578,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let heroShellView = null;
     const heroShell = () => (heroShellView ??= createHeroShell({
-        H, S, barApi, barTap, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, main, modelOf, need, packSheet, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
@@ -614,6 +614,9 @@ export function createApp(deps) {
     function barAct(...a) { return heroBar().barAct(...a); }
     function barApi(...a) { return heroBar().barApi(...a); }
     function barTap(...a) { return heroBar().barTap(...a); }
+    function barShaping(...a) { return heroBar().shaping(...a); }
+    function barShapeSet(...a) { return heroBar().shapeSet(...a); }
+    function barLinkMenu(...a) { return heroBar().linkMenu(...a); }
     function createEntry(...a) { return heroBar().createEntry(...a); }
     function dropPiece(...a) { return heroBar().dropPiece(...a); }
     function nodeOf(...a) { return heroBar().nodeOf(...a); }
@@ -784,7 +787,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let heroDeskView = null;
     const heroDesk = () => (heroDeskView ??= createHeroDesk({
-        H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
+        H, S, barAct, barApi, barLinkMenu, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),

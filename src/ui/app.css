@@ -1002,3 +1002,15 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .explaining .vp .world, .explaining .pchips { filter: saturate(.7) brightness(.92); }
 .explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; }
 .pstrip .pq { width: 32px; padding: 0; justify-content: center; color: var(--muted); }
+/* Shaping a link (the strip of a drawn line): the others fade, the picked one gets a band, its dots and ghost dots. */
+.vp.shaping svg.lk .ln:not(.shsel) { opacity: .28; transition: opacity .15s; }
+svg.hd { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 4; }
+svg.hd .sband { fill: none; stroke: currentColor; stroke-width: 12px; stroke-opacity: .18; stroke-linecap: round; stroke-linejoin: round; }
+svg.hd .sseg { fill: none; stroke: currentColor; stroke-width: 5px; stroke-opacity: .55; stroke-linecap: round; }
+svg.hd .ghost { fill: var(--canvas); stroke: currentColor; stroke-width: 1.5px; stroke-opacity: .8; vector-effect: non-scaling-stroke; }
+svg.hd .sdot { fill: currentColor; stroke: var(--canvas); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+svg.hd .sdot.on { stroke: var(--fg); stroke-width: 2.5px; }
+svg.hd .incard { fill: none; stroke: currentColor; stroke-width: 1.5px; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-action: none; }
+.pbendl { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--t-xs); }
+.pbend { width: 96px; accent-color: var(--c); }

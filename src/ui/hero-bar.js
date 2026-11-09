@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import { PIECE_ANCHOR } from './guide.js';
 import { PORT } from './canvas-graph.js';
-import { addLink } from './links.js';
+import { addLink, removeLink } from './links.js';
 import { bookEditor, greetingName, packsOf } from './pieces.js';
 import { canvasMemory } from './canvas.js';
 import { editExisting, startPiece } from './piecebar.js';
@@ -147,6 +147,16 @@ export function createHeroBar(A) {
         const x = barApi(book);
         if (B.edit) {
             if (hit?.card && B.loosePick) { const end = nodeOf(book, hit.card); if (end && B.loosePick(end)) return true; }
+            // A tap on empty canvas while a drawn link is open (being shaped) is Done.
+            if (!hit && shaping(book) && !B.edit.ask) {
+                const msg = B.edit.dirty ? 'Link saved' : null;
+                B.edit = null;
+                B.loosePick = null;
+                canvas()?.overlay(null);
+                render();
+                if (msg) layer.toast(msg);
+                return true;
+            }
             return !!hit;
         }
         if (B.armed) {
@@ -250,5 +260,40 @@ export function createHeroBar(A) {
         }, { help: S.desk ? null : 'Entries that aren\'t on the canvas yet.' });
     }
 
-    return { barAct, barApi, barTap, createEntry, dropPiece, nodeOf, openStrip, placePicker };
+    /**
+     * The link the open strip shapes, for the canvas: a drawn Opens, Closes or Glue (ride along) link, with the part
+     * or dot picked on it. null when the strip is something else.
+     */
+    function shaping(book) {
+        const e = H.bar.edit;
+        if (!e || e.book !== book || !e.linked || !e.src || !e.dst) return null;
+        const kind = e.piece === 'opens' ? 'open' : e.piece === 'closes' ? 'close' : e.piece === 'glue' && e.mode === 'ride' ? 'ride' : null;
+        if (!kind) return null;
+        const x = barApi(book);
+        return { kind, from: x.keyOf(e.src), to: x.keyOf(e.dst), mask: null, seg: e.shape?.seg ?? 0, dot: e.shape?.dot ?? null };
+    }
+    /** The canvas picked a part or a dot of the shaped link, or (`changed`) changed its shape. */
+    function shapeSet(pick, changed = false) {
+        const e = H.bar.edit;
+        if (!e) return;
+        e.shape = { seg: pick.seg ?? null, dot: pick.dot ?? null };
+        if (changed) e.dirty = true;
+        render();
+    }
+    /** Desktop: right-click on a line. */
+    function linkMenu(book, l, shaped) {
+        const hit = { link: l };
+        layer.sheet('Link', sh => {
+            sh.append(layer.opt('Shape link', () => { layer.close(); const edit = editExisting(hit, barApi(book)); if (edit) openStrip(book, edit); }, { icon: 'edit', val: 'Click' }));
+            if (shaped) sh.append(layer.opt('Reset shape', () => { layer.close(); canvas()?.resetShapeOf(l); layer.toast('Shape reset'); }, { icon: 'x' }));
+            sh.append(layer.opt('Remove', () => {
+                layer.close();
+                const src = nodeOf(book, l.from);
+                const dst = nodeOf(book, l.to);
+                if (src && dst && barAct(book, (ed, d) => removeLink(ed, d, l.kind, src, dst, l.mask ?? null))) layer.toast('Link removed');
+            }, { icon: 'trash' }));
+        });
+    }
+
+    return { barAct, barApi, barTap, createEntry, dropPiece, nodeOf, openStrip, placePicker, shaping, shapeSet, linkMenu };
 }
