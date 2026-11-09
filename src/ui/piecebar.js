@@ -406,7 +406,7 @@ export function mountPieceBar(x) {
         mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, 'Paths wait for the fork'), el('span', 'plabel2', 'Paths wait for the fork')));
         if (!e.wait) mid.append(el('div', 'pnote', `A path can be taken before ${name(e.fork)} fires.`));
         mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
-        if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; going back to before it rolls again.`));
+        if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; rewriting the message before it rolls again.`));
         note();
         if (!e.isNew) mid.append(row(removeBtn(() => { x.act(ed2 => ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; })); close('Switch removed'); })));
         right.disabled = e.paths.length < 2;

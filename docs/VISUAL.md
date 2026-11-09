@@ -158,6 +158,9 @@ built.
 - Cards move only by the grip.
 - On desktop the title takes up to two lines, so a name like "Road: leaving
   the village" reads whole at 100%. Phones keep one line.
+- A **sticky note** sits over the card's top right edge: a small pale yellow
+  slip, tilted a little, up to three lines (the whole note on hover). It is the
+  author's own and never reaches the model.
 
 ### 7.2 Ports
 

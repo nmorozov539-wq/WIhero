@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import { deadBranches } from '../src/engine/dead.js';
 import { keywordClashes } from '../src/ui/clashes.js';
+import { writeNote } from '../src/ui/pieces.js';
 import { e, Sim } from './sim.js';
 import { diceRoll } from '../src/engine/turn.js';
 
@@ -146,4 +147,16 @@ test('dice: no roll when a path was already taken; dice without a switch is a wa
     s.send('crossroads');
     assert.equal(s.state.rolls['Book/fork'], undefined);
     assert.ok(s.model.issues.some(i => i.id === 'lone' && i.warning && /no switch/.test(i.message)));
+});
+
+// ---------------------------------------------------------------- sticky notes
+
+test('sticky notes: stored in extensions.wihero.note, no warning, empty text removes it', () => {
+    const data = { entries: { 0: { uid: 0, comment: 'Mill', key: ['mill'], content: 'x' } } };
+    writeNote(data, 0, '  TODO: second way into the mill ');
+    assert.equal(data.entries[0].extensions.wihero.note, 'TODO: second way into the mill');
+    const model = buildModel(Object.values(data.entries).map(x => ({ ...x, world: 'Book' })));
+    assert.deepEqual(model.issues, []);
+    writeNote(data, 0, '');
+    assert.equal(data.entries[0].extensions.wihero.note, undefined);
 });

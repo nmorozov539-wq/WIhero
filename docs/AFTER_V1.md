@@ -2,8 +2,6 @@
 
 Big ideas we agreed are worth doing, but not in V1. Each has a short note on why it waits. Lighter ideas from brainstorms sit at the end, under [Brainstorm, 2026-11-09](#brainstorm-2026-11-09).
 
-> **Spotted drift (2026-11-09):** Hero mode has no way to create a book. LAYOUT.md's Hero book list (book picker) specs "+ New book" and "Duplicate *book*", but the build has neither. Not fixed yet.
-
 ## Locks that match by meaning
 
 **The idea:** a lock option, "match by meaning". The lock opens when a message says something close to the phrase, not only the exact words. It would use ST's vector service, the same way vectorized entries work.
@@ -59,7 +57,7 @@ A no-commitment brainstorm. Nothing here is planned; each line is the idea plus 
 
 ### Story logic
 
-- **Dice for switches.** A switch rolls its path at random instead of waiting for keywords. The roll is saved in chat state, so a swipe doesn't re-roll and a rewind gives the same result. Replayable books with no extra writing.
+- **Dice for switches.** *Built (CONCEPTS 3.5): a swipe keeps the roll; going back past the message before it rolls again.* A switch rolls its path at random instead of waiting for keywords. Replayable books with no extra writing.
 - **Endings.** Underneath, an ending is a gated entry. The one real rule it would add: when an ending fires, it closes the rest of the book. Then a counter ("ending 2 of 4"), the player view and the dead branch report all know what an ending is. Telling the model to wrap up stays in the entry's own text. Needs more thought.
 - **Pack kinds.** Ready-made kinds such as chapters and arcs, each with exactly one behaviour. A chapter is ordered: opening the next closes the last. An arc spans chapters and shows progress. Catch: a pack is only a tag today (CONCEPTS 3.7), so kinds need somewhere to live.
 - **Chapters in the chat.** When the first entry of a chapter pack opens, the chat gets a quiet "Chapter: The Mill" divider. Pack names become the story's table of contents.
@@ -67,18 +65,18 @@ A no-commitment brainstorm. Nothing here is planned; each line is the idea plus 
 
 ### Canvas and editor
 
-- **Lasso to make a pack (desktop).** Drag a box, the cards inside light up, type a name. Can add to an existing pack; typing `town/` offers subpacks.
+- **Lasso to make a pack (desktop).** *Built: Shift-drag a box, then type the name.* Drag a box, the cards inside light up, type a name. Can add to an existing pack; typing `town/` offers subpacks.
 - **Drag in and out of packs.** Dropping a card on a frame joins the pack. Leaving is the hard part: a frame wraps its members, so dragging a card away just stretches it. Leaving needs a clear gesture (a "pop" past the edge, or a held key). Pulling a card out of `town/inn` shouldn't drop it from `town`.
 - **Folders in Hero mode, with motifs.** A folder side panel in Hero mode, the same folders as Normal mode. Each folder sets an abstract look for its cards: square corners, or portrait cards (taller instead of wider). Folders suit this better than packs because an entry has only one folder. Catches: portrait cards change where pieces sit and how links route, since card sides turn with the flow direction; and it's a scope change, since Hero mode leaves folders out today.
 - **Folder symbols and a far zoom.** Each folder gets a symbol. Zoomed far out, every card becomes a circle with its folder's symbol, and link colours show how the book is wired.
 - **Pattern recipes.** A shelf of ready-made shapes to drag onto the canvas: chain, fork, key and door, hub with three keys. Cards arrive pre-wired; rename them and write the text. Doubles as a way to teach Hero mode.
-- **Sticky notes on the canvas.** Author notes pinned beside cards ("TODO: second way into the mill"). Never sent to the model.
-- **Keyword clash finder.** Highlights keywords shared by two or more entries ("mill" fires both Mill and Miller). Helps plain World Info too, so it could live in Normal mode.
+- **Sticky notes on the canvas.** *Built: one per card, stored as `note` in the entry's `extensions.wihero`.* Author notes pinned beside cards ("TODO: second way into the mill"). Never sent to the model.
+- **Keyword clash finder.** *Built (CONCEPTS 5), in both modes.* Highlights keywords shared by two or more entries ("mill" fires both Mill and Miller). Helps plain World Info too, so it could live in Normal mode.
 - **Tile view on mobile.** Normal mode's book list as tiles: name, entry count, top packs as coloured chips, and with a chat open a hint like "4 open · 7 closed".
 
 ### Analysis and play
 
-- **Dead branch report.** The favourite. Two passes: one reads saved chats ("never fired in 14 chats"); the other reads the book alone and finds gates that can't open, such as a row that needs both paths of one switch.
+- **Dead branch report.** The favourite. *The book-alone pass is built (CONCEPTS 5); the saved-chats pass waits.* Two passes: one reads saved chats ("never fired in 14 chats"); the other reads the book alone and finds gates that can't open, such as a row that needs both paths of one switch.
 - **Weight of the story right now.** A small bar with the tokens the currently open and held entries would inject, so a heavy branch shows before ST's budget silently drops something.
 - **Player view.** A spoiler-free canvas for someone playing a book they didn't write: only open or done entries show, the rest are blank cards that fill in as you play.
 - **Quest modules.** Export a pack with its gates, switches and masks and drop it into another book as a side quest. Low priority.
