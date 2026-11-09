@@ -543,6 +543,8 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `logic-text.js` | The plain sentences for each rule |
 | `preview.js`, `preview-page.js` | Preview on the real engine (D13) and its tab |
 | `guide.js`, `guide-page.js` | The Guide's text and its tab (D31) |
+| `preview-view.js` | Hero mode's Preview tab: where it starts from (15.5) and running it (N5) |
+| `hero-panel.js` | Hero mode's entry panel: every entry, greetings and Moments, placing by dot or drag |
 | `explain.js` | Explain mode and the Guide tab in Hero mode: what a tap explains (`explainAnchor`), opening the Guide at it (D31) |
 | `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
 | `snapshots.js` | Snapshots (11) |
