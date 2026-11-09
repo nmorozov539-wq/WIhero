@@ -16,6 +16,9 @@
 
 import { EPS, axisToward, boxOf, flatten, normal, num, overlaps, pathD, segHitsRect, tangents, unit } from './geom.js';
 import { inside, makeGrid, mark, search } from './grid.js';
+import { normalize, toCanvas } from './shape.js';
+
+export { TYPES, addDot, moveDot, normalize, removeDot, reset, setSegment, toCanvas, toLocal } from './shape.js';
 
 
 export function createLinkEngine(options = {}) {
@@ -222,8 +225,13 @@ export function createLinkEngine(options = {}) {
      * link travels from the point before it towards the point after it.
      */
     function compile(def, defs) {
+        const shape = normalize(def.shape);
+        if (shape) return shaped(def, defs, shape);
         const stops = [def.from || {}, ...(Array.isArray(def.via) ? def.via : []), def.to || {}];
-        if (stops.length === 2) { const one = leg(stops[0], stops[1], def, defs); return finish(one.parts, one.kind, one.clear, one.runs ? [one.runs] : null); }
+        if (stops.length === 2) {
+            const one = leg(stops[0], stops[1], def, defs);
+            return finish(one.parts, one.kind, one.clear, one.runs ? [one.runs] : null, [one.parts.length]);
+        }
         const pass = passable(def);
         const at = s => [num(s.x), num(s.y)];
         const pts = stops.map(at);
@@ -246,7 +254,101 @@ export function createLinkEngine(options = {}) {
             if (one.kind === 'route') kind = 'route';
             isClear &&= one.clear;
         }
-        return finish(parts, kind, isClear, runs.length ? runs : null);
+        return finish(parts, kind, isClear, runs.length ? runs : null, [parts.length]);
+    }
+
+    // ---- hand-made shapes
+
+    /** The two anchors a shape's dots are stored against: the cards' rectangles, or the ports when a card is unknown. */
+    const anchors = def => ({ from: rects.get(def.from?.card) ?? def.from ?? {}, to: rects.get(def.to?.card) ?? def.to ?? {} });
+
+    /**
+     * A link drawn from its stored shape: port → dots → port, each segment of its own type. A segment that would
+     * enter a card is laid out automatically instead, unless it runs to a dot placed inside that card.
+     */
+    function shaped(def, defs, shape) {
+        const A = def.from || {}; const B = def.to || {};
+        const ends = anchors(def);
+        const P = [[num(A.x), num(A.y)], ...shape.dots.map(d => { const c = toCanvas(d, ends); return [c.x, c.y]; }), [num(B.x), num(B.y)]];
+        const last = P.length - 1;
+        const n = normal(A.n) || axisToward(P[1][0] - P[0][0], P[1][1] - P[0][1]);
+        const m = normal(B.n) || axisToward(P[last - 1][0] - P[last][0], P[last - 1][1] - P[last][1]);
+        // The way the link travels through each point.
+        const dir = P.map((p, i) => {
+            if (i === 0) return n;
+            if (i === last) return [-m[0], -m[1]];
+            return unit(P[i + 1][0] - P[i - 1][0], P[i + 1][1] - P[i - 1][1]) || [1, 0];
+        });
+        const base = passable(def);
+        const holding = p => [...rects.values()].filter(r => p[0] > r.x && p[0] < r.x + r.w && p[1] > r.y && p[1] < r.y + r.h).map(r => r.id);
+        const parts = [];
+        const spans = [];
+        const drawn = [];
+        let isClear = true;
+        for (let i = 0; i < last; i++) {
+            const sg = shape.segments[i];
+            const a = P[i]; const b = P[i + 1];
+            const pass = new Set(base);
+            if (i > 0) for (const id of holding(a)) pass.add(id);
+            if (i + 1 < last) for (const id of holding(b)) pass.add(id);
+            const cards = new Set([i === 0 ? A.card : undefined, i + 1 === last ? B.card : undefined].filter(c => c !== undefined));
+            // Ports keep a short straight leader so heads line up; dots don't need one.
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            const l = sg.type === 'straight' ? 0 : Math.min(opts.stub, len / 3);
+            const la = i === 0 ? l : 0; const lb = i + 1 === last ? l : 0;
+            const q = [a[0] + dir[i][0] * la, a[1] + dir[i][1] * la];
+            const r = [b[0] - dir[i + 1][0] * lb, b[1] - dir[i + 1][1] * lb];
+            const mid = piece(sg, q, r, dir[i], dir[i + 1]);
+            const mine = [];
+            if (la) mine.push({ k: 'L', p: [a[0], a[1], q[0], q[1]] });
+            mine.push(...mid);
+            if (lb) mine.push({ k: 'L', p: [r[0], r[1], b[0], b[1]] });
+            let kind = sg.type;
+            let got = mine;
+            if (len >= 1 && !clear(flatten(mine, 1, la ? 1 : 0, mine.length - (lb ? 1 : 0)), pass, cards)) {
+                const one = leg({ x: a[0], y: a[1], n: dir[i], card: i === 0 ? A.card : undefined },
+                    { x: b[0], y: b[1], n: [-dir[i + 1][0], -dir[i + 1][1]], card: i + 1 === last ? B.card : undefined }, def, defs, pass);
+                got = one.parts; kind = one.kind; isClear &&= one.clear;
+            }
+            parts.push(...got);
+            spans.push(parts.length);
+            drawn.push(kind);
+        }
+        const out = finish(parts, drawn[0], isClear, null, spans);
+        out.drawn = drawn;
+        return out;
+    }
+
+    /** One hand-made segment between q and r, leaving along ta and arriving along tb. */
+    function piece(sg, q, r, ta, tb) {
+        const dx = r[0] - q[0]; const dy = r[1] - q[1];
+        const len = Math.hypot(dx, dy);
+        if (len < EPS || sg.type === 'straight') return [{ k: 'L', p: [q[0], q[1], r[0], r[1]] }];
+        const tension = sg.tension ?? 0.5;
+        // Left of the way from q to r as seen on screen (y grows downwards), or right when flipped.
+        const side = sg.flip ? -1 : 1;
+        const px = dy / len * side; const py = -dx / len * side;
+        if (sg.type === 'arc') {
+            const h = (tension * len * 0.5) / 0.75; // the bow's height is three quarters of the control offset
+            return [{ k: 'C', p: [q[0], q[1], q[0] + dx / 3 + px * h, q[1] + dy / 3 + py * h, q[0] + 2 * dx / 3 + px * h, q[1] + 2 * dy / 3 + py * h, r[0], r[1]] }];
+        }
+        if (sg.type === 'step') {
+            const across = (Math.abs(dx) >= Math.abs(dy)) !== !!sg.flip;
+            const W = across
+                ? [q, [q[0] + dx / 2, q[1]], [q[0] + dx / 2, r[1]], r]
+                : [q, [q[0], q[1] + dy / 2], [r[0], q[1] + dy / 2], r];
+            const legs = W.map((w, i) => (i === 0 || i === W.length - 1 ? 0 : Math.min(10, Math.abs(across ? dx : dy) / 4, Math.abs(across ? dy : dx) / 2)));
+            return filleted(W, legs);
+        }
+        // curve: smooth, following the way the link travels at each end; flip mirrors it across the line q→r.
+        const h = tension * len * 0.8;
+        let c1 = [q[0] + ta[0] * h, q[1] + ta[1] * h];
+        let c2 = [r[0] - tb[0] * h, r[1] - tb[1] * h];
+        if (sg.flip) {
+            const mirror = c => { const t = ((c[0] - q[0]) * dx + (c[1] - q[1]) * dy) / (len * len); const fx = q[0] + dx * t; const fy = q[1] + dy * t; return [2 * fx - c[0], 2 * fy - c[1]]; };
+            c1 = mirror(c1); c2 = mirror(c2);
+        }
+        return [{ k: 'C', p: [q[0], q[1], c1[0], c1[1], c2[0], c2[1], r[0], r[1]] }];
     }
 
     /** One stretch between two ports: { parts, kind, clear, runs }. */
@@ -398,14 +500,17 @@ export function createLinkEngine(options = {}) {
         return P;
     }
 
-    function finish(parts, kind, isClear, runs = null) {
-        return { parts, d: pathD(parts), ...tangents(parts), drawn: [kind], clear: isClear, runs };
+    function finish(parts, kind, isClear, runs = null, spans = [parts.length]) {
+        return { parts, d: pathD(parts), ...tangents(parts), drawn: [kind], clear: isClear, runs, spans };
     }
 
     const sigOf = (def) => {
         const f = def.from || {}; const t = def.to || {};
         const own = def.owner ? [...def.owner].sort() : null;
-        return JSON.stringify([f.x, f.y, f.n, f.card, t.x, t.y, t.n, t.card, own, def.via ?? null]);
+        const shape = normalize(def.shape);
+        const ends = shape ? anchors(def) : null;
+        const box = r => (r ? [r.x, r.y, r.w, r.h] : null);
+        return JSON.stringify([f.x, f.y, f.n, f.card, t.x, t.y, t.n, t.card, own, def.via ?? null, shape, ends && [box(ends.from), box(ends.to)]]);
     };
 
     /** Lays out the links. Only links whose ends changed, or that run near an obstacle that changed, are redone. */
@@ -436,7 +541,7 @@ export function createLinkEngine(options = {}) {
         const e = links.get(id);
         if (!e) return null;
         const { d, startTangent, endTangent, drawn, clear: isClear } = e.path;
-        return { d, startTangent, endTangent, drawn, clear: isClear };
+        return { d, startTangent, endTangent, drawn: [...drawn], clear: isClear };
     }
 
     function polyline(id, tol = 0.5) {
@@ -444,22 +549,31 @@ export function createLinkEngine(options = {}) {
         return e ? flatten(e.path.parts, tol) : null;
     }
 
-    // Nearest point on a link. A link with no shape is one stretch, so segment is 0.
+    /** The nearest point on a link: { segment, t, dist, x, y }. segment = which stretch of its shape (0 with none). */
     function nearest(id, point) {
-        const pts = polyline(id, 0.25);
-        if (!pts) return null;
-        let best = { dist: Infinity, at: 0 };
-        let run = 0;
-        for (let i = 0; i + 3 < pts.length; i += 2) {
-            const x0 = pts[i]; const y0 = pts[i + 1]; const x1 = pts[i + 2]; const y1 = pts[i + 3];
-            const vx = x1 - x0; const vy = y1 - y0;
-            const len = Math.hypot(vx, vy);
-            const s = len < EPS ? 0 : Math.max(0, Math.min(1, ((point.x - x0) * vx + (point.y - y0) * vy) / (len * len)));
-            const dist = Math.hypot(point.x - (x0 + vx * s), point.y - (y0 + vy * s));
-            if (dist < best.dist) best = { dist, at: run + len * s };
-            run += len;
-        }
-        return { segment: 0, t: run < EPS ? 0 : best.at / run, dist: best.dist };
+        const e = links.get(id);
+        if (!e) return null;
+        const { parts, spans } = e.path;
+        let best = null;
+        let from = 0;
+        spans.forEach((to, segment) => {
+            if (to <= from) return;
+            const pts = flatten(parts, 0.25, from, to);
+            from = to;
+            let run = 0;
+            let here = { dist: Infinity, at: 0, x: 0, y: 0 };
+            for (let i = 0; i + 3 < pts.length; i += 2) {
+                const x0 = pts[i]; const y0 = pts[i + 1]; const vx = pts[i + 2] - x0; const vy = pts[i + 3] - y0;
+                const len = Math.hypot(vx, vy);
+                const s1 = len < EPS ? 0 : Math.max(0, Math.min(1, ((point.x - x0) * vx + (point.y - y0) * vy) / (len * len)));
+                const x = x0 + vx * s1; const y = y0 + vy * s1;
+                const dist = Math.hypot(point.x - x, point.y - y);
+                if (dist < here.dist) here = { dist, at: run + len * s1, x, y };
+                run += len;
+            }
+            if (!best || here.dist < best.dist) best = { segment, t: run < EPS ? 0 : here.at / run, dist: here.dist, x: here.x, y: here.y };
+        });
+        return best;
     }
 
     const stats = () => ({ links: links.size, computes, routes });

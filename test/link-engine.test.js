@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createLinkEngine } from '../src/link-engine/index.js';
+import { addDot, createLinkEngine, moveDot, removeDot, reset, setSegment, toCanvas, toLocal } from '../src/link-engine/index.js';
 import { segHitsRect } from '../src/link-engine/geom.js';
 import { LR, TB, bookScene } from '../tools/link-scenes.js';
 
@@ -371,4 +371,100 @@ test('no two links sit on top of each other for long in the phone sample', () =>
     lanesOff.setObstacles(s.obstacles);
     lanesOff.layout(s.defs);
     assert.ok(overlapLength(e, s.defs) < overlapLength(lanesOff, s.defs) * 0.5);
+});
+
+// ---- hand shaping
+
+test('dots are stored against the two cards: they stretch and turn when a card moves', () => {
+    const ends = { from: card('A', 0, 0, 100, 100), to: card('B', 300, 0, 100, 100) };
+    const dot = toLocal({ x: 200, y: 150 }, ends);
+    assert.deepEqual(dot, { u: 0.5, v: 0.3333 });
+    const back = toCanvas(dot, ends);
+    close(back.x, 200); close(back.y, 150, 0.02);
+    // B moves twice as far away: the dot keeps its place in between, and its distance off the line grows too.
+    const far = toCanvas(dot, { ...ends, to: card('B', 600, 0, 100, 100) });
+    close(far.x, 350); close(far.y, 50 + 0.3333 * 600, 0.01);
+    // Cards on top of each other still give a usable frame.
+    const same = { from: card('A', 0, 0), to: card('B', 0, 0) };
+    const p = toCanvas(toLocal({ x: 40, y: 70 }, same), same);
+    close(p.x, 40, 0.01); close(p.y, 70, 0.01);
+});
+
+test('the edits are pure and keep one segment more than there are dots', () => {
+    const ends = { from: { x: 0, y: 0 }, to: { x: 100, y: 0 } };
+    const s1 = addDot(null, 0, { x: 50, y: 20 }, ends);
+    assert.deepEqual(s1, { dots: [{ u: 0.5, v: 0.2 }], segments: [{ type: 'curve' }, { type: 'curve' }] });
+    const s2 = setSegment(s1, 1, { type: 'arc', flip: true, tension: 2 });
+    assert.deepEqual(s2.segments[1], { type: 'arc', flip: true, tension: 1 });
+    assert.deepEqual(s1.segments[1], { type: 'curve' }, 'the old shape is unchanged');
+    const s3 = addDot(s2, 1, { x: 80, y: 0 }, ends);
+    assert.equal(s3.dots.length, 2); assert.equal(s3.segments.length, 3);
+    assert.deepEqual(s3.segments[2], { type: 'arc', flip: true, tension: 1 }, 'a split segment keeps its settings in both halves');
+    const s4 = moveDot(s3, 0, { x: 10, y: 10 }, ends);
+    assert.deepEqual(s4.dots[0], { u: 0.1, v: 0.1 });
+    assert.equal(removeDot(removeDot(s1, 0), 0), null, 'nothing left: back to auto');
+    assert.equal(removeDot(s1, 0), null);
+    assert.equal(setSegment(null, 0, { type: 'curve' }), null, 'a plain curve is no shape at all');
+    assert.equal(reset(), null);
+    assert.equal(JSON.stringify(s2), JSON.stringify(JSON.parse(JSON.stringify(s2))), 'plain JSON, ready for the settings');
+});
+
+test('a dot added where the host clicked: the link then runs through it', () => {
+    const A = card('A', 0, 0); const B = card('B', 400, 200);
+    const base = def('a', at(A, 'right'), at(B, 'left'));
+    const e = run([base], [A, B]);
+    const hit = e.nearest('a', { x: 200, y: 40 });
+    assert.equal(hit.segment, 0);
+    const shape = addDot(null, hit.segment, { x: 200, y: 40 }, { from: A, to: B });
+    e.layout([{ ...base, shape }]);
+    close(e.nearest('a', { x: 200, y: 40 }).dist, 0, 0.5);
+    assert.deepEqual(e.path('a').drawn, ['curve', 'curve']);
+    // Each half is its own segment for hit tests.
+    assert.equal(e.nearest('a', { x: 60, y: 30 }).segment, 0);
+    assert.equal(e.nearest('a', { x: 380, y: 230 }).segment, 1);
+});
+
+test('segment types: straight, arc (and flipped), step', () => {
+    const A = card('A', 0, 0); const B = card('B', 300, 0);
+    const base = def('a', at(A, 'right'), at(B, 'left'));
+    const lay = sg => { const e = run([{ ...base, shape: { dots: [], segments: [sg] } }], [A, B]); return e; };
+    assert.equal(lay({ type: 'straight' }).path('a').d, 'M60 30L300 30');
+    const up = lay({ type: 'arc', tension: 0.5 }).polyline('a');
+    const down = lay({ type: 'arc', tension: 0.5, flip: true }).polyline('a');
+    const ys = p => p.filter((_, i) => i % 2 === 1);
+    // Travelling right, "left" is up the screen (smaller y).
+    assert.ok(Math.min(...ys(up)) < 30 - 40 && Math.max(...ys(up)) <= 30 + 1e-6);
+    assert.ok(Math.max(...ys(down)) > 30 + 40 && Math.min(...ys(down)) >= 30 - 1e-6);
+    const C = card('C', 300, 200);
+    const e = run([{ ...def('a', at(A, 'right'), at(C, 'left')), shape: { dots: [], segments: [{ type: 'step' }] } }], [A, C]);
+    const d = e.path('a').d;
+    assert.match(d, /L\S+ 30/); // a run along the start's row
+    assert.match(d, /L\S+ 230/); // and one along the end's row
+    assert.deepEqual(e.path('a').drawn, ['step']);
+});
+
+test('a hand-made segment that would cross a card is routed round it; one into a dot inside a card is not', () => {
+    const A = card('A', 0, 80); const B = card('B', 400, 80); const M = card('M', 180, 40, 60, 140);
+    const base = def('a', at(A, 'right'), at(B, 'left'));
+    const e = run([{ ...base, shape: { dots: [], segments: [{ type: 'straight' }] } }], [A, B, M]);
+    assert.deepEqual(e.path('a').drawn, ['route']);
+    assert.ok(!enters(e.polyline('a'), M, 2));
+    // A dot inside M: both segments may run into M.
+    const shape = addDot(null, 0, { x: 210, y: 110 }, { from: A, to: B });
+    const f = run([{ ...base, shape: setSegment(setSegment(shape, 0, { type: 'straight' }), 1, { type: 'straight' }) }], [A, B, M]);
+    assert.deepEqual(f.path('a').drawn, ['straight', 'straight']);
+    assert.ok(f.path('a').clear);
+});
+
+test('changing a stored shape redoes the link, and it ends on its ports along their normals', () => {
+    const A = card('A', 0, 0); const B = card('B', 400, 200);
+    const base = def('a', at(A, 'right'), at(B, 'left'));
+    const e = createLinkEngine();
+    e.setObstacles([A, B]);
+    e.layout([base]);
+    const shape = addDot(null, 0, { x: 200, y: -80 }, { from: A, to: B });
+    assert.deepEqual(e.layout([{ ...base, shape }]).changed, ['a']);
+    assert.deepEqual(e.layout([{ ...base, shape }]).changed, []);
+    const { startTangent: s, endTangent: t } = e.path('a');
+    close(s.x, 1); close(t.x, 1);
 });

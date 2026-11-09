@@ -1,7 +1,7 @@
 // Draws scenes with the link engine and writes tools/link-gallery.html: small fixture scenes, then the example
 // books laid out by the real canvas code, today's grid router beside the engine. Run: node tools/link-gallery.mjs
 import { writeFileSync } from 'node:fs';
-import { createLinkEngine } from '../src/link-engine/index.js';
+import { addDot, createLinkEngine, setSegment } from '../src/link-engine/index.js';
 import { rounded } from '../src/ui/canvas-graph.js';
 import { LR, TB, bookScene } from './link-scenes.js';
 
@@ -31,6 +31,28 @@ const scenes = [
     },
 ];
 
+// Hand-made shapes: dots given as canvas points, turned into stored dots against the two cards.
+const shaped = (title, cards, sides, points, segs) => ({
+    title,
+    cards,
+    links: c => {
+        const ends = { from: c[0], to: c[1] };
+        let shape = null;
+        points.forEach((p, i) => { shape = addDot(shape, i, { x: p[0], y: p[1] }, ends); });
+        (segs ?? []).forEach((sg, i) => { shape = setSegment(shape, i, sg); });
+        return [['a', port(c[0], sides[0]), port(c[1], sides[1]), shape]];
+    },
+    dots: points,
+});
+scenes.push(
+    shaped('Two dots, curves', [card('A', 20, 130), card('B', 280, 130)], ['right', 'left'], [[130, 40], [220, 190]]),
+    shaped('Arc', [card('A', 20, 130), card('B', 280, 130)], ['right', 'left'], [], [{ type: 'arc', tension: 0.6 }]),
+    shaped('Arc, flipped', [card('A', 20, 20), card('B', 280, 20)], ['right', 'left'], [], [{ type: 'arc', tension: 0.6, flip: true }]),
+    shaped('Step', [card('A', 20, 20), card('B', 280, 140)], ['right', 'left'], [], [{ type: 'step' }]),
+    shaped('Dot, then straight and arc', [card('A', 20, 130), card('B', 280, 130)], ['right', 'left'], [[180, 40]], [{ type: 'straight' }, { type: 'arc', flip: true }]),
+    shaped('Straight through a card: routed round', [card('A', 20, 80), card('B', 280, 80), card('M', 150, 50, 60, 120)], ['right', 'left'], [], [{ type: 'straight' }]),
+);
+
 const COLORS = ['var(--l1)', 'var(--l2)', 'var(--l3)'];
 const KIND = { open: 'var(--l1)', close: 'var(--l2)', ride: 'var(--l3)' };
 
@@ -46,7 +68,7 @@ const rectSvg = r => (r.pack
 function small(scene) {
     const e = createLinkEngine();
     e.setObstacles(scene.cards);
-    const defs = scene.links(scene.cards).map(([id, from, to]) => ({ id, from, to }));
+    const defs = scene.links(scene.cards).map(([id, from, to, shape]) => ({ id, from, to, shape }));
     e.layout(defs);
     let out = scene.cards.map(rectSvg).join('');
     defs.forEach((def, i) => {
@@ -55,6 +77,7 @@ function small(scene) {
         out += `<path d="${p.d}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
         out += head({ x: def.to.x, y: def.to.y, t: p.endTangent }, col);
     });
+    for (const [x, y] of scene.dots ?? []) out += `<circle cx="${x}" cy="${y}" r="4" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>`;
     return `<figure><svg viewBox="0 0 360 220">${out}</svg><figcaption>${scene.title}</figcaption></figure>`;
 }
 
