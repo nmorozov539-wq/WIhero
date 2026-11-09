@@ -304,6 +304,18 @@ export function renameBookSettings(s, from, to) {
     delete s.renamed[to];
 }
 
+/**
+ * Books that exist under a name a rename left behind: that name is a new book now, so chats stop reading its state
+ * as the renamed book's (review 2026-11-09, finding 2). Returns whether anything was dropped.
+ */
+export function forgetReusedNames(s, names) {
+    let dropped = false;
+    for (const name of names ?? []) {
+        if (s?.renamed && Object.hasOwn(s.renamed, name)) { delete s.renamed[name]; dropped = true; }
+    }
+    return dropped;
+}
+
 export function deleteBookSettings(s, name) {
     delete s.books[name];
     setBookFolder(s, name, '');

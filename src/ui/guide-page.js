@@ -1,7 +1,7 @@
 // The Guide tab (LAYOUT "Guide"): every page of guide.js, one after another, with an index on top, scrolled to the
 // anchor it was opened at. Each piece page: one line, a small picture in the canvas's colors, an example, the fine
 // print, common mistakes, and Show me (the Sample book on a matching card).
-import { btn, el } from './dom.js';
+import { btn, html, el } from './dom.js';
 import { ic } from './icons.js';
 import { PAGES, TOPICS } from './guide.js';
 
@@ -65,7 +65,7 @@ export function renderGuide(main, x) {
         sec.append(el('div', 'glbl', 'Example'), el('p', 'gex', p.example));
         if (p.fine.length) { sec.append(el('div', 'glbl', 'The fine print')); const ul = el('ul'); for (const f of p.fine) ul.append(el('li', '', f)); sec.append(ul); }
         if (p.mistakes.length) { sec.append(el('div', 'glbl', 'Common mistakes')); const ul = el('ul', 'gmis'); for (const f of p.mistakes) ul.append(el('li', '', f)); sec.append(ul); }
-        if (p.show && x.hasSample) sec.append(btn('linkish acc gshow', `${ic('canvas', 's')} Show me in the Sample book`, () => x.showMe(p.id, p.show)));
+        if (p.show && x.hasSample) sec.append(btn('linkish acc gshow', html`${ic('canvas', 's')} Show me in the Sample book`, () => x.showMe(p.id, p.show)));
         v.append(sec);
     }
     const more = el('div', 'glbl gtopics', 'On the screen');

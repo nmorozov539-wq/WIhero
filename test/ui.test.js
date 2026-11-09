@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import {
-    MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings,
+    MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings, forgetReusedNames,
     duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
     rekeyEntry, removeEntry, renameBookSettings, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
 } from '../src/ui/data.js';
@@ -125,6 +125,14 @@ test('settings: renaming, duplicating and deleting a book carry its settings', (
     deleteBookSettings(s, 'Newer');
     assert.equal(s.books.Newer, undefined);
     assert.deepEqual(s.bookFolders, { Drafts: ['Copy'] });
+});
+
+test('a new book under an old name ends that rename (review finding 2)', () => {
+    const s = ensureSettings({});
+    renameBookSettings(s, 'Kingdom', 'Kingdom v2');
+    assert.equal(forgetReusedNames(s, ['Other']), false);
+    assert.equal(forgetReusedNames(s, ['Kingdom', 'Kingdom v2']), true);
+    assert.deepEqual(s.renamed, {});
 });
 
 test('folders are containers; entries sort inside them by order, A–Z or a strategy first', () => {

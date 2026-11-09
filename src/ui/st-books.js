@@ -2,12 +2,14 @@
 // and the book-level actions (create, rename, duplicate, delete, export, global, links, World Info settings).
 // SillyTavern is reached through `ctx()` and the `WI` module namespace passed in (live bindings of world-info.js).
 import { upgradeBook } from '../book.js';
-import { adoptUiFields } from './data.js';
+import { adoptUiFields, forgetReusedNames } from './data.js';
 
 const SAVE_DELAY = 350;
 /** A failed save is tried again after this, a few times, before the book is left unsaved until its next change. */
 const RETRY_DELAY = 5000;
 const RETRIES = 3;
+/** How long a failed As imported copy waits before the book's next open tries it again. */
+const SEED_RETRY = 60000;
 
 /**
  * @param {object} deps
@@ -22,10 +24,44 @@ const RETRIES = 3;
  * @param {(name: string, error: unknown, final: boolean, what?: 'save' | 'export') => void} [deps.onSaveError] a save
  *   (or export) of `name` failed; `final` when it won't be tried again until the book changes.
  */
-export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {}, onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e) }) {
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Merges an outside save into WI Hero's working copy, in place. `base` is the book as it was when WI Hero last
+ * loaded or saved it. Per entry (and per top-level field): unchanged here → the outside version; changed here and
+ * not outside → kept; changed on both sides → kept, and counted. Returns the count.
+ */
+export function mergeOutside(mine, base, outside) {
+    let conflicts = 0;
+    const mineE = (mine.entries ??= {});
+    const baseE = base.entries ?? {};
+    const outE = outside.entries ?? {};
+    for (const uid of new Set([...Object.keys(mineE), ...Object.keys(baseE), ...Object.keys(outE)])) {
+        const changedHere = !same(mineE[uid], baseE[uid]);
+        const changedThere = !same(outE[uid], baseE[uid]);
+        if (!changedThere) continue;
+        if (changedHere) { if (!same(mineE[uid], outE[uid])) conflicts++; continue; }
+        if (uid in outE) mineE[uid] = outE[uid]; else delete mineE[uid];
+    }
+    for (const key of new Set([...Object.keys(mine), ...Object.keys(base), ...Object.keys(outside)])) {
+        if (key === 'entries' || same(outside[key], base[key]) || !same(mine[key], base[key])) continue;
+        if (key in outside) mine[key] = outside[key]; else delete mine[key];
+    }
+    return conflicts;
+}
+
+export function createLibrary({
+    ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {},
+    onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e),
+    onMerged = () => {},
+}) {
     /** name → the working copy WI Hero edits; ST's cache is updated on every save. */
     const copies = new Map();
+    /** name → the book as ST last had it from WI Hero's side (loaded, or saved): what an outside save is merged against. */
+    const bases = new Map();
     const timers = new Map();
+    /** Books whose last save failed for good: their edits live only in the working copy until a save works. */
+    const unsavedSet = new Set();
     /** name → failed saves in a row. */
     const failures = new Map();
     /** Objects WI Hero handed to saveWorldInfo, to tell its own saves from other ones. */
@@ -35,6 +71,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     const seeded = new Set();
 
     const names = () => ctx().getWorldInfoNames();
+    /** A book was made under this name: a rename that left it behind no longer applies (forgetReusedNames). */
+    const reused = name => { if (forgetReusedNames(settings, [name])) saveSettings(); };
     /** Goes up on every change to a working copy, so what is worked out from a book can be kept until then. */
     let version = 0;
 
@@ -45,7 +83,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
                 const data = await ctx().loadWorldInfo(name);
                 if (!data) return null;
                 data.entries ??= {};
-                if (!copies.has(name)) copies.set(name, data);
+                if (!copies.has(name)) { copies.set(name, data); bases.set(name, structuredClone(data)); }
                 return copies.get(name);
             })().finally(() => loading.delete(name)));
         }
@@ -60,7 +98,13 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     function seen(name, data = copies.get(name)) {
         if (!data || seeded.has(name)) return;
         seeded.add(name);
-        onFirstSeen(name, data).catch(e => console.warn('[WI Hero] Could not keep the "As imported" copy of', name, e));
+        // A copy that couldn't be kept (offline, a server error) is tried again when the book is next opened or
+        // changed, a minute on, so a draw or a keystroke doesn't upload it over and over.
+        const retry = () => setTimeout(() => seeded.delete(name), SEED_RETRY);
+        onFirstSeen(name, data).then(ok => { if (ok === false) retry(); }, e => {
+            console.warn('[WI Hero] Could not keep the "As imported" copy of', name, e);
+            retry();
+        });
     }
 
     /** Changes the working copy and saves it a moment later. `quiet`: the screen already shows it (typing). */
@@ -91,6 +135,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         (settings.books[name] ??= { defaults: {}, folders: {} }).edited = Date.now();
         saveSettings();
         const copy = structuredClone(data);
+        const sent = structuredClone(copy); // ST may keep and change `copy` after the save
         ours.add(copy);
         try {
             await ctx().saveWorldInfo(name, copy, true);
@@ -100,25 +145,46 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
             const final = n >= RETRIES;
             failures.set(name, final ? 0 : n);
             if (!final && !timers.has(name)) schedule(name, RETRY_DELAY);
+            if (final && !unsavedSet.has(name)) { unsavedSet.add(name); onChange(); }
             onSaveError(name, e, final);
             return false;
         }
         failures.delete(name);
+        bases.set(name, sent);
+        if (unsavedSet.delete(name)) onChange();
         ctx().reloadWorldInfoEditor?.(name);
         return true;
     }
 
     /** Saves every pending book now. Rejects when one fails (already reported), so a book action waiting on it stops. */
     async function flush() {
-        const done = await Promise.all([...timers.keys()].map(save));
+        // Books whose save failed for good are tried again too: a flush is a good moment (the editor closing, the page going away).
+        const done = await Promise.all([...new Set([...timers.keys(), ...unsavedSet])].map(save));
         if (done.includes(false)) throw Object.assign(new Error('a book could not be saved'), { reported: true });
     }
 
-    /** Another save of the book (ST's own editor, a slash command): drop the working copy so the next read is fresh. */
+    /**
+     * Another save of the book (ST's own editor, a slash command, another extension). With no edit of WI Hero's
+     * waiting, the working copy is dropped so the next read is fresh. With one waiting (a save due, or a retry), the
+     * outside save is merged in (review 2026-11-09, finding 3): every entry WI Hero hasn't changed since its last
+     * save takes the outside version; an entry both changed keeps WI Hero's, and `onMerged` says how many did.
+     */
     function onWorldInfoUpdated(name, data) {
-        if (ours.has(data) || timers.has(name)) return;
-        copies.delete(name);
+        if (ours.has(data)) return;
+        const mine = copies.get(name);
+        const base = bases.get(name);
+        if (!timers.has(name) || !mine || !base || !data || typeof data !== 'object') {
+            if (timers.has(name)) return; // nothing to merge against: WI Hero's pending save stands, as before
+            copies.delete(name);
+            bases.delete(name);
+            onChange();
+            return;
+        }
+        const conflicts = mergeOutside(mine, base, structuredClone(data));
+        bases.set(name, structuredClone(data));
+        version++;
         onChange();
+        onMerged(name, conflicts);
     }
 
     async function sanitize(name) {
@@ -153,6 +219,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         await onFirstSeen(clean, data, { fresh: true });
         await ctx().saveWorldInfo(clean, data, true);
         await ctx().updateWorldInfoList();
+        reused(clean);
         return clean;
     }
 
@@ -161,6 +228,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         const old = copies.get(name) ?? await ctx().loadWorldInfo(name);
         seen(name, old);
         copies.set(name, structuredClone(data));
+        if (!bases.has(name)) bases.set(name, structuredClone(old));
         await save(name);
         onChange();
         return old;
@@ -174,6 +242,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         const clean = await sanitize(n);
         await ctx().saveWorldInfo(clean, data, true);
         await ctx().updateWorldInfoList();
+        reused(clean);
         return clean;
     }
 
@@ -182,6 +251,8 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         clearTimeout(timers.get(name));
         timers.delete(name);
         copies.delete(name);
+        bases.delete(name);
+        unsavedSet.delete(name);
         return await WI.deleteWorldInfo(name);
     }
 
@@ -199,11 +270,12 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         const before = new Set(names());
         await WI.importWorldInfo(file);
         const fresh = names().find(n => !before.has(n));
-        if (fresh) return fresh;
+        if (fresh) { reused(fresh); return fresh; }
         // Overwritten under the same name (ST asked first), or not imported at all.
         const base = await sanitize(file.name.replace(/\.[^.]+$/, ''));
         if (!names().includes(base)) return null;
         copies.delete(base); // read it again from ST: its content may be new
+        reused(base);
         return base;
     });
     const rename = (...a) => quietly(() => renameNow(...a));
@@ -223,6 +295,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
         }
         await WI.deleteWorldInfo(from);
         copies.delete(from);
+        bases.delete(from);
         for (const lore of WI.world_info.charLore ?? []) {
             if (lore.extraBooks?.includes(from)) lore.extraBooks = lore.extraBooks.map(b => (b === from ? target : b));
         }
@@ -366,6 +439,7 @@ export function createLibrary({ ctx, WI, powerUser, settings, saveSettings, onFi
     const edited = name => settings.books?.[name]?.edited ?? null;
 
     return {
+        unsaved: name => unsavedSet.has(name),
         edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };

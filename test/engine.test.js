@@ -375,6 +375,11 @@ test('renamed books keep their state', () => {
     assert.deepEqual(state.round, ['New.4']);
 });
 
+test('a rename of "a" leaves the round keys of a book called "a.b" alone (review finding 9)', () => {
+    const state = readState({ v: 2, fired: {}, firstAt: {}, lastAt: {}, closed: {}, holding: {}, latches: {}, baseline: {}, masks: {}, round: ['a.3', 'a.b.3', 'x.y.1'] }, { renamed: { a: 'Z', 'x.y': 'W' } });
+    assert.deepEqual(state.round, ['Z.3', 'a.b.3', 'W.1']);
+});
+
 test('keys are per book: two books with a "mill" never mix', () => {
     const entries = [e(0, 'mill', { id: 'mill' }, { world: 'A' }), e(0, 'grain', { id: 'mill' }, { world: 'B' }), e(1, 'flour', { id: 'flour', gate: [['mill']] }, { world: 'B' })];
     const s = new Sim(entries);

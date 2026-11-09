@@ -210,7 +210,11 @@ that has one, or the initial state.
   only unique within a book, so every key in the state is `<book>/<id>`
   (`Eldoria/mill`), greetings `@<char>:<n>`. Renaming a book records
   `renamed: { old: new }` in the extension settings, and `readState` maps old
-  keys through it, so existing chats keep their state.
+  keys through it, so existing chats keep their state. A rename ends as soon
+  as a book under the old name exists again (made, copied or imported in WI
+  Hero, or seen in a scan however it was made): from then on the name is a
+  new book with its own state. `round` holds ST keys (`book.uid`), so only the
+  whole name before the last `.<uid>` is renamed.
 - **Size.** A snapshot only lists entries that have fired, closed, held or
   latched, never every entry, and `round` holds only this turn. With a few
   hundred entries fired it stays a few KB per message. If chats grow too big,
@@ -617,7 +621,25 @@ Accepted for now, listed so nobody rediscovers them:
   carries or deletes its snapshots.
 - **As imported**: taken the first time WI Hero opens or changes a book it has no
   record of (a new import, a card's embedded book, or any existing book on the first
-  run of WI Hero). One per book.
+  run of WI Hero). One per book. The book counts as seen (`books[book].seen`)
+  only once the copy is uploaded: a failed upload shows a toast (once per book
+  and session) and is tried again when the book is next opened or changed, a
+  minute on at the earliest.
+
+### 11.2a Saving a book
+
+- WI Hero edits a working copy of each book and saves it 350 ms after the last
+  change (5 s after a failed save, three tries). A book whose save failed for
+  good shows **Not saved** on its Home tile or row and its tab until a save
+  works; the next change, or any flush, tries again.
+- Pending saves are flushed when the editor closes and when the page is
+  hidden (`pagehide`, `visibilitychange`), best effort.
+- **Outside saves** (ST's editor, STscript, another extension) with no WI Hero
+  save waiting drop the working copy, so the next read is fresh. With one
+  waiting, the outside save is merged into the working copy against the book
+  as WI Hero last loaded or saved it: every entry WI Hero hasn't changed takes
+  the outside version (added and deleted entries too); an entry changed on
+  both sides keeps WI Hero's, and a toast says how many did.
 
 ### 11.3 Restore
 

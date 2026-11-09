@@ -31,8 +31,9 @@ export function writeSent(message, sent) {
  * @param {object} deps.settings extension_settings.wihero
  * @param {() => void} [deps.onChange] Called when the panel should refresh.
  * @param {object} [deps.health] src/compat.js createHealth(): runtime problems stand the engine down.
+ * @param {() => void} [deps.saveSettings] Saves extension_settings (a rename left behind by a new book is dropped).
  */
-export function createHooks({ ctx, st, settings, onChange = () => {}, health = null }) {
+export function createHooks({ ctx, st, settings, onChange = () => {}, health = null, saveSettings = () => {} }) {
     /** Whether the engine runs: switched on, and SillyTavern still has everything it needs (BUILD_SPEC 17.2). */
     const active = () => settings.enabled && (health?.ok ?? true);
     /** Model of the books ST loaded last, and its signature to skip rebuilding. */
@@ -59,6 +60,12 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     const greetingFp = greetingFpOf(() => ctx().characters, st.getStringHash);
 
     function rebuild(entries) {
+        // A loaded book under a name a rename left behind is a new book: its state is its own (review finding 2).
+        let dropped = false;
+        for (const book of new Set(entries.map(e => e.world))) {
+            if (settings.renamed && Object.hasOwn(settings.renamed, book)) { delete settings.renamed[book]; dropped = true; }
+        }
+        if (dropped) saveSettings();
         const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}${isMoment(e) ? `|${JSON.stringify(e.key)}` : ''}`).join('\n')
             + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;

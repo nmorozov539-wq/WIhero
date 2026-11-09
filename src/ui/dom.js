@@ -1,6 +1,9 @@
 // Small DOM helpers and the shared overlays (LAYOUT "Sheets and toasts"): sheets from the bottom over a dimmed
 // backdrop, the ⌄ menu sheet, a one-line text form, and toasts, some with Undo.
 import { ic } from './icons.js';
+import { Html } from './html.js';
+
+export { html } from './html.js';
 
 export function el(tag, cls, text) {
     const node = document.createElement(tag);
@@ -9,10 +12,15 @@ export function el(tag, cls, text) {
     return node;
 }
 
-export function btn(cls, html, fn, label) {
+/**
+ * A button. `content` is text, or Html (an icon from ic(), or an html`` template) for markup: plain strings never
+ * reach innerHTML, so book content can't inject markup through a label.
+ */
+export function btn(cls, content, fn, label) {
     const b = el('button', cls);
     b.type = 'button';
-    b.innerHTML = html;
+    if (content instanceof Html) b.innerHTML = content.markup;
+    else b.textContent = content ?? '';
     if (label) b.setAttribute('aria-label', label);
     if (fn) b.addEventListener('click', fn);
     return b;

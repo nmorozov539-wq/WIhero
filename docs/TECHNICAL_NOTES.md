@@ -227,6 +227,15 @@ shorter or older.
   `library.busy()` is true and the listener ignores the change; before, a rename
   jumped to another book's tab.
 
+- **Markup.** `btn()` in `src/ui/dom.js` puts a plain string in as text;
+  only `Html` (an icon from `ic()`, or an `` html`…` `` template from
+  `src/ui/html.js`, which escapes its values) becomes markup. Book content
+  (titles, names, keys) can come from a lorebook downloaded anywhere, so it
+  must never reach `innerHTML`.
+- **Telling saves apart.** ST fires `WORLDINFO_UPDATED (name, data)` for every
+  save. WI Hero's own saves are the objects it handed to `saveWorldInfo`
+  (a `WeakSet`); any other is an outside save, merged as in BUILD_SPEC 11.2a.
+
 ## 15. Entry settings stored as ST stores them (D29)
 
 - The entry page writes ST's own fields, with ST's names and shapes, through

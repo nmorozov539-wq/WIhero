@@ -3,7 +3,7 @@
 // (one open at a time), rules other entries aim at this one, + Add logic, and the footer. Also the target
 // picker, and the greeting inspector (BUILD_SPEC 15.4). Every change goes through `x.edit`, which wraps
 // pieces.js's bookEditor in the library's change.
-import { btn, el, swEl } from './dom.js';
+import { btn, html, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { FAMILY_COLOR } from './logic-text.js';
 import { strategyColor } from './entry-page.js';
@@ -179,8 +179,8 @@ export function renderInspector(box, x) {
             body.append(el('div', 'ihint', 'Saved as you type. Key words and parameters are in the entry tab.'));
             if (x.focusText) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
             const foot = el('div', 'ifoot');
-            foot.append(btn('linkish', `${ic('entry', 's')} Open entry`, () => x.openEntry()));
-            foot.append(btn('linkish', `${ic('code', 's')} Data`, x.data));
+            foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
+            foot.append(btn('linkish', html`${ic('code', 's')} Data`, x.data));
             body.append(foot);
             return;
         }
@@ -238,7 +238,7 @@ export function renderInspector(box, x) {
     const missing = missingPieces(c);
     if (missing.length) {
         // The piece bar under the canvas is the main way to add pieces; this list adds them to this entry directly.
-        body.append(btn('addpiece', `${ic('plus', 's')} Add logic`, () => layer.sheet('Add logic', sh => {
+        body.append(btn('addpiece', html`${ic('plus', 's')} Add logic`, () => layer.sheet('Add logic', sh => {
             for (const p of missing) {
                 sh.append(layer.opt(p.label, () => {
                     layer.close();
@@ -253,14 +253,14 @@ export function renderInspector(box, x) {
 
     const foot = el('div', 'ifoot');
     if (c.moment === true) {
-        foot.append(btn('linkish', `${ic('edit', 's')} Rename`, () => x.renameMoment?.()));
-        if (x.takeOff && !x.desk) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
-        foot.append(btn('linkish', `${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
+        foot.append(btn('linkish', html`${ic('edit', 's')} Rename`, () => x.renameMoment?.()));
+        if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
+        foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
     } else {
-        foot.append(btn('linkish', `${ic('entry', 's')} Open entry`, () => x.openEntry()));
-        if (x.takeOff && !x.desk) foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+        foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
+        if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
     }
-    foot.append(btn('linkish', `${ic('code', 's')} Data`, x.data));
+    foot.append(btn('linkish', html`${ic('code', 's')} Data`, x.data));
     body.append(foot);
 }
 
@@ -369,7 +369,7 @@ function editorOf(key, x, update) {
             if (i > 0) mh.append(btn('up', ic('down'), () => update(cc => moveMaskUp(cc, i)), `Move ${m.name} up (lower priority)`));
             mh.append(btn('', ic('trash'), () => { update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, `Remove ${m.name}`));
             ml.append(mh);
-            ml.append(btn('linkish', `${ic('edit', 's')} Edit text`, () => x.openEntry(m.name)));
+            ml.append(btn('linkish', html`${ic('edit', 's')} Edit text`, () => x.openEntry(m.name)));
             ml.append(el('div', 'sub', 'On when'));
             rowsEditor(ml, x, cc => cc.masks[i].gate ?? [], (cc, r) => { cc.masks[i].gate = r; }, update, false);
             if (!m.gate?.length) ml.append(el('p', 'phelp', 'No gate: used only when picked by hand.'));
@@ -484,7 +484,7 @@ export function renderGreetingInspector(box, x) {
     body.append(el('p', 'phelp gnote', `${greetingName(g.ref.greeting)} of ${g.ref.name || g.ref.char}. A greeting counts as fired when the chat opened with it.`));
     if (x.takeOff) {
         const foot = el('div', 'ifoot');
-        foot.append(btn('linkish', `${ic('x', 's')} Take off canvas`, x.takeOff));
+        foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
         body.append(foot);
     }
 }

@@ -224,3 +224,12 @@ test('a scan that no longer looks as expected stands the engine down: entries ar
     assert.deepEqual(await st.send('mill'), [1], 'the mill fires though its gate is shut: WI Hero stood down');
     assert.equal(st.chat.at(-1).extra.wihero, undefined, 'and writes no snapshot');
 });
+
+test('a loaded book under a name a rename left behind keeps its own state (review finding 2)', async () => {
+    const st = new FakeST([e(0, 'road', { id: 'road' }), e(1, 'mill', { id: 'mill', gate: [['road']] })]);
+    st.settings.renamed = { Book: 'Book v2', Other: 'Other v2' };
+    await st.send('road');
+    assert.deepEqual(st.settings.renamed, { Other: 'Other v2' });
+    assert.equal(st.state.fired['Book/road'], 1);
+    assert.deepEqual(await st.send('mill'), [1], 'the gate reads the road under its own book');
+});

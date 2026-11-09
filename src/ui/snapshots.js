@@ -31,7 +31,7 @@ export function toBase64(text) {
 /**
  * @param {object} deps { ctx, settings, saveSettings, library, now? }
  */
-export function createSnapshots({ ctx, settings, saveSettings, library, now = () => Date.now() }) {
+export function createSnapshots({ ctx, settings, saveSettings, library, now = () => Date.now(), onSeedError = () => {} }) {
     const headers = () => ctx().getRequestHeaders();
 
     const list = book => sortSnapshots(settings.books?.[book]?.snapshots);
@@ -51,19 +51,29 @@ export function createSnapshots({ ctx, settings, saveSettings, library, now = ()
         return snap;
     }
 
-    /** Before WI Hero first uses a book: keep it as it came in. A book made in WI Hero needs no copy. */
+    /**
+     * Before WI Hero first uses a book: keep it as it came in. A book made in WI Hero needs no copy. The book counts
+     * as seen only once its copy is uploaded, so a failed upload is tried again the next time the book is opened
+     * (review 2026-11-09, finding 6). `data` is serialized before the first await: a change right after can't reach it.
+     */
     async function seed(book, data, { fresh = false } = {}) {
         const b = settings.books?.[book];
-        if (b?.seen) return;
-        const s = bookSettings(settings, book);
-        s.seen = true;
-        saveSettings();
-        if (fresh) return;
+        if (b?.seen) return true;
+        if (fresh) {
+            bookSettings(settings, book).seen = true;
+            saveSettings();
+            return true;
+        }
         try {
             await write(book, IMPORTED, data, { imported: true });
         } catch (e) {
             console.warn('[WI Hero] Could not keep the "As imported" copy of', book, e);
+            onSeedError(book, e);
+            return false;
         }
+        bookSettings(settings, book).seen = true;
+        saveSettings();
+        return true;
     }
 
     const take = async (book, name) => write(book, name, structuredClone(await library.get(book)));
