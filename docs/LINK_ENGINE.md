@@ -67,6 +67,8 @@ Stored on the source card in the canvas settings, as the handout says, keyed `<p
 ## Shaping a link (the editor)
 
 A tap on a line opens its strip, as before; an Opens, Closes or Glue (ride along) strip now also shapes the line.
+Links into or out of one port run together near it, so where hit areas overlap a tap (or right-click) goes to the
+line nearest the pointer, not the one drawn last: a short line under a longer one can still be picked.
 
 - The other links fade; the picked one gets a band, a ghost dot halfway along each part, and its dots. Only those
   handles catch a drag (32px hit area on a phone, 18px with a mouse). A line itself still pans, picked or not.

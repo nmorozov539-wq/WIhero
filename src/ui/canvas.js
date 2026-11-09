@@ -583,6 +583,23 @@ export function mountCanvas(vp, d) {
         if (pf) return { card: `pack:${pf.dataset.pack}` };
         return null;
     }
+    /**
+     * Links into or out of one port run together near it, so a short line can lie mostly under a longer one. Of the
+     * lines whose hit paths are under a point, the one nearest it (the top one on a tie); any other node as it is.
+     */
+    function lineUnder(t, cx, cy) {
+        if (!t?.classList?.contains('lhit')) return t;
+        const root = vp.getRootNode();
+        const list = (root.elementsFromPoint ? root : document).elementsFromPoint(cx, cy).filter(n => n.classList?.contains('lhit') && vp.contains(n));
+        if (list.length < 2) return t;
+        const [x, y] = toWorld(cx, cy);
+        let best = t; let bd = Infinity;
+        for (const n of list) {
+            const dist = LINKS.nearest(n.dataset.lid, { x, y })?.dist ?? Infinity;
+            if (dist < bd - 0.5) { best = n; bd = dist; }
+        }
+        return best;
+    }
     /** What is under a screen point. */
     function hitAt(cx, cy) {
         const root = vp.getRootNode();
@@ -590,7 +607,7 @@ export function mountCanvas(vp, d) {
         for (const n of list) {
             if (n === vp) break;
             if (!vp.contains(n)) continue;
-            const h = hitOf(n);
+            const h = hitOf(lineUnder(n, cx, cy));
             if (h) return h;
         }
         return null;
@@ -898,7 +915,7 @@ export function mountCanvas(vp, d) {
             return;
         }
         moved = false;
-        start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: e.target };
+        start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: lineUnder(e.target, e.clientX, e.clientY) };
         const gr = e.target.closest?.('[data-grip]');
         const port = e.target.closest?.('[data-port]');
         const card = d.desk && !port && !e.target.closest?.('[data-flip], .lockp, .junc') ? e.target.closest?.('.card[data-id]') : null;
@@ -1220,7 +1237,7 @@ export function mountCanvas(vp, d) {
             e.preventDefault();
             const c = e.target.closest?.('.card[data-id]');
             if (c) { if (!picked.has(c.dataset.id)) setPicked(new Set([c.dataset.id]), true); d.cardMenu?.(c.dataset.id, { x: e.clientX, y: e.clientY }); return; }
-            const ln = e.target.closest?.('.lhit');
+            const ln = lineUnder(e.target, e.clientX, e.clientY).closest?.('.lhit');
             if (ln && CV.links[ln.dataset.link]) {
                 const l = CV.links[ln.dataset.link];
                 d.linkMenu?.(l, !!memory().cards[l.from]?.links?.[l.key], { x: e.clientX, y: e.clientY });
