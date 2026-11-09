@@ -7,6 +7,7 @@ import { btn, html, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { FAMILY_COLOR } from './logic-text.js';
 import { strategyColor } from './entry-page.js';
+import { trackerEditor } from './tracker-ui.js';
 import {
     MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
     moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting,
@@ -245,6 +246,7 @@ export function renderInspector(box, x) {
                     layer.close();
                     // Rows and lists are written with their first item; until then the open editor stands in.
                     if (['once', 'by', 'glue'].includes(p.key)) update(cc => addPiece(cc, p.key));
+                    if (p.key === 'written') update(cc => { addPiece(cc, 'written'); Object.assign(cc.written, x.tracker?.shared ?? {}); });
                     x.setOpen(p.key);
                 }, { sub: p.help, dot: FAMILY_COLOR[p.family] }));
             }
@@ -310,7 +312,9 @@ function editorOf(key, x, update) {
     const { layer, config: c } = x;
     const box = el('div', 'ped');
     const rows = (get, set, { gate = false } = {}) => rowsEditor(box, x, get, set, update, gate);
-    if (key === 'gate') {
+    if (key === 'written') {
+        trackerEditor(box, x, update);
+    } else if (key === 'gate') {
         rows(cc => cc.gate ?? [], (cc, r) => { cc.gate = r; }, { gate: true });
         const mo = movesOn(c);
         if (mo.ids.length) {

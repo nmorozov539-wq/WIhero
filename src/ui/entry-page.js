@@ -6,6 +6,8 @@ import {
     LOGIC, PARAMS, STRATEGY_HELP, filterChoices, paramChanged, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
 } from './data.js';
 import { FAMILY_COLOR, logicSummary } from './logic-text.js';
+import { slotsOf, valueLine } from './tracker-ui.js';
+import { rawConfig as configOf } from '../engine/model.js';
 
 const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
@@ -330,6 +332,21 @@ export function renderEntryPage(main, o) {
             row.append(b);
         }
         en.append(row);
+    }
+    // Trackers (TRACKERS 2.3): the value the model wrote in the open chat, with Edit and Clear, in both modes.
+    if (o.tracker) {
+        const written = slotsOf(configOf(e) ?? {}).filter(sl => sl.written && (o.hero ? (version?.name ?? null) === sl.mask : true));
+        if (written.length) {
+            const box = el('div', 'trkbox');
+            for (const sl of written) {
+                const before = box.childElementCount;
+                valueLine(box, { layer, tracker: o.tracker }, sl.mask);
+                if (box.childElementCount > before && written.length > 1) box.lastChild.querySelector('b').textContent = `${sl.mask ?? 'Main'} in this chat`;
+            }
+            if (!box.childElementCount) box.append(el('p', 'phelp', 'Written by the model. Open a chat that uses this book to see its value.'));
+            else box.append(el('p', 'phelp', 'Written by the model. The text below is the start value, used until a value is written.'));
+            en.append(box);
+        }
     }
     const count = text => o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
     let countTimer = null;

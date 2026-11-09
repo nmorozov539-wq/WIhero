@@ -6,7 +6,7 @@ import { isObject } from '../engine/util.js';
 const READING = /^#([^:]+)(?::(all|\d+))?$/;
 
 /** Piece families (VISUAL 6.2) → CSS color variable. */
-export const FAMILY_COLOR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)', by: 'var(--muted)' };
+export const FAMILY_COLOR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)', by: 'var(--muted)', track: 'var(--p-track)' };
 
 export const and = (list, word = 'and') => list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} ${word} ${list.at(-1)}`;
 const greetingName = n => n === 0 ? 'Greeting' : `Alt ${n}`;
@@ -95,6 +95,8 @@ export function logicLines(node, model) {
     }
     if (node.packs.length) add('pack', 'Packs', `In ${node.packs.map(p => `#${p}`).join(', ')}`);
     if (node.once) add('close', 'Once', 'Fires one time, then closes');
+    const written = [c.written ? 'the main text' : null, ...(Array.isArray(c.masks) ? c.masks.filter(m => isObject(m) && m.written).map(m => `mask ${m.name}`) : [])].filter(Boolean);
+    if (written.length) add('track', 'Tracker', `The model writes ${and(written)}; the newest value is sent`);
     if (node.by) add('by', 'Who triggers', node.by === 'user' ? 'Only your messages trigger it' : 'Only the character\'s replies trigger it');
     return lines;
 }

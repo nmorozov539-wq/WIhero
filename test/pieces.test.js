@@ -48,7 +48,7 @@ test('Story moves on writes Closes for to the gate\'s entries, once', () => {
 
 test('pieces: what can be added, Once not on glue, glue drops Once', () => {
     const c = {};
-    assert.equal(missingPieces(c).length, 10);
+    assert.equal(missingPieces(c).length, 11);
     addPiece(c, 'once');
     assert.ok(hasPiece(c, 'once'));
     addPiece(c, 'glue');

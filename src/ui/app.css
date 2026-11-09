@@ -34,7 +34,7 @@
   /* strategy (VISUAL 6.1) */
   --s-key: #6fd09a; --s-perm: #6fa8ff; --s-vec: #b48cff; --s-off: #6b6d72;
   /* pieces (VISUAL 6.2), with the color vision modes below (6.4) */
-  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2;
+  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2; --p-track: #9b8cff;
   --p-cond: var(--muted); /* Lock and Wait: no family color (VISUAL 6.2); on the canvas they take their row's */
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
@@ -43,8 +43,8 @@
   font-family: var(--sans); font-size: var(--t-m); line-height: 1.35;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
 }
-.wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; }
-.wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; }
+.wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; --p-track: #0072b2; }
+.wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; --p-track: #b48cff; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -1029,3 +1029,23 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 
 /* Sticky notes on the canvas: the author's own, above the card's top right; never sent to the model. */
 .card .sticky { position: absolute; right: 6px; bottom: calc(100% - 4px); max-width: 170px; padding: 3px 7px; border-radius: 3px; background: #f6e58d; color: #3b3200; font-size: var(--t-xs); line-height: 1.3; transform: rotate(-2deg); box-shadow: 0 2px 6px rgb(0 0 0 / 0.25); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; z-index: 3; pointer-events: auto; }
+
+/* Trackers (TRACKERS 4–5) */
+.mlayer.trk .mlh span { color: var(--p-track); }
+.trkshow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--t-sm); }
+.trkval { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: var(--t-sm); padding: 4px 0; }
+.trkval b { color: var(--p-track); font-weight: 600; }
+.trkval .v { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; min-width: 0; max-height: 7.5em; overflow: auto; }
+.trkval .none { color: var(--muted); flex: 1; }
+.trkval .acts { display: inline-flex; gap: 10px; }
+.trkbox { border-left: 3px solid var(--p-track); padding: 2px 0 2px 10px; margin: 4px 0 8px; }
+.trkta { width: 100%; min-height: 6em; font: inherit; }
+.trkb .mono, .trkpre { font-family: var(--mono, ui-monospace, monospace); }
+.trkpre { white-space: pre-wrap; font-size: var(--t-xs); background: color-mix(in srgb, var(--fg) 6%, transparent); border-radius: 8px; padding: 8px; margin: 0; }
+.trkwarn { color: var(--p-glue); font-size: var(--t-xs); }
+.trkwarn::before { content: '⚠ '; }
+.trkdepth { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--t-sm); }
+.trkdepth input { width: 5em; }
+.trktips { margin: 0; padding-left: 1.2em; }
+.trkrow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.card .k.wval { color: var(--p-track); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
