@@ -28,8 +28,6 @@ import { PIECE_ANCHOR } from './guide.js';
 import { SAMPLE, createExplain } from './explain.js';
 import { deskNormal, resizer } from './desk.js';
 
-const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
-
 /**
  * @param {object} deps
  *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }

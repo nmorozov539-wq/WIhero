@@ -8,6 +8,9 @@ import {
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
 
+/** The color modes (D22), as [value, label]. */
+const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
+
 /**
  * @param {object} A The app's context: { H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames }.
  */
