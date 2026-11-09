@@ -7,12 +7,13 @@ import {
     renameBookSettings, setBookFolder, setFolder, titleOf,
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
+import { keywordClashes } from './clashes.js';
 
 /** The color modes (D22), as [value, label]. */
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
 
 /**
- * @param {object} A The app's context: { H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames }.
+ * @param {object} A The app's context: { H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames }.
  */
 export function createMenus(A) {
     const {
@@ -71,6 +72,7 @@ export function createMenus(A) {
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
                     if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
+                    clashRow(sh, p.book, data);
                 }
                 sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›' }));
             }
@@ -129,6 +131,32 @@ export function createMenus(A) {
                 sh.append(o);
             }
         }, { help: 'Problems (red) stop an entry from firing. Warnings (yellow) only point at something odd.' });
+    }
+
+    /** The ⌄ menu's "Keyword clashes (n) ›" row, when the book has any. */
+    function clashRow(sh, book, data) {
+        const n = keywordClashes(data, hiddenIn(book)).groups.length;
+        if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));
+    }
+
+    /** Every key word that fires two or more entries, with those entries; a tap opens one. */
+    function clashesSheet(book) {
+        const data = library.peek(book);
+        if (!data) return;
+        const { groups } = keywordClashes(data, hiddenIn(book));
+        const open = uid => {
+            layer.close();
+            const e = data.entries[uid];
+            if (!e) return;
+            if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
+        };
+        layer.sheet(`Keyword clashes (${groups.length})`, sh => {
+            if (!groups.length) sh.append(el('div', 'lbl', 'No key word fires more than one entry.'));
+            for (const g of groups) {
+                sh.append(el('div', 'lbl', `“${g.word}”`));
+                for (const uid of g.uids) sh.append(layer.opt(titleOf(data.entries[uid]), () => open(uid), { sub: (data.entries[uid].key ?? []).join(', ') }));
+            }
+        }, { help: 'A key word fires every entry that has it, and a longer key fires the entries of the words inside it ("old mill" fires Mill too). Sometimes that is what you want.' });
     }
 
     function snapshotsSheet(book) {
@@ -430,5 +458,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, clashRow, clashesSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }
