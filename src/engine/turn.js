@@ -23,8 +23,11 @@ const keyOfId = model => {
 export function baseState(chat, model, { greeting = null, renamed = {} } = {}, end = chat?.length ?? 0) {
     let state = null;
     let index = -1;
+    // The old-build id map is only needed for a v1 snapshot: built on first use, once per call (review finding 8).
+    let ids = null;
+    const oldId = id => (ids ??= keyOfId(model))(id);
     for (let i = Math.min(end, chat?.length ?? 0) - 1; i >= 0; i--) {
-        state = readState(chat[i]?.extra?.[FIELD], { at: i, keyOfId: keyOfId(model), renamed });
+        state = readState(chat[i]?.extra?.[FIELD], { at: i, keyOfId: oldId, renamed });
         if (state) { index = i; break; }
     }
     state ??= initialState();

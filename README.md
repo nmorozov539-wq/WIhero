@@ -22,6 +22,12 @@ point, and retire once it moves past.
 > **WI Hero is in testing.** Expect bugs. Take a snapshot or export a book
 > before you try it on one you care about.
 
+> [!NOTE]
+> Rename books in WI Hero, not in SillyTavern's own editor. WI Hero carries a
+> renamed book's story progress over to its new name in every chat, but it
+> can't see a rename made in SillyTavern's editor, so chats would start that
+> book's story over.
+
 ## Two modes
 
 - **Normal mode** is a cleaner World Info editor: your books and entries as

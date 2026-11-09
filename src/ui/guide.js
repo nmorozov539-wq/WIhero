@@ -147,6 +147,7 @@ export const PAGES = [
         fine: [
             'Your messages, the character\'s replies, or both (the default).',
             'WI Hero checks the key words itself for these cards, within their scan depth.',
+            'Only chat messages count. A match through another entry\'s text (recursion), the character card, the persona or the scenario doesn\'t, and only the main key words are checked, not the optional filter.',
             'A book can set it in New entry defaults.',
         ],
         mistakes: [],

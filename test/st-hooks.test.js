@@ -233,3 +233,35 @@ test('a loaded book under a name a rename left behind keeps its own state (revie
     assert.equal(st.state.fired['Book/road'], 1);
     assert.deepEqual(await st.send('mill'), [1], 'the gate reads the road under its own book');
 });
+
+test('a generation\'s read during loadModel is still gated, and loadModel keeps every entry (review finding 4)', async () => {
+    const st = new FakeST([e(0, 'road', { id: 'road' }), e(1, 'mill', { id: 'mill', gate: [['road']] })]);
+    await st.hooks.onGenerationStarted('normal', {}, false);
+    // The generation's own WORLDINFO_ENTRIES_LOADED lands while loadModel waits on its read.
+    let generationLore = null;
+    const real = st.sorted.bind(st);
+    st.sorted = () => { const out = real(); generationLore = out; return out; };
+    const entries = await st.hooks.loadModel();
+    assert.deepEqual(entries.map(x => x.uid).sort(), [0, 1], 'loadModel sees the closed mill too');
+    assert.deepEqual(generationLore.map(x => x.uid), [0], 'the read was gated: the mill waits for the road');
+    assert.ok(st.hooks.pending.working, 'the turn has its working state, so its snapshot gets written');
+    assert.equal(st.hooks.model.nodes.size, 2);
+});
+
+test('a reply WI Hero didn\'t run for loses a snapshot copied from the swipe before (review finding 13)', async () => {
+    const st = new FakeST([e(0, 'road', { id: 'road' })]);
+    await st.send('road');
+    const reply = st.chat.at(-1);
+    assert.ok(reply.extra.wihero);
+    st.settings.enabled = false;
+    // ST starts a new swipe as a copy of the current one's extra (script.js saveReply / swipe).
+    reply.swipe_id = 1;
+    reply.swipe_info = [{ extra: structuredClone(reply.extra) }, { extra: structuredClone(reply.extra) }];
+    await st.hooks.onGenerationStarted('swipe', {}, false);
+    st.hooks.onWorldInfoActivated([]);
+    st.hooks.onMessageReceived(st.chat.length - 1, 'swipe');
+    assert.equal(reply.extra.wihero, undefined);
+    assert.equal(reply.swipe_info[1].extra.wihero, undefined);
+    assert.ok(reply.swipe_info[0].extra.wihero, 'the other swipe keeps its own');
+    assert.ok(st.hooks.gap(), 'the reply shows as one WI Hero missed');
+});
