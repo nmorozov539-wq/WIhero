@@ -1250,6 +1250,7 @@ export function createApp(deps) {
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
         render: () => render(), root, saveSettings, settings, sortBy: () => sortBy(), tidyNow,
         canvas: () => heroCanvas,
+        entryTemplate: deps.entryTemplate,
     }));
     function barAct(...a) { return heroBar().barAct(...a); }
     function barApi(...a) { return heroBar().barApi(...a); }

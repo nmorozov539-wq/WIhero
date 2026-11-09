@@ -22,7 +22,7 @@ import { strategyColor } from './entry-page.js';
 export function createHeroBar(A) {
     const {
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
-        render, root, saveSettings, settings, sortBy, tidyNow, canvas,
+        render, root, saveSettings, settings, sortBy, tidyNow, canvas, entryTemplate,
     } = A;
 
     /** A card key as the bar sees it: an entry by uid, a pack, or a greeting. */
@@ -114,7 +114,7 @@ export function createHeroBar(A) {
             setFolded: v => { settings.pieceBarFolded = v; saveSettings(); },
             toast: t => layer.toast(t),
             place: (k, hit) => dropPiece(book, k, hit),
-            entryTemplate: deps.entryTemplate,
+            entryTemplate,
             guide: piece => openGuide(PIECE_ANCHOR[piece] ?? 'strip'),
             makeMoment: made => {
                 const mem = canvasMemory(bookSettings(settings, book));
@@ -178,7 +178,7 @@ export function createHeroBar(A) {
             title: 'New Moment', placeholder: 'What happens: Missing tooth', ok: 'Make',
             help: 'Something that can happen in the story, said in the chat. You add the phrases next.',
             done: name => {
-                const made = library.change(book, d => addMoment(d, deps.entryTemplate, name.trim() || 'Moment'));
+                const made = library.change(book, d => addMoment(d, entryTemplate, name.trim() || 'Moment'));
                 if (!made) return;
                 const key = cardKey(made);
                 const mem = canvasMemory(bookSettings(settings, book));
@@ -205,7 +205,7 @@ export function createHeroBar(A) {
         const by = defaults.by;
         delete defaults.by;
         return library.change(book, d => {
-            const n = addEntry(d, deps.entryTemplate, defaults);
+            const n = addEntry(d, entryTemplate, defaults);
             n.comment = name;
             if (by) setParam(d, n.uid, PARAM_LIST.find(z => z.field === 'by'), by);
             return n;
