@@ -1,11 +1,10 @@
 # Link engine
 
 Smooth canvas links that go around cards. Built from the link engine handout (project files,
-`wihero/link-engine-handout.md`). Lives on the `link-engine` branch, which is not merged. `src/ui/canvas.js` draws its links with it there; the
-old grid router is still in `src/ui/canvas-graph.js`, unused by the canvas.
+`wihero/link-engine-handout.md`). `src/ui/canvas.js` draws every link with it; it replaced the demo's grid router.
 
 Code: `src/link-engine/` (pure: no DOM, no ST, no pieces). Tests: `test/link-engine.test.js`.
-Tools: `node tools/link-gallery.js` (writes `tools/link-gallery.html`, today's router beside the engine on the
+Tools: `node tools/link-gallery.js` (writes `tools/link-gallery.html`: fixture scenes and the
 example books), `node tools/link-bench.js` (timings on a 120-card canvas).
 
 ## How a link is made
@@ -90,4 +89,5 @@ line nearest the pointer, not the one drawn last: a short line under a longer on
 - Bundling is lanes side by side; links heading the same way don't merge into one line (manual bundling: not now).
 
 The old grid router (`route`, `makeGrid` in `canvas-graph.js`) is gone; `rounded` stays for the short junction
-stubs. Benchmarks against it are in git history (`tools/link-bench.js`).
+stubs. On the 120-card bench the engine's full layout took about as long as the old router (~55 ms), and dropping
+one card ~8 ms instead of ~55 ms (the old router redid every link).

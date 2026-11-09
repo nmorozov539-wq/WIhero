@@ -57,7 +57,7 @@ to be changed while building.
 | D9 | **Layout is local.** Positions live in this ST install's extension settings, never in the book. A book exported or imported elsewhere gets the automatic arrangement there. |
 | D10 | **Export is ST's file.** Exporting a book from WI Hero downloads the same JSON file ST would. Story logic travels with it (section 2); layout doesn't. |
 | D11 | **Card-embedded books keep their story logic** (section 2). ST's own "import the embedded lorebook?" prompt is left alone: yes gives a normal book with working story logic, no means the book is never used. |
-| D12 | **Links are always drawn in full**, however far they run across the canvas. No stubs or cut-off links (explored in the sketches and dropped: it trades one kind of clarity for another). The demo's grid router is used as it is. |
+| D12 | **Links are always drawn in full**, however far they run across the canvas. No stubs or cut-off links (explored in the sketches and dropped: it trades one kind of clarity for another). Links are laid out by the link engine (`src/link-engine`, docs/LINK_ENGINE.md): smooth lines that go around cards, and can be shaped by hand. |
 | D13 | **Preview runs the real engine** (the same `src/engine/` code as the chat) for every rule, never a separate rule checker, so it can't disagree with what happens in a chat. Only keyword matching is its own, since it doesn't run ST's scan. It follows D1: a lock phrase in the pretend reply shows as "from the next message". |
 | D14 | **The inspector opens half height** with the card visible above it. Top: the first two lines of the entry's text (tap to open the entry). Then one plain sentence per piece, the same sentences as the entry page's Story logic; tapping one expands it for editing, one at a time. Tapping a port opens the inspector with that piece expanded. Help lines sit behind a small "?". Drag up for full height. **[layout change]** to LAYOUT "Inspector" (was: every piece expanded with its help line). |
 | D15 | **Mask text is written on the entry page** through a row of chips above Content: "Main · ruined · rebuilt". A chip switches the text box to that version, with its own token count; a dot marks the version active in the open chat. The inspector's mask block has "Edit text", which opens the entry on that chip. **[layout change]** to LAYOUT "Entry page" (was: mask blocks stacked under Content). |
@@ -489,8 +489,8 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
   the top of the canvas.
 - **Tidy**: rerun the layout on everything on the canvas, keep the old
   positions for Undo.
-- **Link routing** around cards uses the demo's grid router as it is. No
-  further smartness in this round.
+- **Link routing** around cards is the link engine (docs/LINK_ENGINE.md):
+  smooth curves, lanes apart, and hand shaping in a line's strip.
 
 ---
 

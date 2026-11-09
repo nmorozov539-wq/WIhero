@@ -457,7 +457,7 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
 - Greetings in group chats.
-- Bigger ideas kept out of V1 (locks that match by meaning, curved links) are
+- Bigger ideas kept out of V1 (locks that match by meaning, among others) are
   in [AFTER_V1.md](AFTER_V1.md).
 - Out of scope for now: several books on one canvas, cross-book links,
   variables, loops or math in story logic, endings as a separate system (gates
