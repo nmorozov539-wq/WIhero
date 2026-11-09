@@ -457,6 +457,9 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
 - Greetings in group chats.
+- **Trackers** (designed, not built): text the model writes into an entry or
+  a mask, read from the chat and kept in story state. See
+  [TRACKERS.md](TRACKERS.md).
 - Bigger ideas kept out of V1 (locks that match by meaning, among others) are
   in [AFTER_V1.md](AFTER_V1.md).
 - Out of scope for now: several books on one canvas, cross-book links,
