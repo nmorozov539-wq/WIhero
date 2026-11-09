@@ -19,7 +19,7 @@ import { inside, makeGrid, mark, search } from './grid.js';
 
 
 export function createLinkEngine(options = {}) {
-    const opts = { grid: 12, clearance: 14, margin: 2, stub: 12, tension: 0.5, bend: 4, radius: 40, ...options };
+    const opts = { grid: 12, clearance: 14, margin: 2, stub: 12, tension: 0.5, bend: 4, radius: 40, laneGap: 8, ...options };
     let rects = new Map();
     let dirty = []; // obstacles added, removed or moved since the last layout (old and new rects)
     let grid = null; // built lazily, the first time a link needs routing after the obstacles change
@@ -260,8 +260,67 @@ export function createLinkEngine(options = {}) {
         W[0] = stretch([ax, ay], n, W, pass, ends);
         const rev = W.slice().reverse();
         W[W.length - 1] = stretch([bx, by], m, rev, pass, ends);
-        const parts = rounded([[ax, ay], ...W, [bx, by]], pass, ends);
-        return finish(parts, 'route', ok(parts));
+        const P = lanes([[ax, ay], ...W, [bx, by]], def.id, n, m, pass, ends);
+        const parts = rounded(P, pass, ends);
+        return { ...finish(parts, 'route', ok(parts)), runs: P };
+    }
+
+    // ---- lanes (rule 3): a run that would sit on top of another link's run moves over by a lane
+
+    const unitOf = (a, b) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]); return l < EPS ? null : [(b[0] - a[0]) / l, (b[1] - a[1]) / l, l]; };
+
+    /** Whether run a→b lies along run c→d, closer than a lane, for longer than a corner. */
+    function onTop(a, b, c, d) {
+        const u = unitOf(a, b); const v = unitOf(c, d);
+        if (!u || !v || Math.abs(u[0] * v[1] - u[1] * v[0]) > 0.12) return false;
+        const off = Math.abs((c[0] - a[0]) * -u[1] + (c[1] - a[1]) * u[0]);
+        if (off > opts.laneGap - 0.5) return false;
+        const s0 = (c[0] - a[0]) * u[0] + (c[1] - a[1]) * u[1]; const s1 = (d[0] - a[0]) * u[0] + (d[1] - a[1]) * u[1];
+        const lo = Math.max(0, Math.min(s0, s1)); const hi = Math.min(u[2], Math.max(s0, s1));
+        return hi - lo > opts.laneGap * 2;
+    }
+
+    function crowded(a, b, self, P) {
+        for (const [id, e] of links) {
+            if (id === self || !e.path.runs) continue;
+            const R = e.path.runs;
+            // Links leaving the same port travel together from it: their first runs don't count.
+            for (let i = 0; i + 1 < R.length; i++) {
+                const c = R[i]; const d = R[i + 1];
+                if ((i === 0 && c[0] === P[0][0] && c[1] === P[0][1]) || (i + 2 === R.length && d[0] === P.at(-1)[0] && d[1] === P.at(-1)[1])) continue;
+                if (onTop(a, b, c, d)) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Moves each run between two corners sideways, a lane at a time, while it sits on another link. A corner next to
+     * a port only moves along that port's normal, so the link still meets the port straight.
+     */
+    function lanes(P, self, n, m, pass, ends) {
+        if (!links.size) return P;
+        P = P.map(p => [p[0], p[1]]);
+        for (let i = 1; i + 2 < P.length; i++) {
+            if (!crowded(P[i], P[i + 1], self, P)) continue;
+            const u = unitOf(P[i], P[i + 1]);
+            if (!u) continue;
+            const along = (nn, k) => Math.abs(nn[0] * k[1] - nn[1] * k[0]) < 1e-6;
+            let done = false;
+            for (let k = 1; k <= 4 && !done; k++) {
+                for (const sg of [1, -1]) {
+                    const o = [-u[1] * sg * k * opts.laneGap, u[0] * sg * k * opts.laneGap];
+                    if (i === 1 && !along(n, o)) continue;
+                    if (i + 2 === P.length - 1 && !along(m, o)) continue;
+                    const a = [P[i][0] + o[0], P[i][1] + o[1]]; const b = [P[i + 1][0] + o[0], P[i + 1][1] + o[1]];
+                    if (!sees(P[i - 1], a, pass, ends) || !sees(a, b, pass, ends) || !sees(b, P[i + 2], pass, ends)) continue;
+                    if (crowded(a, b, self, P)) continue;
+                    P[i] = a; P[i + 1] = b; done = true;
+                    break;
+                }
+            }
+        }
+        return P;
     }
 
     function finish(parts, kind, isClear) {
