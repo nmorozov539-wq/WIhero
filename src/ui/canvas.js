@@ -247,6 +247,12 @@ export function mountCanvas(vp, d) {
             if (st?.fired) c.append(el('span', 'fired', `${st.fired}×`));
             else if (e.once) c.append(el('span', 'badge1', '1×'));
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
+            if (e.note) {
+                // A sticky note (AFTER_V1): the author's own, pinned over the card; never sent to the model.
+                const n = el('div', 'sticky', e.note);
+                n.title = e.note;
+                c.append(n);
+            }
             put(world, c);
             if (r.nav) {
                 const n = el('div', `mnav${r.nav.v ? ' v' : ''}`);
@@ -1000,6 +1006,46 @@ export function mountCanvas(vp, d) {
             markTarget(h?.card && !OV.dim?.(h.card) ? h : null);
         }
     });
+    /**
+     * Lasso to make a pack (desktop, AFTER_V1): after a box select, a small box under it asks for a pack name.
+     * Existing packs are offered as you type, so `town/` lists the packs inside town. Enter packs the cards;
+     * Esc or a click elsewhere leaves the selection as it is.
+     */
+    function lassoPrompt(keys, x, y) {
+        vp.querySelector('.lasso')?.remove();
+        const uids = d.lasso?.entries(keys) ?? [];
+        if (!uids.length) return;
+        const box = el('div', 'lasso');
+        const list = el('datalist');
+        list.id = `wih-lasso-${Date.now()}`;
+        for (const p of d.lasso.packs()) { const o = el('option'); o.value = p; list.append(o); }
+        const input = el('input');
+        input.placeholder = `Pack ${uids.length === 1 ? 'it' : `these ${uids.length}`}: name, then Enter`;
+        input.setAttribute('aria-label', 'Pack name');
+        input.setAttribute('list', list.id);
+        box.append(el('span', 'lh', '#'), input, list);
+        const r = vp.getBoundingClientRect();
+        box.style.left = `${Math.max(8, Math.min(x, r.width - 260))}px`;
+        box.style.top = `${Math.min(y + 8, r.height - 44)}px`;
+        vp.append(box);
+        const done = () => { box.remove(); document.removeEventListener('pointerdown', away, true); };
+        const away = ev => { if (!ev.composedPath().includes(box)) done(); };
+        input.addEventListener('keydown', ev => {
+            ev.stopPropagation();
+            if (ev.key === 'Escape') { ev.preventDefault(); done(); }
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                const name = input.value.trim().replace(/^#/, '').replace(/\s+/g, '-').replace(/\/+$/, '');
+                if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*(\/[A-Za-z0-9][A-Za-z0-9_.-]*)*$/.test(name)) { box.classList.add('bad'); return; }
+                done();
+                d.lasso.pack(uids, name);
+            }
+        });
+        input.addEventListener('input', () => box.classList.remove('bad'));
+        for (const t of ['pointerdown', 'wheel']) box.addEventListener(t, ev => ev.stopPropagation());
+        setTimeout(() => { document.addEventListener('pointerdown', away, true); input.focus(); }, 0);
+    }
+
     /** A card or dot drag at a screen point (the pointer, or the same point again while the view edge-scrolls). */
     function dragTo(at) {
         if (mode === 'dot') { dotTo(at.x, at.y, at.alt); return; }
@@ -1073,6 +1119,7 @@ export function mountCanvas(vp, d) {
                 const [bx, by] = toWorldLocal(Math.max(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
                 const inside = [...CV.R.values()].filter(r => !r.pack && r.x < bx && r.x + r.w > ax && r.y < by && r.y + r.h > ay).map(r => r.key);
                 setPicked(e.ctrlKey || e.metaKey ? new Set([...picked, ...inside]) : new Set(inside));
+                if (inside.length) lassoPrompt([...picked], Math.min(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
             }
             mode = null; start = null; drag = null;
             return;

@@ -121,9 +121,9 @@ export function normalize(raw) {
     return { config: c, ui, legacy };
 }
 
-const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment'];
+const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice', 'note'];
 /** What a Moment can't take (CONCEPTS 3.13): it sends nothing, so nothing that shapes what is sent. */
-const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate' };
+const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate', dice: 'dice' };
 
 /** Whether an ST entry is a Moment (CONCEPTS 3.13): a WI Hero entry flagged `moment: true`. */
 export const isMoment = entry => rawConfig(entry)?.moment === true;
@@ -461,7 +461,7 @@ export function buildModel(entries, options = {}) {
         }
         if (bad) continue;
         for (const p of paths) pathOwner.set(p, node.key);
-        switches.push({ fork: node.key, paths });
+        switches.push({ fork: node.key, paths, dice: node.config.dice === true });
         for (const p of paths) {
             const path = nodes.get(p);
             if (!path.opens.rows.some(r => r.items.some(i => i.key === node.key))) {
@@ -472,6 +472,14 @@ export function buildModel(entries, options = {}) {
                 path.closes.push({ row: { key: `${p}|c|switch:${nodes.get(other).id}`, items: [{ type: 'entry', key: other }], waits: [], locks: [], raw: [nodes.get(other).id] }, kind: 'switch', source: other });
             }
         }
+    }
+
+    // Dice (AFTER_V1): only on a switch, and only true.
+    for (const node of nodes.values()) {
+        const d = node.config.dice;
+        if (d === undefined || node.moment) continue;
+        if (d !== true && d !== false) report(node, 'dice must be true or false', { warning: true });
+        else if (d && node.config.switch === undefined) report(node, 'rolls dice but has no switch, so the dice do nothing', { warning: true });
     }
 
     // 6. Once: closes after the first firing, from the next message.

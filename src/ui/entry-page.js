@@ -117,7 +117,8 @@ export function paramRow(p, text, changed, onTap) {
  * @param {HTMLElement} main
  * @param {object} o
  *   { entry, bookName, folder, layer, ui (folds), problems: string[], lines, closed: { by, reopen } | null,
- *     change(fn, quiet), setParam(p, value), up(), drawer(), menu(), retitle(), tokens(text) → Promise<number>, fresh }
+ *     change(fn, quiet), setParam(p, value), up(), drawer(), menu(), retitle(), tokens(text) → Promise<number>, fresh,
+ *     clash(key) → titles of the other entries this key word also fires }
  */
 export function renderEntryPage(main, o) {
     const { entry: e, layer, ui } = o;
@@ -218,7 +219,7 @@ export function renderEntryPage(main, o) {
     en.append(sr);
 
     if (!e.constant) {
-        en.append(keyBox(e.key ?? [], 'Key words, separated by commas', list => o.change(x => { x.key = list; })));
+        en.append(keyBox(e.key ?? [], 'Key words, separated by commas', list => o.change(x => { x.key = list; }), o.clash), clashNote(e.key, o.clash));
         const second = e.keysecondary ?? [];
         if (second.length || ui.condition) {
             const cl = el('div', 'condline');
@@ -357,13 +358,36 @@ function autoText(value, placeholder, onInput) {
     return ta;
 }
 
+/** Marks a key word chip that also fires other entries (the keyword clash finder). */
+function markClash(chip, word, clash) {
+    const others = clash?.(word) ?? [];
+    if (others.length) {
+        chip.classList.add('clash');
+        chip.title = `Also fires ${others.join(', ')}`;
+    }
+    return chip;
+}
+
+/** A line under the key words naming what each clashing word also fires: "mill also fires Old Mill". */
+function clashNote(keys, clash) {
+    const lines = (keys ?? []).map(k => [k, clash?.(k) ?? []]).filter(([, o]) => o.length);
+    const n = el('div', 'clashnote');
+    n.hidden = !lines.length;
+    for (const [k, o] of lines) {
+        const r = el('div');
+        r.append(el('b', '', k), document.createTextNode(` also fires ${o.join(', ')}`));
+        n.append(r);
+    }
+    return n;
+}
+
 /** The key word box: chips, tapped into a comma-separated line. */
-function keyBox(list, placeholder, done) {
+function keyBox(list, placeholder, done, clash) {
     const box = el('div', 'kbox');
     box.tabIndex = 0;
     box.setAttribute('role', 'button');
     box.setAttribute('aria-label', placeholder);
-    if (list.length) for (const k of list) box.append(el('span', 'kchip', k));
+    if (list.length) for (const k of list) box.append(markClash(el('span', 'kchip', k), k, clash));
     else box.append(el('span', 'ph', placeholder));
     const edit = () => {
         const input = el('input', 'kbox');
@@ -408,7 +432,7 @@ function deskFields(en, o, main) {
     sv.append(st, el('span', 'sp'), swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on'));
     g.append(lab('Strategy'), sv);
     if (!e.constant) {
-        g.append(lab('Keywords'), keyChips(e.key ?? [], 'Type a key word, then Enter', list => o.change(x => { x.key = list; })));
+        g.append(lab('Keywords'), keyChips(e.key ?? [], 'Type a key word, then Enter', list => o.change(x => { x.key = list; }), o.clash), clashNote(e.key, o.clash));
         const second = e.keysecondary ?? [];
         if (second.length || ui.condition) {
             const lt = el('button', 'fmenu flab');
@@ -443,7 +467,7 @@ function deskFields(en, o, main) {
  * takes the last chip back to edit; × on a hovered chip removes it; a double click edits a chip; a pasted
  * comma-separated list splits.
  */
-export function keyChips(list, placeholder, done) {
+export function keyChips(list, placeholder, done, clash) {
     let words = [...list];
     const box = el('div', 'kchips');
     const input = el('input', 'kin2');
@@ -461,6 +485,7 @@ export function keyChips(list, placeholder, done) {
             c.append(el('span', '', w));
             const x = btn('kx', ic('x', 's'), ev => { ev.stopPropagation(); commit(words.filter((_, j) => j !== i)); }, `Remove ${w}`);
             c.append(x);
+            markClash(c, w, clash);
             c.addEventListener('dblclick', () => { commit(words.filter((_, j) => j !== i)); input.value = w; input.focus(); });
             box.insertBefore(c, input);
         });

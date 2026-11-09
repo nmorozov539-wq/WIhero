@@ -8,6 +8,7 @@ import { bookEditor } from './pieces.js';
 import { btn, el, html, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
+import { keywordClashes } from './clashes.js';
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
 import { entryStatus } from '../engine/turn.js';
 import { isObject } from '../engine/util.js';
@@ -381,6 +382,7 @@ export function createNormal(A) {
             layer,
             ui: new Proxy(S.ui, { set: (t, k, v) => { t[k] = v; if (k === 'condition') p.condition = v; return true; } }),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
+            clash: (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
             lines,
             incoming: [...incoming],
             closed,

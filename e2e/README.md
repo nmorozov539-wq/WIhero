@@ -20,6 +20,8 @@
 
 `shape.mjs` checks shaping a link in the same harness, at 1366 × 768 and on a phone: a clicked line's handles, a ghost dot dragged into a dot, the line types by click and by keys 1–4, X to flip, a dot picked and removed with Delete and by a double-click, double-click on the line to add one, Cancel putting the shape back, a click on empty canvas as Done, the right-click menu's Reset shape, a card held at the view's edge scrolling it, and on a phone the 32px handles and the picked line brought into view above the strip. Run `node e2e/shape.mjs`; screenshots go to `e2e/log/shape-*.png`.
 
+`cheap.mjs` checks the small additions in the same harness at 1366 × 768: Hero's + New book and Duplicate in the book picker, the keyword clash finder (⌄ and the entry page's marked key word), the dead branch report (⌄), lasso to make a pack (Shift-drag, then a name), sticky notes from the card menu, and the switch's Roll the dice. Run `node e2e/cheap.mjs`; screenshots go to `e2e/log/cheap-*.png`.
+
 `perf.mjs` is a profile, not a check: at 6x CPU throttle and 390 × 844 it times Home settling, opening a book and an entry, scrolling, Hero mode, a card tap and a pan, and prints the long tasks. It makes 40 "Stress" books of 150 entries if they aren't there.
 
 Run them against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebooks, and creates (then deletes) a character.

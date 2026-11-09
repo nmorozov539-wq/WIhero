@@ -7,16 +7,18 @@ import {
     renameBookSettings, setBookFolder, setFolder, titleOf,
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
+import { keywordClashes } from './clashes.js';
+import { deadBranches } from '../engine/dead.js';
 
 /** The color modes (D22), as [value, label]. */
 const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], ['blue-yellow', 'Blue-yellow safe']];
 
 /**
- * @param {object} A The app's context: { H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames }.
+ * @param {object} A The app's context: { H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames }.
  */
 export function createMenus(A) {
     const {
-        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     } = A;
 
     /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
@@ -71,6 +73,7 @@ export function createMenus(A) {
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
                     if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
+                    checkRows(sh, p.book, data);
                 }
                 sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›' }));
             }
@@ -129,6 +132,56 @@ export function createMenus(A) {
                 sh.append(o);
             }
         }, { help: 'Problems (red) stop an entry from firing. Warnings (yellow) only point at something odd.' });
+    }
+
+    /** The ⌄ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
+    function checkRows(sh, book, data) {
+        const n = keywordClashes(data, hiddenIn(book)).groups.length;
+        if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));
+        const d = deadOf(book, data).length;
+        if (d) sh.append(layer.opt(`Dead branches (${d})`, () => deadSheet(book), { val: '›' }));
+    }
+
+    const deadOf = (book, data) => deadBranches(modelOf(book, data), entriesOf(data).map(e => ({ ...e, world: book })));
+
+    /** What the book alone says can never happen: entries that can never fire, gate rows and masks that can never open. */
+    function deadSheet(book) {
+        const data = library.peek(book);
+        if (!data) return;
+        const found = deadOf(book, data).sort((a, b) => Number(b.dead) - Number(a.dead));
+        layer.sheet(`Dead branches (${found.length})`, sh => {
+            if (!found.length) sh.append(el('div', 'lbl', 'Everything in this book can happen.'));
+            for (const f of found) {
+                const uid = Number(f.stKey.slice(f.stKey.lastIndexOf('.') + 1));
+                const why = f.reasons.join('; ');
+                sh.append(layer.opt(f.label, () => {
+                    layer.close();
+                    const e = data.entries[uid];
+                    if (!e) return;
+                    if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
+                }, { sub: f.dead ? `Can never fire: ${why}` : why.replace(/^./, c => c.toUpperCase()), dot: f.dead ? 'var(--bad)' : 'var(--warn)' }));
+            }
+        }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its gate rows or masks never will.' });
+    }
+
+    /** Every key word that fires two or more entries, with those entries; a tap opens one. */
+    function clashesSheet(book) {
+        const data = library.peek(book);
+        if (!data) return;
+        const { groups } = keywordClashes(data, hiddenIn(book));
+        const open = uid => {
+            layer.close();
+            const e = data.entries[uid];
+            if (!e) return;
+            if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
+        };
+        layer.sheet(`Keyword clashes (${groups.length})`, sh => {
+            if (!groups.length) sh.append(el('div', 'lbl', 'No key word fires more than one entry.'));
+            for (const g of groups) {
+                sh.append(el('div', 'lbl', `“${g.word}”`));
+                for (const uid of g.uids) sh.append(layer.opt(titleOf(data.entries[uid]), () => open(uid), { sub: (data.entries[uid].key ?? []).join(', ') }));
+            }
+        }, { help: 'A key word fires every entry that has it, and a longer key fires the entries of the words inside it ("old mill" fires Mill too). Sometimes that is what you want.' });
     }
 
     function snapshotsSheet(book) {
@@ -430,5 +483,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, checkRows, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }
