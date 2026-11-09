@@ -1,5 +1,5 @@
-// The old build's settings panel in the Extensions drawer, kept for testing N1: every entry with story logic
-// and its status for the next generation, the problems, and Reopen. The real UI comes in N2–N4.
+// The small panel in ST's Extensions drawer: the Enabled and Chat bubble switches, notices (version drift, a
+// stood-down engine, a chat to catch up), and a status table of the entries with story logic, left from N1 testing.
 
 let handlers = {};
 let summary;

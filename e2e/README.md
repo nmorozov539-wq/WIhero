@@ -28,4 +28,4 @@ Run them against a throwaway SillyTavern, never your own: it changes the connect
 4. `node e2e/mock.mjs &` (OpenAI-compatible mock on port 5001, logs prompts to `e2e/log/`).
 5. `npm i --no-save playwright@1.55.0`, then `node e2e/n1.mjs`, `node e2e/n2.mjs`, `node e2e/n3.mjs`, `node e2e/n4.mjs`, `node e2e/n5.mjs`, `node e2e/n6.mjs`, `node e2e/n7.mjs` and `node e2e/n8.mjs`. Set `CHROMIUM=/path/to/chrome` if Playwright's own browser isn't installed.
 
-The older scripts (gating, editor, labels, folders, visuals, workspace, phone, branches) test the old UI and are in the git history; their checks now live in n1–n7.
+The older scripts (gating, editor, labels, folders, visuals, workspace, phone, branches) test the old UI and are in the git history; their checks now live in n1–n8.

@@ -81,7 +81,7 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 - Unknown top-level fields survive saving and the editor (entries are saved whole). The old build stored config as a top-level `wihero` field on the entry.
 - **Superseded** ([BUILD_SPEC](BUILD_SPEC.md) 2.1): embedding a book in a card (`convertWorldInfoToCharacterBook`, `src/endpoints/characters.js` 663) keeps only ST's own fields plus `...entry.extensions`, and importing it back (`convertCharacterBook`, 5617) keeps `extensions` too. So config now lives at `entry.extensions.wihero`, which survives both ways; the top-level field is read on load and moved on the next save.
 - Duplicating an entry (`duplicateWorldInfoEntry`, 4019) copies every field, including our stable id. The duplicate check in the design is needed.
-- Embedding a book in a character card (`convertCharacterBook`, 5617) probably drops unknown fields. Not a v1 concern for a personal tool, but worth knowing.
+- Embedding a book in a character card drops unknown top-level fields but keeps `extensions` both ways (the Superseded bullet above), which is why config lives there. Checked by `test/book.test.js` with copies of ST's two conversion functions (`test/fixtures/card-book.js`).
 
 ## 9. Entry editor
 
@@ -211,3 +211,68 @@ shorter or older.
 - The health check (BUILD_SPEC 17.2) also compares ST's `getStringHash` with
   the engine's copy on a probe text, since greeting fingerprints are written
   with the copy and checked with ST's.
+
+## 14. Book actions through ST (D28)
+
+- **Import** calls ST's exported `importWorldInfo(file)` (world-info.js), so
+  WI Hero accepts exactly what ST does and converts it the same way, including
+  ST's own "replace the existing book?" question. ST gives back no name, so
+  `importFile` in `src/ui/st-books.js` compares the book list before and
+  after; when nothing new appeared it checks whether the file's (sanitized)
+  name was overwritten, and drops its working copy so the book is read again.
+- **ST's book dropdown.** ST refreshes `#world_editor_select` (and fires its
+  `change`) when a book is created, renamed, deleted or imported. WI Hero
+  listens to that `change` to follow the user picking a book in ST (13). While
+  the library itself is making, copying, renaming, deleting or importing a book,
+  `library.busy()` is true and the listener ignores the change; before, a rename
+  jumped to another book's tab.
+
+## 15. Entry settings stored as ST stores them (D29)
+
+- The entry page writes ST's own fields, with ST's names and shapes, through
+  the same save path as everything else (section 9). The fields and their
+  controls are listed in `src/ui/data.js`.
+- Characters: `characterFilter: { isExclude, names, tags }`. `names` are
+  character file names (`Seraphina.png`), `tags` are ST's tag ids. "Any"
+  writes the empty filter `{ isExclude: false, names: [], tags: [] }`.
+- Generation types: `triggers`, a list of ST's generation type names; empty
+  means all.
+- Group settings (`groupOverride`, `groupWeight`, `useGroupScoring`) show only
+  when the entry has a `group`. "Only triggered by other entries" is
+  `delayUntilRecursion` (`true` or a level number).
+- The six extra match sources are ST's `matchPersonaDescription`,
+  `matchCharacterDescription`, `matchCharacterPersonality`,
+  `matchCharacterDepthPrompt`, `matchScenario` and `matchCreatorNotes`.
+- Anything ST stores that has no control is still named in the folded
+  summary ("Also set: …"), so nothing is hidden.
+
+## 16. Moments (D30)
+
+- A Moment is stored as a normal entry: `extensions.wihero.moment: true`, its
+  phrases as `key`, empty `content`, `disable: true`, title "Moment: *name*".
+  Because it is disabled, ST's scan never activates it, whether or not WI Hero
+  is installed, and it never costs budget or reaches the prompt.
+- WI Hero matches its phrases itself, the same way as a lock (D1): in
+  `stateForScan` against the newest user message and reply, and in `advance`
+  against the new reply. When met, the Moment is written into the state as
+  fired once at that message. Everything else reads fired entries already, so
+  rows, Gates for, Closes for, Preview and rewind need no Moment code.
+- `keepAtLoad` never keeps a Moment, so gating doesn't bring a disabled entry
+  back into ST's lists.
+- In ST's own editor (or with WI Hero uninstalled) it shows as an ordinary
+  switched-off entry with no content.
+
+## 17. Explain mode (D31)
+
+- Capture-phase listeners on WI Hero's root (in `src/ui/app.js`): one for
+  `click`, and one for each press event (`pointerdown`, `pointerup`,
+  `mousedown`, `touchstart`, `dblclick`, `contextmenu`). While explain mode is
+  on in Hero mode they stop the event, so no element's own handler runs. The
+  banner is the exception, so its Cancel still works.
+- The click's target is mapped to a Guide anchor by selector: piece chips by
+  `data-piece`, lines and pills by `data-kind`, ports through the canvas's
+  `PORT` table, and fixed controls (Fit, Tidy, the strip, the inspector) by
+  class or aria-label (`explainAnchor`). A tap on something that maps to
+  nothing shows a toast, and the mode stays on.
+- Back and Escape cancel; one successful tap ends it (AFTER_V1 has making it
+  stay on as a setting).

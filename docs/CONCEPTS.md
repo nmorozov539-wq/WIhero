@@ -4,7 +4,7 @@ Part 1 of the spec: what WI Hero's story logic does and the rules it follows.
 [LAYOUT.md](LAYOUT.md) maps every screen and control, and [VISUAL.md](VISUAL.md)
 says how it all looks. None of them says how anything is built; that is
 [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) and, for the build,
-[BUILD_SPEC.md](BUILD_SPEC.md), which records every decision (D1–D23). Where they disagree with
+[BUILD_SPEC.md](BUILD_SPEC.md), which records every decision (D1–D31). Where they disagree with
 DESIGN.md (in the git history) (the original design), these win. The
 demo (in the git history) follows this model.
 
@@ -434,6 +434,7 @@ Rows are lists of refs.
 | `once`      | Close after the first firing                                   |
 | `by`        | `"user"` or `"char"`; left out means both                      |
 | `gatedBy`   | Greetings whose Gates for target this entry (3.12)             |
+| `moment`    | `true` on a Moment (3.13); left out on every other entry       |
 
 Example:
 

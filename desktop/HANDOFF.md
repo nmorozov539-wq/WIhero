@@ -1,5 +1,7 @@
 # Desktop layout: handoff brief
 
+*Built in #15–#17; kept for history. The current spec is LAYOUT and VISUAL.*
+
 For the thread that builds it. The design is done and lives in
 [docs/LAYOUT.md](../docs/LAYOUT.md) ("Desktop: normal mode", "Desktop: Hero
 mode") and [docs/VISUAL.md](../docs/VISUAL.md) 7.6. Those docs are the spec;
