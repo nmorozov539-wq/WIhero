@@ -534,7 +534,7 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 
 | File | Holds |
 |------|-------|
-| `app.js`, `app.css` | The editor overlay (8.1): shell, tabs, Home, normal mode on phones, Hero mode's frame, ⌄ menus, explain mode (D31) |
+| `app.js`, `app.css` | The editor overlay (8.1): shell, tabs, Home, normal mode on phones, Hero mode's frame, ⌄ menus. Being split into modules, one section at a time (review 2026-11-09, finding 11): each takes an explicit context object, as `desk.js` does |
 | `desk.js` | Normal mode on desktop (LAYOUT "Desktop: normal mode") |
 | `entry-page.js` | The entry page, with every ST setting (D29) |
 | `canvas-graph.js`, `canvas.js` | The canvas as data (layout, placement, router, pack frames) and on screen |
@@ -543,6 +543,7 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `logic-text.js` | The plain sentences for each rule |
 | `preview.js`, `preview-page.js` | Preview on the real engine (D13) and its tab |
 | `guide.js`, `guide-page.js` | The Guide's text and its tab (D31) |
+| `explain.js` | Explain mode and the Guide tab in Hero mode: what a tap explains (`explainAnchor`), opening the Guide at it (D31) |
 | `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
 | `snapshots.js` | Snapshots (11) |
 | `data.js`, `dom.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, the icon set |
