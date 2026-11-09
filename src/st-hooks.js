@@ -154,7 +154,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         }
         const out = settleScan(model, working, { activated: [...map.keys()], byDropped, sticky: held, chat });
         for (const k of out.drop) map.delete(k);
-        if (pending) { pending.victims = out.victims; pending.masks = out.masks; }
+        if (pending) { pending.victims = out.victims; pending.masks = out.masks; pending.text = out.text; }
         // 4. Ride-along: force the riders in and ask ST for one more pass.
         const riders = out.force.map(k => args.sortedEntries?.find?.(e => stKey(e) === k)).filter(e => e && !e.disable);
         if (riders.length) {
@@ -162,13 +162,17 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
             await ctx().eventSource.emit(ctx().eventTypes.WORLDINFO_FORCE_ACTIVATE, riders);
             if (args.state && args.state.next === st.scan_state.NONE) args.state.next = st.scan_state.MIN_ACTIVATIONS;
         }
-        // 5. Masks: on the scan's own copies, never the book.
-        for (const [k, name] of out.masks) {
+        // 5. Masks and written text (TRACKERS 2.2): on the scan's own copies, never the book.
+        for (const k of new Set([...out.masks.keys(), ...out.text.keys()])) {
             const entry = map.get(k);
             if (!entry) continue;
             if (!baseContent.has(entry)) baseContent.set(entry, entry.content);
+            const name = out.masks.get(k);
             const mask = name && model.byStKey.get(k).masks.find(m => m.name === name);
-            entry.content = mask ? ctx().substituteParams(mask.content) : baseContent.get(entry);
+            const text = out.text.get(k);
+            // Written text is the model's own: sent as it is, no macros.
+            entry.content = typeof text === 'string' ? text
+                : mask && text === undefined ? ctx().substituteParams(mask.content) : baseContent.get(entry);
         }
     }
 
@@ -180,7 +184,8 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         // What reached the model, for the chat bubble. Recorded whether or not the engine runs.
         pending.sent = list.map(e => {
             const mask = pending.masks?.get(stKey(e));
-            return { world: e.world, uid: e.uid, title: e.comment || e.key?.[0] || `uid ${e.uid}`, ...(mask ? { mask } : {}) };
+            const written = typeof pending.text?.get(stKey(e)) === 'string';
+            return { world: e.world, uid: e.uid, title: e.comment || e.key?.[0] || `uid ${e.uid}`, ...(mask ? { mask } : {}), ...(written ? { written: true } : {}) };
         });
     }
 

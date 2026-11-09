@@ -1,6 +1,7 @@
 // The model: every book's story logic reduced to open rules and close rules per entry.
 // Pure, no SillyTavern imports. See docs/BUILD_SPEC.md sections 2–3 and CONCEPTS.md 3 and 5.
 import { canonical, clone, getStringHash, isObject } from './util.js';
+import { DEFAULT_SYNTAX, DEFAULT_TEACH, compileSyntax, normLabel, readWritten, slotKey, syntaxProblems } from './written.js';
 
 export const FIELD = 'wihero';
 
@@ -121,9 +122,9 @@ export function normalize(raw) {
     return { config: c, ui, legacy };
 }
 
-const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice', 'note'];
+const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice', 'note', 'written'];
 /** What a Moment can't take (CONCEPTS 3.13): it sends nothing, so nothing that shapes what is sent. */
-const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate', dice: 'dice' };
+const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate', dice: 'dice', written: 'written text' };
 
 /** Whether an ST entry is a Moment (CONCEPTS 3.13): a WI Hero entry flagged `moment: true`. */
 export const isMoment = entry => rawConfig(entry)?.moment === true;
@@ -135,7 +136,8 @@ const BY = ['user', 'char'];
  * @param {{ greetingFp?: (char: string, n: number) => string | null | undefined }} [options]
  *   `greetingFp` gives the fingerprint of a character's greeting n: undefined when the character is missing,
  *   null when it has no greeting n. Without it, greeting refs are taken as they are.
- * @returns {object} { nodes, byStKey, issues, packs, switches, riders, greetings }
+ * @returns {object} { nodes, byStKey, issues, packs, switches, riders, greetings, slots, trackers }
+ *   `slots` every written slot by slot key, `trackers` per book: { syntax, teach, slots, reader } (TRACKERS 5, 7).
  *   `nodes` by state key (`book/id`), `byStKey` every entry with story logic by `world.uid`.
  */
 export function buildModel(entries, options = {}) {
@@ -162,7 +164,10 @@ export function buildModel(entries, options = {}) {
             opens: { rows: [], all: [] }, closes: [], masks: [],
             probability: entry.useProbability !== false ? Number(entry.probability ?? 100) : 100,
             cooldown: Number(entry.cooldown) || 0,
-            moment: null,
+            moment: null, written: null,
+            // Whether ST can ever activate it: switched on, with key words, Permanent, or held by glue (TRACKERS 6).
+            disabled: entry.disable === true,
+            hasTrigger: entry.constant === true || (Array.isArray(entry.key) && entry.key.some(k => typeof k === 'string' && k.trim())),
         };
         byStKey.set(node.stKey, node);
         if (!isObject(config)) {
@@ -196,8 +201,10 @@ export function buildModel(entries, options = {}) {
             node.moment = { phrases, by: node.by };
             node.by = null; // not a filter on ST's activation: ST never activates a Moment
             if (!phrases.length) report(node, 'is a Moment with no phrases, so it can never happen');
-            const extra = Object.entries(NOT_ON_MOMENT).filter(([k]) => config[k] !== undefined && !(k === 'once' && config.once === false));
+            const extra = Object.entries(NOT_ON_MOMENT).filter(([k]) => k !== 'written' && config[k] !== undefined && !(k === 'once' && config.once === false));
             if (extra.length) report(node, `is a Moment, which takes no ${extra.map(([, v]) => v).join(', ')}; ${extra.length > 1 ? 'they are' : 'it is'} ignored`, { warning: true });
+            const writtenMasks = Array.isArray(config.masks) && config.masks.some(m => isObject(m) && m.written);
+            if ((config.written !== undefined && config.written !== false) || writtenMasks) report(node, 'is a Moment, which has no text for the model to write; its tracker is ignored', { blocking: false });
         }
     }
 
@@ -351,6 +358,11 @@ export function buildModel(entries, options = {}) {
             if (!Array.isArray(c.masks)) report(node, 'masks must be a list', { warning: true });
             else node.masks = compileMasks(node, c.masks);
         }
+        if (c.written !== undefined) {
+            const { slot, warnings } = readWritten(c.written);
+            for (const w of warnings) report(node, w, { warning: true });
+            node.written = slot;
+        }
     }
 
     function compileMasks(node, list) {
@@ -361,14 +373,16 @@ export function buildModel(entries, options = {}) {
             if (!isObject(mask)) return skip('is not an object');
             if (!name || !ID_PATTERN.test(name)) return skip(name ? 'has a name that is not valid' : 'has no name');
             if (out.some(m => m.name === name)) return skip('has a name used twice');
-            if (typeof mask.content !== 'string' || !mask.content.trim()) return skip('has no content');
-            const unknown = Object.keys(mask).filter(k => !['name', 'content', 'gate', 'closeGate'].includes(k));
+            const { slot: written, warnings } = node.moment ? { slot: null, warnings: [] } : readWritten(mask.written);
+            if (!written && (typeof mask.content !== 'string' || !mask.content.trim())) return skip('has no content');
+            const unknown = Object.keys(mask).filter(k => !['name', 'content', 'gate', 'closeGate', 'written'].includes(k));
             if (unknown.length) return skip(`has unknown field${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}`);
             let bad = null;
             const opens = mask.gate === undefined ? [] : compileRows(node, mask.gate, `${node.key}|m:${name}|g`, m => { bad ??= `gate: ${m}`; });
             const closes = mask.closeGate === undefined ? [] : compileRows(node, mask.closeGate, `${node.key}|m:${name}|c`, m => { bad ??= `close gate: ${m}`; });
             if (bad) return skip(`has a bad ${bad}`);
-            out.push({ name, content: mask.content, key: `${node.key}/${name}`, opens, closes });
+            for (const w of warnings) report(node, `mask "${name}": ${w}`, { warning: true });
+            out.push({ name, content: typeof mask.content === 'string' ? mask.content : '', key: `${node.key}/${name}`, opens, closes, written });
         });
         return out;
     }
@@ -558,7 +572,64 @@ export function buildModel(entries, options = {}) {
         else if (info.missing) report(g, `greeting of ${info.ref.name || info.ref.char}, a character that is missing: it never fires`, { warning: true });
     }
 
-    return { nodes, byStKey, issues, packs, switches, riders, greetings };
+    const { slots, trackers } = buildTrackers(nodes, report);
+    return { nodes, byStKey, issues, packs, switches, riders, greetings, slots, trackers };
+}
+
+/**
+ * Trackers (TRACKERS 5–7): every written slot, and per book its syntax, teaching and reader. A book's syntax and
+ * teaching are copied onto each of its slots (a book has no field of its own that survives ST's import): the
+ * first slot that has them sets them.
+ */
+function buildTrackers(nodes, report) {
+    const slots = new Map();
+    const trackers = new Map();
+    for (const node of nodes.values()) {
+        if (node.moment) continue;
+        const list = [];
+        if (node.written) list.push({ ...node.written, mask: null, label: node.written.label ?? node.label });
+        for (const m of node.masks) if (m.written) list.push({ ...m.written, mask: m.name, label: m.written.label ?? `${node.label} · ${m.name}` });
+        for (const s of list) {
+            const slot = { ...s, key: slotKey(node.key, s.mask), entryKey: node.key, stKey: node.stKey, book: node.book, bad: false };
+            slots.set(slot.key, slot);
+            if (!trackers.has(node.book)) trackers.set(node.book, { book: node.book, syntax: null, teach: null, slots: [], reader: null, problems: [] });
+            const t = trackers.get(node.book);
+            t.slots.push(slot);
+            t.syntax ??= s.syntax;
+            t.teach ??= s.teach;
+        }
+        if (node.written && !node.blocked && (node.disabled || (!node.hasTrigger && node.glue?.mode !== 'hold'))) {
+            report(node, 'has written text but can never fire, so the value is read but never sent', { warning: true });
+        }
+    }
+    for (const t of trackers.values()) {
+        t.syntax ??= { ...DEFAULT_SYNTAX };
+        t.teach ??= { ...DEFAULT_TEACH };
+        const node = s => nodes.get(s.entryKey);
+        const what = s => (s.mask ? `mask "${s.mask}"` : 'its written text');
+        // Two slots with one label: neither reads.
+        const byLabel = new Map();
+        for (const s of t.slots) {
+            const n = normLabel(s.label);
+            if (!byLabel.has(n)) byLabel.set(n, []);
+            byLabel.get(n).push(s);
+        }
+        for (const [, list] of byLabel) {
+            if (list.length < 2) continue;
+            for (const s of list) {
+                s.bad = true;
+                report(node(s), `${what(s)} has the tracker label "${s.label}", which another tracker in this book has too; neither is read`, { blocking: false });
+            }
+        }
+        const good = t.slots.filter(s => !s.bad);
+        t.problems = syntaxProblems(t.syntax, good);
+        for (const p of t.problems) for (const s of good) report(node(s), `can't read its tracker: ${p}`, { blocking: false });
+        t.reader = t.problems.length ? null : compileSyntax(t.syntax, good);
+        if (t.teach.on) {
+            for (const s of good) if (!s.describe) report(node(s), `${what(s)} has no description, so the model is told its label only`, { warning: true });
+        }
+    }
+    return { slots, trackers };
 }
 
 /** A loop of gate/Gates for edges through `start`, among entries that can't open. */

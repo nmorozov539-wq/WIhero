@@ -4,6 +4,7 @@ import { FIELD } from './model.js';
 import { anyRowMet, itemTime, newestTexts, rowMet } from './rows.js';
 import { initialState, readState } from './state.js';
 import { getStringHash, parseRegex } from './util.js';
+import { slotValue } from './written.js';
 
 const greetingOk = model => key => model.greetings?.get(key)?.ok ?? true;
 
@@ -112,7 +113,81 @@ export function stateForScan(chat, model, options = {}) {
     latchLocks(state, model, chat, texts);
     happenMoments(state, model, chat, texts);
     applyCloses(state, model, chat, chat.length);
+    // Trackers: values read this turn start empty; a user message (when its Who triggers allow) counts for the
+    // reply to it (TRACKERS 2.1).
+    state.wrote = {};
+    const last = chat[chat.length - 1];
+    if (last?.is_user) readSlots(state, state, model, chat, chat.length - 1, 'user');
     return state;
+}
+
+/**
+ * Whether a slot reads now (TRACKERS 2.1): its entry is open (not blocked, switched off, closed or waiting on a
+ * gate), and for a mask, the mask isn't closed and its own gate (if any) is met.
+ */
+export function slotOpen(slot, state, chat, model) {
+    const node = model.nodes.get(slot.entryKey);
+    if (!node || node.blocked || node.disabled || state.closed[node.key]) return false;
+    if (!state.holding[node.key] && !opensMet(node, state, chat, model)) return false;
+    if (!slot.mask) return true;
+    const mask = node.masks.find(m => m.name === slot.mask);
+    if (!mask || state.masks.closed[mask.key] !== undefined) return false;
+    return !mask.opens.length || !!anyRowMet(mask.opens, { state, chat, greetingOk: greetingOk(model), turnAt: chat.length });
+}
+
+/**
+ * Reads chat[index] for every tracker that may read it, into `into.wrote` (TRACKERS 2.1). Openness is judged
+ * on `state`, the state the turn scanned with.
+ * @param {'user' | 'char'} side Whose message it is: a slot reads the user's only when its entry's `by` is "user".
+ */
+export function readSlots(into, state, model, chat, index, side) {
+    const text = chat[index]?.mes ?? '';
+    if (!text || !model.trackers?.size) return;
+    for (const t of model.trackers.values()) {
+        if (!t.reader) continue;
+        for (const [key, value] of t.reader.read(text)) {
+            const slot = model.slots.get(key);
+            if (!slot || slot.bad) continue;
+            const by = model.nodes.get(slot.entryKey)?.by === 'user' ? 'user' : 'char';
+            if (by !== side || !slotOpen(slot, state, chat, model)) continue;
+            into.wrote[key] = value;
+        }
+    }
+}
+
+/**
+ * Every tracker's value after `state` in `chat`: slot key → text ('' when cleared). Slots with no value are
+ * left out.
+ */
+export function slotValues(model, state, chat) {
+    const out = new Map();
+    if (!model.slots?.size) return out;
+    const greeting = new Map();
+    for (const slot of model.slots.values()) {
+        if (slot.bad) continue;
+        const t = model.trackers.get(slot.book);
+        if (!greeting.has(slot.book)) greeting.set(slot.book, t?.reader ? memo(t.reader.read) : null);
+        const v = slotValue(state, chat, slot.key, greeting.get(slot.book));
+        if (v !== undefined) out.set(slot.key, v);
+    }
+    return out;
+}
+const memo = fn => { let last = null; let out; return text => (text === last ? out : (last = text, out = fn(text))); };
+
+/**
+ * The text an entry injects in place of its book content (TRACKERS 2.2), or undefined to keep the book's.
+ * @param {string | null} maskName The mask chosen for it.
+ * @param {Map<string, string>} values slotValues.
+ */
+export function writtenText(node, maskName, values) {
+    const main = () => (node.written && values.get(node.key) ? values.get(node.key) : undefined);
+    if (!maskName) return main();
+    const mask = node.masks.find(m => m.name === maskName);
+    if (!mask?.written) return undefined;
+    const v = values.get(`${node.key}|m:${mask.name}`);
+    if (v) return v;
+    // A written mask picked by hand with nothing written: its own text, else main.
+    return mask.content.trim() ? undefined : main() ?? null;
 }
 
 /** Whether an entry's open rules are met: its gate (any row) and every Gates for aimed at it. */
@@ -158,9 +233,11 @@ export function holdingKeys(model, state) {
  * @param {Set<string>} [input.byDropped] Entries Who triggers drops (step 2, worked out by the caller).
  * @param {Set<string>} [input.sticky] Entries held by sticky: closed but kept.
  * @param {object[]} input.chat The chat as the generation sees it.
- * @returns {{ drop: Set<string>, force: string[], victims: Map<string, string>, masks: Map<string, string | null> }}
+ * @returns {{ drop: Set<string>, force: string[], victims: Map<string, string>, masks: Map<string, string | null>, text: Map<string, string | null> }}
  *   `drop` world.uid keys to delete from the Map, `force` riders' world.uid keys to force in,
- *   `victims` state keys closed this turn with why, `masks` the mask name (null for main) per world.uid key.
+ *   `victims` state keys closed this turn with why, `masks` the mask name (null for main) per world.uid key,
+ *   `text` written text per world.uid key where it replaces the book's (null: a picked written mask with no value
+ *   and no text of its own, over a main with no value either: the book's main content).
  */
 export function settleScan(model, state, { activated, byDropped = new Set(), sticky = new Set(), chat }) {
     const out = { drop: new Set(), force: [], victims: new Map(), masks: new Map() };
@@ -229,25 +306,40 @@ export function settleScan(model, state, { activated, byDropped = new Set(), sti
         }
     }
 
-    // 5. Masks: a hand pick wins, else the last mask that is on and not closed, else main.
+    // 5. Masks: a hand pick wins, else the last mask that is on and not closed, else main. Then written text
+    // (TRACKERS 2.2) takes the place of the book's.
+    out.text = new Map();
+    const values = model.slots?.size ? slotValues(model, state, chat) : new Map();
     for (const k of present) {
         if (out.drop.has(k)) continue;
         const node = nodeOf(k);
-        if (!node?.masks?.length) continue;
-        out.masks.set(k, chooseMask(node, state, chat, model, safe));
+        if (!node) continue;
+        const mask = node.masks?.length ? chooseMask(node, state, chat, model, safe, values) : null;
+        if (node.masks?.length) out.masks.set(k, mask);
+        if (node.written || node.masks?.some(m => m.written)) {
+            const text = writtenText(node, mask, values);
+            if (text !== undefined) out.text.set(k, text);
+        }
     }
     return out;
 }
 
 /** The mask an entry injects now (its name), or null for main. `safe` are this turn's entries that fire. */
-export function chooseMask(node, state, chat, model, safe = new Set()) {
+export function chooseMask(node, state, chat, model, safe = new Set(), values = null) {
     const pick = state.masks.pick[node.key];
     if (pick !== undefined && pick !== null) return node.masks.some(m => m.name === pick) ? pick : null;
     const ctx = { state, chat, greetingOk: greetingOk(model), turnAt: chat.length };
     for (let i = node.masks.length - 1; i >= 0; i--) {
         const mask = node.masks[i];
-        if (!mask.opens.length || state.masks.closed[mask.key] !== undefined) continue;
-        if (!anyRowMet(mask.opens, ctx)) continue;
+        if (state.masks.closed[mask.key] !== undefined) continue;
+        if (mask.written) {
+            // A written mask is on while it holds a value, its own gate (if any) allowing (TRACKERS 2.2).
+            values ??= slotValues(model, state, chat);
+            if (!values.get(`${node.key}|m:${mask.name}`)) continue;
+            if (mask.opens.length && !anyRowMet(mask.opens, ctx)) continue;
+        } else if (!mask.opens.length || !anyRowMet(mask.opens, ctx)) {
+            continue;
+        }
         if (anyRowMet(mask.closes, { ...ctx, extra: safe })) continue;
         return mask.name;
     }
@@ -291,6 +383,11 @@ export function advance(working, pending, model, chat, mesId) {
     }
     // 5–6. Close rules met now (Once, this turn's fires, new latches, waits) close from the next message.
     applyCloses(next, model, chat, mesId);
+    // 7. Trackers (TRACKERS 2.1, 7): values from the user message (read at the scan) and the reply, stored on this
+    // message; every later snapshot points here. Openness is the scan's.
+    next.wrote = { ...(working.wrote ?? {}) };
+    if (reply && !reply.is_user) readSlots(next, working, model, chat, mesId, 'char');
+    for (const key of Object.keys(next.wrote)) next.written[key] = mesId;
     return next;
 }
 
