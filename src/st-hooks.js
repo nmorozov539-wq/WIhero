@@ -13,6 +13,13 @@ import { findGap, resolveGap } from './catch-up.js';
 /** Where the entries sent with a reply are kept: message.extra.wiheroSent, and on its swipe (the chat bubble). */
 export const SENT_FIELD = 'wiheroSent';
 
+/** Takes WI Hero's snapshot off a message and its current swipe. */
+export function dropSnapshot(message) {
+    if (message.extra) delete message.extra[FIELD];
+    const swipe = message.swipe_info?.[message.swipe_id ?? 0];
+    if (swipe?.extra) delete swipe.extra[FIELD];
+}
+
 /** Stores what was sent with a reply on the message and its current swipe. */
 export function writeSent(message, sent) {
     message.extra ??= {};
@@ -104,7 +111,11 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     function onEntriesLoaded(lore) {
         const bad = probeEntriesLoaded(lore);
         if (bad) { health?.fail(bad); return; }
-        if (selfLoading) return; // our own read of the books (loadModel): they must all stay in
+        // Our own read of the books (loadModel) must keep them all. But a generation's read can land while ours is
+        // waiting, and the two can't be told apart: with a generation pending, the event is handled as usual and
+        // loadModel takes the books from `loaded`, as they were before anything was removed (review finding 4).
+        if (selfLoading && !pending) return;
+        if (selfLoading) selfSpliced = true;
         loaded = Object.values(lore ?? {}).filter(Array.isArray).flat();
         hashes = new Map(loaded.map(e => [stKey(e), entryHash(e, st.getStringHash)]));
         rebuild(loaded);
@@ -186,7 +197,15 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
             sent = [...new Map([...before, ...sent].map(x => [`${x.world}.${x.uid}`, x])).values()];
         }
         writeSent(message, sent);
-        if (!turn.working || !active()) { pending = null; onChange(); return; }
+        if (!turn.working || !active()) {
+            pending = null;
+            // No snapshot for this reply. A new swipe starts as a copy of the one before it, snapshot and all, which
+            // would make this reply look covered (review finding 13): take it off so catch-up sees the gap.
+            // A continue keeps its own: it is still the reply the snapshot was written for, only longer.
+            if (turn.type !== 'continue') dropSnapshot(message);
+            onChange();
+            return;
+        }
         pending = null;
         let fired = turn.fired;
         if (turn.type === 'continue') fired = [...new Set([...(message.extra?.[FIELD]?.round ?? []), ...fired])];
@@ -222,10 +241,14 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
 
     /** Rebuilds the model from the books ST would load now (for a chat just opened, before any generation). */
     let selfLoading = false;
+    /** A generation's read was handled while loadModel waited: what came back may have had entries removed. */
+    let selfSpliced = false;
     async function loadModel() {
         let entries;
         selfLoading = true;
+        selfSpliced = false;
         try { entries = await st.getSortedEntries(); } finally { selfLoading = false; }
+        if (selfSpliced) return loaded; // already rebuilt from it in onEntriesLoaded
         if (Array.isArray(entries)) rebuild(entries);
         return entries ?? [];
     }

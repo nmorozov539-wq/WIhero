@@ -297,6 +297,13 @@ Ride-along entries whose own gate is open are **kept** here even though they
 may only fire with their host: the filter happens after the scan, and keeping
 them gives the processed copy needed to force them in.
 
+WI Hero's own read of the books (`loadModel`: a chat opened, the Enabled
+switch, catch-up) goes through the same event and must keep every entry, so
+it is skipped then. A generation's read can land while that read waits (a
+Quick Reply on chat load, a quick send), and the two can't be told apart: with
+a generation pending the event is handled as usual, and `loadModel` takes the
+books from the unfiltered list kept in the handler.
+
 ### 6.4 `WORLDINFO_SCAN_DONE`: settle the turn
 
 Runs after every scan loop. `args.activated.entries` is the Map of everything
@@ -376,6 +383,11 @@ generation and in the continue. **Swipe** and **regenerate** start from the
 state before the replaced reply, automatically, because that's the last
 snapshot. A generation that ends without a message (`GENERATION_ENDED` with
 nothing received, a stop, an error) drops the pending turn.
+
+A reply WI Hero writes no snapshot for (the engine off or stood down, or no
+working state) has any snapshot on it removed, except on a continue: ST starts
+a new swipe as a copy of the current one's `extra`, which would otherwise
+carry the old swipe's snapshot and hide the reply from catch-up (17.1).
 
 ### 6.7 The pending turn
 
@@ -588,7 +600,12 @@ Accepted for now, listed so nobody rediscovers them:
 - If ST's "max recursion steps" is reached, the extra pass for riders doesn't
   run and the rider misses that turn.
 - Who triggers checks primary keywords only; secondary keyword logic is
-  ST's, applied before.
+  ST's, applied before. Only chat messages count: an entry with `by` that ST
+  matched through recursion or an extra scan source (character card, persona,
+  scenario) is dropped. The Guide says so on its Who triggers page.
+- A book renamed in ST's own editor ("More settings ›") isn't recorded in
+  `renamed`, so chats lose that book's story state. Rename books in WI Hero;
+  the README says so.
 - The budget is measured on base content, not on mask text.
 - Preview (N5) finds keyword matches itself, since it doesn't run ST's scan
   (the rules are the real engine's, D13). Small differences from ST's own
