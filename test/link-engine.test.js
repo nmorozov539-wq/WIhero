@@ -500,7 +500,7 @@ test('a big canvas: every link is clear of every card', () => {
 });
 
 test('crosses: curve-aware, it sees a curve that bows into a card between its ends', () => {
-    const A = card('A', 0, 0); const B = card('B', 300, 0); const M = card('M', 150, 60, 40, 40);
+    const A = card('A', 0, 0); const B = card('B', 300, 0); const M = card('M', 160, 110, 40, 40);
     const e = run([{ ...def('a', at(A, 'right'), at(B, 'left')), shape: { dots: [], segments: [{ type: 'arc', flip: true, tension: 1 }] } }], [A, B]);
     assert.ok(crosses(e.polyline('a'), M), 'the arc dips through M');
     assert.ok(!crosses([60, 30, 300, 30], M), 'the straight line does not');
