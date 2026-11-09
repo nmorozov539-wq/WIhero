@@ -2,7 +2,7 @@
 // needs around it: the chat's greetings, closed reasons, taking a card off the canvas, showing a card. Moved out of
 // app.js; it reaches the app only through the context given to it.
 import { PIECE_ANCHOR } from './guide.js';
-import { bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
+import { askNote, bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
 import { bookSettings, cardKey, configOf, entriesOf, idOf, rekeyEntry, titleOf } from './data.js';
 import { buildGraph, canvasSet, momentName } from './canvas-graph.js';
 import { canvasMemory } from './canvas.js';
@@ -202,6 +202,7 @@ export function createHeroInspector(A) {
             setOpen: k => { I.open = k; render(); },
             openEntry: mask => openHeroTab(book, e.uid, mask ?? null),
             data: () => dataSheet(e),
+            note: () => askNote(layer, library, book, e.uid, configOf(e)?.note),
             takeOff: takeOffFor(book, titleOf(e), [
                 ...(lines.length ? ['Remove its own pieces (the rows above).'] : []),
                 ...(sources.length ? [`Remove the pieces in other entries that point at it: ${[...new Set(sources.map(x => x.name))].join(', ')}.`] : []),

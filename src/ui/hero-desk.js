@@ -4,8 +4,9 @@
 import { BAR } from './piecebar.js';
 import { LR } from './canvas-graph.js';
 import { addLink } from './links.js';
-import { addToList, packsOf } from './pieces.js';
-import { bookSettings, cardKey, isBlank, removeEntry, setFolder, sortEntries, titleOf } from './data.js';
+import { addToList, askNote, packsOf } from './pieces.js';
+import { isMoment } from '../engine/model.js';
+import { bookSettings, cardKey, configOf, isBlank, removeEntry, setFolder, sortEntries, titleOf } from './data.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 import { canvasMemory } from './canvas.js';
@@ -90,6 +91,13 @@ export function createHeroDesk(A) {
                 heroInspector(book, data);
             },
             cardMenu: key => cardMenu(book, data, key),
+            lasso: {
+                entries: keys => keys.map(k => nodeOf(book, k)).filter(x => x?.t === 'entry').map(x => x.uid),
+                packs: () => packsOf(data),
+                pack: (uids, name) => {
+                    if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${uids.length} ${uids.length === 1 ? 'entry' : 'entries'} packed into #${name}`);
+                },
+            },
             linkMenu: (l, shaped) => barLinkMenu(book, l, shaped),
             emptyMenu: at => placePicker(book, data, at),
         };
@@ -111,6 +119,10 @@ export function createHeroDesk(A) {
             }
             sh.append(el('div', 'lbl', 'Add piece'));
             for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key }));
+            if (e && !isMoment(e)) {
+                const note = configOf(e)?.note;
+                sh.append(layer.opt(note ? 'Edit note' : 'Add note', () => { layer.close(); askNote(layer, library, book, e.uid, note); }, { icon: 'edit', sub: note || 'Only for you: never sent to the model' }));
+            }
             if (e) sh.append(layer.opt('Data', () => { layer.close(); dataSheet(e); }, { icon: 'code' }));
             sh.append(layer.opt('Take off canvas', () => { layer.close(); takeOffPicked([key]); }, { icon: 'trash', val: linked ? 'Remove its links first' : 'Del', cls: linked ? 'muted' : undefined }));
         });

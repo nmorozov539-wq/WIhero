@@ -405,17 +405,19 @@ export function mountPieceBar(x) {
         if (e.paths.length > 1) mid.append(el('div', 'phint', 'When two paths fire in the same message, the higher one wins.'));
         mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, 'Paths wait for the fork'), el('span', 'plabel2', 'Paths wait for the fork')));
         if (!e.wait) mid.append(el('div', 'pnote', `A path can be taken before ${name(e.fork)} fires.`));
+        mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
+        if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; rewriting the message before it rolls again.`));
         note();
-        if (!e.isNew) mid.append(row(removeBtn(() => { x.act(ed2 => ed2.update(e.fork.uid, c => { delete c.switch; })); close('Switch removed'); })));
+        if (!e.isNew) mid.append(row(removeBtn(() => { x.act(ed2 => ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; })); close('Switch removed'); })));
         right.disabled = e.paths.length < 2;
         loose(e.fork, 'close', ok, add, new Set([e.fork, ...e.paths].map(x.keyOf)));
     }
     function writeSwitch(removed = []) {
         const ok = run((ed2, d2) => {
             if (e.wait) for (const r of removed) L.removeLink(ed2, d2, 'open', e.fork, r);
-            if (e.paths.length >= 2) L.setSwitch(ed2, d2, e.fork, e.paths, e.wait);
+            if (e.paths.length >= 2) { L.setSwitch(ed2, d2, e.fork, e.paths, e.wait); ed2.update(e.fork.uid, c => { if (e.dice) c.dice = true; else delete c.dice; }); }
             else {
-                ed2.update(e.fork.uid, c => { delete c.switch; });
+                ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; });
                 for (const p of e.paths) {
                     const has = !!L.findLink(ed2, d2, 'open', e.fork, p);
                     if (e.wait && !has) L.addLink(ed2, d2, 'open', e.fork, p, { join: 'and' });
@@ -713,7 +715,7 @@ export function startPiece(k, hit, x) {
         if (k === 'switch') {
             const ids = E.config(end.uid).switch ?? [];
             const paths = ids.map(id => E.uidOfId(id)).filter(u => u !== undefined).map(uid => ({ t: 'entry', uid }));
-            return { edit: { ...base, isNew: !paths.length, fork: end, paths, wait: paths.length ? L.pathsWait(E, x.data(), end, paths) : true } };
+            return { edit: { ...base, isNew: !paths.length, fork: end, paths, wait: paths.length ? L.pathsWait(E, x.data(), end, paths) : true, dice: E.config(end.uid).dice === true } };
         }
         if (k === 'mask') {
             let mi = -1;

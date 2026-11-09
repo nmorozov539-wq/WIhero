@@ -5,7 +5,7 @@ export const STATE_VERSION = 2;
 
 /** The state at the start of a chat: nothing fired, nothing closed. */
 export function initialState() {
-    return { v: STATE_VERSION, at: -1, fired: {}, firstAt: {}, lastAt: {}, closed: {}, holding: {}, latches: {}, baseline: {}, masks: { closed: {}, pick: {} }, round: [] };
+    return { v: STATE_VERSION, at: -1, fired: {}, firstAt: {}, lastAt: {}, closed: {}, holding: {}, latches: {}, baseline: {}, masks: { closed: {}, pick: {} }, round: [], rolls: {} };
 }
 
 const object = x => isObject(x) ? structuredClone(x) : {};
@@ -34,6 +34,7 @@ export function readState(value, { at = -1, keyOfId = id => id, renamed = {} } =
             baseline: object(value.baseline),
             masks: { closed: object(value.masks?.closed), pick: object(value.masks?.pick) },
             round: Array.isArray(value.round) ? [...value.round] : [],
+            rolls: object(value.rolls),
         };
     } else if (value.v === 1) {
         // The old build: ids were unique across books, there were no times, and glue was `glued`.
@@ -80,6 +81,7 @@ function renameBooks(state, renamed) {
         closed: keys(state.closed), holding: keys(state.holding), latches: latch(state.latches), baseline: keys(state.baseline),
         masks: { closed: keys(state.masks.closed), pick: keys(state.masks.pick) },
         round: state.round.map(round),
+        rolls: Object.fromEntries(Object.entries(state.rolls ?? {}).map(([k, v]) => [map(k), { ...v, path: map(v.path) }])),
     };
 }
 

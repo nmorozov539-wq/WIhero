@@ -192,7 +192,8 @@ that has one, or the initial state.
   latches: { 'gatehouse|g|<rowhash>|0': 12 },   // lock matched, at chat index
   baseline:{ storm: 20 },      // Reopen: close rules count from here (D5)
   masks:   { closed: { 'inn/night': 11 }, pick: { inn: 'night' } },
-  round:   ['Book.12', 'Book.4']   // world.uid keys that fired this turn, for the panel
+  round:   ['Book.12', 'Book.4'],  // world.uid keys that fired this turn, for the panel
+  rolls:   { fork: { path: 'left', at: 6 } }   // dice switches: the path rolled, and when (CONCEPTS 3.5)
 }
 ```
 
@@ -509,9 +510,10 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | File | Holds |
 |------|-------|
 | `src/engine/model.js` | `normalize` (2.3), `buildModel` (3), problems and warnings, `isMoment` |
+| `src/engine/dead.js` | `deadBranches`: the dead branch report, from the model and the book alone (CONCEPTS 5) |
 | `src/engine/rows.js` | `rowMet`, done times, lock matching (5) |
 | `src/engine/state.js` | v2 shape, `readState` (with v1), `initialState` |
-| `src/engine/turn.js` | `stateForScan`, `mayFire`, `keepAtLoad`, `settleScan` (6.4 steps 1, 3, 4, 5 as data in, decisions out), `advance`, `entryStatus`; Moments happen here (`happenMoments`, D30) |
+| `src/engine/turn.js` | `stateForScan`, `mayFire`, `keepAtLoad`, `settleScan` (6.4 steps 1, 3, 4, 5 as data in, decisions out), `advance`, `entryStatus`; Moments happen here (`happenMoments`, D30), and dice switches roll (`rollDice`) |
 | `src/engine/manual.js` | `reopen`, `pickMask` |
 | `src/engine/util.js` | ST's string hash, slugs and ids, phrase and regex matching |
 
@@ -550,10 +552,11 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `normal.js` | Normal mode's views on phones: Home, the book page with its bottom bar and selection, search, the entry page |
 | `hero-inspector.js` | Hero mode's inspector wiring (N4): opening a card's inspector, closed reasons, Take off canvas, Show on canvas |
 | `hero-bar.js` | The piece bar's wiring (`piecebar.js` is the bar itself): edits checked on a copy, canvas taps seen by the bar, new entries and Moments, the place picker |
-| `menus.js` | The ⌄ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, colors, World Info settings |
+| `menus.js` | The ⌄ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, keyword clashes, dead branches, colors, World Info settings |
 | `explain.js` | Explain mode and the Guide tab in Hero mode: what a tap explains (`explainAnchor`), opening the Guide at it (D31) |
 | `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
 | `snapshots.js` | Snapshots (11) |
+| `clashes.js` | `keywordClashes`: key words that fire two or more entries (CONCEPTS 5) |
 | `data.js`, `dom.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, the icon set |
 
 ### 9.3 Tests (`node:test`)

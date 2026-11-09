@@ -64,9 +64,11 @@ pick shows its effect behind it.
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
-| View / Book | Home: Open books in (Normal mode, Hero mode). Book page: Sort by (Order, A–Z, Key words first, Permanent first, Vectorized first; inside each folder) · Show disabled entries (Shown, Hidden) · Problems (n) › when there are any · Snapshots › | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Snapshots › |
+| View / Book | Home: Open books in (Normal mode, Hero mode). Book page: Sort by (Order, A–Z, Key words first, Permanent first, Vectorized first; inside each folder) · Show disabled entries (Shown, Hidden) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › · Snapshots › |
 
 Problems and warnings are counted apart wherever they are counted: "Problems (2) · 1 warning", or "Warnings (1)" when there are only warnings.
+
+Keyword clashes (n) opens a sheet with one group per clashing word (“mill”) and the entries it fires; Dead branches (n) one row per entry, red when it can never fire, yellow when only a gate row or mask can't (CONCEPTS 5). A tap opens the entry (Normal mode) or shows and inspects its card (Hero mode).
 | Canvas | | Tidy layout · Legend (Shown, Hidden) · Show chat state (switch, off by default) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) | Content font · Colors |
 | Tabs | Close other tabs | Close other tabs |
@@ -116,7 +118,7 @@ The same page in both modes. Top to bottom:
 | Book line | Book icon, the book's name and folder; tap goes up to the book |
 | Story chip | Only when the entry has story logic (or other entries' rules point at it): its first rule said plainly, then how many more, "Unlocks after *Road* · 2 more rules". Tap opens the Story logic section (normal mode) or shows the card on the canvas (Hero mode) |
 | Strategy line | A strategy-colored dot, "Strategy: Keywords ▾" (or Permanent, Vectorized), tap for the strategy sheet. The entry's on/off switch sits at its right end. An off entry dims |
-| Keywords | A bordered box with chips; tap to edit as a comma-separated line. Empty shows "Key words, separated by commas". Hidden for Permanent |
+| Keywords | A bordered box with chips; tap to edit as a comma-separated line. Empty shows "Key words, separated by commas". Hidden for Permanent. A key word that also fires other entries (a keyword clash) has a yellow outline, and a line under the box says so: "**mill** also fires Old Mill" |
 | + Add condition | Adds ST's secondary keywords: a thin line ("And any of / And all of / But none of / But not all of ▾") over a second keyword box. One per entry |
 | Story logic | Hero mode: here, before Parameters. Only when the entry has pieces. Read-only in both modes (below) |
 | Parameters | Folded. The header sums up what isn't default, or "Defaults" |
@@ -330,7 +332,7 @@ line's ghost dots are panned into view above the strip.
 | Opens | A sentence, "*Road* opens *Mill* · *Mill* waits for *Road*" (the second half muted), with ⇄ to turn it around. Dropped on a card, that card is the source; a loose end goes to the card it opens: drag it onto a card, or pick one from the list. A second link into the same card asks once: "and *Road* (both)" or "or *Road* (either one)"; later ones follow. A pack source asks any, all or a number. One switch: "*Road* closes when *Mill* fires" (a real Closes link) |
 | Closes | "*Storm* closes *Mill*", the same way: the card it is dropped on does the closing. A card closing itself is refused, pointing to Once |
 | Glue | Ride along or Hold. Ride along links a host (one per card; a new host replaces the old one). Hold says what ends it, or in orange "Nothing ends it yet" |
-| Switch | Dropped on the fork: its paths in order with ↑ ↓ and ×, a loose end for the next path, and "Paths wait for the fork" (on by default). Done needs two paths |
+| Switch | Dropped on the fork: its paths in order with ↑ ↓ and ×, a loose end for the next path, "Paths wait for the fork" (on by default) and "Roll the dice" (off by default; on, a line says what it does, CONCEPTS 3.5). Done needs two paths |
 | Lock | On a line or junction it joins that row (armed after the rest of it); on a card it asks "opens" or "closes". Phrases as chips (any one is enough), and who says it: anyone, you, the character |
 | Wait | The same places. 1, 2, 3, 5, 10 or a number of your own, and whose messages count. On a card it counts from the start of the chat |
 | Mask | Its name, **Write its text** (opens the entry on that mask), priority with ↑ ↓, "On when" (a loose end, a list, a phrase, a number of messages), and "Off when ▸" folded |
@@ -364,7 +366,7 @@ stays in view above it. Drag it up for full height.
 | Piece rows | One row per piece, in matrix order (Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Once, Who triggers): a stripe in the piece's color, its name, and the same plain sentence as the entry page. Tap a row to expand it into its editor; one is open at a time. A "?" by the name shows the piece's help line |
 | From other entries | Rules other entries aim at this one: "Gates for this", "Closes this", "Rides along with this". Tap one to inspect that entry |
 | + Add logic | A sheet of the pieces the entry doesn't have yet, each with its help line, and a note that links are quicker from the piece bar |
-| Footer | Open entry (in a tab) · Take off canvas (only for placed, unlinked entries) · Data |
+| Footer | Open entry (in a tab) · Add note (Edit note when it has one) · Take off canvas (only for placed, unlinked entries) · Data |
 
 Tapping a port opens the inspector with that piece's row already expanded.
 
@@ -420,7 +422,7 @@ style: a list first, the book at the bottom.
 | Dot, filled | The entry is on the canvas; tap to jump to it |
 | Dot, hollow | Tap to place it in the middle of the view |
 | Drag a dot | The panel slides away and the card follows the finger; it is placed (or moved) where it is dropped. A red × in the lower middle of the screen cancels: drop on it and nothing changes |
-| Book picker (bottom) | The book's name ▾ with its status badges. Tap for the book list |
+| Book picker (bottom) | The book's name ▾ with its status badges. Tap for the book list, then + New book (asks for a name, opens it here) and Duplicate *book* (opens the copy) |
 
 ### Entry tabs
 
@@ -634,7 +636,7 @@ pane when it is wide.
 ### Tab row
 
 ⌄, **Canvas** and **Preview** (permanent, icon only), entry tabs, empty space,
-then the book picker (the book's name ▾: the book list, + New book), Search
+then the book picker (the book's name ▾: the book list, + New book, Duplicate *book*), Search
 (Ctrl K), Normal mode, Widen/Drawer size, ×.
 
 The book picker moves here from the bottom of the entry panel: on desktop the
@@ -674,13 +676,13 @@ lanes beside it. (The phone keeps top to bottom, which suits a tall screen.)
 | Double-click a card | The inspector's Text tab, to edit its content in place |
 | Drag a card | Moves it (the whole card, not only the grip; there is no scrolling to fight with). Links follow |
 | Drag empty canvas | Pans |
-| Shift-drag empty canvas | Box select. Several selected cards move together; the inspector offers Pack into…, Make these wait for… (each waits for the card picked), Make one wait for all of these… (the card picked waits for every one), Turn off, Take off canvas |
+| Shift-drag empty canvas | Box select. A small box under it asks for a pack name (lasso to make a pack): existing packs are offered as you type, so `town/` lists the ones inside town; Enter packs the entries, Esc or a click elsewhere leaves just the selection. Several selected cards move together; the inspector offers Pack into…, Make these wait for… (each waits for the card picked), Make one wait for all of these… (the card picked waits for every one), Turn off, Take off canvas |
 | Shift/Ctrl-click | Adds a card to the selection |
 | Wheel | Zooms around the pointer |
 | Drag from a knob or a hover handle onto another card | Makes a link from this card (the source): teal = this one opens it, red = this one closes it, yellow = it rides along with this one. The piece bar turns into the strip for it |
 | Click a line | Its strip, shaping it as on a phone; dots go on the 12px grid (Alt: anywhere). Double-click the line adds a dot, double-click a dot removes it. Keys 1–4: Curve, Arc, Straight, Step; X flips; Delete removes the picked dot |
 | Right-click a line | Shape link · Reset shape · Remove |
-| Right-click a card | Inspect · Open entry · Edit text · Add piece (all eight, with their keys) · Data · Take off canvas |
+| Right-click a card | Inspect · Open entry · Edit text · Add piece (all eight, with their keys) · Add note (Edit note) · Data · Take off canvas |
 | Right-click empty canvas | "Add to canvas here": a search box, New entry here, every unplaced entry, Fit, Tidy layout |
 | Click a lock or wait chip | Inspects its card with that rule open |
 | Click empty canvas | Clears the selection |

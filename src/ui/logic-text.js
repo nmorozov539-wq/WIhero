@@ -87,7 +87,7 @@ export function logicLines(node, model) {
         : 'Holds: once fired it stays on; nothing ends it yet');
     const riders = (model.riders?.get(node.key) ?? []).map(nameOf);
     if (riders.length) add('glue', 'Ridden by', `${and(riders)} ${riders.length === 1 ? 'rides' : 'ride'} along when it fires`);
-    if (Array.isArray(c.switch) && c.switch.length) add('close', 'Switch', `A fork: only one of ${and(c.switch.map(idName))} can follow`);
+    if (Array.isArray(c.switch) && c.switch.length) add('close', 'Switch', c.dice === true ? `A fork that rolls dice: when it first fires, one of ${and(c.switch.map(idName), 'or')} is picked at random` : `A fork: only one of ${and(c.switch.map(idName))} can follow`);
     const fork = node.closes.filter(cl => cl.kind === 'switch').map(cl => nameOf(cl.source));
     if (fork.length) add('close', 'Switch path', `Closes when ${and(fork, 'or')} fires: only one path of the fork can follow`);
     if (Array.isArray(c.masks) && c.masks.length) {
@@ -111,7 +111,8 @@ export function closedText(by, nameOf) {
     if (by === 'closeGate') return 'its close gate';
     if (by === 'once') return 'Once, after it fired';
     if (by === 'earlier version') return 'an earlier version of WI Hero';
-    const m = /^(closesFor|switch):(.+)$/.exec(String(by ?? ''));
+    const m = /^(closesFor|switch|dice):(.+)$/.exec(String(by ?? ''));
     const name = m ? nameOf(m[2]) : null;
+    if (m?.[1] === 'dice') return name ? `the dice, which picked ${name}` : 'the dice';
     return name ?? 'a rule that no longer exists';
 }

@@ -214,6 +214,23 @@ export function bookEditor(data) {
     return { config, idOf, update, uidOfId, membersOf, created };
 }
 
+/**
+ * Sets an entry's sticky note (AFTER_V1): an author note shown beside its card on the canvas. It lives in the
+ * entry's `extensions.wihero.note`, which ST never puts in the prompt. Empty text removes it.
+ */
+export function writeNote(data, uid, text) {
+    const note = String(text ?? '').trim();
+    bookEditor(data).update(uid, c => { if (note) c.note = note; else delete c.note; });
+}
+
+/** Asks for an entry's sticky note and saves it. */
+export function askNote(layer, library, book, uid, current) {
+    layer.askText({
+        title: current ? 'Edit note' : 'Add a note', placeholder: 'TODO: second way into the mill', value: current ?? '', ok: 'Save', allowEmpty: true,
+        done: v => library.change(book, d => writeNote(d, uid, v)),
+    });
+}
+
 // ---- greetings (BUILD_SPEC 15.3): their rules live on the entries they touch
 
 const sameGreeting = (a, b) => isGreetingRef(a) && isGreetingRef(b) && a.char === b.char && a.greeting === b.greeting;

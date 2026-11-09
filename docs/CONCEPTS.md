@@ -174,6 +174,14 @@ so it never adds a separate mechanism.
   paths would fire in the same turn, only the first in switch order is
   injected; the others are dropped and closed. Paths are entries, not packs.
   Stored as its own list and read as Closes for between the paths.
+- **Dice** (an option on a switch): the fork picks its path at random. When
+  the fork fires for the first time, one open path is rolled and every other
+  path closes, from the next message on. The rolled path still fires the
+  usual way (its own key words, or Permanent), so a book that wants the path
+  to just happen makes the paths Permanent. The roll is saved in the chat
+  state (2.3) and is seeded by the message before the reply, so a swipe or a
+  regenerate keeps it, and going back to before that message and writing it
+  again rolls again. No roll happens when a path has already fired or closed.
 
 ### 3.6 Glue
 
@@ -357,6 +365,20 @@ Warnings, which don't block:
 Problems put a red "!" on the card and on the entry's row; ⌄ lists them all
 under "Problems".
 
+Two more lists in ⌄, read from the book alone, never from a chat:
+
+- **Dead branches**: entries that can never fire, and gate rows and masks that
+  can never open. Nothing sets the entry off (no key words, not Permanent or
+  Vectorized, no glue); a row needs two paths of one switch; a row needs an
+  entry that can never fire; a pack reading needs more members than can fire
+  (counting one path per switch); a rider's host can never fire. It spreads:
+  what waits on a dead entry is dead too. Entries with a problem are left to
+  Problems.
+- **Keyword clashes**: key words that fire two or more entries, the same word
+  in both ("mill" in Mill and Miller's Yard) or a word inside another entry's
+  longer key ("mill" inside "old mill"). The entry page marks such a key word
+  and says what else it fires. Plain World Info too, so Normal mode shows it.
+
 ## 6. Manual overrides and safety
 
 For story changes WI Hero can't see, such as a hand-edited old message.
@@ -435,6 +457,8 @@ Rows are lists of refs.
 | `by`        | `"user"` or `"char"`; left out means both                      |
 | `gatedBy`   | Greetings whose Gates for target this entry (3.12)             |
 | `moment`    | `true` on a Moment (3.13); left out on every other entry       |
+| `dice`      | `true` on a switch's fork: it picks its path at random (3.5)   |
+| `note`      | The card's sticky note: for the author only, never sent        |
 
 Example:
 

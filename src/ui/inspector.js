@@ -180,6 +180,7 @@ export function renderInspector(box, x) {
             if (x.focusText) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
             const foot = el('div', 'ifoot');
             foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
+        if (x.note) foot.append(btn('linkish', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));
             foot.append(btn('linkish', html`${ic('code', 's')} Data`, x.data));
             body.append(foot);
             return;
@@ -258,6 +259,7 @@ export function renderInspector(box, x) {
         foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
     } else {
         foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
+        if (x.note) foot.append(btn('linkish', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));
         if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
     }
     foot.append(btn('linkish', html`${ic('code', 's')} Data`, x.data));

@@ -6,7 +6,7 @@ import { buildModel, isMoment } from '../engine/model.js';
 import { btn, html, createLayer, el, issueText } from './dom.js';
 import { ic } from './icons.js';
 import {
-    PARAM_LIST, addEntry, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
+    PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
     SORT_NAMES, isBlank, removeEntry, search, setFolder, setParam, titleOf,
 } from './data.js';
 import { strategyColor } from './entry-page.js';
@@ -645,11 +645,24 @@ export function createApp(deps) {
             for (const n of visibleNames()) {
                 sh.append(layer.opt(n, () => { layer.close(); H.book = n; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
             }
-            if (S.desk) {
-                sh.append(layer.opt('New book', () => layer.askText({
-                    title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
-                    done: async n => { const name = await library.create(n); H.book = name; H.active = 'canvas'; H.insp = null; H.pick = []; render(); },
-                }), { icon: 'plus' }));
+            const open = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
+            sh.append(layer.opt('+ New book', () => layer.askText({
+                title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
+                done: async n => {
+                    try { open(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
+                },
+            }), { icon: 'plus' }));
+            if (H.book) {
+                sh.append(layer.opt(`Duplicate ${H.book}`, async () => {
+                    layer.close();
+                    const from = H.book;
+                    let to;
+                    try { to = await library.duplicate(from); } catch (e) { layer.toast(`Could not duplicate ${from}: ${e.message}`); return; }
+                    copyBookSettings(settings, from, to);
+                    saveSettings();
+                    open(to);
+                    layer.toast(`Made ${to}`);
+                }, { icon: 'copy' }));
             }
         });
     }
@@ -733,6 +746,7 @@ export function createApp(deps) {
             if (data) {
                 const issues = modelOf(book, data).issues;
                 if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs' }));
+                menus().checkRows(sh, book, data);
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›' }));
         }
@@ -765,7 +779,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let menusView = null;
     const menus = () => (menusView ??= createMenus({
-        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     }));
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
     function bookMenu(...a) { return menus().bookMenu(...a); }
