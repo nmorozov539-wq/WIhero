@@ -224,14 +224,15 @@ export function mountPieceBar(x) {
     // ---- Opens, Closes, Glue (ride along)
     function linkStrip() {
         const kind = CHIP[e.piece].kind;
-        if (e.piece === 'glue') mid.append(glueChoice());
+        // Glue's Ride along / Hold sits in the sentence's row, not on a line of its own (#26).
+        const withChoice = n => (e.piece === 'glue' && e.isNew ? row(glueChoice(), n) : n);
         // The source comes first, doing the verb: "Road opens Mill" (and, quieter, "Mill waits for Road").
         const sentence = (src, dst) => (kind === 'open' ? [src, ' opens ', dst] : kind === 'close' ? [src, ' closes ', dst] : [dst, ' rides along with ', src]);
         const echo = (srcText, dstText) => { const n = el('span', 'pecho'); n.textContent = ` · ${dstText} waits for ${srcText}`; return n; };
         const words = (end, dots) => (end ? { b: name(end) } : dots);
         if (!e.linked) {
             const fixed = e.src ?? e.dst;
-            mid.append(say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : words(p, '…')))));
+            mid.append(withChoice(say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : words(p, '…'))))));
             const ok = end => !L.whyNot(kind, e.src ?? end, e.dst ?? end) && !L.sameEnd(end, fixed);
             const tap = x.desk ? 'click' : 'tap';
             const lead = kind === 'ride' ? 'Drag the loose end onto a card, or' : `Now ${tap} the card it ${kind === 'open' ? 'opens' : 'closes'}, drag the loose end onto it, or`;
@@ -243,6 +244,8 @@ export function mountPieceBar(x) {
         }
         const E = ed();
         const D = data();
+        // A tapped line (#3): its looks, and Edit logic, which jumps to the entry that keeps the rule.
+        if (!e.isNew) { tappedLine(E, D, kind, sentence); return; }
         const flip = btn('pbtn flipb', '⇄', () => flipIt(), 'Turn the link around');
         const whyFlip = L.whyNotFlip(E, D, kind, e.src, e.dst, e.mask ?? null);
         if (whyFlip) { flip.classList.add('no'); flip.title = whyFlip; }
@@ -263,7 +266,7 @@ export function mountPieceBar(x) {
         } else {
             const s1 = say(...parts);
             if (kind === 'open') s1.append(echo(name(e.src), name(e.dst)));
-            mid.append(row(s1, flip));
+            mid.append(e.piece === 'glue' ? row(glueChoice(), s1) : row(s1, flip));
         }
         // Several links into one card: both, or either one.
         if (kind !== 'ride' && e.dst.t === 'entry') {
@@ -287,11 +290,40 @@ export function mountPieceBar(x) {
             mid.append(row(swEl(on, v => run((ed2, d2) => (v ? L.addLink(ed2, d2, 'close', e.dst, e.src) : L.removeLink(ed2, d2, 'close', e.dst, e.src))), `${name(e.src)} closes when ${name(e.dst)} fires`),
                 el('span', 'plabel2', `${name(e.src)} closes when ${name(e.dst)} fires`)));
         }
-        const tools = shapeRow();
+        // + Lock and + Wait (#2): the same strips as the piece bar's, already placed on this link's row.
+        if (kind !== 'ride' && e.dst.t === 'entry') {
+            const loc = L.findLink(E, D, kind, e.src, e.dst, e.mask ?? null);
+            if (loc?.t === 'row') {
+                const place = { uid: loc.uid, field: loc.field, mask: loc.mask ?? null, row: loc.row };
+                const cond = k => {
+                    if (e.ask) { refuse(`Pick both or either one first.`); return; }
+                    const edit = { piece: k, isNew: true, snap: e.snap, dirty: true, note: null, place: { ...place }, cond: k === 'lock' ? { lock: [] } : { wait: 2 }, at: null, book: B.edit.book };
+                    B.edit = edit;
+                    if (k === 'wait') writeNow(edit, x);
+                    x.render();
+                };
+                const lk = small('+ Lock', () => cond('lock'), 'ghost');
+                const wt = small('+ Wait', () => cond('wait'), 'ghost');
+                mid.append(row(lk, wt));
+            }
+        }
+        // Looks come last and small: the four line types, the rest when the line is tapped later.
+        const st = canvas.shapeState?.();
+        if (st) {
+            const icons = { curve: 'M2 13 C9 13 11 3 18 3', arc: 'M2 13 Q10 -5 18 13', straight: 'M2 13 L18 3', step: 'M2 13 H10 V3 H18' };
+            const r = row();
+            r.classList.add('pshapes');
+            for (const [t, label] of [['curve', 'Curve'], ['arc', 'Arc'], ['straight', 'Straight'], ['step', 'Step']]) {
+                const b = btn(`pshp${st.type === t ? ' on' : ''}`, '', () => canvas.patchShape({ type: t }), label);
+                b.title = label;
+                b.innerHTML = `<svg viewBox="0 0 20 16" aria-hidden="true"><path d="${icons[t]}"/></svg>`;
+                b.setAttribute('aria-pressed', String(st.type === t));
+                r.append(b);
+            }
+            r.append(el('span', 'phint', `${x.desk ? 'Click' : 'Tap'} the line later for bend and flip.`));
+            mid.append(r);
+        }
         note();
-        // The shape's buttons share a row with the link's Remove, so the strip stays short on a phone.
-        if (!e.isNew) tools.push(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); }));
-        if (tools.length) mid.append(row(...tools));
         right.disabled = !!e.ask;
         canvas.overlay({ sel: new Set([x.keyOf(e.src), x.keyOf(e.dst)]) });
 
@@ -312,6 +344,21 @@ export function mountPieceBar(x) {
             e.note = shared.length ? `${name(e.dst)} was needed together with ${shared.map(refText).join(', ')}. Turned around, it's a rule of its own.` : null;
             x.render();
         }
+    }
+    /** A tapped line: what it does in one sentence with Edit logic, then its full shaping, then Remove. */
+    function tappedLine(E, D, kind, sentence) {
+        const s1 = say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : { b: name(p) })));
+        const loc = L.findLink(E, D, kind, e.src, e.dst, e.mask ?? null);
+        const holder = loc?.uid !== undefined ? loc.uid : e.dst.t === 'entry' ? e.dst.uid : null;
+        const piece = kind === 'ride' ? 'glue' : loc?.mask != null || e.mask != null ? 'masks' : loc?.field ?? (kind === 'open' ? 'gate' : 'closeGate');
+        const logic = holder !== null ? small('Edit logic ›', () => { const key = x.keyOf({ t: 'entry', uid: holder }); close(); x.inspect(key, piece); }) : null;
+        mid.append(row(s1, ...(logic ? [logic] : [])));
+        const tools = shapeRow();
+        note();
+        // The shape's buttons share a row with the link's Remove, so the strip stays short on a phone.
+        tools.push(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); }));
+        mid.append(row(...tools));
+        canvas.overlay({ sel: new Set([x.keyOf(e.src), x.keyOf(e.dst)]) });
     }
     // The line's shape: its type, which way it bows and how far, for the part picked on the canvas (or all of it).
     function shapeRow() {
@@ -381,12 +428,13 @@ export function mountPieceBar(x) {
         }, 'Ride along or hold');
     }
     function glueStrip() {
-        mid.append(glueChoice());
+        // One row: the card, then Ride along / Hold, then what that means (#26).
         if (!e.mode) {
-            mid.append(el('div', 'phint', `Ride along: ${name(e.dst)} fires whenever another card fires. Hold: ${name(e.dst)} stays on once it fires.`));
+            mid.append(row(say({ b: name(e.dst) }), glueChoice()));
+            mid.append(el('div', 'phint', 'Ride along: it fires whenever its host fires. Hold: it stays on once it fires.'));
             right.disabled = true;
         } else {
-            mid.append(say({ b: name(e.dst) }, ' stays on once it fires.'));
+            mid.append(row(say({ b: name(e.dst) }), glueChoice(), say(' stays on once it fires.')));
             const closers = x.closersOf(e.dst.uid);
             if (closers.length) mid.append(el('div', 'phint', `Ends when ${closers.join(' or ')} closes it.`));
             else mid.append(el('div', 'pnote', `Nothing ends it yet. Add a Closes to ${name(e.dst)}.`));

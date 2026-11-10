@@ -82,6 +82,7 @@ export function createHeroBar(A) {
                 saveSettings();
             },
             render: () => render(),
+            inspect: (key, piece) => inspect(book, key, piece),
             nodeOf: key => nodeOf(book, key),
             keyOf: end => (end?.t === 'pack' ? `pack:${end.name}` : end?.t === 'greet' ? `greet:${end.ref.char}:${end.ref.greeting}` : data().entries[end?.uid] ? cardKey(data().entries[end.uid]) : null),
             nameOf: end => (end?.t === 'pack' ? `#${end.name}` : end?.t === 'greet' ? greetingName(end.ref.greeting) : data().entries[end?.uid] ? titleOf(data().entries[end.uid]) : '?'),

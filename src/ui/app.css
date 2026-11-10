@@ -1002,6 +1002,12 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .iset .pseg { flex-wrap: nowrap; flex-shrink: 0; }
 .iset .pseg button { white-space: nowrap; }
 .pct b .pci { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+.pshapes { gap: 4px; }
+.pshp { width: 34px; height: 30px; border: 1px solid var(--line); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--fg); }
+.pshp.on { border-color: var(--p-open); background: color-mix(in srgb, var(--p-open) 18%, transparent); }
+.pshp svg { width: 20px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.pshapes .phint { margin-left: 6px; }
+.pbtn.sm.ghost { border-style: dashed; color: var(--muted); }
 .lblq { display: flex; align-items: center; justify-content: space-between; }
 .lblq .pq { margin: -8px -6px -8px 0; }
 .ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }
