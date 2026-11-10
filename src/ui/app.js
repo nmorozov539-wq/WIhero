@@ -657,18 +657,23 @@ export function createApp(deps) {
 
     function bookPicker() {
         layer.sheet('Switch book', sh => {
-            for (const n of visibleNames()) {
-                sh.append(layer.opt(n, () => { layer.close(); H.book = n; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
-            }
             const open = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
-            sh.append(layer.opt('+ New book', () => layer.askText({
+            // The actions sit on top as small icon buttons (#34); a long press (or hover) says what each does.
+            const acts = el('div', 'pkacts');
+            const act = (icon, label, fn) => {
+                const b = btn('pkact', ic(icon), fn, label);
+                b.title = label;
+                b.addEventListener('contextmenu', e => { e.preventDefault(); layer.toast(label); });
+                acts.append(b);
+            };
+            act('plus', 'New book', () => layer.askText({
                 title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
                 done: async n => {
                     try { open(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
                 },
-            }), { icon: 'plus' }));
+            }));
             if (H.book) {
-                sh.append(layer.opt(`Duplicate ${H.book}`, async () => {
+                act('copy', `Duplicate ${H.book}`, async () => {
                     layer.close();
                     const from = H.book;
                     let to;
@@ -677,7 +682,11 @@ export function createApp(deps) {
                     saveSettings();
                     open(to);
                     layer.toast(`Made ${to}`);
-                }, { icon: 'copy' }));
+                });
+            }
+            sh.append(acts);
+            for (const n of visibleNames()) {
+                sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
             }
         });
     }
