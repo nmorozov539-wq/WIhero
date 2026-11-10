@@ -268,8 +268,7 @@ export function createNormal(A) {
                 render();
             }));
             act('code', 'Export', async () => { for (const n of S.select) await library.exportBook(n); });
-            const imp = btn('', html`${ic('import')}<span>Import</span>`, importBook);
-            bar.append(imp); // needs no selection
+            // Import has nothing to do with the selection: it lives under + (New book or Import) (#41).
         }
         return bar;
     }
