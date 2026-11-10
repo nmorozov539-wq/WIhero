@@ -84,6 +84,8 @@ export function createMenus(A) {
                 render();
             });
             sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard' }));
+            switchRow(sh, 'Mark keyword clashes', settings.markClashes !== false, v => { settings.markClashes = v; saveSettings(); render(); },
+                { sub: 'Key words that fire more than one entry: outlined, with an "also fires" line, and counted on the canvas' });
             sh.append(el('div', 'lbl', 'Tabs'));
             sh.append(layer.opt('Close other tabs', () => {
                 layer.close();
@@ -145,12 +147,13 @@ export function createMenus(A) {
     const deadOf = (book, data) => deadBranches(modelOf(book, data), entriesOf(data).map(e => ({ ...e, world: book })));
 
     /**
-     * The book's checks for the chip on the Hero canvas: dead branches and keyword clashes.
+     * The book's checks for the chip on the Hero canvas: dead branches, and keyword clashes unless their marking is
+     * turned off (settings.markClashes).
      */
     function checkCounts(book, data) {
         return {
             dead: deadOf(book, data).length,
-            clashes: keywordClashes(data, hiddenIn(book)).groups.length,
+            clashes: settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book)).groups.length,
         };
     }
 

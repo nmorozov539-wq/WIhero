@@ -414,7 +414,8 @@ export function createNormal(A) {
             ui: new Proxy(S.ui, { set: (t, k, v) => { t[k] = v; if (k === 'condition') p.condition = v; return true; } }),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
-            clash: (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
+            // Keyword clash marking can be turned off (⌄ menu, Display); the ⌄ menu's Keyword clashes row stays.
+            clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
             lines,
             incoming: [...incoming],
             closed,
