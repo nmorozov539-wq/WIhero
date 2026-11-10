@@ -56,6 +56,12 @@ export function createHeroDesk(A) {
         else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} taken off the canvas` : `${off.length} cards taken off the canvas`);
     }
 
+    /** Shows or hides the inspector column; on a wide window the choice is kept. */
+    function setInsp(v) {
+        H.dinsp = v;
+        if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
+    }
+
     /** What the canvas does with a mouse on desktop: left to right, link drags, menus, selection. */
     function deskCanvas(book, data) {
         return {
@@ -63,12 +69,7 @@ export function createHeroDesk(A) {
             dir: LR,
             tools: box => {
                 box.append(btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)'));
-                const t = btn('itoggle', ic('drawer'), () => {
-                    const v = !inspShown();
-                    H.dinsp = v;
-                    if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
-                    render();
-                }, 'Show or hide the inspector');
+                const t = btn('itoggle', ic('drawer'), () => { setInsp(!inspShown()); render(); }, 'Show or hide the inspector');
                 t.title = 'Show or hide the inspector';
                 box.append(t);
                 for (const b of box.querySelectorAll('button')) b.title ||= b.getAttribute('aria-label') ?? '';
@@ -83,10 +84,12 @@ export function createHeroDesk(A) {
                 openStrip(book, { piece, isNew: true, snap: x.snapshot(), dirty: false, note: null, src, dst: null, ...(kind === 'ride' ? { mode: 'ride' } : {}) });
                 H.bar.loosePick?.(dst);
             },
-            openText: key => inspect(book, key, null, { tab: 'text' }),
+            // A click on a card shows it in the inspector, opening the inspector if it was hidden (#4).
+            open: (key, piece) => { if (!inspShown()) setInsp(true); inspect(book, key, piece); },
+            openText: key => { if (!inspShown()) setInsp(true); inspect(book, key, null, { tab: 'text' }); },
             onPick: keys => {
                 H.pick = keys;
-                if (keys.length === 1) { inspect(book, keys[0]); return; }
+                if (keys.length === 1) { if (!inspShown()) setInsp(true); inspect(book, keys[0]); return; }
                 H.insp = null;
                 heroInspector(book, data);
             },
