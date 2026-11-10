@@ -262,7 +262,6 @@ export function createHeroShell(A) {
         vp.tabIndex = -1;
         main.append(vp);
         if (H.legend) vp.append(legendBox());
-        vp.append(...checksChip(book, data));
         const mount = { book, data, vp, sig: null, cache: null };
         heroCanvas = mountCanvas(vp, {
             book: () => (mount.cache ??= heroData(book, data)),
@@ -293,8 +292,12 @@ export function createHeroShell(A) {
      * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
      * (the ⌄ menu keeps its rows too). Nothing when the book is clean.
      */
+    let checksMemo = null;
     function checksChip(book, data) {
-        const { dead, clashes } = checkCounts(book, data);
+        // Counted again only when a book changed (library.version), or its pending deletes or the setting did.
+        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
+        if (checksMemo?.data !== data || checksMemo.sig !== sig) checksMemo = { data, sig, n: checkCounts(book, data) };
+        const { dead, clashes } = checksMemo.n;
         if (!dead && !clashes) return [];
         const parts = [dead ? `${dead} dead` : '', clashes ? `${clashes} clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean);
         const label = [dead ? `${dead} dead branch${dead === 1 ? '' : 'es'}` : '', clashes ? `${clashes} keyword clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ');
@@ -308,6 +311,8 @@ export function createHeroShell(A) {
     /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
     function heroAround(book, data) {
         if (S.desk) deskColumns();
+        const vp = heroMount?.vp;
+        if (vp) { vp.querySelector(':scope > .checkchip')?.remove(); vp.append(...checksChip(book, data)); }
         if (!S.desk) {
             // Phones: the "?" sits at the top right of the canvas.
             const q = btn('explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: tap something to learn about it');

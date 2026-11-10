@@ -125,8 +125,8 @@ const STORY_PARAM_NOTE = {
     delay: 'With story pieces: ST\'s delay counts chat messages, not gates. For "close later", use a wait.',
 };
 /** The warning for a parameter, or null: only on an entry with story pieces, and only when the value is set. */
-export function storyParamNote(e, p, story) {
-    return story && STORY_PARAM_NOTE[p.field] && paramChanged(e, p) ? STORY_PARAM_NOTE[p.field] : null;
+export function storyParamNote(e, p, pieced) {
+    return pieced && STORY_PARAM_NOTE[p.field] && paramChanged(e, p) ? STORY_PARAM_NOTE[p.field] : null;
 }
 
 /** A row of the Parameters list. */
@@ -333,8 +333,8 @@ export function renderEntryPage(main, o) {
     pd.addEventListener('click', () => { ui.params = !ui.params; o.redraw(); });
     en.append(pd);
     // Story pieces on this entry: Probability, Sticky, Cooldown and Delay get a warning line when set.
-    const story = !!o.lines?.length;
-    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x), { layer, note: p => storyParamNote(e, p, story) }));
+    const pieced = !!o.lines?.length;
+    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x), { layer, note: p => storyParamNote(e, p, pieced) }));
     else if (ui.params) {
         for (const [group, list] of PARAMS) {
             en.append(el('div', 'plbl', group));
@@ -343,7 +343,7 @@ export function renderEntryPage(main, o) {
                 const value = paramValue(e, p);
                 const changed = paramChanged(e, p);
                 en.append(paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x))));
-                const note = storyParamNote(e, p, story);
+                const note = storyParamNote(e, p, pieced);
                 if (note) en.append(el('p', 'pnote', note));
             }
         }
