@@ -21,7 +21,7 @@ export const PIECES = [
 ];
 export const PIECE = Object.fromEntries(PIECES.map(p => [p.key, p]));
 /** What a Moment takes (CONCEPTS 3.13): its own gate (which arms it), and what it opens and closes. */
-export const MOMENT_PIECES = ['gate', 'gatesFor', 'closesFor'];
+export const MOMENT_PIECES = ['gate', 'gatesFor', 'closesFor', 'packs']; // a Moment can be packed, and leave its pack (#5)
 export const ROW_FIELDS = ['gate', 'closeGate'];
 export const LIST_FIELDS = ['gatesFor', 'closesFor', 'switch', 'packs'];
 
