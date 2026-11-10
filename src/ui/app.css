@@ -923,6 +923,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 
 /* Phones: Closes lines running back up the canvas stay faint until one of their cards is inspected. */
 .lk .faint { opacity: .28; }
+.lfade { opacity: .28; }
 
 /* Canvas mouse: hover handles, focus dimming, selection, link guide, box select. */
 .hhandles { position: absolute; transform: translateX(-50%); display: flex; gap: 8px; padding: 4px; z-index: 4; }

@@ -129,7 +129,8 @@ export function mountCanvas(vp, d) {
         // Every node is tagged with the cards it belongs to (data-of): a card drag moves a card's own nodes and
         // hides the links to other cards, without drawing the canvas again (dragFrame).
         let owner = '';
-        const put = (parent, ...nodes) => { for (const n of nodes) { if (owner) n.dataset.of = owner; parent.append(n); } };
+        let fading = false; // drawing another layer's links (#29): faded
+        const put = (parent, ...nodes) => { for (const n of nodes) { if (owner) n.dataset.of = owner; if (fading) n.classList.add('lfade'); parent.append(n); } };
         const owning = (o, fn) => { const was = owner; owner = o; try { return fn(); } finally { owner = was; } };
         vp.querySelector('.cv-empty')?.remove();
         if (!ids.size) {
@@ -301,7 +302,7 @@ export function mountCanvas(vp, d) {
         // Phones: a Closes line that runs back up the canvas is drawn faint until one of its cards is focused, so the
         // long lines climbing the page don't drown the story running down it (VISUAL 7.6).
         const focused = d.desk ? null : d.focused?.() ?? null;
-        const faint = x => (!d.desk && x.kind === 'close' && focused !== x.from && focused !== x.to
+        const faint = x => (x.fade ? 'faint' : !d.desk && x.kind === 'close' && focused !== x.from && focused !== x.to
             && (R.get(x.from)?.y ?? 0) > (R.get(x.to)?.y ?? 0) + CH ? 'faint' : null);
         // Arrowheads are drawn as paths (no SVG markers, which don't resolve reliably inside a shadow root).
         const arrow = (pts, kind, cls = null) => {
@@ -330,7 +331,7 @@ export function mountCanvas(vp, d) {
             const shape = mem.cards[x.from]?.links?.[linkKey(x)] ?? null;
             const s0 = tip(a, 7);
             queue.push({
-                x, a, then,
+                x: fading ? { ...x, fade: true } : x, a, then,
                 def: {
                     id,
                     from: { x: s0[0], y: s0[1], n: a.n, card: x.from },
@@ -395,17 +396,8 @@ export function mountCanvas(vp, d) {
             }
             return pts[0];
         };
-        const handled = new Set();
-        for (const [rk, rowsAll] of Object.entries(g.rows)) {
-            const i = rk.lastIndexOf(':');
-            const key = rk.slice(0, i);
-            const kind = rk.slice(i + 1);
-            const p = portOf(key, kind);
-            owner = key;
-            rowsAll.flat().forEach(x => handled.add(x));
-            if (!p) continue;
-            const rows = rowsAll.filter(row => row.every(x => x.cond ? (x.mask == null || layerOf(m.byId(key)) === x.mask + 1) : visible(x)));
-            if (!rows.length) continue;
+        /** Draws one port's rows: links into its socket, AND and OR junctions, and lock and wait pills. */
+        const drawRows = (key, kind, p, rows) => {
             const closeKind = kind === 'cin' || kind === 'mcin';
             const col = FAMILY_VAR[PORT[kind].family];
             const t = [-p.n[1], p.n[0]];
@@ -439,7 +431,7 @@ export function mountCanvas(vp, d) {
             if (rows.length === 1 && linksOf(rows[0]).length === 1) {
                 const x = linksOf(rows[0])[0];
                 drawEdge(x, socketPt, p.n, x.kind === 'close' ? tip(p, 3) : socketPt, pts => condsOf(rows[0]).forEach((c, li) => pill(c, rows[0], along(pts, 28 + li * STEP))));
-                continue;
+                return;
             }
             const out = d => [snap(p.x + p.n[0] * d), snap(p.y + p.n[1] * d)];
             if (rows.length === 1 && !linksOf(rows[0]).length) {
@@ -447,7 +439,7 @@ export function mountCanvas(vp, d) {
                 const cs = condsOf(rows[0]);
                 path([out(14 + cs.length * STEP), socketPt], closeKind ? 'close' : 'open');
                 cs.forEach((c, li) => pill(c, rows[0], [p.x + p.n[0] * (26 + li * STEP), p.y + p.n[1] * (26 + li * STEP)]));
-                continue;
+                return;
             }
             const own = rows.length === 1 ? condsOf(rows[0]).length : 0;
             const J0 = out(36 + own * STEP);
@@ -458,7 +450,7 @@ export function mountCanvas(vp, d) {
             if (rows.length === 1 && rows[0].ri !== undefined) { jl.dataset.row = rowAt(rows[0]); jl.classList.add('jhit'); }
             Object.assign(jl.style, { left: `${J0[0]}px`, top: `${J0[1]}px` });
             put(world, jl);
-            if (rows.length === 1) { linksOf(rows[0]).forEach(x => drawEdge(x, J0, p.n, J0)); continue; }
+            if (rows.length === 1) { linksOf(rows[0]).forEach(x => drawEdge(x, J0, p.n, J0)); return; }
             const multi = rows.filter(r => linksOf(r).length > 1);
             rows.forEach((row, ri) => {
                 const links = linksOf(row);
@@ -490,12 +482,31 @@ export function mountCanvas(vp, d) {
                     });
                 }
             });
+        };
+        const handled = new Set();
+        for (const [rk, rowsAll] of Object.entries(g.rows)) {
+            const i = rk.lastIndexOf(':');
+            const key = rk.slice(0, i);
+            const kind = rk.slice(i + 1);
+            const p = portOf(key, kind);
+            owner = key;
+            rowsAll.flat().forEach(x => handled.add(x));
+            if (!p) continue;
+            // Every layer's rows: the shown layer's as usual, the other layers' faded (#29), each layer on its own.
+            const shown = row => row.every(x => x.cond ? (x.mask == null || layerOf(m.byId(key)) === x.mask + 1) : visible(x));
+            const rows = rowsAll.filter(shown);
+            if (rows.length) drawRows(key, kind, p, rows);
+            const others = new Map();
+            for (const row of rowsAll) if (!shown(row)) { const mk = row.mask ?? row.find(x => x.mask != null)?.mask ?? -1; if (!others.has(mk)) others.set(mk, []); others.get(mk).push(row); }
+            for (const list of others.values()) { fading = true; try { drawRows(key, kind, p, list); } finally { fading = false; } }
         }
         owner = '';
         for (const x of g.edges) {
-            if (handled.has(x) || !visible(x)) continue;
+            if (handled.has(x)) continue;
             const p = portOf(x.to, x.port);
+            fading = !visible(x);
             if (p) drawEdge(x, tip(p, 2), p.n, x.kind === 'ride' ? tip(p, 3) : tip(p, 2));
+            fading = false;
         }
         drawQueued();
 
