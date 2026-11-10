@@ -224,6 +224,8 @@ await run(async () => {
     assert.deepEqual((await cfg('Bridge')).switch, ['inn', 'tunnel']);
     assert.deepEqual((await cfg('Inn')).gate, [['bridge']]);
     assert.deepEqual((await cfg('Tunnel')).gate, [['bridge']]);
+    assert.equal(await $('.pstrip .ppath button[aria-label="Move Tunnel up"]').count(), 0, 'the order is folded away');
+    await $('.pstrip .porder').click();
     await $('.pstrip .ppath:has-text("Tunnel") button[aria-label="Move Tunnel up"]').click();
     await wait(250);
     assert.deepEqual((await cfg('Bridge')).switch, ['tunnel', 'inn']);

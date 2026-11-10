@@ -2,7 +2,7 @@
 // a card, or drag the chip onto a card; the bar turns into the piece's strip, Cancel on the left and Done on the
 // right. Tapping a line or a lock later opens its strip again, with Remove. Everything is written as it is set
 // up (so the canvas shows it), and Cancel puts the book back as it was when the strip opened.
-import { btn, el, swEl } from './dom.js';
+import { btn, el, html, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { maskName, refLabel, same } from './pieces.js';
 import * as L from './links.js';
@@ -392,22 +392,33 @@ export function mountPieceBar(x) {
     function switchStrip() {
         mid.append(say({ b: name(e.fork) }, ' is a fork. When one path fires, the others close.'));
         const list = el('div', 'ppaths');
+        // The order only matters when two paths fire in one message, so it is folded away (#18).
+        const order = e.order && e.paths.length > 1;
         e.paths.forEach((p, i) => {
             const r = el('div', 'ppath');
-            r.append(el('span', 'pn', `${i + 1}`), el('span', 'pt', name(p)));
-            const mv = d => { const j = i + d; if (j < 0 || j >= e.paths.length) return; [e.paths[i], e.paths[j]] = [e.paths[j], e.paths[i]]; writeSwitch(); };
-            const up = btn('pbtn ico', ic('up', 's'), () => mv(-1), `Move ${name(p)} up`);
-            const dn = btn('pbtn ico', ic('down', 's'), () => mv(1), `Move ${name(p)} down`);
-            up.disabled = i === 0;
-            dn.disabled = i === e.paths.length - 1;
-            r.append(up, dn, btn('pbtn ico', ic('x', 's'), () => { const [gone] = e.paths.splice(i, 1); writeSwitch([gone]); }, `Take ${name(p)} out`));
+            if (order) r.append(el('span', 'pn', `${i + 1}`));
+            r.append(el('span', 'pt', name(p)));
+            if (order) {
+                const mv = d => { const j = i + d; if (j < 0 || j >= e.paths.length) return; [e.paths[i], e.paths[j]] = [e.paths[j], e.paths[i]]; writeSwitch(); };
+                const up = btn('pbtn ico', ic('up', 's'), () => mv(-1), `Move ${name(p)} up`);
+                const dn = btn('pbtn ico', ic('down', 's'), () => mv(1), `Move ${name(p)} down`);
+                up.disabled = i === 0;
+                dn.disabled = i === e.paths.length - 1;
+                r.append(up, dn);
+            }
+            r.append(btn('pbtn ico', ic('x', 's'), () => { const [gone] = e.paths.splice(i, 1); writeSwitch([gone]); }, `Take ${name(p)} out`));
             list.append(r);
         });
         if (e.paths.length) mid.append(list);
         const ok = end => end?.t === 'entry' && !L.sameEnd(end, e.fork) && !e.paths.some(p => L.sameEnd(p, end));
         const add = end => { if (!ok(end)) { refuse('A path is another entry, not a pack or a greeting, and each one is listed once.'); return; } e.paths.push(end); if (!writeSwitch()) e.paths.pop(); x.render(); };
         mid.append(row(el('span', 'phint', e.paths.length < 2 ? `Drag the loose end to path ${e.paths.length + 1}, or` : 'More paths: drag the loose end, or'), picker('pick one', ok, add)));
-        if (e.paths.length > 1) mid.append(el('div', 'phint', 'When two paths fire in the same message, the higher one wins.'));
+        if (e.paths.length > 1) {
+            const t = btn('linkish porder', html`${ic(order ? 'down' : 'right', 's')} If two fire at once`, () => { e.order = !e.order; x.render(); });
+            t.setAttribute('aria-expanded', String(!!order));
+            mid.append(t);
+            if (order) mid.append(el('div', 'phint', 'When two paths are named in the same message, the higher one wins and the others close.'));
+        }
         mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, 'Paths wait for the fork'), el('span', 'plabel2', 'Paths wait for the fork')));
         if (!e.wait) mid.append(el('div', 'pnote', `A path can be taken before ${name(e.fork)} fires.`));
         mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
