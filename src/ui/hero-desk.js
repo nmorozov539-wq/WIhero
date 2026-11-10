@@ -56,6 +56,28 @@ export function createHeroDesk(A) {
         else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} taken off the canvas` : `${off.length} cards taken off the canvas`);
     }
 
+    /** Shows or hides the inspector column; on a wide window the choice is kept. */
+    function setInsp(v) {
+        H.dinsp = v;
+        if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
+    }
+
+    /** A box selection's actions, on desktop and phones (#24): pack the picked entries, or take them out of packs. */
+    function lassoFor(book, data) {
+        const many = n => `${n} ${n === 1 ? 'entry' : 'entries'}`;
+        return {
+            entries: keys => keys.map(k => nodeOf(book, k)).filter(x => x?.t === 'entry').map(x => x.uid),
+            packs: () => packsOf(data),
+            pack: (uids, name) => {
+                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${many(uids.length)} packed into #${name}`);
+            },
+            packed: uids => uids.some(u => (configOf(data.entries[u])?.packs ?? []).length),
+            unpack: uids => {
+                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { delete c.packs; }); })) layer.toast(`${many(uids.length)} taken out of their packs`);
+            },
+        };
+    }
+
     /** What the canvas does with a mouse on desktop: left to right, link drags, menus, selection. */
     function deskCanvas(book, data) {
         return {
@@ -63,12 +85,7 @@ export function createHeroDesk(A) {
             dir: LR,
             tools: box => {
                 box.append(btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)'));
-                const t = btn('itoggle', ic('drawer'), () => {
-                    const v = !inspShown();
-                    H.dinsp = v;
-                    if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
-                    render();
-                }, 'Show or hide the inspector');
+                const t = btn('itoggle', ic('drawer'), () => { setInsp(!inspShown()); render(); }, 'Show or hide the inspector');
                 t.title = 'Show or hide the inspector';
                 box.append(t);
                 for (const b of box.querySelectorAll('button')) b.title ||= b.getAttribute('aria-label') ?? '';
@@ -83,21 +100,17 @@ export function createHeroDesk(A) {
                 openStrip(book, { piece, isNew: true, snap: x.snapshot(), dirty: false, note: null, src, dst: null, ...(kind === 'ride' ? { mode: 'ride' } : {}) });
                 H.bar.loosePick?.(dst);
             },
-            openText: key => inspect(book, key, null, { tab: 'text' }),
+            // A click on a card shows it in the inspector, opening the inspector if it was hidden (#4).
+            open: (key, piece) => { if (!inspShown()) setInsp(true); inspect(book, key, piece); },
+            openText: key => { if (!inspShown()) setInsp(true); inspect(book, key, null, { tab: 'text' }); },
             onPick: keys => {
                 H.pick = keys;
-                if (keys.length === 1) { inspect(book, keys[0]); return; }
+                if (keys.length === 1) { if (!inspShown()) setInsp(true); inspect(book, keys[0]); return; }
                 H.insp = null;
                 heroInspector(book, data);
             },
             cardMenu: key => cardMenu(book, data, key),
-            lasso: {
-                entries: keys => keys.map(k => nodeOf(book, k)).filter(x => x?.t === 'entry').map(x => x.uid),
-                packs: () => packsOf(data),
-                pack: (uids, name) => {
-                    if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${uids.length} ${uids.length === 1 ? 'entry' : 'entries'} packed into #${name}`);
-                },
-            },
+            lasso: lassoFor(book, data),
             linkMenu: (l, shaped) => barLinkMenu(book, l, shaped),
             emptyMenu: at => placePicker(book, data, at),
         };
@@ -314,5 +327,5 @@ export function createHeroDesk(A) {
         render();
     }
 
-    return { createEntryIn, deskCanvas, deskColumns, heroBackDesk, heroInspector, heroKey, inspShown, leaveEntry, listShown, openHero, tidyNow };
+    return { createEntryIn, deskCanvas, lassoFor, deskColumns, heroBackDesk, heroInspector, heroKey, inspShown, leaveEntry, listShown, openHero, tidyNow };
 }

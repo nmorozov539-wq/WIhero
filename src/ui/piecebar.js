@@ -2,7 +2,7 @@
 // a card, or drag the chip onto a card; the bar turns into the piece's strip, Cancel on the left and Done on the
 // right. Tapping a line or a lock later opens its strip again, with Remove. Everything is written as it is set
 // up (so the canvas shows it), and Cancel puts the book back as it was when the strip opened.
-import { btn, el, swEl } from './dom.js';
+import { btn, el, html, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { maskName, refLabel, same } from './pieces.js';
 import * as L from './links.js';
@@ -16,11 +16,15 @@ export const BAR = [
     { k: 'switch', label: 'Switch', c: 'close', key: 'S' },
     { k: 'mask', label: 'Mask', c: 'mask', key: 'M' },
     { k: 'pack', label: 'Pack', c: 'pack', key: 'P' },
+    { k: 'tracker', label: 'Tracker', c: 'track', key: 'R' },
     { k: 'lock', label: 'Lock', c: 'cond', cond: true, key: 'L' },
     { k: 'wait', label: 'Wait', c: 'cond', cond: true, key: 'W' },
-    { k: 'moment', label: 'Moment', c: 'cond', key: 'E' },
+    { k: 'moment', label: 'Moment', c: 'moment', key: 'E' },
 ];
 const CHIP = Object.fromEntries(BAR.map(p => [p.k, p]));
+/** Each piece's icon (#39). */
+const CHIP_ICON = { opens: 'popen', closes: 'pclose', glue: 'pglue', switch: 'pswitch', mask: 'pmask', pack: 'tag', lock: 'lock', wait: 'clock', moment: 'spark', tracker: 'ptrack' };
+const chipIcon = k => { const s = el('span'); s.innerHTML = ic(CHIP_ICON[k] ?? 'plus'); return s.firstChild; };
 const FIELD = { gin: 'gate', cin: 'closeGate', mgin: 'gate', mcin: 'closeGate' };
 const colorOf = k => `var(--p-${CHIP[k]?.c ?? k})`;
 const KIND_PIECE = { open: 'opens', close: 'closes', ride: 'glue' };
@@ -33,11 +37,18 @@ export function armText(k, verb = 'Tap') {
     return `${verb} ${CHIP[k]?.cond ? 'a card, a line or a junction' : 'a card'} to add ${CHIP[k]?.label ?? k}`;
 }
 
+/** "a", "a and b", "a, b and c". */
+const andList = xs => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
 /** Why a chip can't go on a card, or null. Opens and Closes take any card; the rest take entries. */
 function whyNotOn(k, end) {
     if (!end) return 'That card is gone.';
     if (k === 'opens' || k === 'closes') return null;
     if (k === 'moment') return end.t === 'entry' && !end.moment ? null : 'A Moment reacts on an entry: it opens or closes it.';
+    // A Moment only happens: nothing rides along with it, and it has no paths or masks (#16). Armed, these dim it.
+    if (k === 'tracker') return end.t === 'entry' && !end.moment ? null : 'A tracker is an entry the AI writes to: pick an entry.';
+    if (end.moment && k === 'glue') return 'A Moment sends nothing, so nothing rides along with it.';
+    if (end.moment && (k === 'switch' || k === 'mask')) return `A Moment sends nothing, so it can't take ${k === 'mask' ? 'a mask' : 'a switch'}.`;
     if (end.t === 'greet') return 'A greeting only starts things. It can be the start of an Opens or a Closes line.';
     if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no gate of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
     return null;
@@ -78,7 +89,7 @@ export function mountPieceBar(x) {
             const b = el('button', `pchip${B.armed === p.k ? ' armed' : ''}`);
             b.type = 'button';
             b.style.setProperty('--c', colorOf(p.k));
-            b.append(el('i'), el('span', '', p.label));
+            b.append(chipIcon(p.k), el('span', '', p.label));
             if (x.desk) { b.append(el('kbd', '', p.key)); b.title = `${p.label} (${p.key})`; }
             b.dataset.piece = p.k;
             b.setAttribute('aria-pressed', String(B.armed === p.k));
@@ -126,7 +137,7 @@ export function mountPieceBar(x) {
             if (!ghost) {
                 ghost = el('div', 'dragchip');
                 ghost.style.setProperty('--c', colorOf(k));
-                ghost.append(el('i'), el('span', '', CHIP[k].label));
+                ghost.append(chipIcon(k), el('span', '', CHIP[k].label));
                 cancel = el('div', 'dropcancel');
                 cancel.innerHTML = ic('x');
                 x.root.append(cancel, ghost);
@@ -155,7 +166,9 @@ export function mountPieceBar(x) {
             clean();
             B.armed = null;
             armOverlay();
-            if (h) x.place(k, h);
+            // A Moment can stand on its own: off a card, it is made where it was dropped.
+            if (k === 'moment' && !off && !h?.card) { const at = canvas.pointAt(ev.clientX, ev.clientY); if (at) x.place(k, null, at); }
+            else if (h) x.place(k, h);
         });
         // The browser took the gesture (a sideways scroll of the bar): take away everything the drag drew.
         chip.addEventListener('pointercancel', () => { const was = !!ghost; clean(); if (was) { B.armed = null; armOverlay(); } });
@@ -211,14 +224,15 @@ export function mountPieceBar(x) {
     // ---- Opens, Closes, Glue (ride along)
     function linkStrip() {
         const kind = CHIP[e.piece].kind;
-        if (e.piece === 'glue') mid.append(glueChoice());
+        // Glue's Ride along / Hold sits in the sentence's row, not on a line of its own (#26).
+        const withChoice = n => (e.piece === 'glue' && e.isNew ? row(glueChoice(), n) : n);
         // The source comes first, doing the verb: "Road opens Mill" (and, quieter, "Mill waits for Road").
         const sentence = (src, dst) => (kind === 'open' ? [src, ' opens ', dst] : kind === 'close' ? [src, ' closes ', dst] : [dst, ' rides along with ', src]);
         const echo = (srcText, dstText) => { const n = el('span', 'pecho'); n.textContent = ` · ${dstText} waits for ${srcText}`; return n; };
         const words = (end, dots) => (end ? { b: name(end) } : dots);
         if (!e.linked) {
             const fixed = e.src ?? e.dst;
-            mid.append(say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : words(p, '…')))));
+            mid.append(withChoice(say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : words(p, '…'))))));
             const ok = end => !L.whyNot(kind, e.src ?? end, e.dst ?? end) && !L.sameEnd(end, fixed);
             const tap = x.desk ? 'click' : 'tap';
             const lead = kind === 'ride' ? 'Drag the loose end onto a card, or' : `Now ${tap} the card it ${kind === 'open' ? 'opens' : 'closes'}, drag the loose end onto it, or`;
@@ -230,6 +244,8 @@ export function mountPieceBar(x) {
         }
         const E = ed();
         const D = data();
+        // A tapped line (#3): its looks, and Edit logic, which jumps to the entry that keeps the rule.
+        if (!e.isNew) { tappedLine(E, D, kind, sentence); return; }
         const flip = btn('pbtn flipb', '⇄', () => flipIt(), 'Turn the link around');
         const whyFlip = L.whyNotFlip(E, D, kind, e.src, e.dst, e.mask ?? null);
         if (whyFlip) { flip.classList.add('no'); flip.title = whyFlip; }
@@ -250,7 +266,7 @@ export function mountPieceBar(x) {
         } else {
             const s1 = say(...parts);
             if (kind === 'open') s1.append(echo(name(e.src), name(e.dst)));
-            mid.append(row(s1, flip));
+            mid.append(e.piece === 'glue' ? row(glueChoice(), s1) : row(s1, flip));
         }
         // Several links into one card: both, or either one.
         if (kind !== 'ride' && e.dst.t === 'entry') {
@@ -274,11 +290,40 @@ export function mountPieceBar(x) {
             mid.append(row(swEl(on, v => run((ed2, d2) => (v ? L.addLink(ed2, d2, 'close', e.dst, e.src) : L.removeLink(ed2, d2, 'close', e.dst, e.src))), `${name(e.src)} closes when ${name(e.dst)} fires`),
                 el('span', 'plabel2', `${name(e.src)} closes when ${name(e.dst)} fires`)));
         }
-        const tools = shapeRow();
+        // + Lock and + Wait (#2): the same strips as the piece bar's, already placed on this link's row.
+        if (kind !== 'ride' && e.dst.t === 'entry') {
+            const loc = L.findLink(E, D, kind, e.src, e.dst, e.mask ?? null);
+            if (loc?.t === 'row') {
+                const place = { uid: loc.uid, field: loc.field, mask: loc.mask ?? null, row: loc.row };
+                const cond = k => {
+                    if (e.ask) { refuse(`Pick both or either one first.`); return; }
+                    const edit = { piece: k, isNew: true, snap: e.snap, dirty: true, note: null, place: { ...place }, cond: k === 'lock' ? { lock: [] } : { wait: 2 }, at: null, book: B.edit.book };
+                    B.edit = edit;
+                    if (k === 'wait') writeNow(edit, x);
+                    x.render();
+                };
+                const lk = small('+ Lock', () => cond('lock'), 'ghost');
+                const wt = small('+ Wait', () => cond('wait'), 'ghost');
+                mid.append(row(lk, wt));
+            }
+        }
+        // Looks come last and small: the four line types, the rest when the line is tapped later.
+        const st = canvas.shapeState?.();
+        if (st) {
+            const icons = { curve: 'M2 13 C9 13 11 3 18 3', arc: 'M2 13 Q10 -5 18 13', straight: 'M2 13 L18 3', step: 'M2 13 H10 V3 H18' };
+            const r = row();
+            r.classList.add('pshapes');
+            for (const [t, label] of [['curve', 'Curve'], ['arc', 'Arc'], ['straight', 'Straight'], ['step', 'Step']]) {
+                const b = btn(`pshp${st.type === t ? ' on' : ''}`, '', () => canvas.patchShape({ type: t }), label);
+                b.title = label;
+                b.innerHTML = `<svg viewBox="0 0 20 16" aria-hidden="true"><path d="${icons[t]}"/></svg>`;
+                b.setAttribute('aria-pressed', String(st.type === t));
+                r.append(b);
+            }
+            r.append(el('span', 'phint', `${x.desk ? 'Click' : 'Tap'} the line later for bend and flip.`));
+            mid.append(r);
+        }
         note();
-        // The shape's buttons share a row with the link's Remove, so the strip stays short on a phone.
-        if (!e.isNew) tools.push(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); }));
-        if (tools.length) mid.append(row(...tools));
         right.disabled = !!e.ask;
         canvas.overlay({ sel: new Set([x.keyOf(e.src), x.keyOf(e.dst)]) });
 
@@ -299,6 +344,21 @@ export function mountPieceBar(x) {
             e.note = shared.length ? `${name(e.dst)} was needed together with ${shared.map(refText).join(', ')}. Turned around, it's a rule of its own.` : null;
             x.render();
         }
+    }
+    /** A tapped line: what it does in one sentence with Edit logic, then its full shaping, then Remove. */
+    function tappedLine(E, D, kind, sentence) {
+        const s1 = say(...sentence(e.src, e.dst).map(p => (typeof p === 'string' ? p : { b: name(p) })));
+        const loc = L.findLink(E, D, kind, e.src, e.dst, e.mask ?? null);
+        const holder = loc?.uid !== undefined ? loc.uid : e.dst.t === 'entry' ? e.dst.uid : null;
+        const piece = kind === 'ride' ? 'glue' : loc?.mask != null || e.mask != null ? 'masks' : loc?.field ?? (kind === 'open' ? 'gate' : 'closeGate');
+        const logic = holder !== null ? small('Edit logic ›', () => { const key = x.keyOf({ t: 'entry', uid: holder }); close(); x.inspect(key, piece); }) : null;
+        mid.append(row(s1, ...(logic ? [logic] : [])));
+        const tools = shapeRow();
+        note();
+        // The shape's buttons share a row with the link's Remove, so the strip stays short on a phone.
+        tools.push(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); }));
+        mid.append(row(...tools));
+        canvas.overlay({ sel: new Set([x.keyOf(e.src), x.keyOf(e.dst)]) });
     }
     // The line's shape: its type, which way it bows and how far, for the part picked on the canvas (or all of it).
     function shapeRow() {
@@ -368,12 +428,13 @@ export function mountPieceBar(x) {
         }, 'Ride along or hold');
     }
     function glueStrip() {
-        mid.append(glueChoice());
+        // One row: the card, then Ride along / Hold, then what that means (#26).
         if (!e.mode) {
-            mid.append(el('div', 'phint', `Ride along: ${name(e.dst)} fires whenever another card fires. Hold: ${name(e.dst)} stays on once it fires.`));
+            mid.append(row(say({ b: name(e.dst) }), glueChoice()));
+            mid.append(el('div', 'phint', 'Ride along: it fires whenever its host fires. Hold: it stays on once it fires.'));
             right.disabled = true;
         } else {
-            mid.append(say({ b: name(e.dst) }, ' stays on once it fires.'));
+            mid.append(row(say({ b: name(e.dst) }), glueChoice(), say(' stays on once it fires.')));
             const closers = x.closersOf(e.dst.uid);
             if (closers.length) mid.append(el('div', 'phint', `Ends when ${closers.join(' or ')} closes it.`));
             else mid.append(el('div', 'pnote', `Nothing ends it yet. Add a Closes to ${name(e.dst)}.`));
@@ -387,23 +448,44 @@ export function mountPieceBar(x) {
     function switchStrip() {
         mid.append(say({ b: name(e.fork) }, ' is a fork. When one path fires, the others close.'));
         const list = el('div', 'ppaths');
+        // The order only matters when two paths fire in one message, so it is folded away (#18).
+        const order = e.order && e.paths.length > 1;
         e.paths.forEach((p, i) => {
             const r = el('div', 'ppath');
-            r.append(el('span', 'pn', `${i + 1}`), el('span', 'pt', name(p)));
-            const mv = d => { const j = i + d; if (j < 0 || j >= e.paths.length) return; [e.paths[i], e.paths[j]] = [e.paths[j], e.paths[i]]; writeSwitch(); };
-            const up = btn('pbtn ico', ic('up', 's'), () => mv(-1), `Move ${name(p)} up`);
-            const dn = btn('pbtn ico', ic('down', 's'), () => mv(1), `Move ${name(p)} down`);
-            up.disabled = i === 0;
-            dn.disabled = i === e.paths.length - 1;
-            r.append(up, dn, btn('pbtn ico', ic('x', 's'), () => { const [gone] = e.paths.splice(i, 1); writeSwitch([gone]); }, `Take ${name(p)} out`));
+            if (order) r.append(el('span', 'pn', `${i + 1}`));
+            r.append(el('span', 'pt', name(p)));
+            if (order) {
+                const mv = d => { const j = i + d; if (j < 0 || j >= e.paths.length) return; [e.paths[i], e.paths[j]] = [e.paths[j], e.paths[i]]; writeSwitch(); };
+                const up = btn('pbtn ico', ic('up', 's'), () => mv(-1), `Move ${name(p)} up`);
+                const dn = btn('pbtn ico', ic('down', 's'), () => mv(1), `Move ${name(p)} down`);
+                up.disabled = i === 0;
+                dn.disabled = i === e.paths.length - 1;
+                r.append(up, dn);
+            }
+            r.append(btn('pbtn ico', ic('x', 's'), () => { const [gone] = e.paths.splice(i, 1); writeSwitch([gone]); }, `Take ${name(p)} out`));
             list.append(r);
         });
         if (e.paths.length) mid.append(list);
         const ok = end => end?.t === 'entry' && !L.sameEnd(end, e.fork) && !e.paths.some(p => L.sameEnd(p, end));
         const add = end => { if (!ok(end)) { refuse('A path is another entry, not a pack or a greeting, and each one is listed once.'); return; } e.paths.push(end); if (!writeSwitch()) e.paths.pop(); x.render(); };
         mid.append(row(el('span', 'phint', e.paths.length < 2 ? `Drag the loose end to path ${e.paths.length + 1}, or` : 'More paths: drag the loose end, or'), picker('pick one', ok, add)));
-        if (e.paths.length > 1) mid.append(el('div', 'phint', 'When two paths fire in the same message, the higher one wins.'));
-        mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, 'Paths wait for the fork'), el('span', 'plabel2', 'Paths wait for the fork')));
+        if (e.paths.length > 1) {
+            const t = btn('linkish porder', html`${ic(order ? 'down' : 'right', 's')} If two fire at once`, () => { e.order = !e.order; x.render(); });
+            t.setAttribute('aria-expanded', String(!!order));
+            mid.append(t);
+            if (order) mid.append(el('div', 'phint', 'When two paths are named in the same message, the higher one wins and the others close.'));
+        }
+        // Says what the switch is as a gate, with the real names (#19).
+        const waitText = e.paths.length ? `${andList(e.paths.map(name))} can't fire before ${name(e.fork)} does` : `Paths can't fire before ${name(e.fork)} does`;
+        mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, waitText), el('span', 'plabel2', waitText)));
+        // A path that already waits for something else: the fork and that (both), or either one (#20).
+        const E2 = ed();
+        const forkId = E2.config(e.fork.uid).id;
+        const busy = e.wait ? e.paths.filter(p => L.rowsOf(E2.config(p.uid), 'gate').some(rw => rw.some(y => !L.isCond(y) && y !== forkId))) : [];
+        if (busy.length) {
+            e.join ??= L.rowOf(E2, L.findLink(E2, data(), 'open', e.fork, busy[0])).lone ? 'or' : 'and';
+            mid.append(row(el('span', 'phint', `${andList(busy.map(name))} already ${busy.length > 1 ? 'wait' : 'waits'} for something:`), seg([['and', `that and ${name(e.fork)} (both)`], ['or', 'either one']], e.join, v => { e.join = v; writeSwitch(); x.render(); }, 'Both or either')));
+        }
         if (!e.wait) mid.append(el('div', 'pnote', `A path can be taken before ${name(e.fork)} fires.`));
         mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
         if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; rewriting the message before it rolls again.`));
@@ -415,7 +497,7 @@ export function mountPieceBar(x) {
     function writeSwitch(removed = []) {
         const ok = run((ed2, d2) => {
             if (e.wait) for (const r of removed) L.removeLink(ed2, d2, 'open', e.fork, r);
-            if (e.paths.length >= 2) { L.setSwitch(ed2, d2, e.fork, e.paths, e.wait); ed2.update(e.fork.uid, c => { if (e.dice) c.dice = true; else delete c.dice; }); }
+            if (e.paths.length >= 2) { L.setSwitch(ed2, d2, e.fork, e.paths, e.wait, e.join ?? 'and'); ed2.update(e.fork.uid, c => { if (e.dice) c.dice = true; else delete c.dice; }); }
             else {
                 ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; });
                 for (const p of e.paths) {
@@ -449,7 +531,8 @@ export function mountPieceBar(x) {
         const waits = isLock ? r.filter(y => L.isCond(y) && 'wait' in y).map(refText) : [];
         const after = [...links, ...waits];
         if (p.row == null) {
-            mid.append(row(say({ b: who }, ' '), seg([['gate', 'opens'], ['closeGate', 'closes']], p.field, v => { p.field = v; writeCond(); x.render(); }, 'Opens or closes'), say(isLock ? ' when someone says:' : ' after:')));
+            // A gate of its own on a card that had none: it opens when it's said (#15), no direction to pick.
+            mid.append(say({ b: who }, p.field === 'gate' ? ' opens' : ' closes', isLock ? ' when someone says:' : ' after:'));
         } else {
             const n = el('div', 'say');
             if (p.mask != null) n.append('Mask ', el('b', '', E.config(p.uid).masks?.[p.mask]?.name ?? ''), ' of ');
@@ -458,7 +541,22 @@ export function mountPieceBar(x) {
             n.append(isLock ? ' when someone says:' : ' after:');
             mid.append(n);
         }
+        // Both or either one (#20): with what the gate already waits for, or as a row of its own.
+        if (p.join != null) {
+            const jr = L.rowsOf(E.config(p.uid), p.field, p.mask)[p.join] ?? [];
+            const list = jr.filter(y => !L.isCond(y)).map(refText).join(' and ');
+            mid.append(seg([['and', `with ${list} (both)`], ['or', 'on its own (either one)']], p.row == null ? 'or' : 'and', v => {
+                const row = v === 'and' ? p.join : null;
+                if ((p.row ?? null) === row) return;
+                if (e.at) { run(ed2 => L.removeCond(ed2, e.at)); e.at = null; }
+                p.row = row;
+                writeCond();
+                x.render();
+            }, 'Both or either'));
+        }
         if (isLock) {
+            // Who first, then what they say (#15): "anyone / you / the character says: …".
+            mid.append(row(seg([['', 'anyone'], ['user', 'you'], ['char', 'the character']], c.by ?? '', v => { if (v) c.by = v; else delete c.by; writeCond(); x.render(); }, 'Who says it'), say(' says:')));
             const chips = el('div', 'pphr');
             (c.lock ?? []).forEach((ph, i) => {
                 const b = btn('pphrase', '', () => { c.lock.splice(i, 1); writeCond(); x.render(); }, `Remove "${ph}"`);
@@ -483,18 +581,22 @@ export function mountPieceBar(x) {
             inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); addPhrase(); } });
             chips.append(inp, small('Add', addPhrase));
             mid.append(chips);
-            if ((c.lock ?? []).length > 1) mid.append(el('div', 'phint', 'Any one of them is enough.'));
-            mid.append(row(el('span', 'phint', 'Who says it:'), seg([['', 'anyone'], ['user', 'you'], ['char', 'the character']], c.by ?? '', v => { if (v) c.by = v; else delete c.by; writeCond(); x.render(); }, 'Who says it')));
+            mid.append(el('div', 'phint', (c.lock ?? []).length > 1 ? 'Any one of them is enough.' : 'Add a few ways of saying it: any one is enough.'));
         } else {
+            // A stepper for the count (#15): − n + messages pass.
             const nums = el('div', 'prow2');
-            for (const n of [1, 2, 3, 5, 10]) nums.append(small(String(n), () => { c.wait = n; writeCond(); x.render(); }, c.wait === n ? 'on' : ''));
+            const set = v => { c.wait = Math.max(1, v); writeCond(); x.render(); };
             const own = el('input', 'pnum');
             own.type = 'number'; own.min = '1';
-            own.value = [1, 2, 3, 5, 10].includes(c.wait) ? '' : String(c.wait);
-            own.placeholder = 'other';
+            own.value = String(c.wait);
             own.setAttribute('aria-label', 'Number of messages');
-            own.addEventListener('change', () => { const v = Math.round(Number(own.value)); if (v >= 1) { c.wait = v; writeCond(); x.render(); } });
-            nums.append(own, el('span', 'phint', `message${c.wait === 1 ? '' : 's'} pass`));
+            own.addEventListener('change', () => { const v = Math.round(Number(own.value)); if (v >= 1) set(v); });
+            const dn = small('−', () => set(c.wait - 1));
+            dn.setAttribute('aria-label', 'One message fewer');
+            dn.disabled = c.wait <= 1;
+            const up = small('+', () => set(c.wait + 1));
+            up.setAttribute('aria-label', 'One message more');
+            nums.append(dn, own, up, el('span', 'phint', `message${c.wait === 1 ? '' : 's'} pass`));
             mid.append(nums);
             mid.append(row(el('span', 'phint', 'Whose messages count:'), seg([['', 'everyone\'s'], ['user', 'yours'], ['char', 'the character\'s']], c.by ?? '', v => { if (v) c.by = v; else delete c.by; writeCond(); x.render(); }, 'Whose messages count')));
             if (p.row == null) mid.append(el('div', 'phint', 'Counted from the start of the chat.'));
@@ -730,7 +832,7 @@ export function startPiece(k, hit, x) {
             return { edit: { ...base, dirty: true, uid: end.uid, mi } };
         }
         if (k === 'pack') return { edit: { ...base, uid: end.uid } };
-        if (k === 'lock' || k === 'wait') return { edit: { ...base, place: { uid: end.uid, field: null, mask: null, row: null }, cond: k === 'lock' ? { lock: [] } : { wait: 2 }, at: null } };
+        if (k === 'lock' || k === 'wait') return condOnCard(k, end, base, x);
     }
     if (k !== 'lock' && k !== 'wait') return { why: 'Drop it on a card.' };
     const cond = k === 'lock' ? { lock: [] } : { wait: 2 };
@@ -759,6 +861,34 @@ export function startPiece(k, hit, x) {
     const edit = { ...base, place: { uid: end.uid, field: FIELD[row.port], mask: row.mask ?? null, row: row.ri }, cond, at: null };
     if (k === 'wait') writeNow(edit, x);
     return { edit };
+}
+
+/**
+ * A lock or wait dropped on a card (#15) joins one of its gates, never asking which way: a card with one gate row
+ * takes it there, a card with several asks which (`choose`), a card with none gets it as a gate of its own.
+ */
+function condOnCard(k, end, base, x) {
+    const E = x.editor();
+    const c = E.config(end.uid);
+    const cond = () => (k === 'lock' ? { lock: [] } : { wait: 2 });
+    const make = place => { const edit = { ...base, place, cond: cond(), at: null }; if (k === 'wait') writeNow(edit, x); return edit; };
+    const text = row => row.filter(y => !L.isCond(y)).map(y => refLabel(y, x.nameOfId).text).join(' and ');
+    const targets = [];
+    const add = (field, mask) => L.rowsOf(c, field, mask).forEach((row, i) => {
+        const what = mask === null ? (field === 'gate' ? 'Gate' : 'Close gate') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;
+        const links = text(row);
+        targets.push({
+            label: what, family: mask !== null ? 'mask' : field === 'gate' ? 'open' : 'close',
+            sub: links ? `${field === 'gate' && mask === null ? 'Opens' : field === 'gate' ? 'On' : mask === null ? 'Closes' : 'Off'} when ${links} ${row.filter(y => !L.isCond(y)).length > 1 ? 'have' : 'has'} fired` : row.map(y => refLabel(y, x.nameOfId).text).join(', '),
+            place: { uid: end.uid, field, mask, row: i, ...(row.some(y => !L.isCond(y)) ? { join: i } : {}) },
+        });
+    });
+    add('gate', null);
+    add('closeGate', null);
+    (Array.isArray(c.masks) ? c.masks : []).forEach((_, mi) => { add('gate', mi); add('closeGate', mi); });
+    if (!targets.length) return { edit: make({ uid: end.uid, field: 'gate', mask: null, row: null }) };
+    if (targets.length === 1) return { edit: make(targets[0].place) };
+    return { choose: { title: `Add the ${k} to…`, options: targets.map(t => ({ ...t, make: () => make(t.place) })) } };
 }
 
 /** A wait is complete from the start (2 messages), so it is written straight away. */

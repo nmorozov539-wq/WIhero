@@ -1,6 +1,6 @@
 // The entry page's Story logic section (LAYOUT "Entry page"): one plain sentence per rule, in the piece's
 // family color, including the rules other entries put on this one. Pure, read from the model (src/engine/model.js).
-import { entryKey } from '../engine/model.js';
+import { GREETINGS, entryKey } from '../engine/model.js';
 import { isObject } from '../engine/util.js';
 
 const READING = /^#([^:]+)(?::(all|\d+))?$/;
@@ -46,7 +46,7 @@ export function wording(node, model) {
                 rest.push(x.by === 'user' ? `you say ${phrases}` : x.by === 'char' ? `the character says ${phrases}` : `${phrases} is said`);
             }
             else if ('wait' in x) rest.push(`${x.wait} message${x.wait === 1 ? '' : 's'} have passed`);
-            else if ('greeting' in x) rest.push(`the chat opened with ${x.name || x.char}'s ${greetingName(x.greeting)}`);
+            else if ('greeting' in x && GREETINGS) rest.push(`the chat opened with ${x.name || x.char}'s ${greetingName(x.greeting)}`);
         }
         const parts = [];
         if (fired.length) parts.push(`${and(fired)} ${fired.length === 1 && !/^(any|all|\d+) of/.test(fired[0]) ? 'has' : 'have'} fired`);

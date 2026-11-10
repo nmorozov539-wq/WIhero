@@ -11,6 +11,8 @@ import {
 } from './data.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook } from './canvas-graph.js';
+import { canvasMemory } from './canvas.js';
+import { bookEditor, packsOf, renamePack } from './pieces.js';
 import { getStringHash } from '../engine/util.js';
 import { greetingFpOf, greetingSignature } from '../chat-state.js';
 import { createPreview } from './preview-view.js';
@@ -77,6 +79,7 @@ export function createApp(deps) {
     window.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
+        if (e.composedPath()[0]?.dataset?.ownEscape) return; // a field that cancels its own edit with Escape
         e.preventDefault();
         e.stopPropagation();
         back();
@@ -449,7 +452,7 @@ export function createApp(deps) {
     const normal = () => (normalView ??= createNormal({
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, warningsOf, hasLogic,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic,
         render: () => render(), renderTabs, saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         switchMode, tab, up, visibleNames, wiSettingsSheet,
     }));
@@ -461,6 +464,8 @@ export function createApp(deps) {
     function renderHome(...a) { return normal().renderHome(...a); }
     function renderSearch(...a) { return normal().renderSearch(...a); }
     function selBar(...a) { return normal().selBar(...a); }
+    function defaultsSheet(...a) { return normal().defaultsSheet(...a); }
+    function defaultsSummary(...a) { return normal().defaultsSummary(...a); }
 
     // ---------------------------------------------------------------- creating
     function newEntry(book, folder = '') {
@@ -590,7 +595,7 @@ export function createApp(deps) {
     const heroShell = () => (heroShellView ??= createHeroShell({
         H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
-        loadingNote, main, modelOf, need, packSheet, panelState, placePicker, render: () => render(), renderEntry,
+        loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
         startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN,
     }));
@@ -652,18 +657,23 @@ export function createApp(deps) {
 
     function bookPicker() {
         layer.sheet('Switch book', sh => {
-            for (const n of visibleNames()) {
-                sh.append(layer.opt(n, () => { layer.close(); H.book = n; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
-            }
             const open = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
-            sh.append(layer.opt('+ New book', () => layer.askText({
+            // The actions sit on top as small icon buttons (#34); a long press (or hover) says what each does.
+            const acts = el('div', 'pkacts');
+            const act = (icon, label, fn) => {
+                const b = btn('pkact', ic(icon), fn, label);
+                b.title = label;
+                b.addEventListener('contextmenu', e => { e.preventDefault(); layer.toast(label); });
+                acts.append(b);
+            };
+            act('plus', 'New book', () => layer.askText({
                 title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
                 done: async n => {
                     try { open(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
                 },
-            }), { icon: 'plus' }));
+            }));
             if (H.book) {
-                sh.append(layer.opt(`Duplicate ${H.book}`, async () => {
+                act('copy', `Duplicate ${H.book}`, async () => {
                     layer.close();
                     const from = H.book;
                     let to;
@@ -672,8 +682,36 @@ export function createApp(deps) {
                     saveSettings();
                     open(to);
                     layer.toast(`Made ${to}`);
-                }, { icon: 'copy' }));
+                });
             }
+            sh.append(acts);
+            for (const n of visibleNames()) {
+                sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
+            }
+        });
+    }
+
+    /** Asks a pack's new name and renames it everywhere the book names it, and on the canvas (#21). */
+    function renamePackAsk(book, from) {
+        layer.askText({
+            title: `Rename #${from}`, value: from, placeholder: 'Pack name (town/inn for one inside another)', ok: 'Rename',
+            check: v => {
+                const to = v.trim().replace(/^#/, '');
+                if (!/^[A-Za-z0-9][A-Za-z0-9_.\-/]*$/.test(to)) return 'Letters, numbers, - _ . and / only';
+                if (to !== from && packsOf(library.peek(book)).includes(to)) return `#${to} is already a pack`;
+                return null;
+            },
+            done: v => {
+                const to = v.trim().replace(/^#/, '');
+                if (to === from) return;
+                const mem = canvasMemory(bookSettings(settings, book));
+                for (const k of Object.keys(mem.cards)) {
+                    const name = k.startsWith('pack:') ? k.slice(5) : null;
+                    if (name === from || name?.startsWith(`${from}/`)) { mem.cards[`pack:${to}${name.slice(from.length)}`] = mem.cards[k]; delete mem.cards[k]; }
+                }
+                saveSettings();
+                if (library.change(book, d => renamePack(bookEditor(d), d, from, to))) layer.toast(`#${from} is now #${to}`);
+            },
         });
     }
 
@@ -683,6 +721,7 @@ export function createApp(deps) {
         const usesPack = rs => (rs ?? []).flat().some(r => r === `#${name}` || (typeof r === 'string' && r.startsWith(`#${name}:`)));
         const users = m.E.filter(e => usesPack(e.gate) || usesPack([e.gatesFor]) || usesPack(e.closeGate) || usesPack([e.closesFor]));
         layer.sheet(`#${name}`, sh => {
+            sh.append(layer.opt('Rename', () => { layer.close(); renamePackAsk(book, name); }, { icon: 'edit' }));
             sh.append(el('div', 'lbl', 'In this pack'));
             for (const e of members) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry) }));
             if (users.length) {
@@ -700,6 +739,7 @@ export function createApp(deps) {
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
         layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, hasLogic,
         render: () => render(), saveSettings, settings, canvas: () => heroCanvas(), isRenderQueued: () => renderQueued,
+        dropPiece: (...a) => dropPiece(...a),
     }));
     function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
     function inspect(...a) { return heroInsp().inspect(...a); }
@@ -789,7 +829,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let menusView = null;
     const menus = () => (menusView ??= createMenus({
-        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     }));
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
     function bookMenu(...a) { return menus().bookMenu(...a); }
@@ -817,6 +857,7 @@ export function createApp(deps) {
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),
     }));
     function createEntryIn(...a) { return heroDesk().createEntryIn(...a); }
+    function lassoFor(...a) { return heroDesk().lassoFor(...a); }
     function deskCanvas(...a) { return heroDesk().deskCanvas(...a); }
     function deskColumns(...a) { return heroDesk().deskColumns(...a); }
     function heroBackDesk(...a) { return heroDesk().heroBackDesk(...a); }

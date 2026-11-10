@@ -21,7 +21,7 @@ export function createHeroShell(A) {
     const {
         H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
-        loadingNote, main, modelOf, need, packSheet, panelState, placePicker, render, renderEntry, renderGuideTab,
+        loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
         stopExplain, strip, switchMode, tabbar, visibleNames, desk,
     } = A;
@@ -268,9 +268,11 @@ export function createHeroShell(A) {
             save: saveSettings,
             open: (key, piece) => inspect(book, key, piece),
             pack: name => packSheet(book, data, name),
+            renamePack: name => renamePackAsk(book, name),
+            lasso: lassoFor(book, data),
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
-            tapTarget: hit => barTap(book, hit),
+            tapTarget: (hit, at) => barTap(book, hit, at),
             shaping: () => barShaping(book),
             shapeSet: (pick, changed) => barShapeSet(pick, changed),
             focused: () => (H.insp?.book === book ? H.insp.key : null),

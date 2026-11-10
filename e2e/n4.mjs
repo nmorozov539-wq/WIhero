@@ -1,6 +1,6 @@
 // N4's in-ST checks (ROADMAP N4, BUILD_SPEC 13): at 390px wide, every piece of CONCEPTS 3 is added, edited and
 // removed from the inspector and lands in the book; ports and Problems open the inspector; mask text is written
-// through the entry page's chips; greeting cards take rules; and Reopen works and rewinds. Setup: e2e/README.md.
+// through the entry page's chips; greetings stay hidden (retired for v1); and Reopen works and rewinds. Setup: e2e/README.md.
 import assert from 'node:assert/strict';
 import { LOG, ev, ok, page, run, send, start, swipeRight, wait } from './lib.mjs';
 
@@ -166,7 +166,7 @@ await run(async () => {
     assert.equal(door2.masks[0].name, 'ruined');
     assert.deepEqual(door2.masks[0].gate, [['storm']]);
     assert.equal(door2.masks[0].content, 'The door.', 'a new mask starts as a copy of the main text');
-    await $('.insp .mlayer .linkish:has-text("Edit text")').click();
+    await $('.insp .mlayer .mtext').click(); // the first line of the mask's text opens it (#27)
     await $('.en h1:text-is("Door")').waitFor();
     assert.equal(await $('.mchip.on').textContent(), 'ruined');
     await $('.en textarea').fill('The door hangs off its hinges.');
@@ -184,9 +184,11 @@ await run(async () => {
     await addPiece('Gates for');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Key')).gatesFor, ['market']);
-    await addPiece('Who triggers');
+    // Who triggers is a selector at the top of the inspector, not a piece (#14).
+    await $('.insp .isets [aria-label="Who triggers"] button:text-is("You")').click();
+    await wait(200);
     assert.equal((await cfg('Key')).by, 'user');
-    await piece('by').locator('.seg button:text-is("Character\'s replies")').click();
+    await $('.insp .isets [aria-label="Who triggers"] button:text-is("Character")').click();
     await wait(200);
     assert.equal((await cfg('Key')).by, 'char');
 
@@ -194,7 +196,7 @@ await run(async () => {
     await addPiece('Glue');
     assert.deepEqual((await cfg('Storm')).glue, { mode: 'hold' });
     assert.ok(await piece('glue').locator('.phelp:has-text("Nothing ends it yet")').count());
-    assert.equal(await $('.insp .addpiece').count() && await (async () => { await $('.insp .addpiece').click(); const n = await opt('Once').count(); await page.keyboard.press('Escape'); return n; })(), 0, 'Once isn\'t offered on a glued entry');
+    assert.equal(await $('.insp .isets .switch[aria-label^="Once"]').count(), 0, 'Once isn\'t offered on a glued entry');
     await piece('glue').locator('.seg button:text-is("Ride along")').click();
     await opt('Key').click();
     await wait(200);
@@ -208,9 +210,11 @@ await run(async () => {
     await pick('+ add', 'Inn');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Hall')).switch, ['inn', 'market']);
-    await addPiece('Once');
+    // Once is a switch at the top of the inspector, not a piece (#31).
+    await $('.insp .isets .switch[aria-label^="Once"]').click();
+    await wait(200);
     assert.equal((await cfg('Hall')).once, true);
-    await piece('once').locator('.pq[aria-label="Remove Once"]').click();
+    await $('.insp .isets .switch[aria-label^="Once"]').click();
     await wait(200);
     assert.equal((await cfg('Hall')).once, undefined);
     await shot('switch');
@@ -240,35 +244,19 @@ await run(async () => {
     assert.ok(await $('.card[data-id="id:tower"] .cbang').count());
     ok('Problems in the Hero menu opens the inspector, with the problem in it and "!" on the card');
 
-    // ── Greetings (BUILD_SPEC 15.4) ──
+    // ── Greetings are retired for v1 (#33): no panel rows, no cards ──
     await $('.insp .ihead button[aria-label="Close the inspector"]').click();
     await $('.panelBtn').click();
-    const gkey = await $('.prow.greet').first().getAttribute('data-key');
-    assert.match(gkey, /^greet:.+:0$/);
-    await $('.prow.greet .dotc').first().click();
-    await $(`.card.greet[data-id="${gkey}"]`).waitFor();
-    await $(`.card.greet[data-id="${gkey}"] .t`).click();
-    await $('.insp.greet .ihead h2:text-is("Greeting")').waitFor();
-    await $('.insp .pc[data-piece="gatesFor"] .addb').click();
-    await opt('Hall').click();
     await wait(300);
-    const hall = await cfg('Hall');
-    assert.equal(hall.gatedBy.length, 1);
-    assert.equal(hall.gatedBy[0].greeting, 0);
-    assert.ok(hall.gatedBy[0].fp);
-    assert.deepEqual(await $('.insp .pc[data-piece="gatesFor"] .chip').allTextContents(), ['Hall']);
-    await $('.insp .pc[data-piece="closesFor"] .addb').click();
-    await opt('#town').click();
-    await wait(300);
-    assert.equal((await cfg('Inn')).closeGate[0][0].via, '#town');
-    assert.equal((await cfg('Market')).closeGate[0][0].via, '#town');
-    await shot('greeting');
-    await $('.insp .ihead button[aria-label="Close the inspector"]').click();
+    assert.equal(await $('.prow.greet:not(.moment)').count(), 0, 'no greeting rows in the panel');
+    assert.equal(await $('.card.greet:not(.moment)').count(), 0, 'no greeting cards');
     await $('.canvas-tools button[aria-label="Fit to screen"]').click();
     await wait(300);
     await shot('fit');
-    await $('.card.greet').first().locator('.t').click();
-    ok('a greeting card is placed from the panel; its Gates for and Closes for are written on the entries');
+    await $('.panelBtn').click(); // the panel covers the canvas on a phone
+    await wait(300);
+    await $('.card[data-id="id:tower"] .t').click();
+    ok('greetings are retired: no greeting rows or cards');
 
     // ── Reopen, and it rewinds (D18) ──
     await $('.insp .ihead button[aria-label="Close the inspector"]').click();

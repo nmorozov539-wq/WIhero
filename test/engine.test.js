@@ -1,7 +1,7 @@
 // The rules of BUILD_SPEC 9.3, played through the engine with a stand-in for ST's scan (test/sim.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildModel, normalize } from '../src/engine/model.js';
+import { GREETINGS, buildModel, normalize } from '../src/engine/model.js';
 import { readState } from '../src/engine/state.js';
 import { reopen, pickMask } from '../src/engine/manual.js';
 import { keywordOnSide, stateForScan } from '../src/engine/turn.js';
@@ -419,14 +419,33 @@ test('keys are per book: two books with a "mill" never mix', () => {
 const greet = n => ({ greeting: n, char: 'Sera.png', name: 'Sera', fp: `fp${n}` });
 const fpOf = (char, n) => char === 'Sera.png' ? (n < 3 ? `fp${n}` : null) : undefined;
 
-test('greetings: the opening greeting counts as fired at index 0, and only that one', () => {
+test('greetings retired (#33): greeting links read as unwritten, and no chat counts as opened with one', { skip: GREETINGS }, () => {
+    const entries = [
+        e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }),
+        e(1, 'town', { id: 'town', gate: [[greet(0), 'forest'], ['mill']], closeGate: [[greet(1)]] }),
+        e(2, 'mill', { id: 'mill', gatedBy: [greet(0)] }),
+    ];
+    const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf } });
+    assert.deepEqual(s.model.issues, []);
+    assert.equal(s.model.nodes.get(K('forest')).opens.rows.length, 0, 'a gate of only greetings is no gate');
+    assert.deepEqual(s.model.nodes.get(K('town')).opens.rows.map(r => r.items.map(i => i.key)), [[K('forest')], [K('mill')]]);
+    assert.equal(s.model.nodes.get(K('town')).closes.length, 0);
+    assert.equal(s.model.nodes.get(K('mill')).opens.all.length, 0);
+    assert.equal(s.model.greetings.size, 0);
+    assert.deepEqual(s.send('town'), []);
+    assert.deepEqual(s.send('forest mill'), [0, 2]);
+    assert.deepEqual(s.send('town'), [1]);
+    assert.equal(s.state.fired['@Sera.png:1'], undefined);
+});
+
+test('greetings: the opening greeting counts as fired at index 0, and only that one', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const entries = [e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }), e(1, 'town', { id: 'town', gate: [[greet(0)]] })];
     const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf } });
     assert.deepEqual(s.send('forest town'), [0]);
     assert.equal(s.state.firstAt['@Sera.png:1'], 0);
 });
 
-test('greetings: swiping the greeting before the first reply switches the scenario', () => {
+test('greetings: swiping the greeting before the first reply switches the scenario', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const entries = [e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }), e(1, 'town', { id: 'town', gate: [[greet(0)]] })];
     const s = new Sim(entries, { greeting: '@Sera.png:0' });
     assert.deepEqual(stateForScan(s.chat, s.model, { greeting: '@Sera.png:0' }).fired, { '@Sera.png:0': 1 });
@@ -434,7 +453,7 @@ test('greetings: swiping the greeting before the first reply switches the scenar
     assert.deepEqual(s.send('forest town'), [0]);
 });
 
-test('greetings: a fingerprint mismatch blocks the greeting until re-picked', () => {
+test('greetings: a fingerprint mismatch blocks the greeting until re-picked', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const entries = [e(0, 'forest', { id: 'forest', gate: [[{ ...greet(1), fp: 'old' }]] })];
     const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf } });
     assert.deepEqual(s.send('forest'), []);
@@ -442,7 +461,7 @@ test('greetings: a fingerprint mismatch blocks the greeting until re-picked', ()
     assert.equal(s.model.nodes.get(K('forest')).blocked, false);
 });
 
-test('greetings: Gates for and Closes for from a greeting, through a pack, reach a member added later', () => {
+test('greetings: Gates for and Closes for from a greeting, through a pack, reach a member added later', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const entries = [
         e(0, 'inn', { id: 'inn', packs: ['town'], gatedBy: [{ ...greet(0), via: '#town' }] }),
         e(1, 'cave', { id: 'cave', packs: ['wild'], closeGate: [[{ ...greet(0), via: '#wild' }]] }),
@@ -456,7 +475,7 @@ test('greetings: Gates for and Closes for from a greeting, through a pack, reach
     assert.deepEqual(t.send('inn smith cave wolf').sort(), [0, 2], 'the main greeting gates the town in and closes the wild');
 });
 
-test('greetings: a missing character is a warning, and its greeting never fires', () => {
+test('greetings: a missing character is a warning, and its greeting never fires', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const model = buildModel([e(0, 'x', { id: 'x', gate: [[{ greeting: 0, char: 'Gone.png', name: 'Gone' }]] })], { greetingFp: fpOf });
     assert.match(warnings(model).join(), /Gone, a character that is missing/);
 });

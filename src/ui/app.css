@@ -34,7 +34,7 @@
   /* strategy (VISUAL 6.1) */
   --s-key: #6fd09a; --s-perm: #6fa8ff; --s-vec: #b48cff; --s-off: #6b6d72;
   /* pieces (VISUAL 6.2), with the color vision modes below (6.4) */
-  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2; --p-track: #9b8cff;
+  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2; --p-track: #d9a066; --p-moment: var(--accent);
   --p-cond: var(--muted); /* Lock and Wait: no family color (VISUAL 6.2); on the canvas they take their row's */
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
@@ -43,8 +43,8 @@
   font-family: var(--sans); font-size: var(--t-m); line-height: 1.35;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
 }
-.wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; --p-track: #0072b2; }
-.wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; --p-track: #b48cff; }
+.wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; --p-track: #c9a26b; }
+.wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; --p-track: #d9a066; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -149,6 +149,19 @@ svg.i.s { width: 16px; height: 16px; }
 .bottombar { flex-shrink: 0; height: 58px; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--line); background: var(--bar); }
 .bottombar button { width: 56px; height: 46px; color: var(--muted); display: flex; align-items: center; justify-content: center; border-radius: 10px; }
 .bottombar button:hover { color: var(--fg); }
+.bottombar { justify-content: space-between; gap: 6px; padding: 0 8px; }
+.bottombar .bsearch { flex: 1; width: auto; height: 38px; max-width: 150px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); justify-content: flex-start; gap: 8px; padding: 0 12px; font-size: var(--t-s); }
+.bottombar .bsearch svg { width: 16px; height: 16px; flex-shrink: 0; }
+.bottombar .bplus { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); width: 50px; border-radius: 25px; }
+.bottombar .bright { flex: 1; max-width: 150px; display: flex; justify-content: flex-end; }
+.item.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.item.sel .ic { color: var(--accent); }
+.item.ent.sel .ic { width: 28px; justify-content: flex-end; }
+.item.ent.sel .ic svg { width: 18px; height: 18px; }
+.pkacts { display: flex; gap: 6px; justify-content: flex-end; padding: 0 12px 6px; }
+.pkact { width: 38px; height: 38px; border-radius: 19px; border: 1px solid var(--line); color: var(--fg); display: flex; align-items: center; justify-content: center; }
+.pkact:hover { background: var(--raised); }
+.pkact svg { width: 18px; height: 18px; }
 .selbar { flex-shrink: 0; height: 58px; display: flex; align-items: center; justify-content: space-around; border-top: 1px solid var(--line); background: var(--raised); }
 .selbar button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: var(--t-xs); height: 52px; padding: 0 10px; border-radius: 8px; }
 .selhead { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 2px; height: 54px; padding: 0 4px; background: var(--tint); box-shadow: inset 0 0 0 100px var(--raised); border-bottom: 1px solid var(--line); }
@@ -412,6 +425,9 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .phelp { color: var(--muted); font-size: var(--t-xs); line-height: 1.45; margin: 2px 0; }
 .rowbox { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .orsep { text-align: center; color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .08em; }
+.orsep.jw, .jand { display: block; margin: 2px auto; padding: 1px 10px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.jand { display: inline-block; margin: 0 2px; padding: 1px 7px; align-self: center; }
+.orsep.jw:hover, .jand:hover { color: var(--fg); border-color: var(--c, var(--accent)); }
 .chip { display: inline-flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 2px 0 10px; border-radius: 15px; background: var(--raised); font-size: var(--t-s); max-width: 100%; }
 .chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .chip > span svg { width: 13px; height: 13px; }
@@ -548,6 +564,8 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .pchips::-webkit-scrollbar { display: none; }
 .pchip, .dragchip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--fg); font-weight: 600; font-size: var(--t-s); touch-action: pan-x; }
 .pchip i, .dragchip i { width: 9px; height: 9px; border-radius: 5px; background: var(--c); }
+.pchip svg, .dragchip svg { width: 16px; height: 16px; color: var(--c); flex-shrink: 0; }
+.pchip.armed svg { color: #16171a; }
 .pchip.armed { background: var(--c); border-color: var(--c); color: #16171a; }
 .pchip.armed i { background: #16171a; }
 .pdiv { flex-shrink: 0; width: 1px; height: 26px; background: var(--line); margin: 0 4px; }
@@ -910,6 +928,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 
 /* Phones: Closes lines running back up the canvas stay faint until one of their cards is inspected. */
 .lk .faint { opacity: .28; }
+.lfade { opacity: .28; }
 
 /* Canvas mouse: hover handles, focus dimming, selection, link guide, box select. */
 .hhandles { position: absolute; transform: translateX(-50%); display: flex; gap: 8px; padding: 4px; z-index: 4; }
@@ -976,7 +995,29 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .ichip { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 2px 0 10px; border-radius: 14px; border: 1px solid var(--line); font-family: var(--content-font, var(--serif)); font-style: italic; font-size: var(--t-s); }
 .ichip .x { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
 .iseg { margin: 0 16px; }
-.imoment { margin: 10px 16px 0; }
+.ihead h2.rn { cursor: text; border-radius: 6px; outline: none; }
+.ihead h2.rn:hover { background: var(--raised); }
+.ihead h2.rn[contenteditable="plaintext-only"] { box-shadow: 0 0 0 2px var(--accent); white-space: normal; text-overflow: clip; }
+.isets { margin: 8px 12px 4px; display: flex; flex-direction: column; gap: 6px; }
+.iset { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.isetl { font-size: var(--t-xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); min-width: 92px; white-space: nowrap; flex-shrink: 0; }
+.isetn { flex: 1; font-size: var(--t-s); color: var(--muted); }
+.iset .pseg { flex-wrap: nowrap; flex-shrink: 0; }
+.iset .pseg button { white-space: nowrap; }
+.pct b .pci { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+.pshapes { gap: 4px; }
+.pshp { width: 34px; height: 30px; border: 1px solid var(--line); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--fg); }
+.pshp.on { border-color: var(--p-open); background: color-mix(in srgb, var(--p-open) 18%, transparent); }
+.pshp svg { width: 20px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.pshapes .phint { margin-left: 6px; }
+.pbtn.sm.ghost { border-style: dashed; color: var(--muted); }
+.mcard .mlh span { flex: 1; }
+.mtext { display: block; width: 100%; text-align: left; font-family: var(--content-font, var(--serif)); color: var(--muted); font-size: var(--t-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0 4px; }
+.mtext.empty { font-style: italic; }
+.moff { margin-top: 2px; }
+.lasso .lun { margin-left: 6px; padding: 0 10px; height: 28px; border-radius: 14px; border: 1px solid var(--line); color: var(--fg); font-size: var(--t-xs); font-weight: 600; flex-shrink: 0; }
+.lblq { display: flex; align-items: center; justify-content: space-between; }
+.lblq .pq { margin: -8px -6px -8px 0; }
 .ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }
 .ihappened.on { color: var(--accent); }
 
@@ -1028,7 +1069,7 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 .fgrid .clashnote { grid-column: 2; margin-top: -4px; }
 
 /* Lasso to make a pack: the name box under a box select. */
-.lasso { position: absolute; z-index: 8; display: flex; align-items: center; gap: 4px; width: 250px; padding: 4px 8px; border: 1px solid var(--p-pack); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
+.lasso { position: absolute; z-index: 8; display: flex; align-items: center; gap: 4px; width: 290px; max-width: calc(100% - 16px); padding: 4px 8px; border: 1px solid var(--p-pack); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
 .lasso .lh { color: var(--p-pack); font-weight: 700; }
 .lasso input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font-size: var(--t-s); outline: none; }
 .lasso.bad { border-color: var(--bad); }

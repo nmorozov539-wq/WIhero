@@ -10,10 +10,13 @@ import { strategyColor } from './entry-page.js';
 import { trackerEditor } from './tracker-ui.js';
 import {
     MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
-    moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting,
+    moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting, isGreetingRef, mergeRows, splitRow,
 } from './pieces.js';
+import { GREETINGS } from '../engine/model.js';
 
 const KIND_ICON = { lock: 'lock', wait: 'clock', greeting: 'chat' };
+/** Each piece's icon in its header (#39), so pieces aren't told apart by color alone. */
+const PIECE_ICON = { gate: 'popen', gatesFor: 'popen', closeGate: 'pclose', closesFor: 'pclose', glue: 'pglue', switch: 'pswitch', masks: 'pmask', packs: 'tag', once: 'ponce', by: 'pby', written: 'ptrack' };
 
 /** The sheet itself: a grab bar that toggles and drags between half and full height. */
 function frame(box, x, cls) {
@@ -150,6 +153,7 @@ export function renderInspector(box, x) {
     const d = el('i', 'sd');
     d.style.background = strategyColor(e);
     const h = el('h2', '', x.title);
+    if (x.rename) renamable(h, x.title, x.rename);
     if (c.moment === true) {
         // A Moment sends nothing: no strategy and no on/off switch (it is stored off).
         const sp = el('span', 'mspark');
@@ -228,8 +232,27 @@ export function renderInspector(box, x) {
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
+    if (c.moment !== true) entrySettings(body, x, c, update);
+    // A path of a switch says so, and opens the switch (#17). The gate the switch gave it is the switch's own
+    // "can't fire before the fork" rule, so a gate that is only that isn't shown as a gate of its own.
+    const forkGateOnly = !!x.pathOf && Array.isArray(c.gate) && c.gate.length === 1 && c.gate[0].length === 1 && c.gate[0][0] === x.pathOf.id;
+    if (x.pathOf) {
+        const pc = el('div', 'pc');
+        pc.dataset.piece = 'pathOf';
+        pc.style.setProperty('--c', FAMILY_COLOR.close);
+        const ph = el('div', 'pch');
+        const tap = el('button', 'pct');
+        tap.type = 'button';
+        tap.append(el('b', '', `Path of ${x.pathOf.name}`), el('span', 'pcs', forkGateOnly ? `Can't fire before ${x.pathOf.name} does. Tap to edit the switch.` : 'Tap to edit the switch.'));
+        tap.addEventListener('click', () => x.pathOf.open());
+        ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide('switch') : null), 'What is a switch?'));
+        pc.append(ph);
+        body.append(pc);
+    }
     for (const p of PIECES) {
         if (c.moment === true && !MOMENT_PIECES.includes(p.key)) continue;
+        if (SETTINGS.includes(p.key) && c.moment !== true) continue; // drawn by entrySettings
+        if (p.key === 'gate' && forkGateOnly && x.open !== 'gate') continue;
         if (!hasPiece(c, p.key) && x.open !== p.key) continue;
         const open = x.open === p.key;
         const pc = el('div', `pc${open ? ' open' : ''}`);
@@ -238,7 +261,10 @@ export function renderInspector(box, x) {
         const ph = el('div', 'pch');
         const tap = el('button', 'pct');
         tap.type = 'button';
-        tap.append(el('b', '', p.label), el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
+        const lab = el('b');
+        lab.innerHTML = ic(PIECE_ICON[p.key] ?? 'plus', 'pci');
+        lab.append(p.label);
+        tap.append(lab, el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
         ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
         if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); layer.toast(`${p.label} removed`); }, `Remove ${p.label}`));
@@ -250,6 +276,11 @@ export function renderInspector(box, x) {
     if (x.sources.length) {
         body.append(el('div', 'lbl', 'From other entries'));
         for (const s of x.sources) body.append(layer.opt(s.name, () => x.inspect(s.key), { sub: s.what, dot: FAMILY_COLOR[s.family] }));
+    }
+    // Rules other entries keep that wait for this one (#1): the jump opens their editor.
+    if (x.outgoing?.length) {
+        body.append(el('div', 'lbl', 'To other entries'));
+        for (const o of x.outgoing) body.append(layer.opt(o.name, () => x.inspectAt(o.key, o.piece), { sub: o.what, dot: FAMILY_COLOR[o.family], val: '›' }));
     }
 
     const missing = missingPieces(c);
@@ -271,7 +302,6 @@ export function renderInspector(box, x) {
 
     const foot = el('div', 'ifoot');
     if (c.moment === true) {
-        foot.append(btn('linkish', html`${ic('edit', 's')} Rename`, () => x.renameMoment?.()));
         if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
         foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
     } else {
@@ -284,12 +314,11 @@ export function renderInspector(box, x) {
 }
 
 /**
- * A Moment's own part of the inspector (CONCEPTS 3.13): what it is, its phrases as chips (any one is enough) with a
+ * A Moment's own part of the inspector (CONCEPTS 3.13): its phrases as chips (any one is enough) with a
  * box to add one, and who says it.
  */
 function momentHead(body, x) {
     const { entry: e } = x;
-    body.append(el('p', 'help imoment', 'A Moment happens when one of its phrases is said. It sends nothing to the model; other cards wait for it or close when it happens.'));
     const phrases = (e.key ?? []).filter(k => typeof k === 'string' && k.trim());
     const setPhrases = list => x.edit((ed, data) => { data.entries[e.uid].key = list; });
     const box = el('div', 'ichips');
@@ -299,14 +328,17 @@ function momentHead(body, x) {
         box.append(ch);
     }
     const input = el('input', 'kin');
-    input.placeholder = phrases.length ? 'Another phrase…' : 'A phrase, like "missing tooth"';
+    input.placeholder = phrases.length ? 'Another phrase…' : 'A phrase someone might say';
     input.setAttribute('aria-label', 'Add a phrase');
     const add = () => { const v = input.value.trim(); input.value = ''; if (v && !phrases.includes(v)) setPhrases([...phrases, v]); };
     input.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); add(); } });
     input.addEventListener('blur', () => { if (input.value.trim()) add(); });
     const wrap = el('div', 'imphr');
     wrap.append(box, input);
-    body.append(el('div', 'lbl', 'Happens when someone says (any one)'), wrap);
+    // What a Moment is lives in the Guide (#10): the inspector stays as plain as any other entry's.
+    const lb = el('div', 'lbl lblq', 'Happens when someone says (any one)');
+    if (x.guide) lb.append(btn('pq', ic('help'), () => x.guide('moment'), 'What is a Moment?'));
+    body.append(lb, wrap);
     const by = x.config.by ?? null;
     const seg = el('div', 'pseg iseg');
     seg.setAttribute('role', 'radiogroup');
@@ -376,26 +408,39 @@ function editorOf(key, x, update) {
         }
     } else if (key === 'masks') {
         const masks = Array.isArray(c.masks) ? c.masks : [];
+        // One card per mask (#27): its name, the eye and ⋯, the first line of its text, then its rules. Off when
+        // shows once it is set; until then it is a quiet "+ Off when…".
         masks.forEach((m, i) => {
-            const ml = el('div', 'mlayer');
+            const ml = el('div', 'mlayer mcard');
             const mh = el('div', 'mlh');
-            mh.append(el('span', '', `${i + 1} · ${m.name}`));
+            mh.append(el('span', '', m.name));
+            const rename = () => layer.askText({
+                title: 'Rename mask', value: m.name,
+                done: v => { const to = maskName(v, masks, m.name); update(cc => { cc.masks[i].name = to; }); x.renamedMask(m.name, to); },
+            });
             mh.append(
                 btn('', ic('eye'), () => x.showMask(m.name), `Show ${m.name} on the canvas`),
-                btn('', ic('edit'), () => layer.askText({
-                    title: 'Rename mask', value: m.name,
-                    done: v => { const to = maskName(v, masks, m.name); update(cc => { cc.masks[i].name = to; }); x.renamedMask(m.name, to); },
-                }), `Rename ${m.name}`),
+                btn('', ic('more'), () => layer.sheet(`Mask ${m.name}`, sh => {
+                    sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit' }));
+                    sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry' }));
+                    if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins' }));
+                    sh.append(layer.opt('Delete', () => { layer.close(); update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, { icon: 'trash', danger: true }));
+                }), `${m.name} actions`),
             );
-            if (i > 0) mh.append(btn('up', ic('down'), () => update(cc => moveMaskUp(cc, i)), `Move ${m.name} up (lower priority)`));
-            mh.append(btn('', ic('trash'), () => { update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, `Remove ${m.name}`));
             ml.append(mh);
-            ml.append(btn('linkish', html`${ic('edit', 's')} Edit text`, () => x.openEntry(m.name)));
+            const first = String(m.content ?? '').trim().split('\n')[0];
+            const tx = btn('mtext', '', () => x.openEntry(m.name), `Edit the text of ${m.name}`);
+            tx.textContent = first || 'No text yet. Tap to write it.';
+            if (!first) tx.classList.add('empty');
+            ml.append(tx);
             ml.append(el('div', 'sub', 'On when'));
             rowsEditor(ml, x, cc => cc.masks[i].gate ?? [], (cc, r) => { cc.masks[i].gate = r; }, update, false);
-            if (!m.gate?.length) ml.append(el('p', 'phelp', 'No gate: used only when picked by hand.'));
-            ml.append(el('div', 'sub', 'Off when (close gate)'));
-            rowsEditor(ml, x, cc => cc.masks[i].closeGate ?? [], (cc, r) => { cc.masks[i].closeGate = r; }, update, false);
+            if (!m.gate?.length) ml.append(el('p', 'phelp', 'No rule: used only when picked by hand.'));
+            const offKey = `${x.entry?.uid}:${m.name}`;
+            if (m.closeGate?.length || OFF_OPEN.has(offKey)) {
+                ml.append(el('div', 'sub', 'Off when'));
+                rowsEditor(ml, x, cc => cc.masks[i].closeGate ?? [], (cc, r) => { cc.masks[i].closeGate = r; }, update, false);
+            } else ml.append(btn('linkish moff', '+ Off when…', () => { OFF_OPEN.add(offKey); x.setOpen('masks'); }));
             box.append(ml);
         });
         box.append(btn('addb', '+ Mask', () => layer.askText({
@@ -437,6 +482,92 @@ function editorOf(key, x, update) {
     return box;
 }
 
+/** Masks whose "+ Off when…" was opened, so their Off when editor shows while still empty. */
+const OFF_OPEN = new Set();
+
+/** Entry settings drawn as controls, not pieces (#14, #31). */
+const SETTINGS = ['by', 'once'];
+
+/**
+ * Who triggers and Once (#14, #31): settings of the entry itself, not links, so they are a selector and a switch
+ * at the top of its logic, the same selector Moments and locks use, rather than pieces to add.
+ */
+function entrySettings(body, x, c, update) {
+    const box = el('div', 'isets');
+    box.style.setProperty('--c', FAMILY_COLOR.by);
+    const by = c.by ?? null;
+    const seg = el('div', 'pseg iseg');
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', 'Who triggers');
+    for (const [v, label] of [[null, 'Anyone'], ['user', 'You'], ['char', 'Character']]) {
+        const b = btn(by === v ? 'on' : '', '', () => update(cc => { if (v) cc.by = v; else delete cc.by; }));
+        b.textContent = label;
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(by === v));
+        seg.append(b);
+    }
+    const who = el('div', 'iset');
+    who.append(el('span', 'isetl', 'Who triggers'), seg);
+    box.append(who);
+    const once = el('div', 'iset');
+    if (c.glue) once.append(el('span', 'isetl', 'Once'), el('span', 'isetn', 'Not with glue: glue has its own way of ending.'));
+    else {
+        const sw = swEl(c.once === true, on => update(cc => { if (on) cc.once = true; else delete cc.once; }), 'Once: fires one time, then closes');
+        once.append(el('span', 'isetl', 'Once'), el('span', 'isetn', 'Fires one time, then closes'), sw);
+    }
+    box.append(once);
+    // The tracker (#7): "the AI can write to this entry" is a setting of the entry too. Turning it on opens its
+    // settings at once; turning it off takes them away.
+    const trk = el('div', 'iset');
+    const on = hasPiece(c, 'written');
+    trk.append(el('span', 'isetl', 'Tracker'), el('span', 'isetn', 'The AI can write to this entry'), swEl(on, v => {
+        if (v) { update(cc => { addPiece(cc, 'written'); Object.assign(cc.written, x.tracker?.shared ?? {}); }); x.setOpen('written'); }
+        else update(cc => removePiece(cc, 'written'));
+    }, 'Tracker: the AI can write to this entry'));
+    box.append(trk);
+    body.append(box);
+}
+
+/**
+ * The inspector's title renames in place (#12): a click makes it editable, Enter or leaving it saves, Escape puts
+ * the old name back. An empty name is not saved.
+ */
+function renamable(h, value, save) {
+    h.classList.add('rn');
+    h.title = 'Click to rename';
+    h.tabIndex = 0;
+    h.setAttribute('role', 'button');
+    const start = () => {
+        if (h.isContentEditable) return;
+        h.contentEditable = 'plaintext-only';
+        h.dataset.ownEscape = '1';
+        h.removeAttribute('role');
+        h.focus();
+        const r = document.createRange();
+        r.selectNodeContents(h);
+        const sel = h.getRootNode().getSelection?.() ?? window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+    };
+    let done = false;
+    const finish = keep => {
+        if (done) return;
+        done = true;
+        const v = h.textContent.replace(/\s+/g, ' ').trim();
+        h.contentEditable = 'false';
+        delete h.dataset.ownEscape;
+        if (keep && v && v !== value) save(v); else h.textContent = value;
+    };
+    h.addEventListener('click', start);
+    h.addEventListener('keydown', e => {
+        if (!h.isContentEditable) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(); } return; }
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    h.addEventListener('blur', () => { if (h.isContentEditable) finish(true); });
+}
+
 /** Rows with chips, "+ add" per row and "+ Another row (OR)". */
 function rowsEditor(box, x, get, set, update, isGate, self = false) {
     const rows = get(x.config) ?? [];
@@ -446,15 +577,38 @@ function rowsEditor(box, x, get, set, update, isGate, self = false) {
         self: self && x.entry ? { uid: x.entry.uid, title: x.title } : null,
         done: make => update((cc, id, ed) => { set(cc, addToRow(get(cc) ?? [], i, make(ed))); }),
     });
+    // Greetings are retired for v1 (#33): their chips, and rows of only greetings, stay in the book but aren't shown.
+    const hidden = ref => !GREETINGS && isGreetingRef(ref);
+    let shown = 0;
+    let prev = -1;
     rows.forEach((row, i) => {
-        if (i) box.append(el('div', 'orsep', 'OR'));
+        if (row.length && row.every(hidden)) return;
+        // The join words switch (#20): "or" between rows merges them (both); "and" between items splits the row.
+        if (shown++) {
+            const a = prev;
+            const o = btn('orsep jw', 'OR', () => update(cc => { set(cc, mergeRows(get(cc) ?? [], a, i)); }), 'Either one: tap for both');
+            o.title = 'Either one. Tap to need both';
+            box.append(o);
+        }
+        prev = i;
         const wrap = el('div', 'rowbox');
-        row.forEach((ref, j) => wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); }))));
+        let firstShown = true;
+        row.forEach((ref, j) => {
+            if (hidden(ref)) return;
+            if (!firstShown) {
+                const w = btn('jand', 'and', () => update(cc => { set(cc, splitRow(get(cc) ?? [], i, j)); }), 'Both: tap for either one');
+                w.title = 'Both. Tap to make it either one';
+                wrap.append(w);
+            }
+            firstShown = false;
+            wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); })));
+        });
         wrap.append(btn('addb', '+ add', () => pick(i, 'Add to this row (AND)')));
         box.append(wrap);
     });
     box.append(btn('addb', rows.length ? '+ Another row (OR)' : '+ add', () => pick(null, rows.length ? 'A new row (OR)' : 'Add')));
-    if (isGate && rows.length > 1) box.append(el('p', 'phelp', 'Opens as soon as any row is complete.'));
+    if (isGate && shown > 1) box.append(el('p', 'phelp', 'Opens as soon as any row is complete.'));
+    if (box.querySelector('.jw, .jand')) box.append(el('p', 'phelp', 'Tap AND or OR to switch it.'));
 }
 
 /**

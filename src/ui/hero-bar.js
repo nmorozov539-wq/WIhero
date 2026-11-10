@@ -7,12 +7,13 @@ import {
 import { PIECE_ANCHOR } from './guide.js';
 import { PORT } from './canvas-graph.js';
 import { addLink, removeLink } from './links.js';
-import { bookEditor, greetingName, packsOf } from './pieces.js';
+import { addPiece, bookEditor, greetingName, hasPiece, packsOf } from './pieces.js';
 import { canvasMemory } from './canvas.js';
 import { editExisting, startPiece } from './piecebar.js';
 import { el } from './dom.js';
 import { isMoment } from '../engine/model.js';
 import { strategyColor } from './entry-page.js';
+import { FAMILY_COLOR } from './logic-text.js';
 
 /**
  * @param {object} A The app's context (destructured below): its state, the library and the app functions the bar
@@ -82,6 +83,7 @@ export function createHeroBar(A) {
                 saveSettings();
             },
             render: () => render(),
+            inspect: (key, piece) => inspect(book, key, piece),
             nodeOf: key => nodeOf(book, key),
             keyOf: end => (end?.t === 'pack' ? `pack:${end.name}` : end?.t === 'greet' ? `greet:${end.ref.char}:${end.ref.greeting}` : data().entries[end?.uid] ? cardKey(data().entries[end.uid]) : null),
             nameOf: end => (end?.t === 'pack' ? `#${end.name}` : end?.t === 'greet' ? greetingName(end.ref.greeting) : data().entries[end?.uid] ? titleOf(data().entries[end.uid]) : '?'),
@@ -113,7 +115,7 @@ export function createHeroBar(A) {
             folded: () => !!settings.pieceBarFolded,
             setFolded: v => { settings.pieceBarFolded = v; saveSettings(); },
             toast: t => layer.toast(t),
-            place: (k, hit) => dropPiece(book, k, hit),
+            place: (k, hit, at) => dropPiece(book, k, hit, at),
             entryTemplate,
             guide: piece => openGuide(PIECE_ANCHOR[piece] ?? 'strip'),
             makeMoment: made => {
@@ -125,11 +127,36 @@ export function createHeroBar(A) {
         };
     }
 
-    function dropPiece(book, k, hit) {
-        if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null); return; }
+    function dropPiece(book, k, hit, at = null) {
+        if (k === 'tracker') { makeTracker(book, hit); return; }
+        if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null, hit?.card ? null : at); return; }
         const r = startPiece(k, hit, barApi(book));
         if (r.why) { render(); layer.toast(r.why); return; }
+        if (r.choose) {
+            // A lock or wait on a card with several gates: which one (#15).
+            render();
+            layer.sheet(r.choose.title, sh => {
+                for (const o of r.choose.options) sh.append(layer.opt(o.label, () => { layer.close(); openStrip(book, o.make()); }, { sub: o.sub, dot: FAMILY_COLOR[o.family] }));
+            });
+            return;
+        }
         openStrip(book, r.edit);
+    }
+
+    /**
+     * The Tracker chip (#7): the card it lands on becomes a tracker (the same switch as the inspector's), with the
+     * book's tracker syntax, and its inspector opens at the tracker settings.
+     */
+    function makeTracker(book, hit) {
+        const end = hit?.card ? nodeOf(book, hit.card) : null;
+        if (!end || end.t !== 'entry' || end.moment) { render(); layer.toast('A tracker is an entry the AI writes to: pick an entry.'); return; }
+        const t = modelOf(book, library.peek(book))?.trackers?.get(book);
+        barAct(book, ed => ed.update(end.uid, c => {
+            if (hasPiece(c, 'written')) return;
+            addPiece(c, 'written');
+            if (t) Object.assign(c.written, { syntax: t.syntax, teach: t.teach });
+        }));
+        inspect(book, hit.card, 'written');
     }
 
     /** Opens a piece's strip: the inspector and the panel make way for it. */
@@ -142,7 +169,7 @@ export function createHeroBar(A) {
     }
 
     /** A tap on the canvas, seen by the bar first: an armed chip lands, a loose end is picked, a line opens its strip. */
-    function barTap(book, hit) {
+    function barTap(book, hit, at = null) {
         const B = H.bar;
         const x = barApi(book);
         if (B.edit) {
@@ -162,7 +189,7 @@ export function createHeroBar(A) {
         if (B.armed) {
             const k = B.armed;
             B.armed = null;
-            if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null); return true; }
+            if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null, hit?.card ? null : at); return true; }
             if (!hit) { render(); return false; }
             dropPiece(book, k, hit);
             return true;
@@ -178,21 +205,22 @@ export function createHeroBar(A) {
 
     /**
      * A new Moment (CONCEPTS 3.13), from the piece bar: asks its name, places it on the canvas and opens its inspector
-     * for the phrases. Dropped on an entry, it asks whether the Moment opens or closes it, and links them.
+     * for the phrases. Dropped on an entry, it asks whether the Moment opens or closes it, and links them, and the
+     * Moment goes beside it; dropped or tapped on empty canvas, it goes where it landed (`at`, a canvas point).
      */
-    function newMoment(book, on = null) {
+    function newMoment(book, on = null, at = null) {
         if (on && (on.t !== 'entry' || on.moment)) { render(); layer.toast('A Moment reacts on an entry: it opens or closes it.'); return; }
         const data = library.peek(book);
         const target = on ? data?.entries[on.uid] : null;
         layer.askText({
-            title: 'New Moment', placeholder: 'What happens: Missing tooth', ok: 'Make',
+            title: 'New Moment', placeholder: 'What happens, in a few words', ok: 'Make',
             help: 'Something that can happen in the story, said in the chat. You add the phrases next.',
             done: name => {
                 const made = library.change(book, d => addMoment(d, entryTemplate, name.trim() || 'Moment'));
                 if (!made) return;
                 const key = cardKey(made);
                 const mem = canvasMemory(bookSettings(settings, book));
-                mem.cards[key] = { ...(mem.cards[key] ?? {}), placed: true };
+                mem.cards[key] = { ...(mem.cards[key] ?? {}), placed: true, ...(at ?? {}) };
                 saveSettings();
                 const finish = () => { render(); inspect(book, key); };
                 if (!target) { finish(); return; }

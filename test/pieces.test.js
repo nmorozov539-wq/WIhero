@@ -1,9 +1,10 @@
 // Editing story logic (src/ui/pieces.js): what the inspector writes lands in the book in BUILD_SPEC 2's shape.
 import { test } from 'node:test';
+import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import {
     addMask, addPiece, addToList, addToRow, applyMovesOn, bookEditor, greetingRules, hasPiece, maskName, missingPieces,
-    moveMaskUp, movesOn, packsOf, reading, refLabel, removeFromRow, repickGreeting, setGreetingRule, tidyConfig,
+    mergeRows, moveMaskUp, movesOn, packsOf, splitRow, reading, refLabel, removeFromRow, renamePack, repickGreeting, setGreetingRule, tidyConfig,
 } from '../src/ui/pieces.js';
 import { buildModel } from '../src/engine/model.js';
 
@@ -46,9 +47,10 @@ test('Story moves on writes Closes for to the gate\'s entries, once', () => {
     assert.deepEqual(movesOn(c).missing, []);
 });
 
-test('pieces: what can be added, Once not on glue, glue drops Once', () => {
+test('pieces: what can be added (Who triggers, Once and Tracker are settings, not pieces), glue drops Once', () => {
     const c = {};
-    assert.equal(missingPieces(c).length, 11);
+    assert.equal(missingPieces(c).length, 8);
+    assert.ok(!missingPieces(c).some(p => p.key === 'once' || p.key === 'by' || p.key === 'written'));
     addPiece(c, 'once');
     assert.ok(hasPiece(c, 'once'));
     addPiece(c, 'glue');
@@ -90,7 +92,7 @@ test('packs used in a book include the parents of nested ones', () => {
     assert.deepEqual(packsOf(d), ['town', 'town/inn']);
 });
 
-test('greeting rules are written on the entries they touch, a pack target with via, and read back', () => {
+test('greeting rules are written on the entries they touch, a pack target with via, and read back', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const d = book();
     const ed = bookEditor(d);
     ed.update(3, c => { c.packs = ['town']; });
@@ -112,4 +114,33 @@ test('greeting rules are written on the entries they touch, a pack target with v
     assert.equal(repickGreeting(ed, d, ref, 'new'), 2);
     assert.equal(wh(d, 0).gatedBy[0].fp, 'new');
     assert.equal(wh(d, 1).gate[0][0].fp, 'new');
+});
+
+test('renaming a pack moves its members, nested packs and every rule that names it (#21)', () => {
+    const d = book();
+    const ed = bookEditor(d);
+    ed.update(3, c => { c.packs = ['town', 'other']; });
+    ed.update(4, c => { c.packs = ['town/market']; c.note = '#town is a note'; });
+    ed.update(0, c => { c.gate = [['#town:all'], ['#town/market', 'mill']]; c.closesFor = ['#town']; c.masks = [{ name: 'night', gate: [['#town:2']] }]; });
+    ed.update(1, c => { c.gate = [['#townhall']]; });
+    assert.equal(renamePack(ed, d, 'town', 'harbor'), 3);
+    assert.deepEqual(wh(d, 3).packs, ['harbor', 'other']);
+    assert.deepEqual(wh(d, 4).packs, ['harbor/market']);
+    assert.equal(wh(d, 4).note, '#town is a note');
+    assert.deepEqual(wh(d, 0).gate, [['#harbor:all'], ['#harbor/market', 'mill']]);
+    assert.deepEqual(wh(d, 0).closesFor, ['#harbor']);
+    assert.deepEqual(wh(d, 0).masks[0].gate, [['#harbor:2']]);
+    assert.deepEqual(wh(d, 1).gate, [['#townhall']], 'a pack whose name only starts the same stays');
+    assert.deepEqual(packsOf(d), ['harbor', 'harbor/market', 'other']);
+});
+
+test('and / or switch in place (#20): split a row before an item, merge two rows with links first', () => {
+    const rows = [['road', 'bridge', { lock: ['red beard'] }], ['mill']];
+    splitRow(rows, 0, 1);
+    assert.deepEqual(rows, [['road'], ['bridge', { lock: ['red beard'] }], ['mill']]);
+    mergeRows(rows, 1, 2);
+    assert.deepEqual(rows, [['road'], ['bridge', 'mill', { lock: ['red beard'] }]]);
+    mergeRows(rows, 0, 1);
+    assert.deepEqual(rows, [['road', 'bridge', 'mill', { lock: ['red beard'] }]]);
+    assert.deepEqual(splitRow([['road']], 0, 0), [['road']], 'nothing to split');
 });

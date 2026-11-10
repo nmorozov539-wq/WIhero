@@ -11,7 +11,7 @@ import { trackerContext } from './tracker-ui.js';
 import { el } from './dom.js';
 import { getStringHash, isObject } from '../engine/util.js';
 import { greetingFingerprint, greetingsOf } from '../chat-state.js';
-import { isMoment } from '../engine/model.js';
+import { GREETINGS, isMoment } from '../engine/model.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
 import { strategyColor } from './entry-page.js';
 
@@ -24,7 +24,7 @@ export function createHeroInspector(A) {
     const {
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
         layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, render,
-        saveSettings, settings, canvas, isRenderQueued,
+        saveSettings, settings, canvas, isRenderQueued, dropPiece,
     } = A;
 
     /**
@@ -45,6 +45,7 @@ export function createHeroInspector(A) {
     /** The open chat's character's greetings (BUILD_SPEC 15.4): none with no chat or in a group chat. */
     function chatGreetings(data) {
         const c = ctx();
+        if (!GREETINGS) return []; // retired for v1 (#33): no greeting cards, panel rows or picker options
         if (!library.chatOpen() || c.groupId || c.characterId === undefined) return [];
         const ch = c.characters?.[c.characterId];
         if (!ch?.avatar) return [];
@@ -90,7 +91,7 @@ export function createHeroInspector(A) {
         if (piece && data && !key.startsWith('greet:')) {
             const e = entriesOf(data).find(x => cardKey(x) === key);
             const c = e ? configOf(e) ?? {} : {};
-            const has = piece === 'masks' ? Array.isArray(c.masks) && c.masks.length : piece === 'glue' ? isObject(c.glue) : Array.isArray(c[piece]) && c[piece].length;
+            const has = piece === 'masks' ? Array.isArray(c.masks) && c.masks.length : piece === 'glue' || piece === 'written' ? isObject(c[piece]) || c[piece] === true : Array.isArray(c[piece]) && c[piece].length;
             if (has) open = piece;
         }
         const keep = H.insp?.key === key ? H.insp : null;
@@ -182,15 +183,29 @@ export function createHeroInspector(A) {
             for (const cl of node.closes) if (cl.source && cl.source !== node.key && (cl.kind === 'closesFor' || cl.kind === 'switch')) sources.push({ name: nameOf(cl.source), key: stateKeyToCard(cl.source), what: cl.kind === 'switch' ? 'Another path of its fork' : 'Closes this', family: 'close' });
             for (const k of model.riders?.get(node.key) ?? []) sources.push({ name: nameOf(k), key: stateKeyToCard(k), what: 'Rides along with this', family: 'glue' });
         }
+        // The other end of the rules this entry starts (#1, #17): a gate on another entry waits for it, or it is a
+        // path of a switch. The rule lives on the other entry; the row jumps there with its editor open.
+        const outgoing = [];
+        let pathOf = null;
+        if (node?.key) {
+            const names = row => row.items.some(i => i.key === node.key);
+            for (const n of model.nodes.values()) {
+                if (n === node || n.book !== node.book) continue;
+                const card = stateKeyToCard(n.key);
+                if (n.opens.rows.some(names)) outgoing.push({ name: `Opens ${n.label}`, key: card, piece: 'gate', what: `${n.label}'s gate waits for this`, family: 'open' });
+                if (n.closes.some(cl => cl.kind === 'closeGate' && names(cl.row))) outgoing.push({ name: `Closes ${n.label}`, key: card, piece: 'closeGate', what: `${n.label}'s close gate waits for this`, family: 'close' });
+                if (n.masks.some(m => [...m.opens, ...m.closes].some(names))) outgoing.push({ name: `Turns on a mask of ${n.label}`, key: card, piece: 'masks', what: `A mask of ${n.label} waits for this`, family: 'mask' });
+            }
+            const sw = model.switches?.find(s => s.paths.includes(node.key));
+            if (sw) pathOf = { name: nameOf(sw.fork), id: model.nodes.get(sw.fork)?.id, open: () => dropPiece(book, 'switch', { card: stateKeyToCard(sw.fork) }) };
+        }
         const mem = canvasMemory(bookSettings(settings, book));
         renderInspector(box, {
             ...common, entry: e,
-            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources,
+            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources, outgoing, pathOf,
+            inspectAt: (key, piece) => inspect(book, key, piece),
             happened: isMoment(e) && H.chatState ? !!chatStatus(book)(I.key)?.happened : null,
-            renameMoment: () => layer.askText({
-                title: 'Rename Moment', placeholder: 'Missing tooth', value: momentName(e), ok: 'Rename',
-                done: v => { if (v.trim()) library.change(book, d => { d.entries[e.uid].comment = `Moment: ${v.trim()}`; }); },
-            }),
+            rename: v => library.change(book, d => { d.entries[e.uid].comment = isMoment(e) ? `Moment: ${v}` : v; }),
             deleteMoment: () => {
                 const unused = model.issues.some(i => i.stKey === `${book}.${e.uid}` && /nothing uses/.test(i.message));
                 if (!unused) { layer.toast('Remove its links first: other cards use this Moment.'); return; }

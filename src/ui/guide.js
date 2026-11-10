@@ -2,6 +2,8 @@
 // Preview. The one place the pieces are explained in depth; the inspector's "?", the strip's "?", "+ Add logic" and
 // explain mode all open it at an anchor. The fine print follows CONCEPTS.md: change one, change the other.
 
+import { GREETINGS } from '../engine/model.js';
+
 /**
  * One page per piece, in the piece bar's order, then the entry settings and the start cards.
  * Each: { id, title, family (VISUAL 6.2), line, example, fine[], mistakes[], show (a card key in the Sample book) }.
@@ -63,7 +65,7 @@ export const PAGES = [
         fine: [
             'Two or more paths, entries only (not packs).',
             'If two paths would fire in the same turn, only the first in switch order goes in; the others close.',
-            '"Paths wait for the fork" (on by default) makes each path wait for the fork card too.',
+            '"The paths can\'t fire before the fork does" (on by default) makes the switch a gate too: each path waits for the fork card.',
             '"Roll the dice" picks the path at random when the fork first fires; the other paths close. The picked path still fires the usual way, so to have it just happen, make the paths Permanent and keep them waiting for the fork (else they fire on the first turn, before the roll). A swipe keeps the roll; rewriting the message before it rolls again.',
         ],
         mistakes: ['A path that doesn\'t wait for its fork can be taken before the fork. WI Hero warns about it.'],
@@ -183,14 +185,14 @@ export const PAGES = [
         mistakes: [],
         show: null,
     },
-];
+].filter(p => GREETINGS || p.id !== 'greeting'); // greetings are retired for v1 (#33)
 
 /** Anchors for things that aren't pieces: the canvas controls, the strip, the inspector and Preview. */
 export const TOPICS = [
-    { id: 'canvas', title: 'Cards and lines', line: 'Each card is an entry; each line is a rule between two of them.', fine: ['A socket (a notch) is a way in, a knob (a half disc) a way out. Teal opens, red closes, yellow is glue.', '"and" and "or" chips are where several links meet before a card.', 'Cards move by their six-dot grip; everything else pans.'] },
-    { id: 'fit', title: 'Fit', line: 'Brings the canvas into view.', fine: ['On a phone it fits the width, never below 80%, and the canvas scrolls down from there.'] },
+    { id: 'canvas', title: 'Cards and lines', line: 'Each card is an entry; each line is a rule between two of them.', fine: ['A socket (a notch) is a way in, a knob (a half disc) a way out. Teal opens, red closes, yellow is glue.', '"and" and "or" chips are where several links meet before a card.', 'Cards move by their six-dot grip; everything else pans.', 'A long press on empty canvas, then a drag, picks every card in the box: pack them, unpack them, or drag them together by a grip. Let go without dragging to place an entry there.'] },
+    { id: 'fit', title: 'Fit', line: 'Brings every card into view.', fine: ['On a phone, a book opens at a readable size, fitting the width and scrolling down from there; Fit zooms out until everything shows.'] },
     { id: 'tidy', title: 'Tidy layout', line: 'Lays every card out again from the links.', fine: ['Ports go back to their default sides. Undo puts everything back.'] },
-    { id: 'panel', title: 'Entry panel', line: 'Every entry in the book, with a dot to place it on the canvas.', fine: ['A filled dot is on the canvas; a hollow dot isn\'t yet.', 'Greetings and Moments have their own groups at the top.'] },
+    { id: 'panel', title: 'Entry panel', line: 'Every entry in the book, with a dot to place it on the canvas.', fine: ['A filled dot is on the canvas; a hollow dot isn\'t yet.', 'Moments have their own group at the top.'] },
     { id: 'strip', title: 'The strip', line: 'The piece bar turns into it while a piece is set up.', fine: ['What it sets is written at once, so the canvas shows it.', 'Cancel puts the book back as it was; Done keeps it.', 'Anything that would be a problem is refused with one line saying why.'] },
     { id: 'inspector', title: 'The inspector', line: 'One card\'s story logic: a row per piece, tap one to edit it.', fine: ['"From other entries" lists the rules other cards aim at this one.', 'The "?" by a piece opens its page here.'] },
     { id: 'highlights', title: 'Preview highlights', line: 'In the pretend exchange, the words that set something off.', fine: ['Solid: a card with story logic; dotted: a plain entry. Struck through: blocked, with the reason on tap.', 'Lock and Moment phrases are marked in the color of what they do.'] },

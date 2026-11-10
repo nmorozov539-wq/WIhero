@@ -18,7 +18,7 @@ const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], 
  */
 export function createMenus(A) {
     const {
-        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     } = A;
 
     /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
@@ -230,6 +230,7 @@ export function createMenus(A) {
                 sh.append(layer.opt('List', () => layer.close(), { cur: true, icon: 'entry', sub: 'This page' }));
                 sh.append(el('div', 'div'));
                 sh.append(layer.opt('New folder…', () => newEntryFolder(book), { icon: 'folder' }));
+                sh.append(layer.opt('New entry defaults', () => defaultsSheet(book), { icon: 'gear', sub: defaultsSummary(book) || undefined, val: '›' }));
             }
             if (fromHome) sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'book', book }, { newTab: true }); }, { icon: 'tab' }));
             sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit' }));

@@ -138,17 +138,17 @@ await run(async () => {
     await shot('fresh');
     ok('Fresh start: waiting on an entry and a lock not armed; Also active');
 
-    // Greetings of the open character, and nothing written to the chat or the book.
+    // No greeting starts (greetings are retired for v1, #33), and nothing written to the chat or the book.
     await $('.srcchip').click();
-    assert.ok(await opt('Start at Greeting').count(), 'the character\'s greetings are offered');
-    await opt('Start at Greeting').click();
+    assert.equal(await opt('Start at Greeting').count(), 0, 'greetings are not offered');
+    await opt('Fresh start').click();
     await wait(300);
     const before = await ev(() => JSON.stringify(SillyTavern.getContext().chat.map(m => m.extra?.wihero ?? null)));
     await type('user', 'road');
     assert.equal(await ev(() => JSON.stringify(SillyTavern.getContext().chat.map(m => m.extra?.wihero ?? null))), before, 'nothing is saved');
     await back();
     assert.equal(await $('.tab.active').getAttribute('aria-label'), 'Canvas', 'Back from Preview goes to the Canvas');
-    ok('a greeting start is offered; Preview saves nothing; Back goes to the Canvas');
+    ok('no greeting start is offered; Preview saves nothing; Back goes to the Canvas');
     await ev(() => { wihero.settings.openInHero = false; SillyTavern.getContext().saveSettingsDebounced(); });
     await wait(1500);
 });

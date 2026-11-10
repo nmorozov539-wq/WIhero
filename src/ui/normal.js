@@ -22,7 +22,7 @@ export function createNormal(A) {
     const {
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
         saveSettings, settings, shadow, showOnCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
     } = A;
 
@@ -37,7 +37,8 @@ export function createNormal(A) {
             h.append(el('h1', '', 'World Info'), btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
             v.append(h);
         }
-        const folders = Object.keys(settings.bookFolders).filter(f => settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
+        // A folder shows while it holds a book shown here, or nothing at all (a new folder, #40).
+        const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
         const loose = names.filter(n => !bookFolderOf(settings, n));
         v.append(el('div', 'section', 'Books'));
         for (const n of loose) v.append(bookRow(n));
@@ -52,11 +53,13 @@ export function createNormal(A) {
     }
 
     function bookRow(name) {
-        const it = el('div', 'item');
+        // In select mode a tap selects the row: it lights up and its book icon becomes a check mark (#42).
+        const picked = !!S.select?.has(name);
+        const it = el('div', `item${picked ? ' sel' : ''}`);
         it.dataset.book = name;
-        if (S.select) it.append(check(S.select.has(name)));
+        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
         const i = el('div', 'ic');
-        i.innerHTML = ic('book');
+        i.innerHTML = ic(picked ? 'check' : 'book');
         const tx = el('div', 'txt');
         tx.append(el('div', 't', name));
         const m = el('div', 'm');
@@ -117,7 +120,6 @@ export function createNormal(A) {
             v.append(chips);
             const off = offHint(book);
             if (off) v.append(off);
-            v.append(...defaultsBlock(book));
         }
 
         const groups = groupEntries(shown, sortBy(), e => entryFolder(book, e));
@@ -140,12 +142,14 @@ export function createNormal(A) {
     }
 
     function entryRow(book, e, model) {
-        const it = el('div', `item ent st-${strategyOf(e)}`);
+        const picked = !!S.select?.has(e.uid);
+        const it = el('div', `item ent st-${strategyOf(e)}${picked ? ' sel' : ''}`);
         it.dataset.uid = e.uid;
-        if (S.select) it.append(check(S.select.has(e.uid)));
+        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
         // Just the strategy stripe (no icon: it was the same on every row), and the teal dot desktop shows for an
         // entry with story logic.
         const i = el('div', 'ic');
+        if (picked) i.innerHTML = ic('check');
         const tx = el('div', 'txt');
         const t = el('div', 't');
         t.append(el('span', 'nm', titleOf(e)));
@@ -164,31 +168,34 @@ export function createNormal(A) {
         return it;
     }
 
-    /** New entry defaults: folded, the header sums up what isn't default. */
-    function defaultsBlock(book) {
-        const defaults = bookSettings(settings, book).defaults ??= {};
-        const fake = { ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined };
-        const d = el('button', `disc small${S.ui.defaults ? ' open' : ''}`);
-        d.type = 'button';
-        d.innerHTML = `${ic('right', 'chev')}<h2>New entry defaults</h2>`;
-        d.append(el('span', 'sum', paramSummary(fake)));
-        d.addEventListener('click', () => { S.ui.defaults = !S.ui.defaults; render(); });
-        const out = [d];
-        if (S.ui.defaults) {
+    /**
+     * New entry defaults (#43): a sheet from the menu under the book's name, not a row among the entries. Each row
+     * is one of the entry page's parameters; changed ones are marked.
+     */
+    function defaultsSheet(book) {
+        const draw = () => layer.sheet('New entry defaults', sh => {
+            const defaults = bookSettings(settings, book).defaults ??= {};
+            const fake = { ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined };
             const box = el('div', 'defaults');
+            sh.append(box);
             for (const p of PARAM_LIST) {
                 if (p.when && !p.when(fake)) continue;
                 const value = paramValue(fake, p);
                 box.append(paramRow(p, paramText(fake, p), value !== p.def, () => editParam(layer, p, value, x => {
                     if (x === p.def || x === null) delete defaults[p.field]; else defaults[p.field] = x;
                     saveSettings();
-                    render();
+                    draw();
                 })));
             }
-            out.push(box);
-        }
-        return out;
+        }, { help: 'What a new entry in this book starts with.' });
+        draw();
     }
+
+    /** One line summing up a book's new entry defaults, for its menu. */
+    const defaultsSummary = book => {
+        const defaults = bookSettings(settings, book).defaults ?? {};
+        return paramSummary({ ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined });
+    };
 
     function sectionHead(text, open, onToggle, selectable) {
         const s = el('div', 'section');
@@ -214,12 +221,37 @@ export function createNormal(A) {
     }
 
     // ---------------------------------------------------------------- bottom bar, selection
+    /**
+     * The phone's bottom bar (#40): a search field, + in the middle, then new folder and select. The field opens
+     * search with the cursor in it, the same search as before.
+     */
     function bottomBar(p) {
         const bb = el('nav', 'bottombar');
-        bb.append(btn('', ic('search'), () => { S.search = { query: '' }; render(); }, 'Search'));
-        bb.append(btn('', ic('plus'), () => (p.type === 'book' ? newEntry(p.book) : homePlus()), p.type === 'book' ? 'New entry' : 'New book or import'));
-        bb.append(btn('', ic('select'), () => { S.select = new Set(); render(); }, 'Select'));
+        const book = p.type === 'book' ? p.book : null;
+        const sf = btn('bsearch', html`${ic('search', 's')}<span>Search</span>`, () => { S.search = { query: '' }; render(); }, 'Search');
+        bb.append(sf);
+        bb.append(btn('bplus', ic('plus'), () => (book ? newEntry(book) : homePlus()), book ? 'New entry' : 'New book or import'));
+        const right = el('div', 'bright');
+        right.append(btn('', ic('folder'), () => (book ? newEntryFolder(book) : newBookFolder()), 'New folder'));
+        right.append(btn('', ic('select'), () => { S.select = new Set(); render(); }, 'Select'));
+        bb.append(right);
         return bb;
+    }
+
+    /** A new, empty book folder on Home; books go in with Select, then Move. */
+    function newBookFolder() {
+        layer.askText({
+            title: 'New folder', placeholder: 'Folder name', ok: 'Create',
+            check: f => (Object.hasOwn(settings.bookFolders, f.trim()) ? 'There is a folder with that name' : null),
+            done: f => {
+                const name = f.trim();
+                if (!name) return;
+                settings.bookFolders[name] ??= [];
+                saveSettings();
+                render();
+                layer.toast(`${name} made. Select books and Move them in`);
+            },
+        });
     }
 
     function toggleSel(x) {
@@ -268,8 +300,7 @@ export function createNormal(A) {
                 render();
             }));
             act('code', 'Export', async () => { for (const n of S.select) await library.exportBook(n); });
-            const imp = btn('', html`${ic('import')}<span>Import</span>`, importBook);
-            bar.append(imp); // needs no selection
+            // Import has nothing to do with the selection: it lives under + (New book or Import) (#41).
         }
         return bar;
     }
@@ -427,5 +458,5 @@ export function createNormal(A) {
         });
     }
 
-    return { applyParam, bottomBar, check, renderBook, renderEntry, renderHome, renderSearch, selBar };
+    return { applyParam, bottomBar, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };
 }

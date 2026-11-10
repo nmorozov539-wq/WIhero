@@ -21,7 +21,7 @@ export const PIECES = [
 ];
 export const PIECE = Object.fromEntries(PIECES.map(p => [p.key, p]));
 /** What a Moment takes (CONCEPTS 3.13): its own gate (which arms it), and what it opens and closes. */
-export const MOMENT_PIECES = ['gate', 'gatesFor', 'closesFor'];
+export const MOMENT_PIECES = ['gate', 'gatesFor', 'closesFor', 'packs']; // a Moment can be packed, and leave its pack (#5)
 export const ROW_FIELDS = ['gate', 'closeGate'];
 export const LIST_FIELDS = ['gatesFor', 'closesFor', 'switch', 'packs'];
 
@@ -43,7 +43,8 @@ export function hasPiece(c, key) {
 /** The pieces a config doesn't have yet that may be added. Once isn't offered on glued entries (CONCEPTS 3.5). */
 export function missingPieces(c) {
     if (c?.moment === true) return PIECES.filter(p => MOMENT_PIECES.includes(p.key) && !hasPiece(c, p.key));
-    return PIECES.filter(p => !hasPiece(c, p.key) && !(p.key === 'once' && hasPiece(c, 'glue')));
+    // Who triggers, Once and Tracker are settings in the inspector, not pieces to add (#14, #31, #7).
+    return PIECES.filter(p => !hasPiece(c, p.key) && p.key !== 'once' && p.key !== 'by' && p.key !== 'written');
 }
 
 /** A new, empty piece. Row and list pieces start empty; the editor fills them. */
@@ -112,6 +113,30 @@ export function removeFromRow(rows, i, j) {
 export function addToList(list, value) {
     if (!list.some(x => same(x, value))) list.push(value);
     return list;
+}
+
+/**
+ * "and" to "or" (#20): splits row `i` before item `j` into two rows, either one. Locks and waits stay with the
+ * part they are in.
+ */
+export function splitRow(rows, i, j) {
+    const r = rows[i];
+    if (!Array.isArray(r) || j <= 0 || j >= r.length) return rows;
+    rows.splice(i, 1, r.slice(0, j), r.slice(j));
+    return rows;
+}
+
+/** "or" to "and" (#20): merges row `i` into row `a` (both); links first, then waits, then locks. */
+export function mergeRows(rows, a, i) {
+    if (!Array.isArray(rows[a]) || !Array.isArray(rows[i]) || a === i) return rows;
+    const all = [...rows[a], ...rows[i]];
+    const isLock = x => isObject(x) && Array.isArray(x.lock);
+    const isWait = x => isObject(x) && 'wait' in x;
+    const merged = [...all.filter(x => !isLock(x) && !isWait(x)), ...all.filter(isWait), ...all.filter(isLock)];
+    const [lo, hi] = a < i ? [a, i] : [i, a];
+    rows.splice(hi, 1);
+    rows[lo] = merged.filter((x, k) => merged.findIndex(y => same(y, x)) === k);
+    return rows;
 }
 
 /** Entry ids a set of rows reads (not packs, locks, waits or greetings). */
@@ -198,6 +223,32 @@ export function packsOf(data) {
 }
 
 const configOf = e => { const raw = rawConfig(e); return raw ? normalize(raw).config : null; };
+
+/**
+ * Renames a pack (#21) everywhere a book names it: members' `packs` (nested packs move with it, `town/inn` →
+ * `harbor/inn`), and every `#town`, `#town:all`, `#town:2` a rule reads or targets, greeting `via`s included.
+ * Returns how many entries changed. Notes and written text are left alone.
+ */
+export function renamePack(ed, data, from, to) {
+    const moved = name => (name === from ? to : name.startsWith(`${from}/`) ? `${to}${name.slice(from.length)}` : null);
+    const ref = str => {
+        const m = /^#([^:]+)(:.*)?$/.exec(str);
+        const n = m && moved(m[1]);
+        return n === null || !m ? str : `#${n}${m[2] ?? ''}`;
+    };
+    const walk = x => (typeof x === 'string' ? ref(x) : Array.isArray(x) ? x.map(walk)
+        : isObject(x) ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, k === 'note' || k === 'written' ? v : walk(v)])) : x);
+    let n = 0;
+    for (const e of Object.values(data.entries)) {
+        const c = configOf(e);
+        if (!c || !JSON.stringify(c).includes(from)) continue;
+        const next = { ...walk(c), ...(Array.isArray(c.packs) ? { packs: [...new Set(c.packs.map(p => (typeof p === 'string' ? moved(p) ?? p : p)))] } : {}) };
+        if (canonical(next) === canonical(c)) continue;
+        ed.update(e.uid, cc => { for (const k of Object.keys(cc)) delete cc[k]; Object.assign(cc, next); });
+        n++;
+    }
+    return n;
+}
 
 // ---- the book editor
 

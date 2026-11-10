@@ -46,15 +46,16 @@ const menu = async () => { await $('button[aria-label="Menu"]').filter({ visible
 await toHero();
 await $('.tbook').click();
 const picker = $('.sheet').last();
-await picker.getByText('+ New book').waitFor();
-assert.ok(await picker.getByText(`Duplicate ${BOOK}`).isVisible());
-await picker.getByText(`Duplicate ${BOOK}`).click();
+// The actions are icon buttons at the top of the picker (#34).
+await picker.locator('.pkacts button[aria-label="New book"]').waitFor();
+assert.ok(await picker.locator(`.pkacts button[aria-label="Duplicate ${BOOK}"]`).isVisible());
+await picker.locator(`.pkacts button[aria-label="Duplicate ${BOOK}"]`).click();
 await page.waitForFunction(b => wihero.app.state.hero.book !== b && wihero.library.names().includes(wihero.app.state.hero.book), BOOK);
 const copy = await page.evaluate(() => wihero.app.state.hero.book);
 assert.equal((await entries(copy)).length, (await entries()).length, 'the copy has every entry');
 ok(`Hero's book picker duplicates the book and opens the copy (${copy})`);
 await $('.tbook').click();
-await $('.sheet').last().getByText('+ New book').click();
+await $('.sheet').last().locator('.pkacts button[aria-label="New book"]').click();
 await $('.dlg input').fill('Cheap New');
 await $('.dlg .pri').click();
 await page.waitForFunction(() => wihero.app.state.hero.book === 'Cheap New');
