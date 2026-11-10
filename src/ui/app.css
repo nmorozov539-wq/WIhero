@@ -1015,6 +1015,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .mtext { display: block; width: 100%; text-align: left; font-family: var(--content-font, var(--serif)); color: var(--muted); font-size: var(--t-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0 4px; }
 .mtext.empty { font-style: italic; }
 .moff { margin-top: 2px; }
+.lasso .lun { margin-left: 6px; padding: 0 10px; height: 28px; border-radius: 14px; border: 1px solid var(--line); color: var(--fg); font-size: var(--t-xs); font-weight: 600; flex-shrink: 0; }
 .lblq { display: flex; align-items: center; justify-content: space-between; }
 .lblq .pq { margin: -8px -6px -8px 0; }
 .ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }
@@ -1068,7 +1069,7 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 .fgrid .clashnote { grid-column: 2; margin-top: -4px; }
 
 /* Lasso to make a pack: the name box under a box select. */
-.lasso { position: absolute; z-index: 8; display: flex; align-items: center; gap: 4px; width: 250px; padding: 4px 8px; border: 1px solid var(--p-pack); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
+.lasso { position: absolute; z-index: 8; display: flex; align-items: center; gap: 4px; width: 290px; max-width: calc(100% - 16px); padding: 4px 8px; border: 1px solid var(--p-pack); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
 .lasso .lh { color: var(--p-pack); font-weight: 700; }
 .lasso input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font-size: var(--t-s); outline: none; }
 .lasso.bad { border-color: var(--bad); }

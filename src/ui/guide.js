@@ -189,7 +189,7 @@ export const PAGES = [
 
 /** Anchors for things that aren't pieces: the canvas controls, the strip, the inspector and Preview. */
 export const TOPICS = [
-    { id: 'canvas', title: 'Cards and lines', line: 'Each card is an entry; each line is a rule between two of them.', fine: ['A socket (a notch) is a way in, a knob (a half disc) a way out. Teal opens, red closes, yellow is glue.', '"and" and "or" chips are where several links meet before a card.', 'Cards move by their six-dot grip; everything else pans.'] },
+    { id: 'canvas', title: 'Cards and lines', line: 'Each card is an entry; each line is a rule between two of them.', fine: ['A socket (a notch) is a way in, a knob (a half disc) a way out. Teal opens, red closes, yellow is glue.', '"and" and "or" chips are where several links meet before a card.', 'Cards move by their six-dot grip; everything else pans.', 'A long press on empty canvas, then a drag, picks every card in the box: pack them, unpack them, or drag them together by a grip. Let go without dragging to place an entry there.'] },
     { id: 'fit', title: 'Fit', line: 'Brings every card into view.', fine: ['On a phone, a book opens at a readable size, fitting the width and scrolling down from there; Fit zooms out until everything shows.'] },
     { id: 'tidy', title: 'Tidy layout', line: 'Lays every card out again from the links.', fine: ['Ports go back to their default sides. Undo puts everything back.'] },
     { id: 'panel', title: 'Entry panel', line: 'Every entry in the book, with a dot to place it on the canvas.', fine: ['A filled dot is on the canvas; a hollow dot isn\'t yet.', 'Moments have their own group at the top.'] },

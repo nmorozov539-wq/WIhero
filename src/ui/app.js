@@ -595,7 +595,7 @@ export function createApp(deps) {
     const heroShell = () => (heroShellView ??= createHeroShell({
         H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
-        loadingNote, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
+        loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
         startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN,
     }));
@@ -857,6 +857,7 @@ export function createApp(deps) {
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),
     }));
     function createEntryIn(...a) { return heroDesk().createEntryIn(...a); }
+    function lassoFor(...a) { return heroDesk().lassoFor(...a); }
     function deskCanvas(...a) { return heroDesk().deskCanvas(...a); }
     function deskColumns(...a) { return heroDesk().deskColumns(...a); }
     function heroBackDesk(...a) { return heroDesk().heroBackDesk(...a); }

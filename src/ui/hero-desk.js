@@ -62,6 +62,22 @@ export function createHeroDesk(A) {
         if (deskSettings().heroWide !== false) { deskSettings().heroInsp = v; saveSettings(); H.dinsp = null; }
     }
 
+    /** A box selection's actions, on desktop and phones (#24): pack the picked entries, or take them out of packs. */
+    function lassoFor(book, data) {
+        const many = n => `${n} ${n === 1 ? 'entry' : 'entries'}`;
+        return {
+            entries: keys => keys.map(k => nodeOf(book, k)).filter(x => x?.t === 'entry').map(x => x.uid),
+            packs: () => packsOf(data),
+            pack: (uids, name) => {
+                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${many(uids.length)} packed into #${name}`);
+            },
+            packed: uids => uids.some(u => (configOf(data.entries[u])?.packs ?? []).length),
+            unpack: uids => {
+                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { delete c.packs; }); })) layer.toast(`${many(uids.length)} taken out of their packs`);
+            },
+        };
+    }
+
     /** What the canvas does with a mouse on desktop: left to right, link drags, menus, selection. */
     function deskCanvas(book, data) {
         return {
@@ -94,13 +110,7 @@ export function createHeroDesk(A) {
                 heroInspector(book, data);
             },
             cardMenu: key => cardMenu(book, data, key),
-            lasso: {
-                entries: keys => keys.map(k => nodeOf(book, k)).filter(x => x?.t === 'entry').map(x => x.uid),
-                packs: () => packsOf(data),
-                pack: (uids, name) => {
-                    if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { c.packs = addToList(Array.isArray(c.packs) ? c.packs : [], name); }); })) layer.toast(`${uids.length} ${uids.length === 1 ? 'entry' : 'entries'} packed into #${name}`);
-                },
-            },
+            lasso: lassoFor(book, data),
             linkMenu: (l, shaped) => barLinkMenu(book, l, shaped),
             emptyMenu: at => placePicker(book, data, at),
         };
@@ -317,5 +327,5 @@ export function createHeroDesk(A) {
         render();
     }
 
-    return { createEntryIn, deskCanvas, deskColumns, heroBackDesk, heroInspector, heroKey, inspShown, leaveEntry, listShown, openHero, tidyNow };
+    return { createEntryIn, deskCanvas, lassoFor, deskColumns, heroBackDesk, heroInspector, heroKey, inspShown, leaveEntry, listShown, openHero, tidyNow };
 }

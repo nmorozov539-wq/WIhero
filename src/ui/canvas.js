@@ -961,7 +961,7 @@ export function mountCanvas(vp, d) {
             const id = (card ?? gr).dataset.id ?? gr.dataset.grip;
             const [wx, wy] = toWorld(e.clientX, e.clientY);
             const c = memory().cards[id];
-            const group = d.desk && picked.has(id) && picked.size > 1 ? [...picked].filter(k => memory().cards[k]) : null;
+            const group = picked.has(id) && picked.size > 1 ? [...picked].filter(k => memory().cards[k]) : null;
             drag = { id, dx: wx - c.x, dy: wy - c.y, group, at: group ? Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) : null };
             mode = 'card';
         } else if (!OV && !port && e.target.closest?.(d.desk ? '.packframe[data-pack]' : '.packframe[data-pack] .pn') && !(d.desk && e.shiftKey)) {
@@ -989,13 +989,14 @@ export function mountCanvas(vp, d) {
         } else if (port) { mode = 'port'; drag = { port: port.dataset.port }; } else mode = 'pan';
         // A long press on empty canvas picks an entry to place there.
         clearTimeout(holdTimer);
-        if (mode === 'pan' && d.holdEmpty && !d.desk && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-link], [data-row]')) {
+        if (mode === 'pan' && d.holdEmpty && !d.desk && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-row]')) {
             const at = { x: e.clientX, y: e.clientY };
             holdTimer = setTimeout(() => {
                 if (moved || mode !== 'pan' || pts.size !== 1) return;
-                mode = null; start = null;
-                pts.clear();
-                d.holdEmpty(pointAt(at.x, at.y));
+                // A long press on empty canvas (#24): drag from here to box-select cards, or let go to place one.
+                mode = 'hold';
+                drag = { at };
+                navigator.vibrate?.(12);
             }, 520);
         }
     });
@@ -1013,6 +1014,12 @@ export function mountCanvas(vp, d) {
         if (!start) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) { moved = true; clearTimeout(holdTimer); }
         if (!moved) return;
+        if (mode === 'hold' && Math.hypot(e.clientX - drag.at.x, e.clientY - drag.at.y) > 7) {
+            const r = vp.getBoundingClientRect();
+            drag = { x0: drag.at.x - r.left, y0: drag.at.y - r.top, box: el('div', 'selbox') };
+            vp.append(drag.box);
+            mode = 'box';
+        }
         if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; gesture(true); viewLater(); } else if (mode === 'card' || mode === 'dot') {
             edgeAt = { x: e.clientX, y: e.clientY, alt: e.altKey };
             dragTo(edgeAt);
@@ -1054,8 +1061,15 @@ export function mountCanvas(vp, d) {
         input.setAttribute('aria-label', 'Pack name');
         input.setAttribute('list', list.id);
         box.append(el('span', 'lh', '#'), input, list);
+        // Unpack (#24): takes the picked entries out of every pack they are in.
+        if (d.lasso.packed?.(uids)) {
+            const un = el('button', 'lun', 'Unpack');
+            un.type = 'button';
+            un.addEventListener('click', () => { done(); d.lasso.unpack(uids); });
+            box.append(un);
+        }
         const r = vp.getBoundingClientRect();
-        box.style.left = `${Math.max(8, Math.min(x, r.width - 260))}px`;
+        box.style.left = `${Math.max(8, Math.min(x, r.width - 300))}px`;
         box.style.top = `${Math.min(y + 8, r.height - 44)}px`;
         vp.append(box);
         const done = () => { box.remove(); document.removeEventListener('pointerdown', away, true); };
@@ -1140,6 +1154,12 @@ export function mountCanvas(vp, d) {
             mode = null; start = null; drag = null;
             if (h?.card && h.card !== from) d.link?.(kind, from, h.card);
             else if (!moved && portKey) tapAt(e.target, e);
+            return;
+        }
+        if (mode === 'hold') {
+            const at = drag.at;
+            mode = null; start = null; drag = null;
+            d.holdEmpty?.(pointAt(at.x, at.y));
             return;
         }
         if (mode === 'box') {
@@ -1373,6 +1393,7 @@ export function mountCanvas(vp, d) {
         if (pn && d.renamePack) { d.renamePack(pn.parentElement.dataset.pack); return; }
         const pf = t.closest?.('[data-pack]');
         if (pf) { d.pack(pf.dataset.pack); return; }
+        if (!d.desk && picked.size) setPicked(new Set(), true); // a tap on empty canvas lets go of a box selection
         d.tapEmpty?.();
     }
 
