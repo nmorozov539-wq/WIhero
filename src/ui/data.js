@@ -364,6 +364,27 @@ export function sortEntries(entries, by = 'order') {
 }
 
 /**
+ * Drag to reorder (book list, "Order" sort only): puts `uids` just before `target`, or just after it, in ST's order,
+ * keeping their own order. Only `displayIndex` is written, renumbered 0, 1, 2… over the whole book like ST's own
+ * drag in its editor; the Order parameter (`order`, the prompt position) is never touched.
+ * @returns {Map<number, number|undefined>|null} each changed entry's old displayIndex (for Undo), or null when
+ *   nothing moved.
+ */
+export function reorderEntries(data, uids, target, after = false) {
+    const moving = new Set(uids.map(Number));
+    if (moving.has(Number(target))) return null;
+    const all = sortEntries(Object.values(data.entries ?? {}), 'order').map(e => e.uid);
+    const rest = all.filter(u => !moving.has(Number(u)));
+    let at = rest.findIndex(u => Number(u) === Number(target));
+    if (at < 0 || !all.some(u => moving.has(Number(u)))) return null;
+    if (after) at++;
+    rest.splice(at, 0, ...all.filter(u => moving.has(Number(u))));
+    const old = new Map();
+    rest.forEach((u, i) => { const e = data.entries[u]; if (e.displayIndex !== i) { old.set(u, e.displayIndex); e.displayIndex = i; } });
+    return old.size ? old : null;
+}
+
+/**
  * Folders are containers: entries are grouped by folder (no folder first, then folders A–Z) and sorted inside each.
  * @returns {[string, object[]][]}
  */

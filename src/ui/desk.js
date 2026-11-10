@@ -6,7 +6,7 @@ import { btn, html, el, issueText, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
-    setBookFolder, setFolder, strategyOf, titleOf,
+    reorderEntries, setBookFolder, setFolder, strategyOf, titleOf,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
 
@@ -588,9 +588,62 @@ export function deskNormal(A) {
             ev.dataTransfer.setData('text/plain', titleOf(e));
         });
         r.addEventListener('dragend', () => { dragEntries = null; });
+        rowDrop(r, p, book, e);
         return r;
     }
     let dragEntries = null;
+
+    /**
+     * Drag to reorder (#42): dropping on a row puts the dragged entries just above or below it. Only in the Order
+     * sort, where the list shows ST's order; it writes displayIndex, never the Order parameter. A row in another
+     * folder takes them into that folder too. Undo puts both back.
+     */
+    function rowDrop(r, p, book, e) {
+        const ok = () => !!dragEntries && dragEntries.book === book && A.sortBy() === 'order' && !dragEntries.uids.includes(e.uid);
+        const below = ev => { const b = r.getBoundingClientRect(); return ev.clientY > b.top + b.height / 2; };
+        const clear = () => r.classList.remove('dropbefore', 'dropafter');
+        r.addEventListener('dragover', ev => {
+            if (!ok()) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const after = below(ev);
+            r.classList.toggle('dropafter', after);
+            r.classList.toggle('dropbefore', !after);
+        });
+        r.addEventListener('dragleave', clear);
+        r.addEventListener('drop', ev => {
+            clear();
+            if (!ok()) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const after = below(ev);
+            const { uids } = dragEntries;
+            dragEntries = null;
+            const data = library.peek(book);
+            const folder = A.entryFolder(book, e);
+            const oldFolders = new Map();
+            for (const u of uids) {
+                const x = data.entries[u];
+                if (!x || A.entryFolder(book, x) === folder) continue;
+                oldFolders.set(u, A.entryFolder(book, x));
+                setFolder(settings, book, x, folder);
+            }
+            if (oldFolders.size) save();
+            let old = null;
+            library.change(book, d => { old = reorderEntries(d, uids, e.uid, after); }, { quiet: true });
+            if (!old && !oldFolders.size) { A.render(); return; }
+            A.render();
+            const n = uids.length;
+            layer.toast(n === 1 ? `Moved ${titleOf(data.entries[uids[0]] ?? {})}` : `Moved ${n} entries`, { action: ['Undo', () => {
+                if (old) library.change(book, d => { for (const [u, v] of old) if (d.entries[u]) { if (v === undefined) delete d.entries[u].displayIndex; else d.entries[u].displayIndex = v; } }, { quiet: true });
+                const now = library.peek(book);
+                for (const [u, f] of oldFolders) if (now.entries[u]) setFolder(settings, book, now.entries[u], f);
+                if (oldFolders.size) save();
+                A.render();
+                layer.toast('Order put back');
+            }] });
+        });
+    }
     function entryDrop(node, book, folder, p, onlySelf = false) {
         node.addEventListener('dragover', e => {
             if (!dragEntries || dragEntries.book !== book || (onlySelf && e.target !== node && !e.target.classList?.contains('blnone'))) return;
