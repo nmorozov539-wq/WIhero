@@ -50,6 +50,13 @@ Parked while polishing for V1. Each one is a new behavior or a new view, not a f
 - **Tile view for folders in Normal mode (#38).** Folders as tiles.
 - **Greeting nicknames (#13).** Waits with greetings: see [Greetings, the strict version](#greetings-the-strict-version).
 
+## From the freeze triage, 2026-11-10
+
+Asked for during the feature freeze; both need a new system, so they wait.
+
+- **Granular undo: one history over text, params, logic and layout.** Today Undo is a toast after one change: deleting entries or books, Tidy, snapshot restore, and (since 0.42.0) every removal in the piece bar and the inspector, a condition, a box selection's packs and a list reorder. A real history needs every edit to go through one place, and has to agree with ST's own saves and with Snapshots.
+- **Gating on a tracker value** ("open *Rich* when Gold is at least 100"). Needs comparisons, which CONCEPTS 9 keeps out for now. See [TRACKERS.md](TRACKERS.md) section 8.
+
 ## Brainstorm, 2026-11-09
 
 A no-commitment brainstorm. Nothing here is planned; each line is the idea plus any catch we spotted.
