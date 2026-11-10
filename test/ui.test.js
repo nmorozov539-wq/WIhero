@@ -192,6 +192,12 @@ test('Story logic sentences, with the rules other entries put on this one', () =
     assert.deepEqual(logicLines(null, model), []);
 });
 
+test('delayed closing reads "it has fired" in the story logic', () => {
+    const model = buildModel([e(0, 'fog', { id: 'fog', glue: { mode: 'hold' }, closeGate: [['fog', { wait: 3 }]] }, { comment: 'Fog' })]);
+    const lines = logicLines(model.nodes.get('Book/fog'), model).map(l => `${l.label}: ${l.text}`);
+    assert.ok(lines.includes('Close gate: Closes when it has fired and 3 messages have passed'), lines.join('\n'));
+});
+
 test('closed in this chat by …', () => {
     const name = key => ({ 'Book/tunnel': 'Tunnel' })[key] ?? null;
     assert.equal(closedText('closesFor:Book/tunnel', name), 'Tunnel');

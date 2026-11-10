@@ -163,6 +163,31 @@ test('Once: fires one time, closes from the next message', () => {
     assert.equal(s.state.closed[K('omen')].by, 'once');
 });
 
+test('delayed closing: a close gate naming its own entry counts from its first firing', () => {
+    const s = new Sim([e(0, 'fog', { id: 'fog', glue: { mode: 'hold' }, closeGate: [['fog', { wait: 3 }]] })]);
+    assert.ok(!fires(s, 'calm', 0), 'the wait does not count from the start of the chat');
+    assert.ok(fires(s, 'fog', 0));
+    assert.ok(fires(s, 'calm', 0), 'held on while the wait runs');
+    assert.ok(!fires(s, 'calm', 0), 'closed three messages after it first fired');
+    assert.equal(s.state.closed[K('fog')].by, 'closeGate');
+    assert.equal(s.model.nodes.get(K('fog')).closes[0].row.items[0].type, 'self');
+});
+
+test('delayed closing: the entry alone in its close gate works like Once', () => {
+    const s = new Sim([e(0, 'omen', { id: 'omen', closeGate: [['omen']] })]);
+    assert.ok(fires(s, 'omen', 0), 'not closed in the turn it fires');
+    assert.ok(!fires(s, 'omen', 0));
+});
+
+test('delayed closing: a wait of 1 lets a close met in the same turn wait for the next message', () => {
+    const entries = [e(0, 'fog', { id: 'fog', glue: { mode: 'hold' }, closeGate: [['lighthouse', { wait: 1 }]] }), e(1, 'lighthouse', { id: 'lighthouse' })];
+    const s = new Sim(entries);
+    assert.deepEqual(s.send('fog at the lighthouse').sort(), [0, 1]);
+    assert.ok(!fires(s, 'calm', 0));
+    const t = new Sim([e(0, 'fog', { id: 'fog', glue: { mode: 'hold' }, closeGate: [['lighthouse']] }), e(1, 'lighthouse', { id: 'lighthouse' })]);
+    assert.deepEqual(t.send('fog at the lighthouse'), [1], 'without the wait, closing beats opening');
+});
+
 test('D3: an entry closed this turn didn\'t happen (Bridge stays open)', () => {
     const entries = [e(0, 'tunnel', { id: 'tunnel', closesFor: ['mill'] }), e(1, 'mill', { id: 'mill', closesFor: ['bridge'] }), e(2, 'bridge', { id: 'bridge' })];
     const s = new Sim(entries);
@@ -480,12 +505,13 @@ test('problems block an entry; warnings don\'t', () => {
     ]);
     const p = problems(model).join('\n');
     for (const re of [/a: gate: links to "nope"/, /dup: id "dup" is used by more than one entry/, /d: gatesFor targets itself/, /f: is in a loop/, /g: is in a loop/,
-        /h: a switch needs at least two paths/, /j: ride-along glue can't ride a pack/, /l: gatesFor #p includes this entry itself/, /m: close gate names this entry itself/, /n: rides along with itself/]) assert.match(p, re);
+        /h: a switch needs at least two paths/, /j: ride-along glue can't ride a pack/, /l: gatesFor #p includes this entry itself/, /n: rides along with itself/]) assert.match(p, re);
     const w = warnings(model).join('\n');
     assert.match(w, /k: has a cooldown/);
     assert.match(w, /k: holds with nothing that can close it/);
     assert.ok(model.nodes.get(K('a')).blocked);
     assert.ok(!model.nodes.get(K('k')).blocked);
+    assert.ok(!model.nodes.get(K('m')).blocked, 'a close gate may name its own entry (delayed closing)');
 });
 
 test('a loop broken by another row is not a problem', () => {

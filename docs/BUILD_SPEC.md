@@ -77,6 +77,7 @@ to be changed while building.
 | D29 | **Nothing ST stores is hidden.** Every ST entry setting has a control on the entry page's Parameters; a value WI Hero has no control for is still named in the folded summary ("Also set: …"). The character filter is stored as ST stores it (`characterFilter: { isExclude, names, tags }`, names being character file names), and generation types as `triggers`. |
 | D30 | **Moments are entries that are never sent.** A Moment (CONCEPTS 3.13) is stored as an entry flagged `moment: true`, with its phrases as `key`, empty content, `disable: true` and the title "Moment: *name*". The model gives it happen rows: each of its gate rows (or one empty row) plus a lock on its phrases, with its `by`. The engine checks them with the locks (D1): in `stateForScan` against the newest user message and reply, in `advance` against the new reply. When one is met it writes the Moment as fired at that message, once, so everything that reads fired entries (rows, Gates for, Closes for, Preview, rewind) works unchanged. `keepAtLoad` never keeps a Moment. Hidden from Normal mode and Hero's entry list; the panel has a Moments group. |
 | D31 | **One Guide, reached from everywhere.** The pieces are explained in one data file (`src/ui/guide.js`, kept in step with CONCEPTS) and shown in a Guide tab (`guide-page.js`). Explain mode is one capture-phase listener on WI Hero's root: while it is on, presses never reach the elements, and a click maps its target to a Guide anchor by selector (chips by `data-piece`, lines and pills by `data-kind`, ports through `PORT`). The inspector's "?", the strip's "?" and "+ Add logic" open the same anchors directly. |
+| D32 | **Delayed closing.** An entry may name itself in its own close gate (still not in its gate). The item is compiled as Once's `self` item: it counts from the entry's first firing and never in the turn it fires, so `[["fog", {"wait": 3}]]` closes Fog three messages after it first fires. The inspector's close gate picker offers "This entry"; the canvas draws no self link and shows a `+N` badge instead. CONCEPTS 3.3. |
 
 ---
 
@@ -572,6 +573,7 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
 - Waits: counted from the row's done time; alone from the chat start; `by`
   counts one side; wait then lock.
 - Closing: close gate; Closes for; switch; Once from the next message;
+  delayed closing (own entry in the close gate, with a wait);
   closing beats opening; D3 chain (Bridge stays open); D3 loop (both close);
   closed stays closed; sticky still finishes; glue ends on any close.
 - Glue: hold starts on first firing and stays; hold ends via close gate;

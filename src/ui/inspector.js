@@ -93,6 +93,10 @@ export function pickTarget(layer, o) {
             const needle = q.value.trim().toLowerCase();
             const hit = s => !needle || s.toLowerCase().includes(needle);
             const ents = o.entries.filter(e => hit(e.title));
+            if (o.self && hit(`${o.self.title} this entry`)) {
+                list.append(el('div', 'lbl', 'This entry'));
+                list.append(layer.opt(o.self.title, () => { layer.close(); o.done(ed => ed.idOf(o.self.uid)); }, { icon: 'clock', sub: 'After it first fires. Add a wait to close it that many messages later.' }));
+            }
             if (ents.length) list.append(el('div', 'lbl', 'Entries'));
             for (const e of ents) list.append(layer.opt(e.title, () => { layer.close(); o.done(ed => ed.idOf(e.uid)); }, { dot: e.dot }));
             const packs = (o.packs ?? []).filter(p => hit(`#${p}`));
@@ -311,7 +315,7 @@ function momentHead(body, x) {
 function editorOf(key, x, update) {
     const { layer, config: c } = x;
     const box = el('div', 'ped');
-    const rows = (get, set, { gate = false } = {}) => rowsEditor(box, x, get, set, update, gate);
+    const rows = (get, set, { gate = false, self = false } = {}) => rowsEditor(box, x, get, set, update, gate, self);
     if (key === 'written') {
         trackerEditor(box, x, update);
     } else if (key === 'gate') {
@@ -323,7 +327,7 @@ function editorOf(key, x, update) {
             else box.append(el('p', 'phelp', `The story moves on: this already closes ${mo.ids.map(x.nameOfId).join(', ')} when it fires.`));
         }
     } else if (key === 'closeGate') {
-        rows(cc => cc.closeGate ?? [], (cc, r) => { cc.closeGate = r; });
+        rows(cc => cc.closeGate ?? [], (cc, r) => { cc.closeGate = r; }, { self: true });
     } else if (key === 'gatesFor' || key === 'closesFor' || key === 'switch') {
         const list = Array.isArray(c[key]) ? c[key] : [];
         const wrap = el('div', 'rowbox');
@@ -423,10 +427,12 @@ function editorOf(key, x, update) {
 }
 
 /** Rows with chips, "+ add" per row and "+ Another row (OR)". */
-function rowsEditor(box, x, get, set, update, isGate) {
+function rowsEditor(box, x, get, set, update, isGate, self = false) {
     const rows = get(x.config) ?? [];
     const pick = (i, title) => pickTarget(x.layer, {
         title, entries: x.others, packs: x.packs, readings: true, greetings: x.greetings, lock: true,
+        // Delayed closing (CONCEPTS 3.3): the entry itself, read as "after it first fires".
+        self: self && x.entry ? { uid: x.entry.uid, title: x.title } : null,
         done: make => update((cc, id, ed) => { set(cc, addToRow(get(cc) ?? [], i, make(ed))); }),
     });
     rows.forEach((row, i) => {
