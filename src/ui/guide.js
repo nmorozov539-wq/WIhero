@@ -190,7 +190,7 @@ export const PAGES = [
 /** Anchors for things that aren't pieces: the canvas controls, the strip, the inspector and Preview. */
 export const TOPICS = [
     { id: 'canvas', title: 'Cards and lines', line: 'Each card is an entry; each line is a rule between two of them.', fine: ['A socket (a notch) is a way in, a knob (a half disc) a way out. Teal opens, red closes, yellow is glue.', '"and" and "or" chips are where several links meet before a card.', 'Cards move by their six-dot grip; everything else pans.'] },
-    { id: 'fit', title: 'Fit', line: 'Brings the canvas into view.', fine: ['On a phone it fits the width, never below 80%, and the canvas scrolls down from there.'] },
+    { id: 'fit', title: 'Fit', line: 'Brings every card into view.', fine: ['On a phone, a book opens at a readable size, fitting the width and scrolling down from there; Fit zooms out until everything shows.'] },
     { id: 'tidy', title: 'Tidy layout', line: 'Lays every card out again from the links.', fine: ['Ports go back to their default sides. Undo puts everything back.'] },
     { id: 'panel', title: 'Entry panel', line: 'Every entry in the book, with a dot to place it on the canvas.', fine: ['A filled dot is on the canvas; a hollow dot isn\'t yet.', 'Moments have their own group at the top.'] },
     { id: 'strip', title: 'The strip', line: 'The piece bar turns into it while a piece is set up.', fine: ['What it sets is written at once, so the canvas shows it.', 'Cancel puts the book back as it was; Done keeps it.', 'Anything that would be a problem is refused with one line saying why.'] },

@@ -654,9 +654,9 @@ export function mountCanvas(vp, d) {
         cam.scale = Math.min(1, Math.max(0.25, Math.min((W - 24) / (x1 - x0), (H - 60) / (y1 - y0))));
         cam.tx = (W - (x1 - x0) * cam.scale) / 2 - x0 * cam.scale;
         cam.ty = 60 + (H - 60 - (y1 - y0) * cam.scale) / 2 - y0 * cam.scale;
-        if (!d.desk && (d.dir ?? TB) === TB) {
-            // Phones: fit the width, never below about 80%, and start at the top; the canvas scrolls down from there
-            // rather than shrinking until it is unreadable.
+        if (!d.desk && (d.dir ?? TB) === TB && first) {
+            // Phones, on first open: fit the width, never below about 80%, and start at the top; the canvas scrolls
+            // down from there rather than shrinking until it is unreadable. Fit itself shows every card (#36).
             cam.scale = Math.min(1, Math.max(PHONE_FLOOR, (W - 24) / (x1 - x0)));
             const wide = (x1 - x0) * cam.scale;
             cam.tx = wide <= W - 24 ? (W - wide) / 2 - x0 * cam.scale : 12 - x0 * cam.scale;
