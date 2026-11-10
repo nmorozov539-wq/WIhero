@@ -151,6 +151,7 @@ export function renderInspector(box, x) {
     const d = el('i', 'sd');
     d.style.background = strategyColor(e);
     const h = el('h2', '', x.title);
+    if (x.rename) renamable(h, x.title, x.rename);
     if (c.moment === true) {
         // A Moment sends nothing: no strategy and no on/off switch (it is stored off).
         const sp = el('span', 'mspark');
@@ -272,7 +273,6 @@ export function renderInspector(box, x) {
 
     const foot = el('div', 'ifoot');
     if (c.moment === true) {
-        foot.append(btn('linkish', html`${ic('edit', 's')} Rename`, () => x.renameMoment?.()));
         if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
         foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
     } else {
@@ -438,6 +438,46 @@ function editorOf(key, x, update) {
         box.append(seg);
     }
     return box;
+}
+
+/**
+ * The inspector's title renames in place (#12): a click makes it editable, Enter or leaving it saves, Escape puts
+ * the old name back. An empty name is not saved.
+ */
+function renamable(h, value, save) {
+    h.classList.add('rn');
+    h.title = 'Click to rename';
+    h.tabIndex = 0;
+    h.setAttribute('role', 'button');
+    const start = () => {
+        if (h.isContentEditable) return;
+        h.contentEditable = 'plaintext-only';
+        h.dataset.ownEscape = '1';
+        h.removeAttribute('role');
+        h.focus();
+        const r = document.createRange();
+        r.selectNodeContents(h);
+        const sel = h.getRootNode().getSelection?.() ?? window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+    };
+    let done = false;
+    const finish = keep => {
+        if (done) return;
+        done = true;
+        const v = h.textContent.replace(/\s+/g, ' ').trim();
+        h.contentEditable = 'false';
+        delete h.dataset.ownEscape;
+        if (keep && v && v !== value) save(v); else h.textContent = value;
+    };
+    h.addEventListener('click', start);
+    h.addEventListener('keydown', e => {
+        if (!h.isContentEditable) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(); } return; }
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    h.addEventListener('blur', () => { if (h.isContentEditable) finish(true); });
 }
 
 /** Rows with chips, "+ add" per row and "+ Another row (OR)". */

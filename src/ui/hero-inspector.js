@@ -188,10 +188,7 @@ export function createHeroInspector(A) {
             ...common, entry: e,
             setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources,
             happened: isMoment(e) && H.chatState ? !!chatStatus(book)(I.key)?.happened : null,
-            renameMoment: () => layer.askText({
-                title: 'Rename Moment', placeholder: 'What happens, in a few words', value: momentName(e), ok: 'Rename',
-                done: v => { if (v.trim()) library.change(book, d => { d.entries[e.uid].comment = `Moment: ${v.trim()}`; }); },
-            }),
+            rename: v => library.change(book, d => { d.entries[e.uid].comment = isMoment(e) ? `Moment: ${v}` : v; }),
             deleteMoment: () => {
                 const unused = model.issues.some(i => i.stKey === `${book}.${e.uid}` && /nothing uses/.test(i.message));
                 if (!unused) { layer.toast('Remove its links first: other cards use this Moment.'); return; }

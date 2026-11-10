@@ -79,6 +79,7 @@ export function createApp(deps) {
     window.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
+        if (e.composedPath()[0]?.dataset?.ownEscape) return; // a field that cancels its own edit with Escape
         e.preventDefault();
         e.stopPropagation();
         back();
