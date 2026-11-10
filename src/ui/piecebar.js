@@ -38,6 +38,9 @@ function whyNotOn(k, end) {
     if (!end) return 'That card is gone.';
     if (k === 'opens' || k === 'closes') return null;
     if (k === 'moment') return end.t === 'entry' && !end.moment ? null : 'A Moment reacts on an entry: it opens or closes it.';
+    // A Moment only happens: nothing rides along with it, and it has no paths or masks (#16). Armed, these dim it.
+    if (end.moment && k === 'glue') return 'A Moment sends nothing, so nothing rides along with it.';
+    if (end.moment && (k === 'switch' || k === 'mask')) return `A Moment sends nothing, so it can't take ${k === 'mask' ? 'a mask' : 'a switch'}.`;
     if (end.t === 'greet') return 'A greeting only starts things. It can be the start of an Opens or a Closes line.';
     if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no gate of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
     return null;
