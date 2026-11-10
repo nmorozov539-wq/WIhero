@@ -30,7 +30,8 @@ export function wording(node, model) {
     const refText = ref => {
         if (typeof ref === 'string') {
             const r = READING.exec(ref);
-            return r ? packName(r[1], r[2]) : idName(ref);
+            // Only a close gate may name its own entry (delayed closing): "it has fired".
+            return r ? packName(r[1], r[2]) : ref === node.id ? 'it' : idName(ref);
         }
         return null;
     };

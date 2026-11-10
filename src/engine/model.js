@@ -329,7 +329,9 @@ export function buildModel(entries, options = {}) {
         if (c.closeGate !== undefined) {
             const rows = compileRows(node, c.closeGate, `${node.key}|c`, m => fail(`close gate: ${m}`));
             if (rows) {
-                if (rows.some(r => r.items.some(i => i.key === node.key))) fail('close gate names this entry itself');
+                // The entry itself in its own close gate means "after it first fires" (delayed closing, CONCEPTS
+                // 3.3): read like Once's row, from its first firing and never in the turn it fires.
+                for (const row of rows) for (const item of row.items) if (item.type === 'entry' && item.key === node.key) item.type = 'self';
                 for (const row of rows) {
                     const only = row.items.length === 1 && !row.waits.length && !row.locks.length && row.items[0].type === 'greeting';
                     node.closes.push({ row, kind: only ? 'closesFor' : 'closeGate', source: only ? row.items[0].key : null });
