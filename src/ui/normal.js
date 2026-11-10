@@ -22,7 +22,7 @@ export function createNormal(A) {
     const {
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, render, renderTabs,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
         saveSettings, settings, shadow, showOnCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
     } = A;
 
@@ -149,8 +149,7 @@ export function createNormal(A) {
         const tx = el('div', 'txt');
         const t = el('div', 't');
         t.append(el('span', 'nm', titleOf(e)));
-        const c = configOf(e);
-        if (c && Object.keys(c).some(k => k !== 'id')) { const d = el('i', 'ldot'); d.title = 'Has story logic'; t.append(d); }
+        if (hasLogic(e, model.byStKey.get(`${book}.${e.uid}`))) { const d = el('i', 'ldot'); d.title = 'Has story logic'; t.append(d); }
         if (problemsOf(model, e.uid, book).length) { const b = el('span', 'bang', '!'); b.title = 'This entry has a problem'; t.append(b); }
         tx.append(t, el('div', 'm', e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`));
         it.append(i, tx);
@@ -383,6 +382,7 @@ export function createNormal(A) {
             layer,
             ui: new Proxy(S.ui, { set: (t, k, v) => { t[k] = v; if (k === 'condition') p.condition = v; return true; } }),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
+            warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             clash: (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
             lines,
             incoming: [...incoming],

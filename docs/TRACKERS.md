@@ -137,7 +137,8 @@ manages its own lines and WI Hero leaves them alone.
   stays visible; a clothes tracker can be hidden. Hiding is display only; the
   line stays in the message and is still read.
 - The chat bubble (BUILD_SPEC 17.3) lists what each reply wrote
-  ("Gold → 7", "Custom config written").
+  ("Gold → 7", "Custom config written"). A value set by hand (`/wihero-set`,
+  the inspector's Edit) is not listed: the reply didn't write it.
 - On the canvas and in Preview, a tracker's card shows its current value in the
   open chat.
 
@@ -155,7 +156,10 @@ towards something a model can keep up for hundreds of replies.
     line. The closing mark may repeat the label, `<{label}>{value}</{label}>`,
     and then it must be the same label.
   - **Block**: `<{label}>` … `</{label}>`. The value can span lines, for
-    configurations and lists.
+    configurations and lists. A block that is opened and never closed (a reply
+    cut off at its length limit) is not read; from its opening mark to the end
+    of the message it is taken out of the history sent to the model, and out of
+    the chat on screen when the slot is hidden.
   A slot picks its shape; the book's templates for both are set once.
 - **Live test**: the builder runs the syntax over the open chat's last few
   replies and shows, slot by slot, what it would have caught.

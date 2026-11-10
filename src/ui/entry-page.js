@@ -204,6 +204,12 @@ export function renderEntryPage(main, o) {
         pr.append(el('span', '', o.problems.join('. ')));
         en.append(pr);
     }
+    if (o.warnings?.length) {
+        const pw = el('div', 'prob warn');
+        pw.innerHTML = ic('alert', 's');
+        pw.append(el('span', '', o.warnings.join('. ')));
+        en.append(pw);
+    }
 
     if (D) { deskFields(en, o, main); } else {
     // Strategy line, with the on/off switch at its right end.

@@ -34,9 +34,12 @@ const node = (tag, cls, text) => {
  * @param {(key: string) => { label: string, shape: string } | undefined} slotOf
  */
 export function wroteLines(chat, slotOf) {
-    const wrote = lastReply(chat)?.extra?.wihero?.wrote;
+    const state = lastReply(chat)?.extra?.wihero;
+    const wrote = state?.wrote;
     if (!wrote || typeof wrote !== 'object') return [];
-    return Object.entries(wrote).map(([key, value]) => {
+    // Values set by hand (/wihero-set, the inspector's Edit) aren't the reply's: they are listed apart.
+    const byHand = state.byHand && typeof state.byHand === 'object' ? state.byHand : {};
+    return Object.entries(wrote).filter(([key]) => !byHand[key]).map(([key, value]) => {
         const slot = slotOf(key);
         const label = slot?.label ?? key.slice(key.indexOf('/') + 1);
         const v = String(value ?? '');

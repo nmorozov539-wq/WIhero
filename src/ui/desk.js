@@ -567,7 +567,7 @@ export function deskNormal(A) {
         r.append(el('span', 'nm', titleOf(e)));
         r.append(el('span', 'kw', e.constant ? 'always on' : e.vectorized ? 'by meaning' : (e.key ?? []).join(', ')));
         const node = model.byStKey.get(`${book}.${e.uid}`);
-        if (node && (A.hasLogic?.(e) ?? true)) { const d = el('i', 'ldot'); d.title = 'Has story logic'; r.append(d); }
+        if (node && (A.hasLogic?.(e, node) ?? true)) { const d = el('i', 'ldot'); d.title = 'Has story logic'; r.append(d); }
         if (A.problemsOf(model, e.uid, book).length) { const b = el('span', 'bang2', '!'); b.title = 'This entry has a problem'; r.append(b); }
         const sw = swEl(!e.disable, v => library.change(book, d => { d.entries[e.uid].disable = !v; }), `${titleOf(e)} on`);
         sw.classList.add('sm');

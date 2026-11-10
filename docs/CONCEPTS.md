@@ -180,7 +180,9 @@ so it never adds a separate mechanism.
   the fork fires for the first time, one open path is rolled and every other
   path closes, from the next message on. The rolled path still fires the
   usual way (its own key words, or Permanent), so a book that wants the path
-  to just happen makes the paths Permanent. The roll is saved in the chat
+  to just happen makes the paths Permanent **and gated on the fork** ("Paths
+  wait for the fork"): a Permanent path with no gate fires on the first turn,
+  before the roll. The roll is saved in the chat
   state (2.3) and is seeded by the message before the reply, so a swipe or a
   regenerate keeps it, and going back to before that message and writing it
   again rolls again. No roll happens when a path has already fired or closed.

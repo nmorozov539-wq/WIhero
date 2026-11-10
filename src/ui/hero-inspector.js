@@ -23,7 +23,7 @@ import { strategyColor } from './entry-page.js';
 export function createHeroInspector(A) {
     const {
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
-        layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, render,
+        layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, render,
         saveSettings, settings, canvas, isRenderQueued,
     } = A;
 
@@ -199,6 +199,7 @@ export function createHeroInspector(A) {
             },
             others: others(e.uid), greetings: chatGreetings(data),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
+            warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             closed: closedInfo(node, e),
             setOpen: k => { I.open = k; render(); },
             openEntry: mask => openHeroTab(book, e.uid, mask ?? null),

@@ -30,8 +30,10 @@ export function pickMask(state, key, name) {
 export function setSlot(state, key, text, at) {
     const next = structuredClone(state);
     // Values read at an older message stay there; this snapshot keeps only its own.
-    if (next.at !== at) next.wrote = {};
+    if (next.at !== at) { next.wrote = {}; next.byHand = {}; }
     next.wrote ??= {};
+    next.byHand ??= {};
+    next.byHand[key] = true;
     next.written ??= {};
     next.wrote[key] = String(text ?? '').trim();
     next.written[key] = at;

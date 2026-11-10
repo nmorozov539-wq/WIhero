@@ -116,6 +116,7 @@ export function stateForScan(chat, model, options = {}) {
     // Trackers: values read this turn start empty; a user message (when its Who triggers allow) counts for the
     // reply to it (TRACKERS 2.1).
     state.wrote = {};
+    state.byHand = {};
     const last = chat[chat.length - 1];
     if (last?.is_user) readSlots(state, state, model, chat, chat.length - 1, 'user');
     return state;
@@ -402,6 +403,7 @@ export function advance(working, pending, model, chat, mesId) {
     // 7. Trackers (TRACKERS 2.1, 7): values from the user message (read at the scan) and the reply, stored on this
     // message; every later snapshot points here. Openness is the scan's.
     next.wrote = { ...(working.wrote ?? {}) };
+    next.byHand = {};
     if (reply && !reply.is_user) readSlots(next, working, model, chat, mesId, 'char');
     for (const key of Object.keys(next.wrote)) next.written[key] = mesId;
     return next;
@@ -420,6 +422,7 @@ export function rereadReply(snapshot, working, model, chat, mesId) {
         else delete next.written[key];
     }
     next.wrote = { ...(working.wrote ?? {}) };
+    next.byHand = {};
     readSlots(next, working, model, chat, mesId, 'char');
     for (const key of Object.keys(next.wrote)) next.written[key] = mesId;
     return next;
