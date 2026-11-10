@@ -1,4 +1,4 @@
-// OpenAI-compatible mock model. Logs every request body to e2e/log/NNN.json and replies "Mock reply N".
+// OpenAI-compatible mock model (chat and text completion). Logs every request body to e2e/log/NNN.json and replies "Mock reply N".
 // POST /next with a text queues it as the next reply's last lines (trackers' checks, n9).
 import http from 'node:http';
 import fs from 'node:fs';
@@ -24,9 +24,12 @@ http.createServer((req, res) => {
         let parsed = {};
         try { parsed = JSON.parse(body); } catch { /* logged as is */ }
         fs.writeFileSync(`${LOG}${String(id).padStart(3, '0')}.json`, JSON.stringify({ url: req.url, body: parsed }, null, 2));
+        const content = `Mock reply ${id}${tail ? `\n${tail}` : ''}`;
+        // A text-completion request (a prompt, no messages) gets a text-completion answer (n9-text).
+        const text = typeof parsed.prompt === 'string' && !Array.isArray(parsed.messages);
         res.end(JSON.stringify({
-            id: `x${id}`, object: 'chat.completion', model: 'mock',
-            choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: `Mock reply ${id}${tail ? `\n${tail}` : ''}` } }],
+            id: `x${id}`, object: text ? 'text_completion' : 'chat.completion', model: 'mock',
+            choices: [text ? { index: 0, finish_reason: 'stop', text: content } : { index: 0, finish_reason: 'stop', message: { role: 'assistant', content } }],
             usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         }));
     });

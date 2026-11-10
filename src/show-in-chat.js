@@ -14,7 +14,7 @@ export function shownText(mes, model) {
         const hidden = new Set(t.slots.filter(s => !s.bad && !s.show).map(s => s.key));
         if (hidden.size) out = t.reader.stripOnly(out, hidden);
     }
-    return out === mes.trim() ? null : out;
+    return out === mes ? null : out;
 }
 
 /**
