@@ -22,7 +22,7 @@ export function createNormal(A) {
     const {
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
         saveSettings, settings, shadow, showOnCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
     } = A;
 
@@ -37,7 +37,8 @@ export function createNormal(A) {
             h.append(el('h1', '', 'World Info'), btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
             v.append(h);
         }
-        const folders = Object.keys(settings.bookFolders).filter(f => settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
+        // A folder shows while it holds a book shown here, or nothing at all (a new folder, #40).
+        const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
         const loose = names.filter(n => !bookFolderOf(settings, n));
         v.append(el('div', 'section', 'Books'));
         for (const n of loose) v.append(bookRow(n));
@@ -218,12 +219,37 @@ export function createNormal(A) {
     }
 
     // ---------------------------------------------------------------- bottom bar, selection
+    /**
+     * The phone's bottom bar (#40): a search field, + in the middle, then new folder and select. The field opens
+     * search with the cursor in it, the same search as before.
+     */
     function bottomBar(p) {
         const bb = el('nav', 'bottombar');
-        bb.append(btn('', ic('search'), () => { S.search = { query: '' }; render(); }, 'Search'));
-        bb.append(btn('', ic('plus'), () => (p.type === 'book' ? newEntry(p.book) : homePlus()), p.type === 'book' ? 'New entry' : 'New book or import'));
-        bb.append(btn('', ic('select'), () => { S.select = new Set(); render(); }, 'Select'));
+        const book = p.type === 'book' ? p.book : null;
+        const sf = btn('bsearch', html`${ic('search', 's')}<span>Search</span>`, () => { S.search = { query: '' }; render(); }, 'Search');
+        bb.append(sf);
+        bb.append(btn('bplus', ic('plus'), () => (book ? newEntry(book) : homePlus()), book ? 'New entry' : 'New book or import'));
+        const right = el('div', 'bright');
+        right.append(btn('', ic('folder'), () => (book ? newEntryFolder(book) : newBookFolder()), 'New folder'));
+        right.append(btn('', ic('select'), () => { S.select = new Set(); render(); }, 'Select'));
+        bb.append(right);
         return bb;
+    }
+
+    /** A new, empty book folder on Home; books go in with Select, then Move. */
+    function newBookFolder() {
+        layer.askText({
+            title: 'New folder', placeholder: 'Folder name', ok: 'Create',
+            check: f => (Object.hasOwn(settings.bookFolders, f.trim()) ? 'There is a folder with that name' : null),
+            done: f => {
+                const name = f.trim();
+                if (!name) return;
+                settings.bookFolders[name] ??= [];
+                saveSettings();
+                render();
+                layer.toast(`${name} made. Select books and Move them in`);
+            },
+        });
     }
 
     function toggleSel(x) {

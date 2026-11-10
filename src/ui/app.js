@@ -452,7 +452,7 @@ export function createApp(deps) {
     const normal = () => (normalView ??= createNormal({
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, warningsOf, hasLogic,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic,
         render: () => render(), renderTabs, saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         switchMode, tab, up, visibleNames, wiSettingsSheet,
     }));
