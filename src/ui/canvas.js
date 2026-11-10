@@ -1212,6 +1212,7 @@ export function mountCanvas(vp, d) {
     // ---- desktop hover: handles under a card at once, its links bright after 350ms (LAYOUT "Canvas: mouse")
     let hoverKey = null;
     let focusKey = null;
+    let litKey = null; // the hovered card whose links were lit, to light again on its handles
     let focusTimer = null;
     let leaveTimer = null;
     function showHandles(key) {
@@ -1263,16 +1264,19 @@ export function mountCanvas(vp, d) {
                 clearTimeout(leaveTimer);
                 if (key !== hoverKey) {
                     hoverKey = key;
+                    litKey = null;
                     showHandles(key);
                     clearTimeout(focusTimer);
-                    focusTimer = setTimeout(() => { if (hoverKey === key && !OV && !mode) applyFocus(key); }, 350);
-                }
+                    focusTimer = setTimeout(() => { if (hoverKey === key && !OV && !mode) { applyFocus(key); litKey = key; } }, 350);
+                } else if (litKey === key && focusKey !== key && !OV && !mode) applyFocus(key); // back from the gap
                 return;
             }
             if (!hoverKey) return;
-            // Off the card: let go after a moment, so crossing to its handles or the next card doesn't flicker.
+            // Off the card: everything lights up again at once (#23). The handles stay a moment, so crossing to them
+            // doesn't lose them; reaching them lights the card's links again.
+            if (focusKey) clearFocus();
             clearTimeout(leaveTimer);
-            leaveTimer = setTimeout(() => { hoverKey = null; clearTimeout(focusTimer); hideHandles(); clearFocus(); }, 160);
+            leaveTimer = setTimeout(() => { hoverKey = null; litKey = null; clearTimeout(focusTimer); hideHandles(); }, 160);
         });
         vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); hoverKey = null; hideHandles(); clearFocus(); });
         vp.addEventListener('dblclick', e => {
