@@ -1,6 +1,7 @@
 // The Hero canvas as data (VISUAL 7, BUILD_SPEC 8.3): a book's entries as cards, their pieces as ports and links,
-// packs as frames; the layered layout, placement of new cards, port sides, and the grid link router (D12). Lifted
-// from the demo (demo/wihero-demo.html, in the git history) with its numbers kept. Pure: no DOM, so it is tested with node --test.
+// packs as frames; the layered layout, placement of new cards and port sides. The links themselves are routed by the
+// link engine (src/link-engine, D12). Lifted from the demo (demo/wihero-demo.html, in the git history) with its numbers
+// kept. Pure: no DOM, so it is tested with node --test.
 import { rawConfig } from '../engine/model.js';
 import { isObject } from '../engine/util.js';
 import { cardKey, configOf, strategyOf, titleOf } from './data.js';

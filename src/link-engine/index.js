@@ -1,6 +1,6 @@
 // WI Hero link engine: smooth curves between ports that go around cards.
 // Pure module: no DOM, no ST, no pieces. It knows rectangles, ports, points and paths; WI Hero knows what a link
-// means and draws it. See docs (link engine handout) for the split.
+// means and draws it. See docs/LINK_ENGINE.md.
 //
 // How a link is made:
 // 1. Each port gets a short leader along its outward normal.

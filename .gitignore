@@ -2,4 +2,3 @@ node_modules/
 .DS_Store
 e2e/log/
 tools/link-gallery.html
-tools/link-gallery-sheet.svg

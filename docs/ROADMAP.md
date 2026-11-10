@@ -18,17 +18,38 @@ The UI audit came in four phases, each with its own decisions in BUILD_SPEC:
 | 0.21.0 | #21 | Moments (D30, CONCEPTS 3.13) |
 | 0.22.0 | #22 | The Guide and explain mode (D31) |
 
+After it:
+
+| Version | PR | What |
+|---|---|---|
+| | #24 | Docs in step with 0.22.0, the AGPL-3.0 license, a short README for testers |
+| 0.25.0–0.26.0 | #25–#27 | Fixes from the 2026-11-09 review: book data safety, runtime fixes, tests on every PR (CI) |
+| 0.28.0–0.33.0 | #28–#33 | `src/ui/app.js` split into modules (review finding 11) |
+| 0.34.0 | #34 | The link engine: smooth links around cards, shaped by hand ([LINK_ENGINE.md](LINK_ENGINE.md)) |
+| 0.36.0 | #36 | Small additions: dice for switches, the keyword clash finder, the dead branch report, lasso to make a pack, sticky notes, New book and Duplicate in Hero mode |
+| 0.37.0 | #37 | Trackers: text the model writes ([TRACKERS.md](TRACKERS.md)) |
+| 0.38.0 | #38 | Health check fixes and the weekly ST drift check (`tools/st-drift.mjs`) |
+| 0.39.0 | #39 | Delayed closing (D32, CONCEPTS 3.3) |
+| 0.40.0 | #40 | Playtest polish |
+| 0.41.0 | #41 | UI polish from the impressions list; greetings retired for V1 (CONCEPTS 3.12) |
+| 0.42.0 | #42 | Feature freeze polish: Undo toasts on removals, warnings under ST's chance and timing settings, the checks chip on the canvas, Mark keyword clashes, drag to reorder the book list; docs checked against the code |
+
+The feature freeze for V1 is on: no new systems, only fixes and polish.
+
 ## Tested by hand
 
-In a real SillyTavern, by the author: only **Gates** and **Closes** have been
-tried in actual play. Every other piece (packs, locks, waits, masks, switches,
-glue, Once, Gates for, Closes for, Story moves on, greeting starts, Moments)
-has only been checked by the automated tests in `test/` and `e2e/`. The same
-goes for everything from the UI audit: Import of non-ST formats (NovelAI,
-Agnai, Risu), the new entry Parameters, the Guide and explain mode. Try them in
-real chats before calling them done, and note here what was tried.
+In a real SillyTavern, by the author: **Gates** and **Closes** have been tried
+in actual play, and the playtest of 2026-11-10 led to delayed closing and the
+playtest polish (0.39.0, 0.40.0). Trackers have also run against a real model
+(DeepSeek, `e2e/trackers-real.mjs`). Every other piece (packs, locks, waits,
+masks, switches, dice, glue, Once, Gates for, Closes for, Story moves on,
+Moments) has only been checked by the automated tests in `test/` and `e2e/`.
+The same goes for Import of non-ST formats (NovelAI, Agnai, Risu), the entry
+Parameters, the Guide and explain mode. Try them in real chats before calling
+them done, and note here what was tried.
 
 ## Later
 
-Preview over several turns, greetings in group chats, a timeline scrubber
-across branches. Bigger ideas are in [AFTER_V1.md](AFTER_V1.md).
+Preview over several turns, greetings (retired for V1) and then group chats, a
+timeline scrubber across branches. Bigger ideas are in
+[AFTER_V1.md](AFTER_V1.md).

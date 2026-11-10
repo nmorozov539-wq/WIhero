@@ -1,7 +1,7 @@
 # Link engine
 
-Smooth canvas links that go around cards. Built from the link engine handout (project files,
-`wihero/link-engine-handout.md`). `src/ui/canvas.js` draws every link with it; it replaced the demo's grid router.
+Smooth canvas links that go around cards. Built from a design handout kept outside the repo; this page is what was
+built. `src/ui/canvas.js` draws every link with it; it replaced the demo's grid router.
 
 Code: `src/link-engine/` (pure: no DOM, no ST, no pieces). Tests: `test/link-engine.test.js`.
 Tools: `node tools/link-gallery.js` (writes `tools/link-gallery.html`: fixture scenes and the
@@ -48,7 +48,7 @@ ends, via points, owner or shape change, or when an obstacle near it moved; ever
 
 ## Shapes
 
-Stored on the source card in the canvas settings, as the handout says, keyed `<port kind>><target key>`:
+Stored on the source card in the canvas settings, keyed `<port kind>><target key>`:
 
 ```json
 { "dots": [{ "u": 0.5, "v": 0.2 }], "segments": [{ "type": "curve" }, { "type": "arc", "flip": true, "tension": 0.6 }] }

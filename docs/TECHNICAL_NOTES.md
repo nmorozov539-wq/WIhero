@@ -83,66 +83,42 @@ Removing a closed entry at `ENTRIES_LOADED` would cut its sticky short: ST keeps
 - Duplicating an entry (`duplicateWorldInfoEntry`, 4019) copies every field, including our stable id. The duplicate check in the design is needed.
 - Embedding a book in a character card drops unknown top-level fields but keeps `extensions` both ways (the Superseded bullet above), which is why config lives there. Checked by `test/book.test.js` with copies of ST's two conversion functions (`test/fixtures/card-book.js`).
 
-## 9. Entry editor
+## 9. Saving a book
 
-*Sections 9–11 describe the old build, which added a block to ST's own editor and a separate workspace (`src/editor.js`, `folders.js`, `workspace.js`, `canvas-model.js`, `graph-view.js`, all gone now). The save path in 9 is still the one WI Hero uses. The current editor is in [BUILD_SPEC.md](BUILD_SPEC.md) 8 and [LAYOUT.md](LAYOUT.md).*
+*The old build added a block to ST's own entry editor, a folder filter on ST's
+list and a separate workspace (`src/editor.js`, `folders.js`, `workspace.js`
+and others, all gone; their notes are in the git history). Its save path is
+still the one WI Hero uses:*
 
-- ST renders an entry's edit area (`WI_ENTRY_EDIT_TEMPLATE`, world-info.js 63) only when its drawer opens (`addEditorDrawerContent`, 3553), into the entry's `.inline-drawer-outlet`, and destroys it a moment after it closes (3532–3550). Pagination and every re-render rebuild the list. No event fires for any of this.
-- So `src/editor.js` watches `#world_popup_entries_list` with a `MutationObserver` and adds the WI Hero block to each `.world_entry_edit` that lacks one. That's idempotent and needs no patching.
-- The editor holds its own copy of the book in a closure (`displayWorldEntries(name, data)`, 2310) and saves that whole object on each field edit (`saveWorldInfo(name, data)` → debounced `_save`, 4163–4190). It isn't reachable from outside. Writing `wihero` anywhere else and leaving the editor alone would be undone by the next vanilla edit.
-- Saving therefore goes: `loadWorldInfo(name)` (a clone of ST's cache, which `saveWorldInfo` updates before its debounce, so it already has every editor edit) → set or delete `entries[uid].wihero` → `saveWorldInfo(name, data, true)` (cancels any pending debounced save, then writes) → `reloadWorldInfoEditor(name)` so the editor reloads its copy from the cache → reopen the entry, as ST does after its own re-renders (3570–3573). All of these are on `getContext()`.
-- A new entry (`createWorldInfoEntry`, 4137) lives only in the editor's copy until its first edit, so the block waits for one.
-- After a save, `getSortedEntries()` re-emits `WORLDINFO_ENTRIES_LOADED`, which rebuilds the model and the panel.
-- ST's drawer toggle handler (script.js 12193) triggers `inline-drawer-toggle` with jQuery, which bubbles to the entry's own drawer handler, so the block stops it.
+- ST's editor holds its own copy of the book in a closure
+  (`displayWorldEntries(name, data)`, 2310) and saves that whole object on each
+  field edit (`saveWorldInfo(name, data)` → debounced `_save`, 4163–4190).
+  Writing anywhere else and leaving the editor alone would be undone by its
+  next edit.
+- So saving goes: `loadWorldInfo(name)` (a clone of ST's cache, which
+  `saveWorldInfo` updates before its debounce, so it already has every editor
+  edit) → change the copy → `saveWorldInfo(name, data, true)` (cancels any
+  pending debounced save, then writes) → `reloadWorldInfoEditor(name)` so ST's
+  editor reloads its copy from the cache. All of these are on `getContext()`.
+  WI Hero's working copies and their timing are in BUILD_SPEC 11.2a.
+- For books imported from a character card, the matching `originalData` fields
+  are kept in sync the way ST's editor does it (`setWIOriginalDataValue`,
+  ST's exported `originalWIDataKeyMap`, 2687); `disable` maps to the inverted
+  `enabled`, and `position` also sets the card's `before_char`/`after_char`
+  like ST (3434).
+- After a save, `getSortedEntries()` re-emits `WORLDINFO_ENTRIES_LOADED`, which
+  rebuilds the model.
 
-## 10. Folders: ST's World Info list filter
+## 10. The canvas on phones and big books
 
-What ST 1.19 already has, in the World Info editor:
-- A fuzzy **search** box (`#world_info_search`, index.html 4851; handler world-info.js 6342) and a **sort** dropdown (`#world_info_sort_order`, 4852; `sortWorldInfoEntries`, 2146), plus pagination (25 per page by default, 2384–2405).
-- Two book-wide buttons: fill empty titles with keywords (`#world_backfill_memos`, 2479) and apply the current sorting as Order (`#world_apply_current_sorting`, 2496).
-- **No** folders, multi-select or bulk edit of entries.
-
-How the folder filter hooks in:
-- The list is built from `getDataArray()`, which runs `worldInfoFilter.applyFilters(entries)` then the sort (2371–2373). `worldInfoFilter` is an exported `FilterHelper` (world-info.js 92) whose `applyFilters` runs every function in its `filterFunctions` object in turn (filters.js 383–397), and `setFilterData` re-renders the list through its callback (filters.js 356–364, `updateEditor`).
-- So `src/folders.js` adds one entry, `filterFunctions.wihero_folder`, and sets `filterData.wihero_folder` through `setFilterData`. That works together with ST's search, sort and pagination, and patches no function. It does add a key to ST's object, so a future ST that rebuilt `filterFunctions` would drop the filter silently (the list would just show everything).
-- Bulk actions go through ST's save path like the entry editor (section 9): `loadWorldInfo` copy → edit → `saveWorldInfo(name, data, true)` → `reloadWorldInfoEditor`. For books imported from a character card, the matching `originalData` fields are kept in sync the way ST's editor does it (`enabled`, `extensions.probability`, `extensions.depth`, `insertion_order`, `keys`; see the `setWIOriginalDataValue` calls, e.g. 3185, 3333, 3397, 2696).
-
-## 11. The workspace
-
-- A full-screen element on `document.body` (`src/workspace.js`), opened from the WI Hero panel or the folder bar in ST's World Info editor. Nothing in ST's own layout is moved or patched; Escape or Close removes it.
-- It reads a book with `loadWorldInfo` (a copy of ST's cache) and builds the engine model from that book plus the other loaded books, so gates on another book's entries show as dotted external cards.
-- `src/graph.js` turns the model into nodes and links (pure); `src/layout.js` places them: break loops with a depth-first search, rank by longest path, four barycentre sweeps, then stack each column. Mask pills dock under their entry, and a gate into a pill counts as a gate into its entry for the columns. Computed once per change; nothing animates.
-- `src/graph-view.js` draws: one world `<div>` moved by a single CSS `transform` (pan and zoom), one `<svg>` for every link, plain `<div>` cards.
-- Statuses come from `eligibility()` with the state the scrubber points at (`stateBefore(chat, i + 1)`), read only. ST refreshes often during a generation, so the workspace batches refreshes (150 ms).
-
-### 11a. Editing from the workspace
-
-- Every save takes the same path as the entry editor block and bulk actions: `loadWorldInfo` copy → edit → `saveWorldInfo(name, data, true)` → `reloadWorldInfoEditor`, then `getSortedEntries()` for the panel and a reload of the workspace.
-- ST fields go through `applyEntryChanges` (`src/entry-model.js`), which also updates `originalData` with ST's own exported `originalWIDataKeyMap` (world-info.js 2687), so card-imported books stay in sync; `disable` maps to the inverted `enabled`, and `position` also sets the card's `before_char`/`after_char` like ST (3434).
-- The Story logic tab is the same form as the block (`logicForm` in `src/editor.js`).
-- The panel is rebuilt only when the entry, the tab or the book changes, so ST's frequent refreshes don't wipe what's being typed.
-
-### 11b. Canvas
-
-- Positions, label boxes, areas and notes live in `extension_settings.wihero.canvas[book]` (`src/canvas-model.js`), keyed by entry id (`id:mill`), by uid for an entry without one (`uid:6`), and by `#label` for a box. Nothing is written on entries, so arranging never changes a hash or a timer.
-- Every card and box is pinned the first time the canvas shows it: a new link changes the automatic layout, and cards the user never moved must not wander. Tidy unpins them all (and re-pins at once from a fresh layout).
-- Drawing a link applies it to a copy of the book and builds the engine model from it; any new problem on the touched entries (a loop, a switch on a label…) refuses the link with the engine's own message, before anything is saved.
-- The workspace holds off its batched refreshes while a pointer drag is in progress, so a refresh can't pull a card out from under the pointer.
-- Known limit: Tidy's label boxes are fitted around wherever the automatic layout puts a label's entries, which can be far apart; resize the box or move the cards together.
-
-### 11c. Phones and big books
-
-- The phone layout follows ST's own breakpoint (`max-width: 1000px`): the sidebar becomes a drawer that takes the book picker, the view options and the section buttons (moved there while it's open, so there's one of each), and the right panel becomes a full-screen page.
-- In ST's narrow layout, `position: fixed` elements don't get the viewport as their box (a fixed element with `inset: 0` came out 0 px tall, and one with `bottom: 0` sat above the screen). So the workspace sets its size explicitly (`100vw` × `100dvh`), and everything inside it that floats (drawer, sheet, palette, menus, hover preview) is positioned against the workspace instead of the viewport.
-- Pinch zoom is two pointers on the stage; the zoom buttons zoom around its middle. There are no swipe gestures.
-- The canvas draws every card (the old stage culled above 300 cards; the current canvas doesn't yet).
 - Pan and pinch only move the camera: one transform per frame, with the world on its own GPU layer while a finger is down (`.vp.gesture`), let go at the end so the text is drawn sharp at the new zoom.
 - A card drag doesn't draw the canvas: every node is tagged with the cards it belongs to (`data-of`), the card's own nodes (card, mask layers, ports, its junctions and pills) are moved with `translate`, and its links to other cards are hidden behind straight guide lines. The drop draws once and routes again.
 - Hero mode builds the engine model of a book once per change (`library.version`), and fills the entry panel the first time it opens.
 - A Hero draw on the same book keeps the canvas: the panel, the piece bar and the inspector are drawn again around it, and the cards and links only when what they're drawn from changed (`canvasSig`: the book's version, its settings without the camera, hidden entries, the open chat). Show chat state always draws.
+- The canvas draws every card; it doesn't cull off-screen ones yet.
 - The editor's touchstart listener is passive: a listener that could cancel makes the phone wait for the page's script before each scroll starts.
 
-## Design changes this implies
+## 11. Design changes this implied (old build)
 
 - 2.3 Glue: implemented through force-activation of processed entries, not by editing entries.
 - 2.6 Masks: content is swapped after activation (`WORLDINFO_SCAN_DONE`), not at load time. Masks don't feed recursion by default.
@@ -273,7 +249,7 @@ shorter or older.
 
 ## 17. Explain mode (D31)
 
-- Capture-phase listeners on WI Hero's root (in `src/ui/app.js`): one for
+- Capture-phase listeners on WI Hero's root (in `src/ui/explain.js`): one for
   `click`, and one for each press event (`pointerdown`, `pointerup`,
   `mousedown`, `touchstart`, `dblclick`, `contextmenu`). While explain mode is
   on in Hero mode they stop the event, so no element's own handler runs. The

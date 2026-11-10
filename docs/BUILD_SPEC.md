@@ -13,9 +13,14 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: built. This page matches the code as of **0.22.0** (2026-11-09).
-  Decisions D1–D31 are agreed with the owner: D1–D23 in planning, D24–D26 with
-  N6, D27–D31 with the UI audit (#19–#22).
+- Status: built. This page matches the code as of **0.42.0** (2026-11-10).
+  Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
+  N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
+  Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here
+  for when they come back, and CONCEPTS 3.12 says what is off.
+- Trackers (text the model writes) have their own spec,
+  [TRACKERS.md](TRACKERS.md), and the link engine has
+  [LINK_ENGINE.md](LINK_ENGINE.md).
 - Building followed N1–N6 (section 13); what came after is in
   [ROADMAP.md](ROADMAP.md).
 
@@ -68,7 +73,7 @@ to be changed while building.
 | D20 | **Editing story logic mid-play is safe.** The chat's state is mostly history (what fired and when); after an edit, the next message is worked out with the new rules on the same history. Deleted entries' history is ignored. Closed stays closed even when the rule that closed it is removed; Reopen (D18) is the way back. |
 | D21 | **Snapshots are manual.** A "Snapshot" button saves a named copy of the whole book; nothing is copied automatically except one "As imported" copy, kept the first time WI Hero opens or changes a book. Restore puts the book back (with Undo) and leaves the chat's story state alone. Saving stays automatic. Details in section 11. |
 | D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ⌄ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
-| D23 | **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
+| D23 | **Retired for V1** (#41; `GREETINGS` in `src/engine/model.js` is false: greeting links are read as if not written, and the editor hides greetings; books keep their data). As decided: **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
 | D24 | **A chat that ran without WI Hero is caught up on request.** Replies with no snapshot after the last one that has one (WI Hero switched off, or not yet installed) leave the story behind. When WI Hero is switched on or the chat opens, it asks once: **Catch up** replays the skipped turns through the engine, oldest first, each starting from the one before, with Preview's keyword matching (ST doesn't save what it sent); **Keep as is** carries the old state on; **Start from here** starts the state again; **Not now** leaves the choice on the chat bubble and the panel. Details in section 17.1. |
 | D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and ST internal the engine needs) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
 | D26 | **A chat bubble shows what reached the model.** A book in a circle over the chat, with how many World Info entries were sent with the last reply (from WORLD_INFO_ACTIVATED, all books, also with the engine off). Tap it for their names (and mask). Stored per reply and swipe; on by default, with a "Chat bubble" switch in the extension settings. Details in section 17.3. |
@@ -444,9 +449,16 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
 
 ```js
 {
+  enabled: true,                     // the panel's Enabled switch (engine on)
+  bubble: true,                      // the chat bubble (17.3)
+  bubblePos: { side: 'left', up: 0 }, // where the bubble was dragged
   openInHero: false,                 // "Open books in Hero mode"
   contentFont: 'serif',
   colorMode: 'standard',            // D22: 'standard' | 'red-green' | 'blue-yellow'
+  markClashes: true,                 // ⌄ Display, Mark keyword clashes (unset counts as on)
+  sortBy: 'order',                   // the book list's Sort by
+  renamed: { 'Old name': 'New name' },  // book renames, for chat state (4.2)
+  desk: { },                         // desktop: column widths, Home view, widened
   bookFolders: { 'Fantasy': ['Eldoria', 'Tavern'] },
   books: {
     'Eldoria': {
@@ -455,6 +467,7 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
       canvas: {
         camera: { x: 0, y: 0, zoom: 1 },
         cards: { 'id:mill': { x: 120, y: 80, ports: { gate: 'left', close: 'top' }, layer: 'night' } },
+                                     // a card also keeps the shapes of the links it starts (LINK_ENGINE.md)
         placed: true                 // the one-time arrangement (D8) has run
       }
     }
@@ -487,8 +500,8 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
   members are pulled onto the canvas) and for every pack with at least one
   member on the canvas (`withFrames` in `canvas-graph.js`; the others stay
   off). Layout, placement and routing treat both kinds the same.
-- **Phones fit the width** on first open and Fit, never below 80% zoom, from
-  the top of the canvas.
+- **Phones fit the width** on first open, never below 80% zoom, from the top
+  of the canvas. Fit zooms out until every card shows.
 - **Tidy**: rerun the layout on everything on the canvas, keep the old
   positions for Undo.
 - **Link routing** around cards is the link engine (docs/LINK_ENGINE.md):
@@ -514,7 +527,8 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `src/engine/dead.js` | `deadBranches`: the dead branch report, from the model and the book alone (CONCEPTS 5) |
 | `src/engine/rows.js` | `rowMet`, done times, lock matching (5) |
 | `src/engine/state.js` | v2 shape, `readState` (with v1), `initialState` |
-| `src/engine/turn.js` | `stateForScan`, `mayFire`, `keepAtLoad`, `settleScan` (6.4 steps 1, 3, 4, 5 as data in, decisions out), `advance`, `entryStatus`; Moments happen here (`happenMoments`, D30), and dice switches roll (`rollDice`) |
+| `src/engine/turn.js` | `stateForScan`, `mayFire`, `keepAtLoad`, `settleScan` (6.4 steps 1, 3, 4, 5 as data in, decisions out), `advance`, `entryStatus`; Moments happen here (`happenMoments`, D30), dice switches roll (`rollDice`), and tracker values are read |
+| `src/engine/written.js` | Trackers: written slots, the book's syntax compiled, lines read from messages (TRACKERS.md) |
 | `src/engine/manual.js` | `reopen`, `pickMask` |
 | `src/engine/util.js` | ST's string hash, slugs and ids, phrase and regex matching |
 
@@ -530,6 +544,7 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `src/timers.js` | ST's sticky, read so gating never cuts it short (TECHNICAL_NOTES 2a) |
 | `src/book.js` | Writing story logic onto entries (2) |
 | `src/catch-up.js`, `src/compat.js`, `src/bubble.js` | Catch-up (17.1), compatibility and health (17.2), the chat bubble (17.3) |
+| `src/show-in-chat.js` | Hiding a tracker's lines in the chat on screen (TRACKERS 4) |
 | `src/panel.js` | The small panel in ST's Extensions drawer: the Enabled and Chat bubble switches, notices, and a status table from N1 testing |
 | `src/settings.js` | The extension settings object |
 
@@ -540,7 +555,9 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `app.js`, `app.css` | The editor overlay (8.1): its state, render, navigation, open and close, creating and deleting; it wires the modules below together, each built from an explicit context object as `desk.js` is (split in 0.28–0.33, review 2026-11-09 finding 11) |
 | `desk.js` | Normal mode on desktop (LAYOUT "Desktop: normal mode") |
 | `entry-page.js` | The entry page, with every ST setting (D29) |
-| `canvas-graph.js`, `canvas.js` | The canvas as data (layout, placement, router, pack frames) and on screen |
+| `canvas-graph.js`, `canvas.js` | The canvas as data (layout, placement, port sides, pack frames) and on screen |
+| `../link-engine/` | The link engine that draws every link (LINK_ENGINE.md) |
+| `tracker-ui.js` | The Tracker piece, a value with Edit and Clear, the syntax builder (TRACKERS.md) |
 | `piecebar.js`, `links.js` | The piece bar and the links it writes (D27) |
 | `inspector.js`, `pieces.js` | The inspector and the piece editing behind it, including Moments |
 | `logic-text.js` | The plain sentences for each rule |
@@ -553,12 +570,12 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `normal.js` | Normal mode's views on phones: Home, the book page with its bottom bar and selection, search, the entry page |
 | `hero-inspector.js` | Hero mode's inspector wiring (N4): opening a card's inspector, closed reasons, Take off canvas, Show on canvas |
 | `hero-bar.js` | The piece bar's wiring (`piecebar.js` is the bar itself): edits checked on a copy, canvas taps seen by the bar, new entries and Moments, the place picker |
-| `menus.js` | The ⌄ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, keyword clashes, dead branches, colors, World Info settings |
+| `menus.js` | The ⌄ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, keyword clashes, dead branches (and the canvas's checks chip counts), colors, World Info settings |
 | `explain.js` | Explain mode and the Guide tab in Hero mode: what a tap explains (`explainAnchor`), opening the Guide at it (D31) |
 | `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
 | `snapshots.js` | Snapshots (11) |
 | `clashes.js` | `keywordClashes`: key words that fire two or more entries (CONCEPTS 5) |
-| `data.js`, `dom.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, the icon set |
+| `data.js`, `dom.js`, `html.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, safe markup, the icon set |
 
 ### 9.3 Tests (`node:test`)
 
@@ -584,7 +601,8 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
 - Who triggers: kept only for the allowed side; recursion-only match dropped.
 - State: rewind on swipe and delete; continue unions; v1 snapshot reads; row
   edit forgets its latch.
-- Greetings: fires at index 0 for the opening swipe only; swiping the greeting
+- Greetings (skipped while they are retired; one test checks they read as
+  unwritten): fires at index 0 for the opening swipe only; swiping the greeting
   before the first reply switches the scenario; a fingerprint mismatch blocks
   it; Gates for through a pack reaches a member added later.
 - Manual: Reopen restores holding and resets the close baseline (D5); on/off
@@ -596,12 +614,15 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
 - Moments: same-reply and next-message timing, who says it, its own gate,
   swipe rewind, problems and warnings, Preview (`test/moments.test.js`).
 
-The tests live in `test/`, one file per area (`engine`, `moments`, `timers`,
-`chat-state`, `generation`, `st-hooks`, `compat`, `preview`, `pieces`,
-`links`, `canvas`, `book`, `st-books`, `sample`, `ui`); `test/sim.js` plays
-turns and `test/fixtures/card-book.js` holds ST's card conversion. The
-in-ST checks are `e2e/n1.mjs` to `e2e/n8.mjs` and `e2e/desktop.mjs`
-([e2e/README.md](../e2e/README.md)).
+- Trackers: reading lines and blocks, values in the state, rewind, the
+  instruction and stripping (`test/trackers.test.js`).
+
+The tests live in `test/`, one file per area (`engine`, `moments`, `trackers`,
+`timers`, `chat-state`, `generation`, `st-hooks`, `compat`, `st-drift`,
+`preview`, `pieces`, `links`, `canvas`, `link-engine`, `book`, `st-books`,
+`snapshots`, `explain`, `html`, `cheap`, `sample`, `ui`); `test/sim.js` plays
+turns and `test/fixtures/card-book.js` holds ST's card conversion. The in-ST
+and browser checks are in `e2e/` ([e2e/README.md](../e2e/README.md)).
 
 ---
 
@@ -687,13 +708,14 @@ Accepted for now, listed so nobody rediscovers them:
 
 ## 12. Screens
 
-LAYOUT.md is the map and stays it; VISUAL.md sets the look. The demo
-(`demo/wihero-demo.html`, in the git history) is the reference for anything drawn: lift its code
-for ports, the grid link router (D12), AND/OR pills and lock tags, mask
-stacks, pack frames and the Preview highlights, rather than redrawing them.
-Its built-in rule checker is **not** reused (D13).
+LAYOUT.md is the map and stays it; VISUAL.md sets the look. *How N2–N5
+started, kept for history:* the demo (`demo/wihero-demo.html`, in the git
+history) was the reference for anything drawn (ports, AND/OR pills and lock
+tags, mask stacks, pack frames, the Preview highlights); its rule checker was
+not reused (D13), and its grid router was later replaced by the link engine.
 
-Changes and additions to LAYOUT, on top of what it says:
+Changes and additions to LAYOUT, on top of what it says (all applied to
+LAYOUT since):
 
 | Where | Change |
 |-------|--------|
@@ -706,7 +728,7 @@ Changes and additions to LAYOUT, on top of what it says:
 | ⌄ / book menus, normal mode | Book page name ▾ and book ⋯: "Snapshots ›". The Problems row shows on the book page's ⌄ when the book has problems. |
 | Cards | Red "!" badge for a blocking problem (D19). With chat state on: fired count, closed dimmed and struck, glue bar lit while holding, hollow while waiting (D17). |
 | Normal mode rows | Red "!" after the name for an entry with a blocking problem. |
-| Preview | A lock phrase in the pretend reply reads "opens the lock from the next message" (D1). Fix the demo's missing colon in lock explanations ('"red beard": the lock…'). |
+| Preview | A lock phrase in the pretend reply reads "opens the lock from the next message" (D1). |
 | Canvas, first open | D8: arrange once, or the empty-canvas line when the book has no pieces. |
 
 Everything else (tabs, ⌄ structure, sheets and Undo toasts, Home, book page,
@@ -716,27 +738,28 @@ selection, entry panel, Back order, Preview layout) is built as LAYOUT says.
 
 ## 13. Build order
 
-The roadmap's steps, with what this page adds to each. Each ends with
-something testable, as in ROADMAP.md.
+*All done; kept for history.* The build steps, each ending with something
+testable.
 
 | Step | Contents | Done when |
 |------|----------|-----------|
 | **N1 Engine** | Sections 2–7 and 10: `extensions.wihero`, normalizing old books, the model, state v2, rows, the turn in ST, manual actions. No new UI; the old panel can show state for testing. | The tests in 9.3 pass, an old-build book loads with the same behavior, and in ST a chain advances, a swipe rewinds it, a rider rides, a lock opens in the same reply, and a card round trip keeps the logic. |
-| **N2 Shell and normal mode** | LAYOUT's shared parts and normal mode, the color vision modes (D22), D6 (hide, start on Home), section 8.2 settings, Snapshots (11), problem badges on rows. | As ROADMAP N2, plus: a snapshot can be taken and restored with Undo. |
-| **N3 Canvas** | Canvas drawing lifted from the demo, 8.3 placement, D7 memory, D17 chat state, problem badges. | As ROADMAP N3, plus: camera and mask layers survive a reload, and chat state matches the open chat. |
-| **N4 Inspector** | D14, D15 (entry page chips), D18 Reopen, D19 Problems sheet, target picker, Story moves on, greeting cards and their inspector (15.4). Greeting refs in the engine (15.1–15.3) go in N1. | As ROADMAP N4, plus: Reopen works and rewinds, and mask text is edited through the chips. |
-| **N5 Preview** | LAYOUT's Preview on the real engine (D13). | As ROADMAP N5, plus: Preview and a real chat agree on the sample book. |
+| **N2 Shell and normal mode** | LAYOUT's shared parts and normal mode, the color vision modes (D22), D6 (hide, start on Home), section 8.2 settings, Snapshots (11), problem badges on rows. | A snapshot can be taken and restored with Undo. |
+| **N3 Canvas** | Canvas drawing lifted from the demo, 8.3 placement, D7 memory, D17 chat state, problem badges. | Camera and mask layers survive a reload, and chat state matches the open chat. |
+| **N4 Inspector** | D14, D15 (entry page chips), D18 Reopen, D19 Problems sheet, target picker, Story moves on, greeting cards and their inspector (15.4). Greeting refs in the engine (15.1–15.3) go in N1. | Reopen works and rewinds, and mask text is edited through the chips. |
+| **N5 Preview** | LAYOUT's Preview on the real engine (D13). | Preview and a real chat agree on the sample book. |
 | **N6 Safety and the bubble** | Section 17: catch-up (D24), compatibility and health (D25), the chat bubble (D26). | Replies written with WI Hero off are caught up oldest first and land where always-on play would; an untested ST version is named; a missing thread stands the engine down to plain World Info; the bubble counts and names what reached the prompt. |
 
-After N6 came the phone rounds, the piece bar, the desktop layout and the UI
-audit's four phases (D27–D31). [ROADMAP.md](ROADMAP.md) lists them with their
-PRs.
+After N6 came the phone rounds, the piece bar, the desktop layout, the UI
+audit's four phases (D27–D31) and everything since. [ROADMAP.md](ROADMAP.md)
+lists them with their PRs.
 
 ---
 
 ## 14. Docs updated
 
-Applied together with this page, so the repo doesn't contradict it:
+*Applied together with this page before N1; kept for history.* So the repo
+didn't contradict it:
 
 - **CONCEPTS.md**: 2.1 (locks in the user's message count in the same reply,
   D1); 2.2 (an entry closed this turn didn't happen, D3; the on/off switch is a
@@ -745,8 +768,7 @@ Applied together with this page, so the repo doesn't contradict it:
   snapshots); a new section for greetings (D23); 9 (Reopen and the problem list are decided: D18, D19; the canvas
   state filter is D17).
 - **LAYOUT.md**: Inspector (D14), Entry page (D15, Reopen line), ⌄ menu rows,
-  cards, the "Not in the demo" list (now: snapshots, chat state, problems,
-  Reopen).
+  cards, and the list of what the demo left out (since removed with the demo).
 - **TECHNICAL_NOTES.md**: section 8 (where config lives, with the card
   round trip), 12 (point here for the turn order), add the scan-loop extra
   pass for riders and the macro substitution for masks.
@@ -757,7 +779,10 @@ Applied together with this page, so the repo doesn't contradict it:
 
 ---
 
-## 15. Greetings (D23)
+## 15. Greetings (D23, retired for V1)
+
+*Off in V1* (CONCEPTS 3.12, AFTER_V1 "Greetings, the strict version"). This
+section is how they work when `GREETINGS` is switched back on.
 
 ### 15.1 What a greeting is
 
