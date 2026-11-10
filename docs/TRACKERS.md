@@ -116,6 +116,9 @@ of the preset and not an entry.
   slot's label, the user's one-line description of it ("coins the player
   carries"), and, for one-line slots, the current value.
 - Sent only when at least one written slot is open; nothing otherwise.
+- Sent only for replies that land in the chat (a send, swipe, regenerate or
+  continue): a quiet generation (`/gen`, another extension's summary or image
+  prompt) or an impersonation gets none, so tracker lines don't end up in it.
 - The builder (5) shows the exact text that will be sent.
 
 This is the one thing WI Hero adds to the prompt, so CONCEPTS 1 ("Nothing WI
@@ -149,7 +152,8 @@ towards something a model can keep up for hundreds of replies.
   Inventory*, and the model writes `[Anna · Inventory: …]` with no mix-up.
 - **Two shapes only:**
   - **Line**: `[{label}: {value}]`. The value runs to the closing mark, on one
-    line.
+    line. The closing mark may repeat the label, `<{label}>{value}</{label}>`,
+    and then it must be the same label.
   - **Block**: `<{label}>` … `</{label}>`. The value can span lines, for
     configurations and lists.
   A slot picks its shape; the book's templates for both are set once.

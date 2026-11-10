@@ -282,4 +282,11 @@ test('trackers: the written value replaces the scan copy, the instruction is set
     assert.equal(st.chat.at(-1).extra.wiheroSent[0].written, true, 'the bubble marks it written');
     assert.deepEqual(st.extensionPrompt, { key: 'wihero_trackers', depth: 2, position: 1 }, 'set before the scan, at the book\'s depth');
     assert.match(st.extensionText, /\[Gold: \(value\)\]/);
+    // A quiet generation or an impersonation lands nowhere in the chat: no instruction for it.
+    for (const type of ['quiet', 'impersonate']) {
+        await st.hooks.onAfterCommands(type, {}, false);
+        assert.equal(st.extensionText, '', `no instruction for ${type}`);
+    }
+    await st.hooks.onAfterCommands('normal', {}, false);
+    assert.match(st.extensionText, /Story trackers\./, 'back for the next reply');
 });

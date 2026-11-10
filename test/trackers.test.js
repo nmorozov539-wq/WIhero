@@ -28,6 +28,13 @@ test('reader: other syntaxes, and a line with no closing mark', () => {
     assert.deepEqual(Object.fromEntries(bare.read('Time: noon\nLoc: the inn')), { t: 'noon', l: 'the inn' });
     const one = compileSyntax({ line: 'Gold={value};', open: '', close: '' }, slots(['g', 'Gold']));
     assert.equal(one.read('Gold=5;').get('g'), '5', 'one slot needs no {label}');
+    // A closing mark that repeats the label, as in XML: it must be the same label.
+    const tag = { line: '<{label}>{value}</{label}>', open: '<{label}>', close: '</{label}>' };
+    const xml = compileSyntax(tag, slots(['g', 'Gold'], ['m', 'Mood'], ['c', 'Custom', 'block']));
+    assert.deepEqual(Object.fromEntries(xml.read('Hi.\n<Gold>12</Gold>\n<mood> calm </MOOD>\n<Custom>\nx\n</Custom>')), { g: '12', m: 'calm', c: 'x' });
+    assert.equal(xml.read('<Gold>12</Mood>').size, 0, 'a different closing label is not a line');
+    assert.equal(xml.strip('Hi.\n<Gold>12</Gold>'), 'Hi.');
+    assert.deepEqual(syntaxWarnings(tag, slots(['g', 'Gold'], ['m', 'Mood']), ['<Gold>3</Gold>']), [], 'no "more than one line" warning');
 });
 
 test('syntax problems and warnings', () => {
@@ -159,6 +166,8 @@ test('manual set, edit of the latest reply, the instruction, prompt stripping, s
     s.send('gold', 'Found coins. [Gold: 7]');
     assert.deepEqual(wroteLines(s.chat, k => s.model.slots.get(k)), ['Gold → 7']);
     assert.equal(shownText(s.chat.at(-1).mes, s.model), 'Found coins.');
+    assert.equal(shownText('Spaced\n\n\n\nout.', s.model), null, 'no hidden line: left to ST, blank lines and all');
+    assert.equal(shownText('One.\n[Gold: 7]\n\n\nTwo.', s.model), 'One.\n\n\nTwo.', 'only the tracker\'s line goes');
     // Edit the latest reply: read again.
     const last = s.chat.length - 1;
     s.chat[last].mes = 'Found coins. [Gold: 8]';

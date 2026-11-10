@@ -101,10 +101,12 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
      * The trackers' instruction (TRACKERS 3.2): one system message in the chat at the books' depth, built from the
      * open slots of every book in WI Hero's own mode. Cleared when there is nothing to teach.
      */
-    function teach(chat) {
+    function teach(chat, type) {
         const c = ctx();
         if (typeof c.setExtensionPrompt !== 'function') return;
-        const books = active() ? [...(model.trackers?.values() ?? [])].filter(t => t.teach.on && t.reader) : [];
+        // Only for replies that land in the chat: a quiet generation (/gen, a summary, an image prompt) or an
+        // impersonation would otherwise write tracker lines into text that isn't a reply.
+        const books = active() && isCounted(type) ? [...(model.trackers?.values() ?? [])].filter(t => t.teach.on && t.reader) : [];
         let text = '';
         let depth = Infinity;
         if (books.length) {
@@ -142,7 +144,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     // 6.2, glue: force-activate holds before the scan. ST clears forced entries after every scan.
     async function onAfterCommands(type, _options, dryRun) {
         if (dryRun) return;
-        try { teach(scanChat(ctx().chat ?? [], type)); } catch (e) { console.error('[WI Hero] Could not build the trackers\' instruction', e); }
+        try { teach(scanChat(ctx().chat ?? [], type), type); } catch (e) { console.error('[WI Hero] Could not build the trackers\' instruction', e); }
         if (!active()) return;
         const entries = await st.getSortedEntries();
         if (!hashWarned && entries.some(e => hashes.has(stKey(e)) && hashes.get(stKey(e)) !== e.hash)) {

@@ -58,6 +58,9 @@ const readTeach = t => isObject(t)
     : null;
 const str = (x, d) => (typeof x === 'string' ? x : d);
 
+/** Where stripOnly took a tracker out, until the empty lines it leaves are tidied. */
+const GAP = '\u0001';
+
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** A literal piece of a template: runs of spaces match any spaces (and none at the ends). */
 const literal = s => s.split(/(\s+)/).map(p => (/^\s+$/.test(p) ? '\\s*' : escapeRegex(p))).join('');
@@ -106,8 +109,11 @@ export function compileSyntax(syntax, slots) {
         const after = t.slice(v + '{value}'.length);
         const l = before.indexOf('{label}');
         const head = l >= 0 ? `${literal(before.slice(0, l))}\\s*${alt(lines)}\\s*${literal(before.slice(l + 7))}` : `()${literal(before)}`;
-        // The value runs to the closing mark, on one line; with no closing mark, to the end of the line.
-        const tail = after.trim() ? `[ \\t]*([^\\n]*?)[ \\t]*${literal(after.trim())}` : '[ \\t]*([^\\n]*?)[ \\t]*(?=\\n|$)';
+        // The value runs to the closing mark, on one line; with no closing mark, to the end of the line. A closing
+        // mark may repeat the label, <{label}>{value}</{label}>: it must be the same one (a backreference).
+        const closing = after.trim();
+        const end = l >= 0 ? closing.split('{label}').map(literal).join('\\s*\\1\\s*') : literal(closing);
+        const tail = closing ? `[ \\t]*([^\\n]*?)[ \\t]*${end}` : '[ \\t]*([^\\n]*?)[ \\t]*(?=\\n|$)';
         patterns.push({ re: new RegExp(`${head}${tail}`, 'gi'), shape: 'line', only: l < 0 ? lines[0] : null });
     }
     if (blocks.length) {
@@ -142,17 +148,26 @@ export function compileSyntax(syntax, slots) {
             for (const p of patterns) { p.re.lastIndex = 0; out = out.replace(p.re, (m, label) => (p.only || byLabel.has(normLabel(label)) ? '' : m)); }
             return out.replace(/\n{3,}/g, '\n\n').trim();
         },
-        /** Same as strip, but only for the slots in `keys`. */
+        /**
+         * Like strip, but only for the slots in `keys`, and for display: the rest of the text is left exactly as
+         * it is. A line that held only a tracker goes with its line break; the same text comes back when nothing
+         * matched.
+         */
         stripOnly(text, keys) {
-            let out = String(text ?? '');
+            const src = String(text ?? '');
+            let out = src;
+            let hit = false;
             for (const p of patterns) {
                 p.re.lastIndex = 0;
                 out = out.replace(p.re, (m, label) => {
                     const slot = p.only ?? byLabel.get(normLabel(label));
-                    return slot && keys.has(slot.key) ? '' : m;
+                    if (!slot || !keys.has(slot.key)) return m;
+                    hit = true;
+                    return GAP;
                 });
             }
-            return out.replace(/\n{3,}/g, '\n\n').trim();
+            if (!hit) return src;
+            return out.replace(/^[ \t]*\u0001[ \t]*(?:\n|$)/gm, '').replaceAll(GAP, '').trimEnd();
         },
     };
 }

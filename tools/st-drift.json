@@ -1,0 +1,15 @@
+{
+    "taken": "SillyTavern 1.19.0",
+    "note": "Fingerprints of the SillyTavern code WI Hero mirrors (tools/st-drift.mjs). Take them again with --update only after checking the change by hand and updating WI Hero to match.",
+    "pins": {
+        "public/scripts/utils.js export function getStringHash(": "3024da93f7c57b8e",
+        "public/scripts/world-info.js const KNOWN_DECORATORS =": "d16c65e021130e4f",
+        "public/scripts/world-info.js function parseDecorators(": "90bea46d12e2b9f9",
+        "public/scripts/world-info.js matchKeys(haystack, needle, entry) {": "6a8bf16ae988ce7a",
+        "public/scripts/world-info.js export function parseRegexFromString(": "3e57bc266c740cc1",
+        "public/scripts/world-info.js #checkTimedEffectOfType(": "2346ddc48007d9ad",
+        "public/scripts/world-info.js export const scan_state =": "c74bd9949caa61a5",
+        "public/scripts/extensions.js export async function runGenerationInterceptors(": "a590fc9986f06b9f",
+        "public/script.js let coreChat = chat.filter(": "0a61733c2dad3222"
+    }
+}
