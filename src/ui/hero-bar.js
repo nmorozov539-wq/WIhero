@@ -13,6 +13,7 @@ import { editExisting, startPiece } from './piecebar.js';
 import { el } from './dom.js';
 import { isMoment } from '../engine/model.js';
 import { strategyColor } from './entry-page.js';
+import { FAMILY_COLOR } from './logic-text.js';
 
 /**
  * @param {object} A The app's context (destructured below): its state, the library and the app functions the bar
@@ -131,6 +132,14 @@ export function createHeroBar(A) {
         if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null, hit?.card ? null : at); return; }
         const r = startPiece(k, hit, barApi(book));
         if (r.why) { render(); layer.toast(r.why); return; }
+        if (r.choose) {
+            // A lock or wait on a card with several gates: which one (#15).
+            render();
+            layer.sheet(r.choose.title, sh => {
+                for (const o of r.choose.options) sh.append(layer.opt(o.label, () => { layer.close(); openStrip(book, o.make()); }, { sub: o.sub, dot: FAMILY_COLOR[o.family] }));
+            });
+            return;
+        }
         openStrip(book, r.edit);
     }
 

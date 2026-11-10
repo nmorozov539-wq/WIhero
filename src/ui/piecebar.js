@@ -523,7 +523,8 @@ export function mountPieceBar(x) {
         const waits = isLock ? r.filter(y => L.isCond(y) && 'wait' in y).map(refText) : [];
         const after = [...links, ...waits];
         if (p.row == null) {
-            mid.append(row(say({ b: who }, ' '), seg([['gate', 'opens'], ['closeGate', 'closes']], p.field, v => { p.field = v; writeCond(); x.render(); }, 'Opens or closes'), say(isLock ? ' when someone says:' : ' after:')));
+            // A gate of its own on a card that had none: it opens when it's said (#15), no direction to pick.
+            mid.append(say({ b: who }, p.field === 'gate' ? ' opens' : ' closes', isLock ? ' when someone says:' : ' after:'));
         } else {
             const n = el('div', 'say');
             if (p.mask != null) n.append('Mask ', el('b', '', E.config(p.uid).masks?.[p.mask]?.name ?? ''), ' of ');
@@ -533,6 +534,8 @@ export function mountPieceBar(x) {
             mid.append(n);
         }
         if (isLock) {
+            // Who first, then what they say (#15): "anyone / you / the character says: …".
+            mid.append(row(seg([['', 'anyone'], ['user', 'you'], ['char', 'the character']], c.by ?? '', v => { if (v) c.by = v; else delete c.by; writeCond(); x.render(); }, 'Who says it'), say(' says:')));
             const chips = el('div', 'pphr');
             (c.lock ?? []).forEach((ph, i) => {
                 const b = btn('pphrase', '', () => { c.lock.splice(i, 1); writeCond(); x.render(); }, `Remove "${ph}"`);
@@ -557,18 +560,22 @@ export function mountPieceBar(x) {
             inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); addPhrase(); } });
             chips.append(inp, small('Add', addPhrase));
             mid.append(chips);
-            if ((c.lock ?? []).length > 1) mid.append(el('div', 'phint', 'Any one of them is enough.'));
-            mid.append(row(el('span', 'phint', 'Who says it:'), seg([['', 'anyone'], ['user', 'you'], ['char', 'the character']], c.by ?? '', v => { if (v) c.by = v; else delete c.by; writeCond(); x.render(); }, 'Who says it')));
+            mid.append(el('div', 'phint', (c.lock ?? []).length > 1 ? 'Any one of them is enough.' : 'Add a few ways of saying it: any one is enough.'));
         } else {
+            // A stepper for the count (#15): − n + messages pass.
             const nums = el('div', 'prow2');
-            for (const n of [1, 2, 3, 5, 10]) nums.append(small(String(n), () => { c.wait = n; writeCond(); x.render(); }, c.wait === n ? 'on' : ''));
+            const set = v => { c.wait = Math.max(1, v); writeCond(); x.render(); };
             const own = el('input', 'pnum');
             own.type = 'number'; own.min = '1';
-            own.value = [1, 2, 3, 5, 10].includes(c.wait) ? '' : String(c.wait);
-            own.placeholder = 'other';
+            own.value = String(c.wait);
             own.setAttribute('aria-label', 'Number of messages');
-            own.addEventListener('change', () => { const v = Math.round(Number(own.value)); if (v >= 1) { c.wait = v; writeCond(); x.render(); } });
-            nums.append(own, el('span', 'phint', `message${c.wait === 1 ? '' : 's'} pass`));
+            own.addEventListener('change', () => { const v = Math.round(Number(own.value)); if (v >= 1) set(v); });
+            const dn = small('−', () => set(c.wait - 1));
+            dn.setAttribute('aria-label', 'One message fewer');
+            dn.disabled = c.wait <= 1;
+            const up = small('+', () => set(c.wait + 1));
+            up.setAttribute('aria-label', 'One message more');
+            nums.append(dn, own, up, el('span', 'phint', `message${c.wait === 1 ? '' : 's'} pass`));
             mid.append(nums);
             mid.append(row(el('span', 'phint', 'Whose messages count:'), seg([['', 'everyone\'s'], ['user', 'yours'], ['char', 'the character\'s']], c.by ?? '', v => { if (v) c.by = v; else delete c.by; writeCond(); x.render(); }, 'Whose messages count')));
             if (p.row == null) mid.append(el('div', 'phint', 'Counted from the start of the chat.'));
@@ -804,7 +811,7 @@ export function startPiece(k, hit, x) {
             return { edit: { ...base, dirty: true, uid: end.uid, mi } };
         }
         if (k === 'pack') return { edit: { ...base, uid: end.uid } };
-        if (k === 'lock' || k === 'wait') return { edit: { ...base, place: { uid: end.uid, field: null, mask: null, row: null }, cond: k === 'lock' ? { lock: [] } : { wait: 2 }, at: null } };
+        if (k === 'lock' || k === 'wait') return condOnCard(k, end, base, x);
     }
     if (k !== 'lock' && k !== 'wait') return { why: 'Drop it on a card.' };
     const cond = k === 'lock' ? { lock: [] } : { wait: 2 };
@@ -833,6 +840,34 @@ export function startPiece(k, hit, x) {
     const edit = { ...base, place: { uid: end.uid, field: FIELD[row.port], mask: row.mask ?? null, row: row.ri }, cond, at: null };
     if (k === 'wait') writeNow(edit, x);
     return { edit };
+}
+
+/**
+ * A lock or wait dropped on a card (#15) joins one of its gates, never asking which way: a card with one gate row
+ * takes it there, a card with several asks which (`choose`), a card with none gets it as a gate of its own.
+ */
+function condOnCard(k, end, base, x) {
+    const E = x.editor();
+    const c = E.config(end.uid);
+    const cond = () => (k === 'lock' ? { lock: [] } : { wait: 2 });
+    const make = place => { const edit = { ...base, place, cond: cond(), at: null }; if (k === 'wait') writeNow(edit, x); return edit; };
+    const text = row => row.filter(y => !L.isCond(y)).map(y => refLabel(y, x.nameOfId).text).join(' and ');
+    const targets = [];
+    const add = (field, mask) => L.rowsOf(c, field, mask).forEach((row, i) => {
+        const what = mask === null ? (field === 'gate' ? 'Gate' : 'Close gate') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;
+        const links = text(row);
+        targets.push({
+            label: what, family: mask !== null ? 'mask' : field === 'gate' ? 'open' : 'close',
+            sub: links ? `${field === 'gate' && mask === null ? 'Opens' : field === 'gate' ? 'On' : mask === null ? 'Closes' : 'Off'} when ${links} ${row.filter(y => !L.isCond(y)).length > 1 ? 'have' : 'has'} fired` : row.map(y => refLabel(y, x.nameOfId).text).join(', '),
+            place: { uid: end.uid, field, mask, row: i },
+        });
+    });
+    add('gate', null);
+    add('closeGate', null);
+    (Array.isArray(c.masks) ? c.masks : []).forEach((_, mi) => { add('gate', mi); add('closeGate', mi); });
+    if (!targets.length) return { edit: make({ uid: end.uid, field: 'gate', mask: null, row: null }) };
+    if (targets.length === 1) return { edit: make(targets[0].place) };
+    return { choose: { title: `Add the ${k} to…`, options: targets.map(t => ({ ...t, make: () => make(t.place) })) } };
 }
 
 /** A wait is complete from the start (2 messages), so it is written straight away. */

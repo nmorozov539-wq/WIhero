@@ -176,32 +176,31 @@ await run(async () => {
     await drag(await chipAt('Wait'), await center($('.junc.jhit').first()));
     await strip().waitFor();
     assert.deepEqual((await cfg('Mill')).gate, [['road', 'bridge', { wait: 2 }, { lock: ['the old mill', 'millstone'], by: 'char' }]], 'the lock is armed after the wait');
-    await $('.pstrip .pbtn.sm:text-is("3")').click();
+    await $('.pstrip .pbtn.sm[aria-label="One message more"]').click();
     await wait(250);
     await done();
     assert.deepEqual((await cfg('Mill')).gate, [['road', 'bridge', { wait: 3 }, { lock: ['the old mill', 'millstone'], by: 'char' }]]);
     ok('Wait dropped on the junction joins the same row, ahead of the lock');
 
-    // ── Wait on a card: opens or closes; how many ──
+    // ── Wait on a card with no gate: its gate on its own, no question (#15); how many ──
     await chip('Wait').click();
     await card('Tunnel').locator('.t').click();
     await strip().waitFor();
-    assert.ok(await $('.pstrip .pbtn.done').isDisabled(), 'opens or closes first');
-    await $('.pstrip .pseg button:text-is("closes")').click();
-    await wait(250);
-    assert.deepEqual((await cfg('Tunnel')).closeGate, [[{ wait: 2 }]]);
-    await $('.pstrip .pbtn.sm:text-is("5")').click();
+    assert.equal(await $('.pstrip .pseg button:text-is("closes")').count(), 0, 'no opens-or-closes question');
+    assert.deepEqual((await cfg('Tunnel')).gate, [[{ wait: 2 }]]);
+    await $('.pstrip .pnum').fill('5');
+    await $('.pstrip .pnum').press('Tab');
     await $('.pstrip .pseg button:text-is("yours")').click();
     await wait(250);
-    assert.deepEqual((await cfg('Tunnel')).closeGate, [[{ wait: 5, by: 'user' }]]);
+    assert.deepEqual((await cfg('Tunnel')).gate, [[{ wait: 5, by: 'user' }]]);
     await done();
     // A pill reopens its strip.
     await $('.lockp:has-text("5 msgs")').click();
     await strip().waitFor();
     await $('.pstrip .pbtn.bad:has-text("Remove")').click();
     await wait(250);
-    assert.equal((await cfg('Tunnel'))?.closeGate, undefined);
-    ok('Wait on a card asks opens or closes, counts 5 of your messages; its pill reopens it with Remove');
+    assert.equal((await cfg('Tunnel'))?.gate, undefined);
+    ok('Wait on a card with no gate becomes its gate, counts 5 of your messages; its pill reopens it with Remove');
 
     // ── Glue: hold says what ends it ──
     await drag(await chipAt('Glue'), await center(card('Inn')));
