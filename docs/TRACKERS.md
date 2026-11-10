@@ -183,8 +183,8 @@ Added to CONCEPTS 5.
 
 - **On the entry**, in `extensions.wihero` (CONCEPTS 8), so trackers travel
   with export, cards and import:
-  - `written: { label?, shape: "line"|"block", describe?, show: true }` for a
-    written main;
+  - `written: { label?, shape: "line"|"block", describe?, show: true, labelled: true }`
+    for a written main;
   - the same object as `written` on a mask in `masks`;
   - the book's syntax and mode, copied onto every written slot as
     `written.syntax` and `written.teach`, since a book has no field of its own
@@ -239,6 +239,15 @@ Built details not spelled out above:
   "only you" (`by: "user"`); otherwise only replies are read.
 - `/wihero-set` and the Edit and Clear buttons store the value on the latest
   message's snapshot (`wrote`), like the other manual actions.
+- **Send with its label** (`written.labelled`, on by default, added 2026-11-10):
+  the value is sent in the book's own form, `[Gold: 12]`, not bare, and so is a
+  written main's start value (its own text). Off sends the bare value and leaves
+  the book text alone until a value is written. Found playing real chats: a bare
+  "10" in World Info means nothing to the model.
+- For several coins, one tracker rewritten whole (`[Purse: 12g 5s 30c]`, the
+  format in its description) beats three that the model must keep in sync;
+  split them only when they are independent. Partial updates inside one
+  tracker stay out (CONCEPTS 9).
 - The instruction asks for the trackers whose value changed, at the very end of
   the reply, and lists each slot's form, its description and (for one-line
   slots) the current value.

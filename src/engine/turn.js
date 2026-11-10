@@ -4,7 +4,7 @@ import { FIELD } from './model.js';
 import { anyRowMet, itemTime, newestTexts, rowMet } from './rows.js';
 import { initialState, readState } from './state.js';
 import { getStringHash, parseRegex } from './util.js';
-import { slotValue } from './written.js';
+import { sample, slotValue } from './written.js';
 
 const greetingOk = model => key => model.greetings?.get(key)?.ok ?? true;
 
@@ -176,16 +176,32 @@ const memo = fn => { let last = null; let out; return text => (text === last ? o
 
 /**
  * The text an entry injects in place of its book content (TRACKERS 2.2), or undefined to keep the book's.
+ * With `model`, a tracker set to send its label (`labelled`, on by default) is sent in the book's own form,
+ * `[Gold: 12]`, and so is a written main's start value; without it, the bare value (for display).
  * @param {string | null} maskName The mask chosen for it.
  * @param {Map<string, string>} values slotValues.
+ * @param {object} [model]
  */
-export function writtenText(node, maskName, values) {
-    const main = () => (node.written && values.get(node.key) ? values.get(node.key) : undefined);
+export function writtenText(node, maskName, values, model = null) {
+    const wrap = (key, v) => {
+        const slot = model?.slots?.get(key);
+        const t = slot && model.trackers?.get(slot.book);
+        return slot && t && slot.labelled !== false ? sample(t.syntax, slot, v) : v;
+    };
+    const main = () => {
+        if (!node.written) return undefined;
+        const v = values.get(node.key);
+        if (v) return wrap(node.key, v);
+        // No value yet (or cleared): the book's text is the start value, sent in the same form.
+        const start = (node.content ?? '').trim();
+        return start && model?.slots?.get(node.key)?.labelled !== false && model ? wrap(node.key, start) : undefined;
+    };
     if (!maskName) return main();
     const mask = node.masks.find(m => m.name === maskName);
     if (!mask?.written) return undefined;
-    const v = values.get(`${node.key}|m:${mask.name}`);
-    if (v) return v;
+    const key = `${node.key}|m:${mask.name}`;
+    const v = values.get(key);
+    if (v) return wrap(key, v);
     // A written mask picked by hand with nothing written: its own text, else main.
     return mask.content.trim() ? undefined : main() ?? null;
 }
@@ -317,7 +333,7 @@ export function settleScan(model, state, { activated, byDropped = new Set(), sti
         const mask = node.masks?.length ? chooseMask(node, state, chat, model, safe, values) : null;
         if (node.masks?.length) out.masks.set(k, mask);
         if (node.written || node.masks?.some(m => m.written)) {
-            const text = writtenText(node, mask, values);
+            const text = writtenText(node, mask, values, model);
             if (text !== undefined) out.text.set(k, text);
         }
     }

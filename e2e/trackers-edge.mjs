@@ -136,7 +136,7 @@ try {
         await next('[Gold: 50 coins]');
         await send('I find coins?');
         assert.equal((await values())[K('gold')], '6 coins', 'closed: not read');
-        assert.doesNotMatch(lastPrompt(), /6 coins\n|Purse: 10/, 'and not sent');
+        assert.doesNotMatch(lastPrompt(), /\[Gold: (6 coins|Purse)/, 'and not sent');
     });
     await check('a branch keeps the values', async () => {
         const id = await ev(() => SillyTavern.getContext().chat.length - 1);
@@ -170,7 +170,7 @@ try {
         const p = lastPrompt();
         assert.doesNotMatch(p, /Story trackers/);
         assert.match(p, /\[Gold: 8 coins\]/, 'the preset manages its own lines');
-        assert.match(p, /^8 coins$/m, 'the value is sent as the entry');
+        assert.ok(p.split('[Gold: 8 coins]').length >= 3, 'the value is sent as the entry too');
     });
     await check('a tracker in another syntax (HTML comment) reads', async () => {
         await ev(async b => {

@@ -71,15 +71,15 @@ test('model: labels, duplicate labels, Moments, syntax problems, never fires', (
 test('gold: a written main injects the newest value from the next message; no line keeps it; empty clears', () => {
     const s = new Sim([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: {} }, { comment: 'Gold', content: '10' })]);
     s.send('gold', 'You find coins. [Gold: 7]');
-    assert.equal(s.lastSettle.text.has('Book.0'), false, 'the reply that wrote it still used the start value');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 10]', 'the reply that wrote it still used the start value, with its label');
     s.send('next', 'Nothing.');
-    assert.equal(s.lastSettle.text.get('Book.0'), '7');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 7]');
     s.send('again', 'Still nothing. [Gold: 3] and later [Gold: 4]');
     s.send('next');
-    assert.equal(s.lastSettle.text.get('Book.0'), '4', 'the last match in the message wins');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 4]', 'the last match in the message wins');
     s.send('x', 'Lost it all. [Gold: ]');
     s.send('y');
-    assert.equal(s.lastSettle.text.has('Book.0'), false, 'cleared: the start value again');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 10]', 'cleared: the start value again');
 });
 
 test('a value is stored once, on the message that wrote it; later snapshots point there', () => {
@@ -120,18 +120,18 @@ test('who: the user writes it when by is "user", for the reply to that message',
     const s = new Sim([e(0, 'gold', { id: 'gold', by: 'user', glue: { mode: 'hold' }, written: {} }, { comment: 'Gold' })]);
     s.send('gold');
     s.send('I pay. [Gold: 2]', '[Gold: 99]');
-    assert.equal(s.lastSettle.text.get('Book.0'), '2', 'used in the reply to the same message');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 2]', 'used in the reply to the same message');
     s.send('next');
-    assert.equal(s.lastSettle.text.get('Book.0'), '2', "the character's line is not read");
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 2]', "the character's line is not read");
 });
 
 test('a greeting seeds the starting value', () => {
     const s = new Sim([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: {} }, { comment: 'Gold' })], { greetingText: 'Welcome. [Gold: 50]' });
     s.send('gold');
-    assert.equal(s.lastSettle.text.get('Book.0'), '50');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 50]');
     s.send('x', '[Gold: 40]');
     s.send('y');
-    assert.equal(s.lastSettle.text.get('Book.0'), '40');
+    assert.equal(s.lastSettle.text.get('Book.0'), '[Gold: 40]');
 });
 
 test('ship config: a written mask is on while it holds a value, and falls back to main when cleared', () => {
@@ -139,7 +139,7 @@ test('ship config: a written mask is on while it holds a value, and falls back t
     s.send('ship', 'Configuring.\n<Ship config · Custom>\nspeed: 9\n</Ship config · Custom>');
     s.send('go');
     assert.equal(s.maskOf(0), 'Custom');
-    assert.equal(s.lastSettle.text.get('Book.0'), 'speed: 9');
+    assert.equal(s.lastSettle.text.get('Book.0'), '<Ship config · Custom>\nspeed: 9\n</Ship config · Custom>');
     s.send('done', 'Event over. <Ship config · Custom></Ship config · Custom>');
     s.send('next');
     assert.equal(s.maskOf(0), null, 'cleared: main again');
@@ -186,4 +186,12 @@ test('the instruction gives a line tracker\'s start value until one is written',
     assert.match(instruction(t, t.slots, new Map()), /now 10/);
     assert.match(instruction(t, t.slots, new Map([[K('gold'), '15']])), /now 15/);
     assert.match(instruction(t, t.slots, new Map([[K('gold'), '']])), /now 10/, 'cleared: the start value again');
+});
+
+test('Send with its label off: the bare value, and the book text untouched until a value is written', () => {
+    const s = new Sim([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: { labelled: false } }, { comment: 'Gold', content: '10' })]);
+    s.send('gold', '[Gold: 7]');
+    assert.equal(s.lastSettle.text.has('Book.0'), false, 'the book text as it is');
+    s.send('next');
+    assert.equal(s.lastSettle.text.get('Book.0'), '7');
 });

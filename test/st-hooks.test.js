@@ -270,9 +270,9 @@ test('a reply WI Hero didn\'t run for loses a snapshot copied from the swipe bef
 test('trackers: the written value replaces the scan copy, the instruction is set, old lines are stripped from copies', async () => {
     const st = new FakeST([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: { teach: { on: true, depth: 2 } } }, { comment: 'Gold', content: '10' })]);
     await st.send('gold', 'Found coins. [Gold: 7]');
-    assert.deepEqual(st.prompts.at(-1), ['10'], 'the start value');
+    assert.deepEqual(st.prompts.at(-1), ['[Gold: 10]'], 'the start value, with its label');
     await st.send('more');
-    assert.deepEqual(st.prompts.at(-1), ['7'], 'the written value, on the scan copy');
+    assert.deepEqual(st.prompts.at(-1), ['[Gold: 7]'], 'the written value, on the scan copy');
     assert.equal(st.book[0].content, '10', 'never the book');
     const list = [...st.chat];
     const original = list[2];

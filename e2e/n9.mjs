@@ -5,7 +5,8 @@
 // and off, Show in chat hides its lines, /wihero-set and an edit of the latest reply, and the editor's Tracker piece,
 // value line and syntax builder. Setup: e2e/README.md. Needs the mock's /next (e2e/mock.mjs).
 import assert from 'node:assert/strict';
-import { LOG, ev, lastPrompt, ok, page, run, send, slash, start, swipeRight, wait } from './lib.mjs';
+import fs from 'node:fs';
+import { LOG, ev, lastPrompt, ok, page, prompts, run, send, slash, start, swipeRight, wait } from './lib.mjs';
 
 const W = '#wihero-editor';
 const BOOK = 'N9 Trackers';
@@ -13,8 +14,9 @@ const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT || 5001}`;
 const $ = sel => page.locator(`${W} ${sel}`);
 const shot = name => page.screenshot({ path: `${LOG}n9-${name}.png` });
 const next = text => fetch(`${MOCK}/next`, { method: 'POST', body: text });
-/** The prompt's history and injections, without the system instruction. */
 const prompt = () => lastPrompt();
+/** The replies in the last prompt's history. */
+const history = () => { const f = prompts().pop(); return JSON.parse(fs.readFileSync(LOG + f, 'utf8')).body.messages.filter(m => m.role === 'assistant').map(m => m.content).join('\n'); };
 const values = () => ev(() => Object.fromEntries(wihero.hooks.values()));
 const G = `${BOOK}/gold`;
 const C = `${BOOK}/ship|m:Custom`;
@@ -30,7 +32,7 @@ await run(async () => {
         const base = { keysecondary: [], constant: false, vectorized: false, selective: true, selectiveLogic: 0, disable: false, order: 100, position: 0, probability: 100, useProbability: true, depth: 4 };
         const teach = { on: true, depth: 1 };
         wihero.library.change(b, d => {
-            d.entries[0] = { ...base, uid: 0, displayIndex: 0, comment: 'Gold', key: ['gold'], content: 'Purse: 10 coins',
+            d.entries[0] = { ...base, uid: 0, displayIndex: 0, comment: 'Gold', key: ['gold'], content: '10 coins',
                 extensions: { wihero: { id: 'gold', glue: { mode: 'hold' }, written: { describe: 'coins the player carries', teach } } } };
             d.entries[1] = { ...base, uid: 1, displayIndex: 1, comment: 'Ship config', key: ['ship'], content: 'Ship: standard config',
                 extensions: { wihero: { id: 'ship', glue: { mode: 'hold' }, masks: [{ name: 'Custom', written: { shape: 'block', show: false, describe: 'a custom config', teach } }] } } };
@@ -51,14 +53,14 @@ await run(async () => {
     await send('I check my gold.');
     let p = prompt();
     assert.match(p, /Story trackers\./, 'the instruction is sent');
-    assert.match(p, /\[Gold: \(value\)\]\n {2}\(coins the player carries; now Purse: 10 coins\)/, 'the start value as the current one');
-    assert.match(p, /Purse: 10 coins/, 'the start value, before anything is written');
+    assert.match(p, /\[Gold: \(value\)\]\n {2}\(coins the player carries; now 10 coins\)/, 'the start value as the current one');
+    assert.match(p, /\[Gold: 10 coins\]/, 'the start value, with its label, before anything is written');
     assert.deepEqual(await values(), { [G]: '7 coins' });
     await send('And now?');
     p = prompt();
-    assert.match(p, /\n7 coins|^7 coins/m, 'the written value is sent as the entry');
-    assert.doesNotMatch(p, /Purse: 10 coins/);
-    assert.doesNotMatch(p, /\[Gold: 7 coins\]/, 'the old line is out of the history');
+    assert.match(p, /\[Gold: 7 coins\]/, 'the written value is sent as the entry, with its label');
+    assert.doesNotMatch(p, /10 coins/);
+    assert.doesNotMatch(history(), /\[Gold:/, 'the old line is out of the history');
     assert.match(p, /now 7 coins/, 'the instruction carries the current value');
     ok('the instruction reaches the prompt; the start value until a value is written; then the value, with the old line stripped');
 
@@ -113,7 +115,7 @@ await run(async () => {
     await wait(300);
     assert.equal((await values())[G], '');
     await send('Count.');
-    assert.match(prompt(), /Purse: 10 coins/, 'cleared by hand: the start value');
+    assert.match(prompt(), /\[Gold: 10 coins\]/, 'cleared by hand: the start value');
     ok('/wihero-set sets and clears; an edit of the latest reply reads it again');
 
     // ── The editor: Tracker piece, value line, builder ──

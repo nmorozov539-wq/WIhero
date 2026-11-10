@@ -77,6 +77,9 @@ function slotFields(row, s, x, update) {
     const show = el('div', 'trkshow');
     show.append(el('span', '', 'Show in chat'), swEl(w.show !== false, v => patch(o => { if (v) delete o.show; else o.show = false; }), `${s.name}: show in chat`));
     row.append(show);
+    const lab = el('div', 'trkshow');
+    lab.append(el('span', '', 'Send with its label'), swEl(w.labelled !== false, v => patch(o => { if (v) delete o.labelled; else o.labelled = false; }), `${s.name}: send with its label`));
+    row.append(lab, el('p', 'phelp', w.labelled !== false ? 'The model reads it as it writes it, like [Gold: 12].' : 'The model reads the bare value, like 12.'));
     valueLine(row, x, s.mask);
 }
 

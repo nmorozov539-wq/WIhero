@@ -17,7 +17,7 @@ export const SYNTAX_EXAMPLES = Object.freeze([
 export const DEFAULT_TEACH = Object.freeze({ on: false, depth: 1 });
 
 const SHAPES = ['line', 'block'];
-const SLOT_FIELDS = ['label', 'shape', 'describe', 'show', 'syntax', 'teach'];
+const SLOT_FIELDS = ['label', 'shape', 'describe', 'show', 'labelled', 'syntax', 'teach'];
 
 /** The state key of a slot: the entry's key for its main, `<key>|m:<mask>` for a mask. */
 export const slotKey = (entryKey, mask = null) => (mask ? `${entryKey}|m:${mask}` : entryKey);
@@ -41,6 +41,8 @@ export function readWritten(raw) {
         shape: SHAPES.includes(raw.shape) ? raw.shape : 'line',
         describe: typeof raw.describe === 'string' ? raw.describe.trim() : '',
         show: raw.show !== false,
+        // Sent to the model in the book's form, [Gold: 12], not the bare value.
+        labelled: raw.labelled !== false,
         syntax: readSyntax(raw.syntax),
         teach: readTeach(raw.teach),
     };
