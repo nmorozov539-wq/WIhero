@@ -18,9 +18,12 @@ export const BAR = [
     { k: 'pack', label: 'Pack', c: 'pack', key: 'P' },
     { k: 'lock', label: 'Lock', c: 'cond', cond: true, key: 'L' },
     { k: 'wait', label: 'Wait', c: 'cond', cond: true, key: 'W' },
-    { k: 'moment', label: 'Moment', c: 'cond', key: 'E' },
+    { k: 'moment', label: 'Moment', c: 'moment', key: 'E' },
 ];
 const CHIP = Object.fromEntries(BAR.map(p => [p.k, p]));
+/** Each piece's icon (#39). */
+const CHIP_ICON = { opens: 'popen', closes: 'pclose', glue: 'pglue', switch: 'pswitch', mask: 'pmask', pack: 'tag', lock: 'lock', wait: 'clock', moment: 'spark', tracker: 'ptrack' };
+const chipIcon = k => { const s = el('span'); s.innerHTML = ic(CHIP_ICON[k] ?? 'plus'); return s.firstChild; };
 const FIELD = { gin: 'gate', cin: 'closeGate', mgin: 'gate', mcin: 'closeGate' };
 const colorOf = k => `var(--p-${CHIP[k]?.c ?? k})`;
 const KIND_PIECE = { open: 'opens', close: 'closes', ride: 'glue' };
@@ -84,7 +87,7 @@ export function mountPieceBar(x) {
             const b = el('button', `pchip${B.armed === p.k ? ' armed' : ''}`);
             b.type = 'button';
             b.style.setProperty('--c', colorOf(p.k));
-            b.append(el('i'), el('span', '', p.label));
+            b.append(chipIcon(p.k), el('span', '', p.label));
             if (x.desk) { b.append(el('kbd', '', p.key)); b.title = `${p.label} (${p.key})`; }
             b.dataset.piece = p.k;
             b.setAttribute('aria-pressed', String(B.armed === p.k));
@@ -132,7 +135,7 @@ export function mountPieceBar(x) {
             if (!ghost) {
                 ghost = el('div', 'dragchip');
                 ghost.style.setProperty('--c', colorOf(k));
-                ghost.append(el('i'), el('span', '', CHIP[k].label));
+                ghost.append(chipIcon(k), el('span', '', CHIP[k].label));
                 cancel = el('div', 'dropcancel');
                 cancel.innerHTML = ic('x');
                 x.root.append(cancel, ghost);

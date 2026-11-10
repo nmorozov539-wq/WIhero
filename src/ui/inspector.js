@@ -15,6 +15,8 @@ import {
 import { GREETINGS } from '../engine/model.js';
 
 const KIND_ICON = { lock: 'lock', wait: 'clock', greeting: 'chat' };
+/** Each piece's icon in its header (#39), so pieces aren't told apart by color alone. */
+const PIECE_ICON = { gate: 'popen', gatesFor: 'popen', closeGate: 'pclose', closesFor: 'pclose', glue: 'pglue', switch: 'pswitch', masks: 'pmask', packs: 'tag', once: 'ponce', by: 'pby', written: 'ptrack' };
 
 /** The sheet itself: a grab bar that toggles and drags between half and full height. */
 function frame(box, x, cls) {
@@ -259,7 +261,10 @@ export function renderInspector(box, x) {
         const ph = el('div', 'pch');
         const tap = el('button', 'pct');
         tap.type = 'button';
-        tap.append(el('b', '', p.label), el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
+        const lab = el('b');
+        lab.innerHTML = ic(PIECE_ICON[p.key] ?? 'plus', 'pci');
+        lab.append(p.label);
+        tap.append(lab, el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
         ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
         if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); layer.toast(`${p.label} removed`); }, `Remove ${p.label}`));

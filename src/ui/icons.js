@@ -34,6 +34,11 @@ export const ICON = {
     rows: '<path d="M8 6 H20 M8 12 H20 M8 18 H20 M4 6 h.01 M4 12 h.01 M4 18 h.01"/>',
     grid: '<path d="M4 4 H10 V10 H4 Z M14 4 H20 V10 H14 Z M4 14 H10 V20 H4 Z M14 14 H20 V20 H14 Z"/>',
     help: '<path d="M9.5 9 a2.5 2.5 0 1 1 3.5 2.3 C12.4 11.6 12 12.2 12 13 M12 16.5 h.01"/>',
+    // The pieces' own icons (#39), so the piece bar and the inspector don't rely on color alone.
+    popen: '<path d="M4 12 H16 M12 6 L18 12 L12 18"/>', pclose: '<path d="M4 12 H15 M18 6 V18"/>',
+    pglue: '<path d="M9 8 H7 a4 4 0 0 0 0 8 H9 M15 8 H17 a4 4 0 0 1 0 8 H15 M9 12 H15"/>', pswitch: '<path d="M4 12 H10 L18 6 M10 12 L18 18"/>',
+    pmask: '<path d="M4 9 L12 5 L20 9 L12 13 Z M4 14 L12 18 L20 14"/>', ptrack: '<path d="M5 19 L8 18 L18 8 L16 6 L6 16 Z M14 8 L16 10"/>',
+    ponce: '<path d="M9 8 L11 6 V18 M14 10 L18 14 M18 10 L14 14"/>', pby: '<path d="M12 4 a3.5 3.5 0 1 0 0.01 0 M5 20 a7 7 0 0 1 14 0"/>',
 };
 
 /** An icon as markup. `cls` 's' makes the 16px inline size. */

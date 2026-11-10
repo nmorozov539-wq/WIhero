@@ -34,7 +34,7 @@
   /* strategy (VISUAL 6.1) */
   --s-key: #6fd09a; --s-perm: #6fa8ff; --s-vec: #b48cff; --s-off: #6b6d72;
   /* pieces (VISUAL 6.2), with the color vision modes below (6.4) */
-  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2; --p-track: #9b8cff;
+  --p-open: #45c9bd; --p-close: #ff6f61; --p-glue: #f2cf4a; --p-mask: #f07cc8; --p-pack: #cfccc2; --p-track: #d9a066; --p-moment: var(--accent);
   --p-cond: var(--muted); /* Lock and Wait: no family color (VISUAL 6.2); on the canvas they take their row's */
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
@@ -43,8 +43,8 @@
   font-family: var(--sans); font-size: var(--t-m); line-height: 1.35;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
 }
-.wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; --p-track: #0072b2; }
-.wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; --p-track: #b48cff; }
+.wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; --p-track: #c9a26b; }
+.wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; --p-track: #d9a066; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -561,6 +561,8 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .pchips::-webkit-scrollbar { display: none; }
 .pchip, .dragchip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--fg); font-weight: 600; font-size: var(--t-s); touch-action: pan-x; }
 .pchip i, .dragchip i { width: 9px; height: 9px; border-radius: 5px; background: var(--c); }
+.pchip svg, .dragchip svg { width: 16px; height: 16px; color: var(--c); flex-shrink: 0; }
+.pchip.armed svg { color: #16171a; }
 .pchip.armed { background: var(--c); border-color: var(--c); color: #16171a; }
 .pchip.armed i { background: #16171a; }
 .pdiv { flex-shrink: 0; width: 1px; height: 26px; background: var(--line); margin: 0 4px; }
@@ -999,6 +1001,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .isetn { flex: 1; font-size: var(--t-s); color: var(--muted); }
 .iset .pseg { flex-wrap: nowrap; flex-shrink: 0; }
 .iset .pseg button { white-space: nowrap; }
+.pct b .pci { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
 .lblq { display: flex; align-items: center; justify-content: space-between; }
 .lblq .pq { margin: -8px -6px -8px 0; }
 .ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }
