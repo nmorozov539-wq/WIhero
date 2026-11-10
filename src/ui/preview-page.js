@@ -186,7 +186,7 @@ function renderReport(pg, x) {
     const results = [...run.results.values()];
     const rows = status => results.filter(r => r.status === status).map(r => {
         const info = x.info(r.stKey);
-        const why = status === 'fires' ? cap(r.why) + (r.mask ? `, with its "${r.mask}" mask` : '') : `Because ${r.why}`;
+        const why = status === 'fires' ? cap(r.why) + (r.mask ? `, with its "${r.mask}" mask` : '') + (typeof r.value === 'string' ? `. Sends the tracker's value: ${r.value.length > 80 ? `${r.value.slice(0, 80)}…` : r.value}` : '') : `Because ${r.why}`;
         return { title: info?.title ?? r.title, color: info?.color ?? 'var(--s-key)', sub: why + (r.logic ? '' : ' (plain entry)'), open: () => (x.desk && x.jump ? x.jump(r.stKey) : explainSheet(x, r.stKey)) };
     });
     section('Fires', rows('fires'));

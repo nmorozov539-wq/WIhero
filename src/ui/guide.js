@@ -81,6 +81,20 @@ export const PAGES = [
         show: 'id:tower',
     },
     {
+        id: 'tracker', title: 'Tracker', family: 'track',
+        line: 'Text the model writes: WI Hero reads each new reply for its line and sends the newest value.',
+        example: 'Gold: the model ends its replies with [Gold: 7], and from the next message the card sends 7.',
+        fine: [
+            'The main text or any mask can be written by the model. The card\'s own text is the start value.',
+            'A written mask is on while it holds a value: writing it turns it on, an empty value ([Gold: ]) turns it off.',
+            'A reply without the line keeps the last value. Swipes, deletes and branches rewind it.',
+            'Only an open card reads: not waiting on its gate, not closed, not switched off.',
+            'One syntax per book (Syntax and teaching…). Your preset can tell the model what to write, or WI Hero can teach it with one short instruction.',
+            'Fix a value by hand from the card, or with /wihero-set entry=<id> [mask=<name>] <text>.',
+        ],
+        mistakes: ['Two trackers with the same label: neither is read.', 'Labels that start the same way (Gold, Gold bag): the model mixes them up.'],
+    },
+    {
         id: 'pack', title: 'Pack', family: 'pack',
         line: 'A tag that groups cards, so rules can treat them as one.',
         example: '#town holds the tavern and the market; Gatehouse opens all of #town at once.',
@@ -184,4 +198,4 @@ export const TOPICS = [
 export const pageOf = id => PAGES.find(p => p.id === id) ?? TOPICS.find(t => t.id === id) ?? null;
 
 /** The Guide page for an inspector piece key (CONCEPTS 3) or a piece bar chip. */
-export const PIECE_ANCHOR = { gate: 'opens', gatesFor: 'opens', closeGate: 'closes', closesFor: 'closes', glue: 'glue', switch: 'switch', masks: 'mask', packs: 'pack', once: 'once', by: 'by', opens: 'opens', closes: 'closes', mask: 'mask', pack: 'pack', lock: 'lock', wait: 'wait', moment: 'moment' };
+export const PIECE_ANCHOR = { gate: 'opens', gatesFor: 'opens', closeGate: 'closes', closesFor: 'closes', glue: 'glue', switch: 'switch', masks: 'mask', written: 'tracker', packs: 'pack', once: 'once', by: 'by', opens: 'opens', closes: 'closes', mask: 'mask', pack: 'pack', lock: 'lock', wait: 'wait', moment: 'moment' };

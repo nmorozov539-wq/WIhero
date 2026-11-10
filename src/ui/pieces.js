@@ -17,6 +17,7 @@ export const PIECES = [
     { key: 'packs', label: 'Packs', family: 'pack', help: 'Tags that group entries, so rules can treat them as one. town/inn is inside town.' },
     { key: 'once', label: 'Once', family: 'close', help: 'Fires one time, then closes from the next message on.' },
     { key: 'by', label: 'Who triggers', family: 'by', help: 'Whose messages the key words are matched against. Without it, both count.' },
+    { key: 'written', label: 'Tracker', family: 'track', help: 'The model writes this text: WI Hero reads each new reply for its line and sends the newest value. The main text or any mask can be written.' },
 ];
 export const PIECE = Object.fromEntries(PIECES.map(p => [p.key, p]));
 /** What a Moment takes (CONCEPTS 3.13): its own gate (which arms it), and what it opens and closes. */
@@ -35,6 +36,7 @@ export function hasPiece(c, key) {
     if (key === 'once') return v === true;
     if (key === 'by') return v === 'user' || v === 'char';
     if (key === 'glue') return isObject(v);
+    if (key === 'written') return isObject(v) || v === true || (Array.isArray(c?.masks) && c.masks.some(m => isObject(m) && isObject(m.written)));
     return Array.isArray(v) && v.length > 0;
 }
 
@@ -49,10 +51,30 @@ export function addPiece(c, key) {
     if (key === 'once') c.once = true;
     else if (key === 'by') c.by = 'user';
     else if (key === 'glue') { c.glue = { mode: 'hold' }; delete c.once; }
+    else if (key === 'written') c.written = {};
     else if (!Array.isArray(c[key])) c[key] = [];
 }
 
-export function removePiece(c, key) { delete c[key]; }
+export function removePiece(c, key) {
+    delete c[key];
+    if (key === 'written' && Array.isArray(c.masks)) for (const m of c.masks) if (isObject(m)) writeSlot(c, m.name, null);
+}
+
+/**
+ * Makes a text slot written by the model (TRACKERS 7), or takes that off (`value` null). A mask that was only
+ * written gets placeholder text, or the model would skip it.
+ * @param {string | null} mask The mask's name, or null for the main text.
+ */
+export function writeSlot(c, mask, value) {
+    const target = mask ? (Array.isArray(c.masks) ? c.masks.find(m => isObject(m) && m.name === mask) : null) : c;
+    if (!target) return;
+    if (value === null) {
+        delete target.written;
+        if (mask && !String(target.content ?? '').trim()) target.content = 'Write this version here.';
+    } else {
+        target.written = value;
+    }
+}
 
 /** Drops what is empty, so the stored config stays as small as the pieces it has. */
 export function tidyConfig(c) {

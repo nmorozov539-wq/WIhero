@@ -29,9 +29,27 @@ const node = (tag, cls, text) => {
 };
 
 /**
- * @param {object} deps { ctx, settings, saveSettings, gap: () => gap | null, onFixGap: (how) => Promise }
+ * What the last reply wrote into trackers (TRACKERS 4), as lines: "Gold → 7", "Ship config · Custom written",
+ * "Gold cleared".
+ * @param {(key: string) => { label: string, shape: string } | undefined} slotOf
  */
-export function createBubble({ ctx, settings, saveSettings = () => {}, gap, onFixGap }) {
+export function wroteLines(chat, slotOf) {
+    const wrote = lastReply(chat)?.extra?.wihero?.wrote;
+    if (!wrote || typeof wrote !== 'object') return [];
+    return Object.entries(wrote).map(([key, value]) => {
+        const slot = slotOf(key);
+        const label = slot?.label ?? key.slice(key.indexOf('/') + 1);
+        const v = String(value ?? '');
+        if (!v) return `${label} cleared`;
+        if (slot?.shape === 'block' || v.includes('\n') || v.length > 40) return `${label} written`;
+        return `${label} → ${v}`;
+    });
+}
+
+/**
+ * @param {object} deps { ctx, settings, saveSettings, gap: () => gap | null, onFixGap: (how) => Promise, slotOf }
+ */
+export function createBubble({ ctx, settings, saveSettings = () => {}, gap, onFixGap, slotOf = () => undefined }) {
     const root = node('div', 'wihero-bubble-root');
     root.id = 'wihero_bubble_root';
     const button = node('div', 'wihero-bubble interactable');
@@ -129,6 +147,13 @@ export function createBubble({ ctx, settings, saveSettings = () => {}, gap, onFi
             box.append(row);
             menu.append(box);
         }
+        const wrote = wroteLines(ctx().chat, slotOf);
+        if (wrote.length) {
+            menu.append(node('div', 'wihero-bubble-head', 'Trackers the last reply wrote'));
+            const list = node('div', 'wihero-bubble-list');
+            for (const line of wrote) list.append(node('div', 'wihero-bubble-row wihero-bubble-wrote', line));
+            menu.append(list);
+        }
         const head = node('div', 'wihero-bubble-head', data.count === null ? 'World Info' : `Sent with the last reply · ${data.count}`);
         menu.append(head);
         if (data.count === null) {
@@ -145,6 +170,7 @@ export function createBubble({ ctx, settings, saveSettings = () => {}, gap, onFi
             const row = node('div', 'wihero-bubble-row');
             row.append(node('span', 'wihero-bubble-title', x.title));
             if (x.mask) row.append(node('span', 'wihero-bubble-mask', ` · ${x.mask}`));
+            if (x.written) row.append(node('span', 'wihero-bubble-mask', ' · written'));
             if (books.size > 1) row.append(node('small', '', x.world));
             list.append(row);
         }

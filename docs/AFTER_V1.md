@@ -30,26 +30,9 @@ Big ideas we agreed are worth doing, but not in V1. Each has a short note on why
 
 **Why it waits:** the Guide's piece pages come first; ST's settings need their own pages, written against ST's behavior.
 
-## Masks the model writes (state tracking)
+## Masks the model writes → Trackers
 
-**The idea** (the owner's, 2026-11-08): let the model keep track of things like gold, without a separate call. The user sets up a pattern, for example a line the model ends each reply with: `**gold in pockets = 10**`. WI Hero watches the chat for that pattern and writes what it finds into a chosen mask, creating it or replacing its text. From then on the mask carries the current value into every prompt.
-
-- **Why it's worth it:** it tracks anything the user cares about (money, wounds, time of day, a relationship score), in any format they like, and needs almost no new machinery: masks already swap text in (CONCEPTS 3.7). People build complicated outside systems for this today.
-- **Why it beats keeping it in the chat:** a summarizer that rewrites or drops old messages would lose a running total. A value held by WI Hero survives that.
-- **What can go wrong:** only the model failing the math or the syntax. Modern models should manage a gold exchange even deep into a long context.
-
-**Why it waits:** it's a design job, because it reaches into two places WI Hero doesn't touch today.
-
-- **The chat:** a hook that reads each new reply for the user's patterns. Probably the same moment the story state is written (`MESSAGE_RECEIVED`, BUILD_SPEC 6.6).
-- **The prompt:** the model has to be told the syntax, and the instruction is different for every build a user makes. One option that avoids touching the preset: the instruction rides in an always-on (glued) entry of the same book, so it travels with the book.
-
-Questions to settle when it's designed:
-
-- **Where the value lives.** Mask text is stored in the book (D16), but the book doesn't rewind. A value written there would survive a swipe or a deleted message that should have undone it. Keeping the value in the chat's story state, per message, would make it rewind with everything else (CONCEPTS 2.3), and the mask would only show it.
-- **What the user sees.** Whether the tracking line stays visible in the chat, or is hidden from display (for example with an ST regex script) while still being read.
-- **When the model gets it wrong.** A missing or garbled line could keep the last value, and Preview or the chat bubble could show what was read from each reply.
-- **Prepared syntaxes.** Ship about five tested presets, each as three parts that travel together: the format, the instruction that teaches it to the model, and the parser. Candidates: `[Mill: burned]`, `<!-- mill=burned -->`, a `<state>` block at the end of the reply, a status line like `Mill — burned`, a short JSON block. On top, a custom template such as `[{entry}: {value}]` that WI Hero compiles to a regex, tested on the last few replies to show what it caught. Presets are what would make people actually use this (brainstorm 2026-11-09).
-- **Scope.** CONCEPTS 9 keeps variables and math out of story logic. This doesn't change that: the model does the math, and WI Hero only copies the result. Gating on the value (opening an entry when gold reaches 100) would be a separate, bigger step.
+Grew into its own spec, [TRACKERS.md](TRACKERS.md), built in 0.37.0. Any text slot (an entry's main or a mask) can be written by the model, read from the chat with a syntax the user designs, and kept in the chat's story state so it rewinds. The preset findings from 2026-11-09 are in its section 10.
 
 ## Brainstorm, 2026-11-09
 
@@ -61,7 +44,7 @@ A no-commitment brainstorm. Nothing here is planned; each line is the idea plus 
 - **Endings.** Underneath, an ending is a gated entry. The one real rule it would add: when an ending fires, it closes the rest of the book. Then a counter ("ending 2 of 4"), the player view and the dead branch report all know what an ending is. Telling the model to wrap up stays in the entry's own text. Needs more thought.
 - **Pack kinds.** Ready-made kinds such as chapters and arcs, each with exactly one behaviour. A chapter is ordered: opening the next closes the last. An arc spans chapters and shows progress. Catch: a pack is only a tag today (CONCEPTS 3.7), so kinds need somewhere to live.
 - **Chapters in the chat.** When the first entry of a chapter pack opens, the chat gets a quiet "Chapter: The Mill" divider. Pack names become the story's table of contents.
-- **Cycles, event-driven only.** Masks that rotate (dawn, day, dusk, night) when the story says so: a lock phrase like "next morning", or a value the model writes with a prepared syntax (see Masks the model writes). Counting turns doesn't work, because 100 messages can be one 10-minute scene.
+- **Cycles, event-driven only.** Masks that rotate (dawn, day, dusk, night) when the story says so: a lock phrase like "next morning", or a value the model writes (see [Trackers](TRACKERS.md)). Counting turns doesn't work, because 100 messages can be one 10-minute scene.
 
 ### Canvas and editor
 
@@ -85,7 +68,7 @@ A no-commitment brainstorm. Nothing here is planned; each line is the idea plus 
 
 ### Beyond WI Hero
 
-These would be a separate chat-display extension (a "ChatHero"). They share one engine with the prepared mask syntaxes: a data-block format, the instruction that teaches it, and a parser that strips it from the bubble.
+These would be a separate chat-display extension (a "ChatHero"). They share one engine with Trackers ([TRACKERS.md](TRACKERS.md)): a syntax, the instruction that teaches it, and a parser that hides it from the bubble.
 
 - **Time dial.** No real time tracking: the model just writes `Time: 22:37`, and the bubble shows a small circle in four quarters with a hand that rotates, with a little animation. The value could also drive event-driven cycles.
 - **Floating trackers.** Preset trackers print inventory, time and location right in the chat. Strip them and show floating buttons instead.

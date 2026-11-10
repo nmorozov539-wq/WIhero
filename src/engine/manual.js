@@ -22,3 +22,18 @@ export function pickMask(state, key, name) {
     else delete next.masks.pick[key];
     return next;
 }
+
+/**
+ * Sets a tracker's value by hand (TRACKERS 2.3), or clears it (empty text), on the latest message.
+ * @param {number} at The latest message's index: the value is stored there.
+ */
+export function setSlot(state, key, text, at) {
+    const next = structuredClone(state);
+    // Values read at an older message stay there; this snapshot keeps only its own.
+    if (next.at !== at) next.wrote = {};
+    next.wrote ??= {};
+    next.written ??= {};
+    next.wrote[key] = String(text ?? '').trim();
+    next.written[key] = at;
+    return next;
+}

@@ -5,6 +5,7 @@ import {
     paramText, paramValue, rekeyEntry, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
 } from './data.js';
 import { bookEditor } from './pieces.js';
+import { trackerContext } from './tracker-ui.js';
 import { btn, el, html, longPress, pressable, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
@@ -399,6 +400,7 @@ export function createNormal(A) {
             setMask: name => { if (nav?.tab) { nav.tab.mask = name; render(); } },
             changeMask: (name, text) => library.change(book, d => bookEditor(d).update(e.uid, c => { const m = c.masks?.find(x => x.name === name); if (m) m.content = text; }), { quiet: true }),
             chatOpen: !!ctx().chat?.length && !!node?.key && hooks.model.nodes.has(node.key),
+            tracker: node?.key ? trackerContext({ book, node, model, hooks, ctx, layer, editBook: fn => library.change(book, d => fn(bookEditor(d), d)), after: () => render(), toast: t => layer.toast(t) }) : null,
             activeMask: (() => { try { return node?.key && hooks.model.nodes.has(node.key) && ctx().chat?.length ? entryStatus(hooks.model.nodes.get(node.key), hooks.state(), ctx().chat, hooks.model).mask : null; } catch { return null; } })(),
             redraw: render,
             retitle: renderTabs,

@@ -7,7 +7,7 @@ import { btn, el, html } from './dom.js';
 import { canvasBook } from './canvas-graph.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { closedText } from './logic-text.js';
-import { entryStatus } from '../engine/turn.js';
+import { entryStatus, slotValues, writtenText } from '../engine/turn.js';
 import { ic } from './icons.js';
 import { mountPieceBar } from './piecebar.js';
 import { strategyColor } from './entry-page.js';
@@ -55,6 +55,7 @@ export function createHeroShell(A) {
         let state;
         try { state = hooks.state(); } catch { return () => null; }
         const nameOf = key => model.nodes.get(key)?.label ?? (key.startsWith('@') ? 'a greeting' : null);
+        let values = null;
         return key => {
             if (!key.startsWith('id:')) return null;
             const node = model.nodes.get(`${book}/${key.slice(3)}`);
@@ -67,6 +68,8 @@ export function createHeroShell(A) {
                 waiting: s.status === 'waiting',
                 happened: node.moment ? s.status === 'happened' : undefined,
                 mask: s.mask,
+                // A tracker's value in this chat (TRACKERS 4), when it takes the place of the book's text.
+                value: node.written || node.masks.some(m => m.written) ? writtenText(node, s.mask, values ??= slotValues(model, state, chat)) ?? undefined : undefined,
             };
         };
     }

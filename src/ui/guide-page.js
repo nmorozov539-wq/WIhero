@@ -5,7 +5,7 @@ import { btn, html, el } from './dom.js';
 import { ic } from './icons.js';
 import { PAGES, TOPICS } from './guide.js';
 
-const COLOR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)', moment: 'var(--accent)', by: 'var(--muted)' };
+const COLOR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)', moment: 'var(--accent)', by: 'var(--muted)', track: 'var(--p-track)' };
 
 /** A small card in the picture: x, y, its name. */
 const card = (x, y, name, extra = '') => `<rect x="${x}" y="${y}" width="78" height="30" rx="7" fill="var(--card)" stroke="var(--line)"${extra}/><text x="${x + 10}" y="${y + 19}" font-size="11" font-weight="600" fill="var(--fg)">${name}</text>`;

@@ -27,6 +27,7 @@ class FakeST {
             chatMetadata: {},
             substituteParams: text => text.replaceAll('{{char}}', 'Sera'),
             saveChat: async () => {},
+            setExtensionPrompt: (key, value, position, depth) => { this.extensionPrompt = { key, depth, position }; this.extensionText = value; },
             eventTypes: { WORLDINFO_FORCE_ACTIVATE: 'force' },
             eventSource: { emit: async (type, list) => { if (type === 'force') for (const x of list) this.forced.set(`${x.world}.${x.uid}`, x); } },
         };
@@ -264,4 +265,21 @@ test('a reply WI Hero didn\'t run for loses a snapshot copied from the swipe bef
     assert.equal(reply.swipe_info[1].extra.wihero, undefined);
     assert.ok(reply.swipe_info[0].extra.wihero, 'the other swipe keeps its own');
     assert.ok(st.hooks.gap(), 'the reply shows as one WI Hero missed');
+});
+
+test('trackers: the written value replaces the scan copy, the instruction is set, old lines are stripped from copies', async () => {
+    const st = new FakeST([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: { teach: { on: true, depth: 2 } } }, { comment: 'Gold', content: '10' })]);
+    await st.send('gold', 'Found coins. [Gold: 7]');
+    assert.deepEqual(st.prompts.at(-1), ['[Gold: 10]'], 'the start value, with its label');
+    await st.send('more');
+    assert.deepEqual(st.prompts.at(-1), ['[Gold: 7]'], 'the written value, on the scan copy');
+    assert.equal(st.book[0].content, '10', 'never the book');
+    const list = [...st.chat];
+    const original = list[2];
+    st.hooks.stripPrompt(list, 'normal');
+    assert.equal(list[2].mes, 'Found coins.');
+    assert.equal(original.mes, 'Found coins. [Gold: 7]', 'the chat\'s own message is untouched');
+    assert.equal(st.chat.at(-1).extra.wiheroSent[0].written, true, 'the bubble marks it written');
+    assert.deepEqual(st.extensionPrompt, { key: 'wihero_trackers', depth: 2, position: 1 }, 'set before the scan, at the book\'s depth');
+    assert.match(st.extensionText, /\[Gold: \(value\)\]/);
 });

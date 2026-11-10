@@ -230,10 +230,12 @@ function scanTurn({ entries, model, chat, opts, globals, words, current = chat.l
     const map = new Set(activated);
     const victims = new Map();
     let masks = new Map();
+    let texts = new Map();
     for (let pass = 0; pass < 5; pass++) {
         const out = settleScan(model, state, { activated: [...map], byDropped, chat });
         for (const [key, by] of out.victims) victims.set(key, by);
         masks = out.masks;
+        texts = out.text ?? new Map();
         for (const k of out.drop) {
             map.delete(k);
             const node = model.byStKey.get(k);
@@ -264,6 +266,11 @@ function scanTurn({ entries, model, chat, opts, globals, words, current = chat.l
     for (const [k, name] of masks) {
         const r = results.get(k);
         if (r?.status === 'fires' && name) r.mask = name;
+    }
+    // A tracker's value, where it takes the place of the book's text (TRACKERS 4).
+    for (const [k, text] of texts) {
+        const r = results.get(k);
+        if (r?.status === 'fires' && typeof text === 'string') r.value = text;
     }
     return { state, results, fired: [...map], victims, masks };
 }

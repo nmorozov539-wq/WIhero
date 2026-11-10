@@ -237,6 +237,7 @@ export function mountCanvas(vp, d) {
             c.append(gr, el('div', 't', e.title));
             const k = el('div', 'k');
             if (st?.closed) k.append(el('span', 'cl', `CLOSED · by ${st.closed}`));
+            else if (typeof st?.value === 'string') { k.classList.add('wval'); k.textContent = `${st.mask ? `${st.mask}: ` : ''}${st.value.replace(/\s+/g, ' ')}`; k.title = st.value; }
             else if (si) k.textContent = `mask: ${e.masks[si - 1].name}`;
             else {
                 if (e.by) k.insertAdjacentHTML('beforeend', ic(e.by === 'user' ? 'user' : 'bot'));

@@ -7,6 +7,7 @@ import { bookSettings, cardKey, configOf, entriesOf, idOf, rekeyEntry, titleOf }
 import { buildGraph, canvasSet, momentName } from './canvas-graph.js';
 import { canvasMemory } from './canvas.js';
 import { closedText, logicLines } from './logic-text.js';
+import { trackerContext } from './tracker-ui.js';
 import { el } from './dom.js';
 import { getStringHash, isObject } from '../engine/util.js';
 import { greetingFingerprint, greetingsOf } from '../chat-state.js';
@@ -210,6 +211,7 @@ export function createHeroInspector(A) {
             ]),
             showMask: name => { (mem.cards[I.key] ??= {}).layer = name; saveSettings(); render(); canvas()?.reveal?.(I.key, 0.5); },
             renamedMask: (from, to) => { if (mem.cards[I.key]?.layer === from) { mem.cards[I.key].layer = to; saveSettings(); } },
+            tracker: trackerContext({ book, node, model, hooks, ctx, layer, editBook: fn => editBook(book, fn), after: () => render(), toast: t => layer.toast(t) }),
         });
     }
 
