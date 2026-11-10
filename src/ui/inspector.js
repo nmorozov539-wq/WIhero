@@ -285,12 +285,11 @@ export function renderInspector(box, x) {
 }
 
 /**
- * A Moment's own part of the inspector (CONCEPTS 3.13): what it is, its phrases as chips (any one is enough) with a
+ * A Moment's own part of the inspector (CONCEPTS 3.13): its phrases as chips (any one is enough) with a
  * box to add one, and who says it.
  */
 function momentHead(body, x) {
     const { entry: e } = x;
-    body.append(el('p', 'help imoment', 'A Moment happens when one of its phrases is said. It sends nothing to the model; other cards wait for it or close when it happens.'));
     const phrases = (e.key ?? []).filter(k => typeof k === 'string' && k.trim());
     const setPhrases = list => x.edit((ed, data) => { data.entries[e.uid].key = list; });
     const box = el('div', 'ichips');
@@ -307,7 +306,10 @@ function momentHead(body, x) {
     input.addEventListener('blur', () => { if (input.value.trim()) add(); });
     const wrap = el('div', 'imphr');
     wrap.append(box, input);
-    body.append(el('div', 'lbl', 'Happens when someone says (any one)'), wrap);
+    // What a Moment is lives in the Guide (#10): the inspector stays as plain as any other entry's.
+    const lb = el('div', 'lbl lblq', 'Happens when someone says (any one)');
+    if (x.guide) lb.append(btn('pq', ic('help'), () => x.guide('moment'), 'What is a Moment?'));
+    body.append(lb, wrap);
     const by = x.config.by ?? null;
     const seg = el('div', 'pseg iseg');
     seg.setAttribute('role', 'radiogroup');
