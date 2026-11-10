@@ -120,7 +120,6 @@ export function createNormal(A) {
             v.append(chips);
             const off = offHint(book);
             if (off) v.append(off);
-            v.append(...defaultsBlock(book));
         }
 
         const groups = groupEntries(shown, sortBy(), e => entryFolder(book, e));
@@ -169,31 +168,34 @@ export function createNormal(A) {
         return it;
     }
 
-    /** New entry defaults: folded, the header sums up what isn't default. */
-    function defaultsBlock(book) {
-        const defaults = bookSettings(settings, book).defaults ??= {};
-        const fake = { ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined };
-        const d = el('button', `disc small${S.ui.defaults ? ' open' : ''}`);
-        d.type = 'button';
-        d.innerHTML = `${ic('right', 'chev')}<h2>New entry defaults</h2>`;
-        d.append(el('span', 'sum', paramSummary(fake)));
-        d.addEventListener('click', () => { S.ui.defaults = !S.ui.defaults; render(); });
-        const out = [d];
-        if (S.ui.defaults) {
+    /**
+     * New entry defaults (#43): a sheet from the menu under the book's name, not a row among the entries. Each row
+     * is one of the entry page's parameters; changed ones are marked.
+     */
+    function defaultsSheet(book) {
+        const draw = () => layer.sheet('New entry defaults', sh => {
+            const defaults = bookSettings(settings, book).defaults ??= {};
+            const fake = { ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined };
             const box = el('div', 'defaults');
+            sh.append(box);
             for (const p of PARAM_LIST) {
                 if (p.when && !p.when(fake)) continue;
                 const value = paramValue(fake, p);
                 box.append(paramRow(p, paramText(fake, p), value !== p.def, () => editParam(layer, p, value, x => {
                     if (x === p.def || x === null) delete defaults[p.field]; else defaults[p.field] = x;
                     saveSettings();
-                    render();
+                    draw();
                 })));
             }
-            out.push(box);
-        }
-        return out;
+        }, { help: 'What a new entry in this book starts with.' });
+        draw();
     }
+
+    /** One line summing up a book's new entry defaults, for its menu. */
+    const defaultsSummary = book => {
+        const defaults = bookSettings(settings, book).defaults ?? {};
+        return paramSummary({ ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined });
+    };
 
     function sectionHead(text, open, onToggle, selectable) {
         const s = el('div', 'section');
@@ -456,5 +458,5 @@ export function createNormal(A) {
         });
     }
 
-    return { applyParam, bottomBar, check, renderBook, renderEntry, renderHome, renderSearch, selBar };
+    return { applyParam, bottomBar, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };
 }

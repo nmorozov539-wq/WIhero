@@ -464,6 +464,8 @@ export function createApp(deps) {
     function renderHome(...a) { return normal().renderHome(...a); }
     function renderSearch(...a) { return normal().renderSearch(...a); }
     function selBar(...a) { return normal().selBar(...a); }
+    function defaultsSheet(...a) { return normal().defaultsSheet(...a); }
+    function defaultsSummary(...a) { return normal().defaultsSummary(...a); }
 
     // ---------------------------------------------------------------- creating
     function newEntry(book, folder = '') {
@@ -818,7 +820,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let menusView = null;
     const menus = () => (menusView ??= createMenus({
-        H, S, back, check, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     }));
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
     function bookMenu(...a) { return menus().bookMenu(...a); }
