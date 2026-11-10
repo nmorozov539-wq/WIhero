@@ -951,6 +951,17 @@ export function mountCanvas(vp, d) {
             const group = d.desk && picked.has(id) && picked.size > 1 ? [...picked].filter(k => memory().cards[k]) : null;
             drag = { id, dx: wx - c.x, dy: wy - c.y, group, at: group ? Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) : null };
             mode = 'card';
+        } else if (!OV && !port && e.target.closest?.(d.desk ? '.packframe[data-pack]' : '.packframe[data-pack] .pn') && !(d.desk && e.shiftKey)) {
+            // A pack frame moves the whole pack (#22): by its label or empty area with a mouse, by its label on a
+            // phone, where the rest of the frame pans like the canvas around it. A tap still opens the pack.
+            const name = e.target.closest('.packframe').dataset.pack;
+            const group = (CV.R.get(`pack:${name}`)?.members ?? []).filter(k => Number.isFinite(memory().cards[k]?.x));
+            if (group.length) {
+                const [wx, wy] = toWorld(e.clientX, e.clientY);
+                const c = memory().cards[group[0]];
+                drag = { id: group[0], dx: wx - c.x, dy: wy - c.y, group, at: Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) };
+                mode = 'card';
+            } else mode = 'pan';
         } else if (d.desk && e.shiftKey && !e.target.closest?.('[data-port], [data-pack], [data-link], [data-row], [data-cond]')) {
             mode = 'box';
             const r = vp.getBoundingClientRect();
