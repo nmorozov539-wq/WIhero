@@ -230,8 +230,25 @@ export function renderInspector(box, x) {
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
+    // A path of a switch says so, and opens the switch (#17). The gate the switch gave it is the switch's own
+    // "can't fire before the fork" rule, so a gate that is only that isn't shown as a gate of its own.
+    const forkGateOnly = !!x.pathOf && Array.isArray(c.gate) && c.gate.length === 1 && c.gate[0].length === 1 && c.gate[0][0] === x.pathOf.id;
+    if (x.pathOf) {
+        const pc = el('div', 'pc');
+        pc.dataset.piece = 'pathOf';
+        pc.style.setProperty('--c', FAMILY_COLOR.close);
+        const ph = el('div', 'pch');
+        const tap = el('button', 'pct');
+        tap.type = 'button';
+        tap.append(el('b', '', `Path of ${x.pathOf.name}`), el('span', 'pcs', forkGateOnly ? `Can't fire before ${x.pathOf.name} does. Tap to edit the switch.` : 'Tap to edit the switch.'));
+        tap.addEventListener('click', () => x.pathOf.open());
+        ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide('switch') : null), 'What is a switch?'));
+        pc.append(ph);
+        body.append(pc);
+    }
     for (const p of PIECES) {
         if (c.moment === true && !MOMENT_PIECES.includes(p.key)) continue;
+        if (p.key === 'gate' && forkGateOnly && x.open !== 'gate') continue;
         if (!hasPiece(c, p.key) && x.open !== p.key) continue;
         const open = x.open === p.key;
         const pc = el('div', `pc${open ? ' open' : ''}`);

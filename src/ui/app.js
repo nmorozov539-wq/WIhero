@@ -728,6 +728,7 @@ export function createApp(deps) {
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
         layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, hasLogic,
         render: () => render(), saveSettings, settings, canvas: () => heroCanvas(), isRenderQueued: () => renderQueued,
+        dropPiece: (...a) => dropPiece(...a),
     }));
     function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
     function inspect(...a) { return heroInsp().inspect(...a); }

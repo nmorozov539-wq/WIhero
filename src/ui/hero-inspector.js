@@ -24,7 +24,7 @@ export function createHeroInspector(A) {
     const {
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
         layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, render,
-        saveSettings, settings, canvas, isRenderQueued,
+        saveSettings, settings, canvas, isRenderQueued, dropPiece,
     } = A;
 
     /**
@@ -183,9 +183,10 @@ export function createHeroInspector(A) {
             for (const cl of node.closes) if (cl.source && cl.source !== node.key && (cl.kind === 'closesFor' || cl.kind === 'switch')) sources.push({ name: nameOf(cl.source), key: stateKeyToCard(cl.source), what: cl.kind === 'switch' ? 'Another path of its fork' : 'Closes this', family: 'close' });
             for (const k of model.riders?.get(node.key) ?? []) sources.push({ name: nameOf(k), key: stateKeyToCard(k), what: 'Rides along with this', family: 'glue' });
         }
-        // The other end of the rules this entry starts (#1): a gate on another entry waits for it. The rule lives on
-        // the other entry; the row jumps there with its editor open.
+        // The other end of the rules this entry starts (#1, #17): a gate on another entry waits for it, or it is a
+        // path of a switch. The rule lives on the other entry; the row jumps there with its editor open.
         const outgoing = [];
+        let pathOf = null;
         if (node?.key) {
             const names = row => row.items.some(i => i.key === node.key);
             for (const n of model.nodes.values()) {
@@ -195,11 +196,13 @@ export function createHeroInspector(A) {
                 if (n.closes.some(cl => cl.kind === 'closeGate' && names(cl.row))) outgoing.push({ name: `Closes ${n.label}`, key: card, piece: 'closeGate', what: `${n.label}'s close gate waits for this`, family: 'close' });
                 if (n.masks.some(m => [...m.opens, ...m.closes].some(names))) outgoing.push({ name: `Turns on a mask of ${n.label}`, key: card, piece: 'masks', what: `A mask of ${n.label} waits for this`, family: 'mask' });
             }
+            const sw = model.switches?.find(s => s.paths.includes(node.key));
+            if (sw) pathOf = { name: nameOf(sw.fork), id: model.nodes.get(sw.fork)?.id, open: () => dropPiece(book, 'switch', { card: stateKeyToCard(sw.fork) }) };
         }
         const mem = canvasMemory(bookSettings(settings, book));
         renderInspector(box, {
             ...common, entry: e,
-            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources, outgoing,
+            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources, outgoing, pathOf,
             inspectAt: (key, piece) => inspect(book, key, piece),
             happened: isMoment(e) && H.chatState ? !!chatStatus(book)(I.key)?.happened : null,
             rename: v => library.change(book, d => { d.entries[e.uid].comment = isMoment(e) ? `Moment: ${v}` : v; }),
