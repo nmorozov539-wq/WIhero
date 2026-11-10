@@ -1,6 +1,6 @@
 // Hero mode's Preview tab (N5, LAYOUT "Preview tab", BUILD_SPEC 15.5): where it can start from, and running the
 // engine on a pretend exchange. Moved out of app.js; it reaches the app only through the context given to it.
-import { buildModel } from '../engine/model.js';
+import { GREETINGS, buildModel } from '../engine/model.js';
 import { el } from './dom.js';
 import { cardKey, titleOf } from './data.js';
 import { greetingsOf, openingGreeting } from '../chat-state.js';
@@ -33,7 +33,7 @@ export function createPreview(A) {
             });
         }
         seeds.push({ id: 'fresh', label: 'Fresh start', sub: 'From the beginning, nothing fired yet', base: [], greeting: null, user: '', reply: '' });
-        if (ch?.avatar && library.chatOpen()) {
+        if (GREETINGS && ch?.avatar && library.chatOpen()) {
             greetingsOf(ch).forEach((text, n) => {
                 if (!String(text ?? '').trim()) return;
                 const mes = c.substituteParams ? c.substituteParams(text) : text;

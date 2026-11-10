@@ -18,6 +18,13 @@ export const stKey = entry => `${entry.world}.${entry.uid}`;
 /** The state key of an entry: `<book>/<id>`. */
 export const entryKey = (book, id) => `${book}/${id}`;
 
+/**
+ * Greetings are retired for v1 (impressions list #33): the engine reads every greeting link as if it weren't written
+ * (a row loses it, a row left empty is dropped, gatedBy is skipped) and no chat counts as opened with one. Books
+ * keep their greeting data untouched, so turning this back on brings it all back.
+ */
+export const GREETINGS = false;
+
 /** The state key of a greeting: `@<char>:<n>`. */
 export const greetingKey = ref => `@${ref.char}:${ref.greeting}`;
 
@@ -282,6 +289,7 @@ export function buildModel(entries, options = {}) {
             return { wait: { n: ref.wait, by: ref.by ?? null } };
         }
         if (isGreetingRef(ref)) {
+            if (!GREETINGS) return { skip: true };
             if (!Number.isInteger(ref.greeting) || ref.greeting < 0 || typeof ref.char !== 'string' || !ref.char) return { error: 'a greeting link is malformed' };
             const info = greetingInfo(ref);
             return { item: { type: 'greeting', key: info.key } };
@@ -304,10 +312,12 @@ export function buildModel(entries, options = {}) {
             for (const ref of raw) {
                 const r = compileRef(node, ref);
                 if (r.error) { fail(r.error); return null; }
+                if (r.skip) continue;
                 if (r.item) row.items.push(r.item);
                 if (r.wait) row.waits.push(r.wait);
                 if (r.lock) row.locks.push({ ...r.lock, key: `${row.key}|${row.locks.length}` });
             }
+            if (!GREETINGS && !row.items.length && !row.waits.length && !row.locks.length) continue; // only greetings
             out.push(row);
         }
         return out;
@@ -338,7 +348,7 @@ export function buildModel(entries, options = {}) {
                 }
             }
         }
-        if (c.gatedBy !== undefined) {
+        if (c.gatedBy !== undefined && GREETINGS) {
             if (!Array.isArray(c.gatedBy) || c.gatedBy.some(r => !isGreetingRef(r))) fail('gatedBy must be a list of greetings');
             else for (const ref of c.gatedBy) {
                 const r = compileRef(node, ref);
@@ -434,7 +444,7 @@ export function buildModel(entries, options = {}) {
     }
 
     // Greeting rules aimed at a pack (`via: '#pack'`), found on any member, apply to every member.
-    for (const node of nodes.values()) {
+    for (const node of GREETINGS ? nodes.values() : []) {
         const c = node.config;
         const viaPack = ref => isGreetingRef(ref) && typeof ref.via === 'string' ? READING.exec(ref.via)?.[1] : null;
         for (const ref of Array.isArray(c.gatedBy) ? c.gatedBy : []) {

@@ -3,6 +3,7 @@
 // scan (WORLDINFO_ENTRIES_LOADED, scan loops with WORLDINFO_SCAN_DONE, forced activations), WORLD_INFO_ACTIVATED,
 // the reply, MESSAGE_RECEIVED.
 import { test } from 'node:test';
+import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import { createHooks } from '../src/st-hooks.js';
 import { getStringHash } from '../src/engine/util.js';
@@ -150,7 +151,7 @@ test('greetings: the chat\'s opening greeting opens its scenario', async () => {
     assert.deepEqual(st.hooks.model.issues, []);
 });
 
-test('greetings: a greeting edited to the same length is seen as changed', async () => {
+test('greetings: a greeting edited to the same length is seen as changed', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, async () => {
     const character = { avatar: 'Sera.png', first_mes: 'Main.', data: { alternate_greetings: ['AAAA'] } };
     const fp = String(getStringHash('AAAA'));
     const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Sera.png', name: 'Sera', fp }]] })], { character });
@@ -204,7 +205,7 @@ test('Keep as is carries the old state on; Start from here starts it again', asy
     await st.send('quiet');
     st.settings.enabled = true;
     await st.hooks.fixGap('fresh');
-    assert.deepEqual(Object.keys(st.state.fired), ['@Char.png:0'], 'only the opening greeting');
+    assert.deepEqual(Object.keys(st.state.fired), GREETINGS ? ['@Char.png:0'] : [], 'only the opening greeting, if greetings are on');
 });
 
 test('what reached the model is stored on each reply, also with the engine off; a continue adds to it', async () => {

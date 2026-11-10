@@ -10,8 +10,9 @@ import { strategyColor } from './entry-page.js';
 import { trackerEditor } from './tracker-ui.js';
 import {
     MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
-    moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting,
+    moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting, isGreetingRef,
 } from './pieces.js';
+import { GREETINGS } from '../engine/model.js';
 
 const KIND_ICON = { lock: 'lock', wait: 'clock', greeting: 'chat' };
 
@@ -446,15 +447,19 @@ function rowsEditor(box, x, get, set, update, isGate, self = false) {
         self: self && x.entry ? { uid: x.entry.uid, title: x.title } : null,
         done: make => update((cc, id, ed) => { set(cc, addToRow(get(cc) ?? [], i, make(ed))); }),
     });
+    // Greetings are retired for v1 (#33): their chips, and rows of only greetings, stay in the book but aren't shown.
+    const hidden = ref => !GREETINGS && isGreetingRef(ref);
+    let shown = 0;
     rows.forEach((row, i) => {
-        if (i) box.append(el('div', 'orsep', 'OR'));
+        if (row.length && row.every(hidden)) return;
+        if (shown++) box.append(el('div', 'orsep', 'OR'));
         const wrap = el('div', 'rowbox');
-        row.forEach((ref, j) => wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); }))));
+        row.forEach((ref, j) => hidden(ref) ? null : wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); }))));
         wrap.append(btn('addb', '+ add', () => pick(i, 'Add to this row (AND)')));
         box.append(wrap);
     });
     box.append(btn('addb', rows.length ? '+ Another row (OR)' : '+ add', () => pick(null, rows.length ? 'A new row (OR)' : 'Add')));
-    if (isGate && rows.length > 1) box.append(el('p', 'phelp', 'Opens as soon as any row is complete.'));
+    if (isGate && shown > 1) box.append(el('p', 'phelp', 'Opens as soon as any row is complete.'));
 }
 
 /**

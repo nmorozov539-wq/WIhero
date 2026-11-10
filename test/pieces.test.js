@@ -1,5 +1,6 @@
 // Editing story logic (src/ui/pieces.js): what the inspector writes lands in the book in BUILD_SPEC 2's shape.
 import { test } from 'node:test';
+import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import {
     addMask, addPiece, addToList, addToRow, applyMovesOn, bookEditor, greetingRules, hasPiece, maskName, missingPieces,
@@ -90,7 +91,7 @@ test('packs used in a book include the parents of nested ones', () => {
     assert.deepEqual(packsOf(d), ['town', 'town/inn']);
 });
 
-test('greeting rules are written on the entries they touch, a pack target with via, and read back', () => {
+test('greeting rules are written on the entries they touch, a pack target with via, and read back', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
     const d = book();
     const ed = bookEditor(d);
     ed.update(3, c => { c.packs = ['town']; });

@@ -11,7 +11,7 @@ import { trackerContext } from './tracker-ui.js';
 import { el } from './dom.js';
 import { getStringHash, isObject } from '../engine/util.js';
 import { greetingFingerprint, greetingsOf } from '../chat-state.js';
-import { isMoment } from '../engine/model.js';
+import { GREETINGS, isMoment } from '../engine/model.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
 import { strategyColor } from './entry-page.js';
 
@@ -45,6 +45,7 @@ export function createHeroInspector(A) {
     /** The open chat's character's greetings (BUILD_SPEC 15.4): none with no chat or in a group chat. */
     function chatGreetings(data) {
         const c = ctx();
+        if (!GREETINGS) return []; // retired for v1 (#33): no greeting cards, panel rows or picker options
         if (!library.chatOpen() || c.groupId || c.characterId === undefined) return [];
         const ch = c.characters?.[c.characterId];
         if (!ch?.avatar) return [];

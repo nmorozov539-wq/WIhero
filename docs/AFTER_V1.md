@@ -34,6 +34,12 @@ Big ideas we agreed are worth doing, but not in V1. Each has a short note on why
 
 Grew into its own spec, [TRACKERS.md](TRACKERS.md), built in 0.37.0. Any text slot (an entry's main or a mask) can be written by the model, read from the chat with a syntax the user designs, and kept in the chat's story state so it rewinds. The preset findings from 2026-11-09 are in its section 10.
 
+## Greetings, the strict version
+
+**The idea:** greeting rules that belong to one book and one character. A book links to a character; its greeting logic only runs in that character's chats, stands down when the link is removed, can be repointed to another character, and keeps a snapshot of each greeting per character.
+
+**Why it waits:** greetings are retired for V1 (impressions list #33). Opening a chat loaded that character's greetings into whatever book was open, so logic for one character's greeting could fire or break in another character's chat. The engine now reads greeting links as if they weren't written (`GREETINGS` in src/engine/model.js), and the editor hides greeting cards, panel rows, picker options and Preview starts. Books keep their greeting data, so turning the switch back on restores it. Greeting nicknames (a short name on the card, #13) wait with it.
+
 ## Brainstorm, 2026-11-09
 
 A no-commitment brainstorm. Nothing here is planned; each line is the idea plus any catch we spotted.

@@ -1,6 +1,6 @@
 // One chat turn: the state a scan uses, what may fire, settling the scan, and the snapshot after the reply.
 // Pure: data in, decisions out. The ST side (src/st-hooks.js) applies them. See BUILD_SPEC 6.
-import { FIELD } from './model.js';
+import { FIELD, GREETINGS } from './model.js';
 import { anyRowMet, itemTime, newestTexts, rowMet } from './rows.js';
 import { initialState, readState } from './state.js';
 import { getStringHash, parseRegex } from './util.js';
@@ -32,7 +32,7 @@ export function baseState(chat, model, { greeting = null, renamed = {} } = {}, e
         if (state) { index = i; break; }
     }
     state ??= initialState();
-    if (greeting && !(state.fired[greeting] > 0)) {
+    if (GREETINGS && greeting && !(state.fired[greeting] > 0)) {
         state.fired[greeting] = 1;
         state.firstAt[greeting] = 0;
         state.lastAt[greeting] = 0;
