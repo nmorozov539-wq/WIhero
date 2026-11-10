@@ -344,6 +344,11 @@ svg.lk path.head { stroke-width: 0; }
 .canvas-tools { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
 .canvas-tools button, .panelBtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
 .panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: left .22s ease; }
+/* The book's checks (#42): dead branches and keyword clashes, top right of the canvas, left of the phone's "?". */
+.checkchip { position: absolute; right: 58px; top: 14px; z-index: 6; display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px 0 9px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: var(--t-xs); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent) inset; }
+.checkchip svg { color: var(--warn); }
+.checkchip.dead svg { color: var(--bad); }
+[data-desk="1"] .checkchip { right: 10px; top: 10px; height: 28px; }
 .panelBtn.open { left: calc(100% - 54px); }
 .zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; }
 .cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
@@ -1047,7 +1052,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .explainq { position: static; width: 46px; height: auto; border: none; border-radius: 0; background: none; }
 .explaining .explainq { color: var(--accent); }
 .explaining .main { cursor: help; }
-.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .canvas-tools button, .pfold, .plist .phdr) { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .canvas-tools button, .pfold, .plist .phdr) { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
 .explaining .vp .world, .explaining .pchips { filter: saturate(.7) brightness(.92); }
 .explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; }
 .pstrip .pq { width: 32px; padding: 0; justify-content: center; color: var(--muted); }

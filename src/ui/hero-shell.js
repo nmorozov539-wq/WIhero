@@ -23,7 +23,7 @@ export function createHeroShell(A) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
-        stopExplain, strip, switchMode, tabbar, visibleNames, desk,
+        stopExplain, strip, switchMode, tabbar, visibleNames, desk, checkCounts, checksSheet,
     } = A;
 
     let heroCanvas = null;
@@ -262,6 +262,7 @@ export function createHeroShell(A) {
         vp.tabIndex = -1;
         main.append(vp);
         if (H.legend) vp.append(legendBox());
+        vp.append(...checksChip(book, data));
         const mount = { book, data, vp, sig: null, cache: null };
         heroCanvas = mountCanvas(vp, {
             book: () => (mount.cache ??= heroData(book, data)),
@@ -288,6 +289,22 @@ export function createHeroShell(A) {
         mount.sig = canvasSig(book); // after the draw, which can place cards
         heroAround(book, data);
     }
+    /**
+     * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
+     * (the ⌄ menu keeps its rows too). Nothing when the book is clean.
+     */
+    function checksChip(book, data) {
+        const { dead, clashes } = checkCounts(book, data);
+        if (!dead && !clashes) return [];
+        const parts = [dead ? `${dead} dead` : '', clashes ? `${clashes} clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean);
+        const label = [dead ? `${dead} dead branch${dead === 1 ? '' : 'es'}` : '', clashes ? `${clashes} keyword clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ');
+        const b = btn(`checkchip${dead ? ' dead' : ''}`, html`${ic('alert', 's')}<span></span>`, () => checksSheet(book), label);
+        b.querySelector('span').textContent = parts.join(' · ');
+        b.title = label;
+        b.addEventListener('pointerdown', e => e.stopPropagation()); // not a canvas pan
+        return [b];
+    }
+
     /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
     function heroAround(book, data) {
         if (S.desk) deskColumns();

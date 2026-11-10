@@ -144,6 +144,26 @@ export function createMenus(A) {
 
     const deadOf = (book, data) => deadBranches(modelOf(book, data), entriesOf(data).map(e => ({ ...e, world: book })));
 
+    /**
+     * The book's checks for the chip on the Hero canvas: dead branches and keyword clashes.
+     */
+    function checkCounts(book, data) {
+        return {
+            dead: deadOf(book, data).length,
+            clashes: keywordClashes(data, hiddenIn(book)).groups.length,
+        };
+    }
+
+    /** The chip's tap: the one sheet when only one kind is found, else both rows to pick from. */
+    function checksSheet(book) {
+        const data = library.peek(book);
+        if (!data) return;
+        const { dead, clashes } = checkCounts(book, data);
+        if (dead && !clashes) { deadSheet(book); return; }
+        if (clashes && !dead) { clashesSheet(book); return; }
+        layer.sheet('Checks', sh => checkRows(sh, book, data));
+    }
+
     /** What the book alone says can never happen: entries that can never fire, gate rows and masks that can never open. */
     function deadSheet(book) {
         const data = library.peek(book);
@@ -484,5 +504,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, checkRows, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, checkCounts, checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }

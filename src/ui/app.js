@@ -597,7 +597,7 @@ export function createApp(deps) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
-        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN,
+        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, checkCounts, checksSheet,
     }));
     function chatStatus(...a) { return heroShell().chatStatus(...a); }
     function heroBack(...a) { return heroShell().heroBack(...a); }
@@ -832,6 +832,8 @@ export function createApp(deps) {
         H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     }));
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
+    function checkCounts(...a) { return menus().checkCounts(...a); }
+    function checksSheet(...a) { return menus().checksSheet(...a); }
     function bookMenu(...a) { return menus().bookMenu(...a); }
     function duplicateBook(...a) { return menus().duplicateBook(...a); }
     function entryMenu(...a) { return menus().entryMenu(...a); }
