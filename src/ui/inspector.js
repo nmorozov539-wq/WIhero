@@ -300,7 +300,7 @@ function momentHead(body, x) {
         box.append(ch);
     }
     const input = el('input', 'kin');
-    input.placeholder = phrases.length ? 'Another phrase…' : 'A phrase, like "missing tooth"';
+    input.placeholder = phrases.length ? 'Another phrase…' : 'A phrase someone might say';
     input.setAttribute('aria-label', 'Add a phrase');
     const add = () => { const v = input.value.trim(); input.value = ''; if (v && !phrases.includes(v)) setPhrases([...phrases, v]); };
     input.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); add(); } });

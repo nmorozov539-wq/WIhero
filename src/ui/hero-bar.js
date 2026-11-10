@@ -185,7 +185,7 @@ export function createHeroBar(A) {
         const data = library.peek(book);
         const target = on ? data?.entries[on.uid] : null;
         layer.askText({
-            title: 'New Moment', placeholder: 'What happens: Missing tooth', ok: 'Make',
+            title: 'New Moment', placeholder: 'What happens, in a few words', ok: 'Make',
             help: 'Something that can happen in the story, said in the chat. You add the phrases next.',
             done: name => {
                 const made = library.change(book, d => addMoment(d, entryTemplate, name.trim() || 'Moment'));
