@@ -253,6 +253,8 @@ await run(async () => {
     await $('.canvas-tools button[aria-label="Fit to screen"]').click();
     await wait(300);
     await shot('fit');
+    await $('.panelBtn').click(); // the panel covers the canvas on a phone
+    await wait(300);
     await $('.card[data-id="id:tower"] .t').click();
     ok('greetings are retired: no greeting rows or cards');
 
