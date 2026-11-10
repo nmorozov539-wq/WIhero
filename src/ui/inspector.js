@@ -408,26 +408,39 @@ function editorOf(key, x, update) {
         }
     } else if (key === 'masks') {
         const masks = Array.isArray(c.masks) ? c.masks : [];
+        // One card per mask (#27): its name, the eye and ⋯, the first line of its text, then its rules. Off when
+        // shows once it is set; until then it is a quiet "+ Off when…".
         masks.forEach((m, i) => {
-            const ml = el('div', 'mlayer');
+            const ml = el('div', 'mlayer mcard');
             const mh = el('div', 'mlh');
-            mh.append(el('span', '', `${i + 1} · ${m.name}`));
+            mh.append(el('span', '', m.name));
+            const rename = () => layer.askText({
+                title: 'Rename mask', value: m.name,
+                done: v => { const to = maskName(v, masks, m.name); update(cc => { cc.masks[i].name = to; }); x.renamedMask(m.name, to); },
+            });
             mh.append(
                 btn('', ic('eye'), () => x.showMask(m.name), `Show ${m.name} on the canvas`),
-                btn('', ic('edit'), () => layer.askText({
-                    title: 'Rename mask', value: m.name,
-                    done: v => { const to = maskName(v, masks, m.name); update(cc => { cc.masks[i].name = to; }); x.renamedMask(m.name, to); },
-                }), `Rename ${m.name}`),
+                btn('', ic('more'), () => layer.sheet(`Mask ${m.name}`, sh => {
+                    sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit' }));
+                    sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry' }));
+                    if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins' }));
+                    sh.append(layer.opt('Delete', () => { layer.close(); update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, { icon: 'trash', danger: true }));
+                }), `${m.name} actions`),
             );
-            if (i > 0) mh.append(btn('up', ic('down'), () => update(cc => moveMaskUp(cc, i)), `Move ${m.name} up (lower priority)`));
-            mh.append(btn('', ic('trash'), () => { update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, `Remove ${m.name}`));
             ml.append(mh);
-            ml.append(btn('linkish', html`${ic('edit', 's')} Edit text`, () => x.openEntry(m.name)));
+            const first = String(m.content ?? '').trim().split('\n')[0];
+            const tx = btn('mtext', '', () => x.openEntry(m.name), `Edit the text of ${m.name}`);
+            tx.textContent = first || 'No text yet. Tap to write it.';
+            if (!first) tx.classList.add('empty');
+            ml.append(tx);
             ml.append(el('div', 'sub', 'On when'));
             rowsEditor(ml, x, cc => cc.masks[i].gate ?? [], (cc, r) => { cc.masks[i].gate = r; }, update, false);
-            if (!m.gate?.length) ml.append(el('p', 'phelp', 'No gate: used only when picked by hand.'));
-            ml.append(el('div', 'sub', 'Off when (close gate)'));
-            rowsEditor(ml, x, cc => cc.masks[i].closeGate ?? [], (cc, r) => { cc.masks[i].closeGate = r; }, update, false);
+            if (!m.gate?.length) ml.append(el('p', 'phelp', 'No rule: used only when picked by hand.'));
+            const offKey = `${x.entry?.uid}:${m.name}`;
+            if (m.closeGate?.length || OFF_OPEN.has(offKey)) {
+                ml.append(el('div', 'sub', 'Off when'));
+                rowsEditor(ml, x, cc => cc.masks[i].closeGate ?? [], (cc, r) => { cc.masks[i].closeGate = r; }, update, false);
+            } else ml.append(btn('linkish moff', '+ Off when…', () => { OFF_OPEN.add(offKey); x.setOpen('masks'); }));
             box.append(ml);
         });
         box.append(btn('addb', '+ Mask', () => layer.askText({
@@ -468,6 +481,9 @@ function editorOf(key, x, update) {
     }
     return box;
 }
+
+/** Masks whose "+ Off when…" was opened, so their Off when editor shows while still empty. */
+const OFF_OPEN = new Set();
 
 /** Entry settings drawn as controls, not pieces (#14, #31). */
 const SETTINGS = ['by', 'once'];

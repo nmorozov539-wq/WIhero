@@ -1011,6 +1011,10 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .pshp svg { width: 20px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .pshapes .phint { margin-left: 6px; }
 .pbtn.sm.ghost { border-style: dashed; color: var(--muted); }
+.mcard .mlh span { flex: 1; }
+.mtext { display: block; width: 100%; text-align: left; font-family: var(--content-font, var(--serif)); color: var(--muted); font-size: var(--t-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0 4px; }
+.mtext.empty { font-style: italic; }
+.moff { margin-top: 2px; }
 .lblq { display: flex; align-items: center; justify-content: space-between; }
 .lblq .pq { margin: -8px -6px -8px 0; }
 .ihappened { margin: 12px 16px 0; color: var(--muted); font-size: var(--t-s); }

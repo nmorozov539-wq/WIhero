@@ -166,7 +166,7 @@ await run(async () => {
     assert.equal(door2.masks[0].name, 'ruined');
     assert.deepEqual(door2.masks[0].gate, [['storm']]);
     assert.equal(door2.masks[0].content, 'The door.', 'a new mask starts as a copy of the main text');
-    await $('.insp .mlayer .linkish:has-text("Edit text")').click();
+    await $('.insp .mlayer .mtext').click(); // the first line of the mask's text opens it (#27)
     await $('.en h1:text-is("Door")').waitFor();
     assert.equal(await $('.mchip.on').textContent(), 'ruined');
     await $('.en textarea').fill('The door hangs off its hinges.');
