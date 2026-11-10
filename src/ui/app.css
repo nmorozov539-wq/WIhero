@@ -170,6 +170,8 @@ svg.i.s { width: 16px; height: 16px; }
 .bookline:hover { color: var(--fg); }
 .prob { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0 2px; padding: 8px 10px; border-radius: 10px; color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); font-size: var(--t-s); line-height: 1.4; }
 .prob svg { stroke-width: 3; margin-top: 1px; }
+.prob.warn { color: var(--fg); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.prob.warn svg { color: var(--warn); }
 .srow { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 36px; }
 .thin { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: var(--t-s); color: var(--muted); white-space: nowrap; }
 .thin b { color: var(--fg); font-weight: 600; }
@@ -287,6 +289,8 @@ svg.lk path.head { stroke-width: 0; }
 /* Desktop: a title takes two lines, so "Road: leaving the village" reads whole at 100%. */
 [data-desk="1"] .card:not(.greet) .t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
 [data-desk="1"] .card:not(.greet) { padding-top: 7px; }
+/* A Moment has a tag line and its phrases too: one line of title, so it never runs into the phrases. */
+[data-desk="1"] .card.moment .t { -webkit-line-clamp: 1; }
 .card .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; display: flex; gap: 5px; align-items: center; }
 .card .k > span { overflow: hidden; text-overflow: ellipsis; }
 .card .k svg { width: 12px; height: 12px; flex-shrink: 0; }
@@ -387,6 +391,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .ihead h2 { margin: 0; flex: 1; min-width: 0; font-size: var(--t-l); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ihead .sd { width: 10px; height: 10px; border-radius: 5px; flex-shrink: 0; }
 .ihead .gicon, .card.greet .gicon { display: flex; align-items: center; justify-content: center; }
+.ipre .iprelab { font-weight: 600; color: var(--p-track); }
 .ipre { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 2px 16px 6px; text-align: left;
   font-family: var(--content-font, var(--serif)); font-size: var(--t-s); line-height: 1.5; color: var(--muted); width: calc(100% - 32px); }
 .ipre.empty { font-family: var(--sans); font-style: italic; }
@@ -457,7 +462,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .card.moment { padding: 6px 10px 0 40px; border-radius: 10px 30px 30px 10px; background: var(--card); border-style: dashed; }
 .card.moment .grip.gicon { left: 8px; width: 26px; height: 26px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); display: flex; color: var(--accent); }
 .card.moment .grip.gicon svg { width: 15px; height: 15px; }
-.card.moment .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.card.moment .tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
 .card.moment .t { line-height: 1.2; }
 .card.moment .k.gk { font-family: var(--content-font, var(--serif)); font-style: italic; display: block; margin-top: 0; }
 .card.moment.happened { border-style: solid; border-color: var(--accent); }
@@ -955,7 +960,8 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pbar:has(.pstrip) .pfold { display: none; }
 [data-desk="1"] .pbar.folded { min-height: 34px; }
 @container (max-width: 1080px) { .pchips .dhint { display: none; } }
-@container (max-width: 860px) { .pchip kbd { display: none; } }
+/* Ten chips with their key letters need about 1000px (the Moment chip was cut at 1440 with the inspector open). */
+@container (max-width: 1010px) { .pchip kbd { display: none; } }
 
 /* The Off hint on a book's page: how to use a book no chat reaches. */
 .offhint { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 4px 16px 8px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line); font-size: var(--t-s); color: var(--muted); }

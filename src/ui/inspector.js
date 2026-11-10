@@ -197,6 +197,11 @@ export function renderInspector(box, x) {
         const pre = el('button', 'ipre');
         pre.type = 'button';
         pre.textContent = (e.content ?? '').trim() || (x.desk ? 'No text yet. Click to write it.' : 'No text yet. Tap to write it.');
+        // A tracker's main text is only its start value: say so, or a lone "2" reads as the value now.
+        if (c.written && (e.content ?? '').trim()) {
+            pre.prepend(el('b', 'iprelab', 'Start value, until the model writes one: '));
+            pre.title = 'The value in this chat is under Tracker.';
+        }
         if (!(e.content ?? '').trim()) pre.classList.add('empty');
         pre.addEventListener('click', () => (x.desk ? x.setTab('text') : x.openEntry()));
         body.append(pre);
@@ -213,6 +218,12 @@ export function renderInspector(box, x) {
         pr.innerHTML = ic('alert', 's');
         pr.append(el('span', '', x.problems.join('. ')));
         body.append(pr);
+    }
+    if (x.warnings?.length) {
+        const pw = el('div', 'prob iprob warn');
+        pw.innerHTML = ic('alert', 's');
+        pw.append(el('span', '', x.warnings.join('. ')));
+        body.append(pw);
     }
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';

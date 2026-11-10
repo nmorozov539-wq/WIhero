@@ -125,9 +125,13 @@ export function compileSyntax(syntax, slots) {
         const cl = close.indexOf('{label}');
         const end = cl >= 0 ? `${literal(close.slice(0, cl))}\\s*\\1\\s*${literal(close.slice(cl + 7))}` : literal(close);
         patterns.push({ re: new RegExp(`${head}([\\s\\S]*?)${end}`, 'gi'), shape: 'block', only: l < 0 ? blocks[0] : null });
+        // A block opened and never closed (a reply cut off at its length limit): never read, but taken out of the
+        // prompt and, when hidden, out of the chat, from its opening mark to the end. Applied after the closed ones.
+        patterns.push({ re: new RegExp(`${head}[\\s\\S]*$`, 'i'), shape: 'block', only: l < 0 ? blocks[0] : null, unclosed: true });
     }
     const each = (text, fn) => {
         for (const p of patterns) {
+            if (p.unclosed) continue;
             p.re.lastIndex = 0;
             for (const m of String(text ?? '').matchAll(p.re)) {
                 const slot = p.only ?? byLabel.get(normLabel(m[1]));

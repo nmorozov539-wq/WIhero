@@ -135,6 +135,16 @@ export function createApp(deps) {
         return model;
     };
     const problemsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && !i.warning && i.blocking !== false);
+    /**
+     * Whether an entry has story logic, its own or put on it by other entries (a switch's paths, Closes for,
+     * Gates for): the list's teal dot.
+     */
+    const hasLogic = (e, node) => {
+        const c = configOf(e);
+        return (!!c && Object.keys(c).some(k => k !== 'id')) || !!(node && (node.closes.length || node.opens.all.length));
+    };
+    /** An entry's warnings and non-blocking notes, for the entry page and the inspector (problemsOf has the rest). */
+    const warningsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && (i.warning || i.blocking === false));
     const linkText = name => { const l = library.links(name); return l.length ? `${l[0].name}${l.length > 1 ? ` +${l.length - 1}` : ''}` : ''; };
     const entryFolder = (book, e) => folderOf(settings, book, e);
 
@@ -439,7 +449,7 @@ export function createApp(deps) {
     const normal = () => (normalView ??= createNormal({
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, offHint, openIn, page, problemsOf, warningsOf, hasLogic,
         render: () => render(), renderTabs, saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         switchMode, tab, up, visibleNames, wiSettingsSheet,
     }));
@@ -688,7 +698,7 @@ export function createApp(deps) {
     let heroInspView = null;
     const heroInsp = () => (heroInspView ??= createHeroInspector({
         H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
-        layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf,
+        layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, hasLogic,
         render: () => render(), saveSettings, settings, canvas: () => heroCanvas(), isRenderQueued: () => renderQueued,
     }));
     function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
@@ -822,10 +832,10 @@ export function createApp(deps) {
         S, settings, library, layer, main, root, shadow,
         saveSettings: () => saveSettings(),
         tab, page, leave, render, renderTabs, closeTab, hide, need, loadingNote, modelOf, entriesShown, hiddenIn, entryFolder,
-        problemsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, importBook, offHint, wiSettingsSheet,
+        problemsOf, warningsOf, linkText, countInto, sortBy, visibleNames, deleteBooks, deleteEntries, newBook, importBook, offHint, wiSettingsSheet,
         bookFolderSheet, folderSheet, snapshotsSheet, problemsSheet, renameBook, duplicateBook, newEntryFolder, openHero,
         createEntryIn, entryMenu, moveToBookSheet, applyParam, leaveEntry,
-        hasLogic: e => { const c = configOf(e); return !!c && Object.keys(c).some(k => k !== 'id'); },
+        hasLogic,
         nextTabId: () => ++tabUid,
         typing: () => typing(),
         renderEntryInto: (into, p, extra) => renderEntry(p, null, into, extra),

@@ -79,7 +79,9 @@ function slotFields(row, s, x, update) {
     row.append(show);
     const lab = el('div', 'trkshow');
     lab.append(el('span', '', 'Send with its label'), swEl(w.labelled !== false, v => patch(o => { if (v) delete o.labelled; else o.labelled = false; }), `${s.name}: send with its label`));
-    row.append(lab, el('p', 'phelp', w.labelled !== false ? 'The model reads it as it writes it, like [Gold: 12].' : 'The model reads the bare value, like 12.'));
+    // The example uses this tracker's own label and the book's syntax (playtest: it always said [Gold: 12]).
+    const example = sample(t.shared?.syntax ?? DEFAULT_SYNTAX, { label: w.label || t.labelOf?.(s.mask) || 'Label', shape: w.shape ?? 'line' }, '12').replace(/\n/g, ' ');
+    row.append(lab, el('p', 'phelp', w.labelled !== false ? `The model reads it as it writes it, like ${example}.` : 'The model reads the bare value, like 12.'));
     valueLine(row, x, s.mask);
 }
 

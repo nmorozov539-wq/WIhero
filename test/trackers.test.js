@@ -21,6 +21,16 @@ test('reader: line and block, last match wins, labels ignore case and spaces, em
     assert.equal(r.stripOnly('Hi. [Gold: 7] [Anna · Inventory: x]', new Set(['g'])), 'Hi.  [Anna · Inventory: x]');
 });
 
+test('reader: a block cut off before its closing mark is not read, but stripped (playtest 2026-11-10)', () => {
+    const r = compileSyntax(DEFAULT_SYNTAX, slots(['g', 'Gold'], ['c', 'Clues', 'block']));
+    const cut = 'She looks up.\n[Gold: 3]\n<Clues>\n- the key\n- the log';
+    assert.equal(r.read(cut).has('c'), false);
+    assert.equal(r.read(cut).get('g'), '3');
+    assert.equal(r.strip(cut), 'She looks up.');
+    assert.equal(r.stripOnly(cut, new Set(['c'])), 'She looks up.\n[Gold: 3]');
+    assert.equal(r.strip('A.\n<Clues>x</Clues>\nB.'), 'A.\n\nB.', 'a closed block still goes on its own');
+});
+
 test('reader: other syntaxes, and a line with no closing mark', () => {
     const html = compileSyntax({ line: '<!-- {label}={value} -->', open: '<x>', close: '</x>' }, slots(['g', 'Gold']));
     assert.equal(html.read('<!-- Gold=12 gold and a ruby -->').get('g'), '12 gold and a ruby');
@@ -165,6 +175,14 @@ test('manual set, edit of the latest reply, the instruction, prompt stripping, s
     const s = new Sim([e(0, 'gold', { id: 'gold', glue: { mode: 'hold' }, written: { show: false, describe: 'coins the player carries', teach: { on: true, depth: 2 } } }, { comment: 'Gold' })]);
     s.send('gold', 'Found coins. [Gold: 7]');
     assert.deepEqual(wroteLines(s.chat, k => s.model.slots.get(k)), ['Gold → 7']);
+    {
+        // A value set by hand on the reply isn't one the reply wrote (playtest 2026-11-10).
+        const last = s.chat.at(-1);
+        const kept = last.extra.wihero;
+        last.extra.wihero = setSlot(kept, K('gold'), '5', s.chat.length - 1);
+        assert.deepEqual(wroteLines(s.chat, k => s.model.slots.get(k)), []);
+        last.extra.wihero = kept;
+    }
     assert.equal(shownText(s.chat.at(-1).mes, s.model), 'Found coins.');
     assert.equal(shownText('Spaced\n\n\n\nout.', s.model), null, 'no hidden line: left to ST, blank lines and all');
     assert.equal(shownText('One.\n[Gold: 7]\n\n\nTwo.', s.model), 'One.\n\n\nTwo.', 'only the tracker\'s line goes');
