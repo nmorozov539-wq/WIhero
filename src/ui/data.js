@@ -257,6 +257,23 @@ export function ensureSettings(s) {
 
 export const bookSettings = (s, book) => (s.books[book] ??= { defaults: {}, folders: {} });
 
+/**
+ * Takes a book's entries and its WI Hero settings (canvas places, link shapes) as they are now. The function it
+ * returns puts them back: the Undo on a toast after a removal.
+ */
+export function undoPoint(library, settings, saveSettings, book) {
+    const d = library.peek(book);
+    if (!d) return null;
+    const entries = structuredClone(d.entries);
+    const original = d.originalData === undefined ? undefined : structuredClone(d.originalData);
+    const kept = structuredClone(bookSettings(settings, book));
+    return () => {
+        library.change(book, x => { x.entries = structuredClone(entries); if (original !== undefined) x.originalData = structuredClone(original); }, { quiet: true });
+        settings.books[book] = structuredClone(kept);
+        saveSettings();
+    };
+}
+
 export const folderOf = (s, book, e) => s.books?.[book]?.folders?.[cardKey(e)] ?? '';
 
 export function setFolder(s, book, e, folder) {

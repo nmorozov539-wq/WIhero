@@ -73,7 +73,8 @@ export function createHeroDesk(A) {
             },
             packed: uids => uids.some(u => (configOf(data.entries[u])?.packs ?? []).length),
             unpack: uids => {
-                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { delete c.packs; }); })) layer.toast(`${many(uids.length)} taken out of their packs`);
+                const back = barApi(book).undoPoint();
+                if (barAct(book, ed => { for (const u of uids) ed.update(u, c => { delete c.packs; }); })) layer.toast(`${many(uids.length)} taken out of their packs`, back ? { action: ['Undo', () => { back(); layer.toast('Packs put back'); }] } : {});
             },
         };
     }

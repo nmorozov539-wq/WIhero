@@ -13,6 +13,15 @@ const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
 
 /** The strategy dot; vectorized is a chain icon, so shape carries it too (VISUAL 6.1). */
+/** Remove condition: the second key words and the logic go, with Undo. */
+function removeCondition(o, e, ui) {
+    const keys = [...(e.keysecondary ?? [])];
+    const logic = e.selectiveLogic;
+    ui.condition = false;
+    o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; });
+    o.layer.toast('Condition removed', { action: ['Undo', () => { ui.condition = true; o.change(x => { x.keysecondary = keys; x.selectiveLogic = logic; }); }] });
+}
+
 export function sdot(e) {
     const s = strategyOf(e);
     const d = el('i', `sdot ${s}`);
@@ -236,7 +245,7 @@ export function renderEntryPage(main, o) {
             lt.append(el('b', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
             lt.addEventListener('click', () => layer.sheet('Condition', sh => {
                 for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); ui.condition = false; o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; }); }, { icon: 'trash' }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash' }));
             }));
             cl.append(lt);
             en.append(cl, keyBox(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
@@ -463,7 +472,7 @@ function deskFields(en, o, main) {
             lt.append(el('span', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
             lt.addEventListener('click', () => layer.sheet(null, sh => {
                 for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); ui.condition = false; o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; }); }, { icon: 'trash' }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash' }));
             }, { at: lt }));
             g.append(lt, keyChips(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
         } else {

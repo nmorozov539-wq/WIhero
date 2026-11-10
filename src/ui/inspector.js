@@ -61,7 +61,17 @@ function frame(box, x, cls) {
     return body;
 }
 
-/** A chip for a ref: icon for locks, waits and greetings, × to remove. */
+/**
+ * Runs a removal and says so, with Undo when the inspector can put the book back (`x.undoPoint`, taken just before
+ * the change).
+ */
+function removeWithUndo(x, msg, fn) {
+    const back = x.undoPoint?.();
+    fn();
+    x.layer.toast(msg, back ? { action: ['Undo', () => { back(); x.layer.toast('Put back'); }] } : {});
+}
+
+/** A chip for a ref: icon for locks, waits and greetings, × to remove (with Undo). */
 function chip(ref, x, onRemove, target = false) {
     const label = refLabel(ref, x.nameOfId);
     const { kind } = label;
@@ -72,7 +82,7 @@ function chip(ref, x, onRemove, target = false) {
     if (KIND_ICON[kind]) t.innerHTML = ic(KIND_ICON[kind]);
     t.append(text);
     c.append(t);
-    if (onRemove) c.append(btn('', ic('x'), onRemove, `Remove ${text}`));
+    if (onRemove) c.append(btn('', ic('x'), () => removeWithUndo(x, `${text} removed`, onRemove), `Remove ${text}`));
     return c;
 }
 
@@ -267,7 +277,7 @@ export function renderInspector(box, x) {
         tap.append(lab, el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
         ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
-        if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); layer.toast(`${p.label} removed`); }, `Remove ${p.label}`));
+        if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => removeWithUndo(x, `${p.label} removed`, () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); }), `Remove ${p.label}`));
         pc.append(ph);
         if (open) pc.append(editorOf(p.key, x, update));
         body.append(pc);
@@ -424,7 +434,7 @@ function editorOf(key, x, update) {
                     sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit' }));
                     sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry' }));
                     if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins' }));
-                    sh.append(layer.opt('Delete', () => { layer.close(); update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, { icon: 'trash', danger: true }));
+                    sh.append(layer.opt('Delete', () => { layer.close(); removeWithUndo(x, `Mask ${m.name} removed`, () => update(cc => { cc.masks.splice(i, 1); })); }, { icon: 'trash', danger: true }));
                 }), `${m.name} actions`),
             );
             ml.append(mh);
@@ -456,7 +466,7 @@ function editorOf(key, x, update) {
             const t = el('span');
             t.innerHTML = ic('tag');
             t.append(`#${p}`);
-            ch.append(t, btn('', ic('x'), () => update(cc => { cc.packs.splice(i, 1); }), `Remove #${p}`));
+            ch.append(t, btn('', ic('x'), () => removeWithUndo(x, `#${p} removed`, () => update(cc => { cc.packs.splice(i, 1); })), `Remove #${p}`));
             wrap.append(ch);
         });
         const addPack = name => update(cc => { cc.packs = addToList(Array.isArray(cc.packs) ? cc.packs : [], name); });
