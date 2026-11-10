@@ -478,6 +478,14 @@ export function mountPieceBar(x) {
         // Says what the switch is as a gate, with the real names (#19).
         const waitText = e.paths.length ? `${andList(e.paths.map(name))} can't fire before ${name(e.fork)} does` : `Paths can't fire before ${name(e.fork)} does`;
         mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, waitText), el('span', 'plabel2', waitText)));
+        // A path that already waits for something else: the fork and that (both), or either one (#20).
+        const E2 = ed();
+        const forkId = E2.config(e.fork.uid).id;
+        const busy = e.wait ? e.paths.filter(p => L.rowsOf(E2.config(p.uid), 'gate').some(rw => rw.some(y => !L.isCond(y) && y !== forkId))) : [];
+        if (busy.length) {
+            e.join ??= L.rowOf(E2, L.findLink(E2, data(), 'open', e.fork, busy[0])).lone ? 'or' : 'and';
+            mid.append(row(el('span', 'phint', `${andList(busy.map(name))} already ${busy.length > 1 ? 'wait' : 'waits'} for something:`), seg([['and', `that and ${name(e.fork)} (both)`], ['or', 'either one']], e.join, v => { e.join = v; writeSwitch(); x.render(); }, 'Both or either')));
+        }
         if (!e.wait) mid.append(el('div', 'pnote', `A path can be taken before ${name(e.fork)} fires.`));
         mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
         if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; rewriting the message before it rolls again.`));
@@ -489,7 +497,7 @@ export function mountPieceBar(x) {
     function writeSwitch(removed = []) {
         const ok = run((ed2, d2) => {
             if (e.wait) for (const r of removed) L.removeLink(ed2, d2, 'open', e.fork, r);
-            if (e.paths.length >= 2) { L.setSwitch(ed2, d2, e.fork, e.paths, e.wait); ed2.update(e.fork.uid, c => { if (e.dice) c.dice = true; else delete c.dice; }); }
+            if (e.paths.length >= 2) { L.setSwitch(ed2, d2, e.fork, e.paths, e.wait, e.join ?? 'and'); ed2.update(e.fork.uid, c => { if (e.dice) c.dice = true; else delete c.dice; }); }
             else {
                 ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; });
                 for (const p of e.paths) {
@@ -532,6 +540,19 @@ export function mountPieceBar(x) {
             if (after.length) n.append(' after ', el('b', '', after.join(' and ')), ', then');
             n.append(isLock ? ' when someone says:' : ' after:');
             mid.append(n);
+        }
+        // Both or either one (#20): with what the gate already waits for, or as a row of its own.
+        if (p.join != null) {
+            const jr = L.rowsOf(E.config(p.uid), p.field, p.mask)[p.join] ?? [];
+            const list = jr.filter(y => !L.isCond(y)).map(refText).join(' and ');
+            mid.append(seg([['and', `with ${list} (both)`], ['or', 'on its own (either one)']], p.row == null ? 'or' : 'and', v => {
+                const row = v === 'and' ? p.join : null;
+                if ((p.row ?? null) === row) return;
+                if (e.at) { run(ed2 => L.removeCond(ed2, e.at)); e.at = null; }
+                p.row = row;
+                writeCond();
+                x.render();
+            }, 'Both or either'));
         }
         if (isLock) {
             // Who first, then what they say (#15): "anyone / you / the character says: …".
@@ -859,7 +880,7 @@ function condOnCard(k, end, base, x) {
         targets.push({
             label: what, family: mask !== null ? 'mask' : field === 'gate' ? 'open' : 'close',
             sub: links ? `${field === 'gate' && mask === null ? 'Opens' : field === 'gate' ? 'On' : mask === null ? 'Closes' : 'Off'} when ${links} ${row.filter(y => !L.isCond(y)).length > 1 ? 'have' : 'has'} fired` : row.map(y => refLabel(y, x.nameOfId).text).join(', '),
-            place: { uid: end.uid, field, mask, row: i },
+            place: { uid: end.uid, field, mask, row: i, ...(row.some(y => !L.isCond(y)) ? { join: i } : {}) },
         });
     });
     add('gate', null);

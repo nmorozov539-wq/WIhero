@@ -115,6 +115,30 @@ export function addToList(list, value) {
     return list;
 }
 
+/**
+ * "and" to "or" (#20): splits row `i` before item `j` into two rows, either one. Locks and waits stay with the
+ * part they are in.
+ */
+export function splitRow(rows, i, j) {
+    const r = rows[i];
+    if (!Array.isArray(r) || j <= 0 || j >= r.length) return rows;
+    rows.splice(i, 1, r.slice(0, j), r.slice(j));
+    return rows;
+}
+
+/** "or" to "and" (#20): merges row `i` into row `a` (both); links first, then waits, then locks. */
+export function mergeRows(rows, a, i) {
+    if (!Array.isArray(rows[a]) || !Array.isArray(rows[i]) || a === i) return rows;
+    const all = [...rows[a], ...rows[i]];
+    const isLock = x => isObject(x) && Array.isArray(x.lock);
+    const isWait = x => isObject(x) && 'wait' in x;
+    const merged = [...all.filter(x => !isLock(x) && !isWait(x)), ...all.filter(isWait), ...all.filter(isLock)];
+    const [lo, hi] = a < i ? [a, i] : [i, a];
+    rows.splice(hi, 1);
+    rows[lo] = merged.filter((x, k) => merged.findIndex(y => same(y, x)) === k);
+    return rows;
+}
+
 /** Entry ids a set of rows reads (not packs, locks, waits or greetings). */
 export const entryIdsIn = rows => [...new Set((Array.isArray(rows) ? rows : []).flat().filter(isEntryRef))];
 

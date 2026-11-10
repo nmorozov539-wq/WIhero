@@ -286,14 +286,18 @@ export function condRowFor(ed, data, kind, src, dst, mask = null) {
 
 // ---- switch
 
-/** Writes a switch's paths in order, and (when `wait`) makes every path wait for the fork. */
-export function setSwitch(ed, data, fork, paths, wait) {
+/**
+ * Writes a switch's paths in order, and (when `wait`) makes every path wait for the fork: together with what the
+ * path already waits for (`join` 'and', both) or as a row of its own ('or', either one) (#20).
+ */
+export function setSwitch(ed, data, fork, paths, wait, join = 'and') {
     const pathIds = paths.map(p => ed.idOf(p.uid));
     const forkId = ed.idOf(fork.uid);
     ed.update(fork.uid, c => { c.switch = pathIds; });
     for (const p of paths) {
         const has = !!findLink(ed, data, 'open', fork, p);
-        if (wait && !has) addLink(ed, data, 'open', fork, p, { join: 'and' });
+        if (wait && !has) addLink(ed, data, 'open', fork, p, { join });
+        else if (wait && has) setJoin(ed, data, 'open', fork, p, join);
         if (!wait && has) removeLink(ed, data, 'open', fork, p);
     }
     return { forkId };

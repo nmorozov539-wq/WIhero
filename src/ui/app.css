@@ -425,6 +425,9 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .phelp { color: var(--muted); font-size: var(--t-xs); line-height: 1.45; margin: 2px 0; }
 .rowbox { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .orsep { text-align: center; color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .08em; }
+.orsep.jw, .jand { display: block; margin: 2px auto; padding: 1px 10px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.jand { display: inline-block; margin: 0 2px; padding: 1px 7px; align-self: center; }
+.orsep.jw:hover, .jand:hover { color: var(--fg); border-color: var(--c, var(--accent)); }
 .chip { display: inline-flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 2px 0 10px; border-radius: 15px; background: var(--raised); font-size: var(--t-s); max-width: 100%; }
 .chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .chip > span svg { width: 13px; height: 13px; }

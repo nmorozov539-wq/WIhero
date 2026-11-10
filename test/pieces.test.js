@@ -4,7 +4,7 @@ import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import {
     addMask, addPiece, addToList, addToRow, applyMovesOn, bookEditor, greetingRules, hasPiece, maskName, missingPieces,
-    moveMaskUp, movesOn, packsOf, reading, refLabel, removeFromRow, renamePack, repickGreeting, setGreetingRule, tidyConfig,
+    mergeRows, moveMaskUp, movesOn, packsOf, splitRow, reading, refLabel, removeFromRow, renamePack, repickGreeting, setGreetingRule, tidyConfig,
 } from '../src/ui/pieces.js';
 import { buildModel } from '../src/engine/model.js';
 
@@ -132,4 +132,15 @@ test('renaming a pack moves its members, nested packs and every rule that names 
     assert.deepEqual(wh(d, 0).masks[0].gate, [['#harbor:2']]);
     assert.deepEqual(wh(d, 1).gate, [['#townhall']], 'a pack whose name only starts the same stays');
     assert.deepEqual(packsOf(d), ['harbor', 'harbor/market', 'other']);
+});
+
+test('and / or switch in place (#20): split a row before an item, merge two rows with links first', () => {
+    const rows = [['road', 'bridge', { lock: ['red beard'] }], ['mill']];
+    splitRow(rows, 0, 1);
+    assert.deepEqual(rows, [['road'], ['bridge', { lock: ['red beard'] }], ['mill']]);
+    mergeRows(rows, 1, 2);
+    assert.deepEqual(rows, [['road'], ['bridge', 'mill', { lock: ['red beard'] }]]);
+    mergeRows(rows, 0, 1);
+    assert.deepEqual(rows, [['road', 'bridge', 'mill', { lock: ['red beard'] }]]);
+    assert.deepEqual(splitRow([['road']], 0, 0), [['road']], 'nothing to split');
 });

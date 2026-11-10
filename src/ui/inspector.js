@@ -10,7 +10,7 @@ import { strategyColor } from './entry-page.js';
 import { trackerEditor } from './tracker-ui.js';
 import {
     MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
-    moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting, isGreetingRef,
+    moveMaskUp, movesOn, reading, refLabel, removeFromRow, removePiece, setGreetingRule, repickGreeting, isGreetingRef, mergeRows, splitRow,
 } from './pieces.js';
 import { GREETINGS } from '../engine/model.js';
 
@@ -564,16 +564,35 @@ function rowsEditor(box, x, get, set, update, isGate, self = false) {
     // Greetings are retired for v1 (#33): their chips, and rows of only greetings, stay in the book but aren't shown.
     const hidden = ref => !GREETINGS && isGreetingRef(ref);
     let shown = 0;
+    let prev = -1;
     rows.forEach((row, i) => {
         if (row.length && row.every(hidden)) return;
-        if (shown++) box.append(el('div', 'orsep', 'OR'));
+        // The join words switch (#20): "or" between rows merges them (both); "and" between items splits the row.
+        if (shown++) {
+            const a = prev;
+            const o = btn('orsep jw', 'OR', () => update(cc => { set(cc, mergeRows(get(cc) ?? [], a, i)); }), 'Either one: tap for both');
+            o.title = 'Either one. Tap to need both';
+            box.append(o);
+        }
+        prev = i;
         const wrap = el('div', 'rowbox');
-        row.forEach((ref, j) => hidden(ref) ? null : wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); }))));
+        let firstShown = true;
+        row.forEach((ref, j) => {
+            if (hidden(ref)) return;
+            if (!firstShown) {
+                const w = btn('jand', 'and', () => update(cc => { set(cc, splitRow(get(cc) ?? [], i, j)); }), 'Both: tap for either one');
+                w.title = 'Both. Tap to make it either one';
+                wrap.append(w);
+            }
+            firstShown = false;
+            wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); })));
+        });
         wrap.append(btn('addb', '+ add', () => pick(i, 'Add to this row (AND)')));
         box.append(wrap);
     });
     box.append(btn('addb', rows.length ? '+ Another row (OR)' : '+ add', () => pick(null, rows.length ? 'A new row (OR)' : 'Add')));
     if (isGate && shown > 1) box.append(el('p', 'phelp', 'Opens as soon as any row is complete.'));
+    if (box.querySelector('.jw, .jand')) box.append(el('p', 'phelp', 'Tap AND or OR to switch it.'));
 }
 
 /**
