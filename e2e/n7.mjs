@@ -217,13 +217,14 @@ await run(async () => {
     // ── Switch: paths in order, waiting for the fork ──
     await drag(await chipAt('Switch'), await center(card('Bridge')));
     await strip().waitFor();
-    assert.ok(await $('.pstrip .switch[aria-label="Paths wait for the fork"].on').count(), 'on by default');
+    assert.ok(await $('.pstrip .switch[aria-label="Paths can\'t fire before Bridge does"].on').count(), 'on by default, worded with the fork\'s name');
     await pick('Inn');
     assert.ok(await $('.pstrip .pbtn.done').isDisabled(), 'two paths at least');
     await drag(await center($('.loosend')), await center(card('Tunnel')));
     assert.deepEqual((await cfg('Bridge')).switch, ['inn', 'tunnel']);
     assert.deepEqual((await cfg('Inn')).gate, [['bridge']]);
     assert.deepEqual((await cfg('Tunnel')).gate, [['bridge']]);
+    assert.match(await $('.pstrip .switch.on').first().getAttribute('aria-label'), /^Inn and Tunnel can't fire before Bridge does$/);
     assert.equal(await $('.pstrip .ppath button[aria-label="Move Tunnel up"]').count(), 0, 'the order is folded away');
     await $('.pstrip .porder').click();
     await $('.pstrip .ppath:has-text("Tunnel") button[aria-label="Move Tunnel up"]').click();

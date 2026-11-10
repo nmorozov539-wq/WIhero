@@ -33,6 +33,9 @@ export function armText(k, verb = 'Tap') {
     return `${verb} ${CHIP[k]?.cond ? 'a card, a line or a junction' : 'a card'} to add ${CHIP[k]?.label ?? k}`;
 }
 
+/** "a", "a and b", "a, b and c". */
+const andList = xs => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+
 /** Why a chip can't go on a card, or null. Opens and Closes take any card; the rest take entries. */
 function whyNotOn(k, end) {
     if (!end) return 'That card is gone.';
@@ -419,7 +422,9 @@ export function mountPieceBar(x) {
             mid.append(t);
             if (order) mid.append(el('div', 'phint', 'When two paths are named in the same message, the higher one wins and the others close.'));
         }
-        mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, 'Paths wait for the fork'), el('span', 'plabel2', 'Paths wait for the fork')));
+        // Says what the switch is as a gate, with the real names (#19).
+        const waitText = e.paths.length ? `${andList(e.paths.map(name))} can't fire before ${name(e.fork)} does` : `Paths can't fire before ${name(e.fork)} does`;
+        mid.append(row(swEl(e.wait, v => { e.wait = v; writeSwitch(); }, waitText), el('span', 'plabel2', waitText)));
         if (!e.wait) mid.append(el('div', 'pnote', `A path can be taken before ${name(e.fork)} fires.`));
         mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
         if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; rewriting the message before it rolls again.`));

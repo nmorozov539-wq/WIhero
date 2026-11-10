@@ -65,7 +65,7 @@ export const PAGES = [
         fine: [
             'Two or more paths, entries only (not packs).',
             'If two paths would fire in the same turn, only the first in switch order goes in; the others close.',
-            '"Paths wait for the fork" (on by default) makes each path wait for the fork card too.',
+            '"The paths can\'t fire before the fork does" (on by default) makes the switch a gate too: each path waits for the fork card.',
             '"Roll the dice" picks the path at random when the fork first fires; the other paths close. The picked path still fires the usual way, so to have it just happen, make the paths Permanent and keep them waiting for the fork (else they fire on the first turn, before the roll). A swipe keeps the roll; rewriting the message before it rolls again.',
         ],
         mistakes: ['A path that doesn\'t wait for its fork can be taken before the fork. WI Hero warns about it.'],
