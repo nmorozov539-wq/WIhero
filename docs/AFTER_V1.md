@@ -40,6 +40,16 @@ Grew into its own spec, [TRACKERS.md](TRACKERS.md), built in 0.37.0. Any text sl
 
 **Why it waits:** greetings are retired for V1 (impressions list #33). Opening a chat loaded that character's greetings into whatever book was open, so logic for one character's greeting could fire or break in another character's chat. The engine now reads greeting links as if they weren't written (`GREETINGS` in src/engine/model.js), and the editor hides greeting cards, panel rows, picker options and Preview starts. Books keep their greeting data, so turning the switch back on restores it. Greeting nicknames (a short name on the card, #13) wait with it.
 
+## From the UI impressions, 2026-11-10
+
+Parked while polishing for V1. Each one is a new behavior or a new view, not a fix.
+
+- **Glue hold that starts on a condition (#25).** Today hold is on or off. The idea: hold begins once gate X happens, and before that the entry follows its own rules. It could attach to a link the way locks do. Waits because a start condition is a new system on top of glue.
+- **Firing budget (#32).** An entry that can fire N times, then switches to a "ran out" version of its text. When we get to it, check whether a "ran out" mask and the tracker's per-chat counter can do it, rather than a third system.
+- **Tile view in the book picker (#35).** A small tile view, like a mini Normal-mode home page.
+- **Tile view for folders in Normal mode (#38).** Folders as tiles.
+- **Greeting nicknames (#13).** Waits with greetings: see [Greetings, the strict version](#greetings-the-strict-version).
+
 ## Brainstorm, 2026-11-09
 
 A no-commitment brainstorm. Nothing here is planned; each line is the idea plus any catch we spotted.
