@@ -1221,7 +1221,9 @@ export function mountCanvas(vp, d) {
         const e = CV?.m.byId(key);
         if (!r || !e || OV) return;
         const box = el('div', 'hhandles');
-        Object.assign(box.style, { left: `${r.x + r.w / 2}px`, top: `${r.y + r.h + 4}px` });
+        // Under the card; a masked card's ‹ › control sits there already, so the handles go under it (#28).
+        const below = r.nav && !r.nav.v ? r.nav.y + r.nav.h + 2 : r.y + r.h + 4;
+        Object.assign(box.style, { left: `${r.x + r.w / 2}px`, top: `${below}px` });
         const kinds = e.greeting || e.moment ? [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes']]
             : [['open', 'Opens: drag onto the card this one opens'], ['close', 'Closes: drag onto the card this one closes'], ['ride', 'Glue: drag onto the card that rides along with this one']];
         for (const [k, label] of kinds) {
