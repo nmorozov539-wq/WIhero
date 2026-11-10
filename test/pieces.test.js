@@ -4,7 +4,7 @@ import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import {
     addMask, addPiece, addToList, addToRow, applyMovesOn, bookEditor, greetingRules, hasPiece, maskName, missingPieces,
-    moveMaskUp, movesOn, packsOf, reading, refLabel, removeFromRow, repickGreeting, setGreetingRule, tidyConfig,
+    moveMaskUp, movesOn, packsOf, reading, refLabel, removeFromRow, renamePack, repickGreeting, setGreetingRule, tidyConfig,
 } from '../src/ui/pieces.js';
 import { buildModel } from '../src/engine/model.js';
 
@@ -113,4 +113,22 @@ test('greeting rules are written on the entries they touch, a pack target with v
     assert.equal(repickGreeting(ed, d, ref, 'new'), 2);
     assert.equal(wh(d, 0).gatedBy[0].fp, 'new');
     assert.equal(wh(d, 1).gate[0][0].fp, 'new');
+});
+
+test('renaming a pack moves its members, nested packs and every rule that names it (#21)', () => {
+    const d = book();
+    const ed = bookEditor(d);
+    ed.update(3, c => { c.packs = ['town', 'other']; });
+    ed.update(4, c => { c.packs = ['town/market']; c.note = '#town is a note'; });
+    ed.update(0, c => { c.gate = [['#town:all'], ['#town/market', 'mill']]; c.closesFor = ['#town']; c.masks = [{ name: 'night', gate: [['#town:2']] }]; });
+    ed.update(1, c => { c.gate = [['#townhall']]; });
+    assert.equal(renamePack(ed, d, 'town', 'harbor'), 3);
+    assert.deepEqual(wh(d, 3).packs, ['harbor', 'other']);
+    assert.deepEqual(wh(d, 4).packs, ['harbor/market']);
+    assert.equal(wh(d, 4).note, '#town is a note');
+    assert.deepEqual(wh(d, 0).gate, [['#harbor:all'], ['#harbor/market', 'mill']]);
+    assert.deepEqual(wh(d, 0).closesFor, ['#harbor']);
+    assert.deepEqual(wh(d, 0).masks[0].gate, [['#harbor:2']]);
+    assert.deepEqual(wh(d, 1).gate, [['#townhall']], 'a pack whose name only starts the same stays');
+    assert.deepEqual(packsOf(d), ['harbor', 'harbor/market', 'other']);
 });

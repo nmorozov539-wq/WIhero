@@ -199,6 +199,32 @@ export function packsOf(data) {
 
 const configOf = e => { const raw = rawConfig(e); return raw ? normalize(raw).config : null; };
 
+/**
+ * Renames a pack (#21) everywhere a book names it: members' `packs` (nested packs move with it, `town/inn` →
+ * `harbor/inn`), and every `#town`, `#town:all`, `#town:2` a rule reads or targets, greeting `via`s included.
+ * Returns how many entries changed. Notes and written text are left alone.
+ */
+export function renamePack(ed, data, from, to) {
+    const moved = name => (name === from ? to : name.startsWith(`${from}/`) ? `${to}${name.slice(from.length)}` : null);
+    const ref = str => {
+        const m = /^#([^:]+)(:.*)?$/.exec(str);
+        const n = m && moved(m[1]);
+        return n === null || !m ? str : `#${n}${m[2] ?? ''}`;
+    };
+    const walk = x => (typeof x === 'string' ? ref(x) : Array.isArray(x) ? x.map(walk)
+        : isObject(x) ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, k === 'note' || k === 'written' ? v : walk(v)])) : x);
+    let n = 0;
+    for (const e of Object.values(data.entries)) {
+        const c = configOf(e);
+        if (!c || !JSON.stringify(c).includes(from)) continue;
+        const next = { ...walk(c), ...(Array.isArray(c.packs) ? { packs: [...new Set(c.packs.map(p => (typeof p === 'string' ? moved(p) ?? p : p)))] } : {}) };
+        if (canonical(next) === canonical(c)) continue;
+        ed.update(e.uid, cc => { for (const k of Object.keys(cc)) delete cc[k]; Object.assign(cc, next); });
+        n++;
+    }
+    return n;
+}
+
 // ---- the book editor
 
 /**

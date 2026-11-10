@@ -11,6 +11,8 @@ import {
 } from './data.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook } from './canvas-graph.js';
+import { canvasMemory } from './canvas.js';
+import { bookEditor, packsOf, renamePack } from './pieces.js';
 import { getStringHash } from '../engine/util.js';
 import { greetingFpOf, greetingSignature } from '../chat-state.js';
 import { createPreview } from './preview-view.js';
@@ -590,7 +592,7 @@ export function createApp(deps) {
     const heroShell = () => (heroShellView ??= createHeroShell({
         H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
-        loadingNote, main, modelOf, need, packSheet, panelState, placePicker, render: () => render(), renderEntry,
+        loadingNote, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
         startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN,
     }));
@@ -677,12 +679,37 @@ export function createApp(deps) {
         });
     }
 
+    /** Asks a pack's new name and renames it everywhere the book names it, and on the canvas (#21). */
+    function renamePackAsk(book, from) {
+        layer.askText({
+            title: `Rename #${from}`, value: from, placeholder: 'Pack name (town/inn for one inside another)', ok: 'Rename',
+            check: v => {
+                const to = v.trim().replace(/^#/, '');
+                if (!/^[A-Za-z0-9][A-Za-z0-9_.\-/]*$/.test(to)) return 'Letters, numbers, - _ . and / only';
+                if (to !== from && packsOf(library.peek(book)).includes(to)) return `#${to} is already a pack`;
+                return null;
+            },
+            done: v => {
+                const to = v.trim().replace(/^#/, '');
+                if (to === from) return;
+                const mem = canvasMemory(bookSettings(settings, book));
+                for (const k of Object.keys(mem.cards)) {
+                    const name = k.startsWith('pack:') ? k.slice(5) : null;
+                    if (name === from || name?.startsWith(`${from}/`)) { mem.cards[`pack:${to}${name.slice(from.length)}`] = mem.cards[k]; delete mem.cards[k]; }
+                }
+                saveSettings();
+                if (library.change(book, d => renamePack(bookEditor(d), d, from, to))) layer.toast(`#${from} is now #${to}`);
+            },
+        });
+    }
+
     function packSheet(book, data, name) {
         const m = canvasBook(data);
         const members = m.packMembers(name);
         const usesPack = rs => (rs ?? []).flat().some(r => r === `#${name}` || (typeof r === 'string' && r.startsWith(`#${name}:`)));
         const users = m.E.filter(e => usesPack(e.gate) || usesPack([e.gatesFor]) || usesPack(e.closeGate) || usesPack([e.closesFor]));
         layer.sheet(`#${name}`, sh => {
+            sh.append(layer.opt('Rename', () => { layer.close(); renamePackAsk(book, name); }, { icon: 'edit' }));
             sh.append(el('div', 'lbl', 'In this pack'));
             for (const e of members) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry) }));
             if (users.length) {

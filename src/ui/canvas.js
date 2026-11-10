@@ -174,7 +174,9 @@ export function mountCanvas(vp, d) {
             owner = r.key;
             const f = el('div', 'packframe');
             Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
-            f.append(el('span', 'pn', `#${r.pack}`));
+            const pn = el('span', 'pn', `#${r.pack}`);
+            pn.title = 'Rename the pack (drag to move it)';
+            f.append(pn);
             f.dataset.pack = r.pack;
             put(world, f);
         }
@@ -1355,6 +1357,9 @@ export function mountCanvas(vp, d) {
         if (lp) { d.open(lp.dataset.open, lp.dataset.piece); return; }
         const card = t.closest?.('.card');
         if (card) { d.open(card.dataset.id); return; }
+        // A pack's name on its frame renames it (#21); the rest of the frame opens the pack.
+        const pn = t.closest?.('.packframe .pn');
+        if (pn && d.renamePack) { d.renamePack(pn.parentElement.dataset.pack); return; }
         const pf = t.closest?.('[data-pack]');
         if (pf) { d.pack(pf.dataset.pack); return; }
         d.tapEmpty?.();
