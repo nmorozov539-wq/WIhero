@@ -183,10 +183,24 @@ export function createHeroInspector(A) {
             for (const cl of node.closes) if (cl.source && cl.source !== node.key && (cl.kind === 'closesFor' || cl.kind === 'switch')) sources.push({ name: nameOf(cl.source), key: stateKeyToCard(cl.source), what: cl.kind === 'switch' ? 'Another path of its fork' : 'Closes this', family: 'close' });
             for (const k of model.riders?.get(node.key) ?? []) sources.push({ name: nameOf(k), key: stateKeyToCard(k), what: 'Rides along with this', family: 'glue' });
         }
+        // The other end of the rules this entry starts (#1): a gate on another entry waits for it. The rule lives on
+        // the other entry; the row jumps there with its editor open.
+        const outgoing = [];
+        if (node?.key) {
+            const names = row => row.items.some(i => i.key === node.key);
+            for (const n of model.nodes.values()) {
+                if (n === node || n.book !== node.book) continue;
+                const card = stateKeyToCard(n.key);
+                if (n.opens.rows.some(names)) outgoing.push({ name: `Opens ${n.label}`, key: card, piece: 'gate', what: `${n.label}'s gate waits for this`, family: 'open' });
+                if (n.closes.some(cl => cl.kind === 'closeGate' && names(cl.row))) outgoing.push({ name: `Closes ${n.label}`, key: card, piece: 'closeGate', what: `${n.label}'s close gate waits for this`, family: 'close' });
+                if (n.masks.some(m => [...m.opens, ...m.closes].some(names))) outgoing.push({ name: `Turns on a mask of ${n.label}`, key: card, piece: 'masks', what: `A mask of ${n.label} waits for this`, family: 'mask' });
+            }
+        }
         const mem = canvasMemory(bookSettings(settings, book));
         renderInspector(box, {
             ...common, entry: e,
-            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources,
+            setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources, outgoing,
+            inspectAt: (key, piece) => inspect(book, key, piece),
             happened: isMoment(e) && H.chatState ? !!chatStatus(book)(I.key)?.happened : null,
             rename: v => library.change(book, d => { d.entries[e.uid].comment = isMoment(e) ? `Moment: ${v}` : v; }),
             deleteMoment: () => {

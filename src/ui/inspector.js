@@ -253,6 +253,11 @@ export function renderInspector(box, x) {
         body.append(el('div', 'lbl', 'From other entries'));
         for (const s of x.sources) body.append(layer.opt(s.name, () => x.inspect(s.key), { sub: s.what, dot: FAMILY_COLOR[s.family] }));
     }
+    // Rules other entries keep that wait for this one (#1): the jump opens their editor.
+    if (x.outgoing?.length) {
+        body.append(el('div', 'lbl', 'To other entries'));
+        for (const o of x.outgoing) body.append(layer.opt(o.name, () => x.inspectAt(o.key, o.piece), { sub: o.what, dot: FAMILY_COLOR[o.family], val: '›' }));
+    }
 
     const missing = missingPieces(c);
     if (missing.length) {
