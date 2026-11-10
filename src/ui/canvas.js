@@ -1115,7 +1115,7 @@ export function mountCanvas(vp, d) {
             const portKey = drag.port;
             mode = null; start = null; drag = null;
             if (h?.card && h.card !== from) d.link?.(kind, from, h.card);
-            else if (!moved && portKey) tapAt(e.target);
+            else if (!moved && portKey) tapAt(e.target, e);
             return;
         }
         if (mode === 'box') {
@@ -1174,7 +1174,7 @@ export function mountCanvas(vp, d) {
                 d.shapeSet?.({ seg: n?.segment ?? 0, dot: null });
             } else {
                 if (d.desk && !OV) setPicked(c ? new Set([c.dataset.id]) : new Set(), true);
-                tapAt(start.target);
+                tapAt(start.target, e);
             }
         }
         moving = null;
@@ -1311,8 +1311,9 @@ export function mountCanvas(vp, d) {
         render();
     }
 
-    function tapAt(t) {
-        if (d.tapTarget?.(hitOf(t))) return;
+    /** A tap on `t`; `e` gives the point, so a piece armed on the bar lands where the tap was. */
+    function tapAt(t, e = null) {
+        if (d.tapTarget?.(hitOf(t), e ? pointAt(e.clientX, e.clientY) : null)) return;
         const fl = t.closest?.('[data-flip]');
         if (fl) { flip(fl.dataset.flip, Number(fl.dataset.d)); return; }
         const port = t.closest?.('[data-port]');

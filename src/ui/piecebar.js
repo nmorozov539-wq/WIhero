@@ -155,7 +155,9 @@ export function mountPieceBar(x) {
             clean();
             B.armed = null;
             armOverlay();
-            if (h) x.place(k, h);
+            // A Moment can stand on its own: off a card, it is made where it was dropped.
+            if (k === 'moment' && !off && !h?.card) { const at = canvas.pointAt(ev.clientX, ev.clientY); if (at) x.place(k, null, at); }
+            else if (h) x.place(k, h);
         });
         // The browser took the gesture (a sideways scroll of the bar): take away everything the drag drew.
         chip.addEventListener('pointercancel', () => { const was = !!ghost; clean(); if (was) { B.armed = null; armOverlay(); } });

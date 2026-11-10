@@ -270,7 +270,7 @@ export function createHeroShell(A) {
             pack: name => packSheet(book, data, name),
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
-            tapTarget: hit => barTap(book, hit),
+            tapTarget: (hit, at) => barTap(book, hit, at),
             shaping: () => barShaping(book),
             shapeSet: (pick, changed) => barShapeSet(pick, changed),
             focused: () => (H.insp?.book === book ? H.insp.key : null),
