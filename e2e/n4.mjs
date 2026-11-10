@@ -184,9 +184,11 @@ await run(async () => {
     await addPiece('Gates for');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Key')).gatesFor, ['market']);
-    await addPiece('Who triggers');
+    // Who triggers is a selector at the top of the inspector, not a piece (#14).
+    await $('.insp .isets [aria-label="Who triggers"] button:text-is("You")').click();
+    await wait(200);
     assert.equal((await cfg('Key')).by, 'user');
-    await piece('by').locator('.seg button:text-is("Character\'s replies")').click();
+    await $('.insp .isets [aria-label="Who triggers"] button:text-is("Character")').click();
     await wait(200);
     assert.equal((await cfg('Key')).by, 'char');
 
@@ -194,7 +196,7 @@ await run(async () => {
     await addPiece('Glue');
     assert.deepEqual((await cfg('Storm')).glue, { mode: 'hold' });
     assert.ok(await piece('glue').locator('.phelp:has-text("Nothing ends it yet")').count());
-    assert.equal(await $('.insp .addpiece').count() && await (async () => { await $('.insp .addpiece').click(); const n = await opt('Once').count(); await page.keyboard.press('Escape'); return n; })(), 0, 'Once isn\'t offered on a glued entry');
+    assert.equal(await $('.insp .isets .switch[aria-label^="Once"]').count(), 0, 'Once isn\'t offered on a glued entry');
     await piece('glue').locator('.seg button:text-is("Ride along")').click();
     await opt('Key').click();
     await wait(200);
@@ -208,9 +210,11 @@ await run(async () => {
     await pick('+ add', 'Inn');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Hall')).switch, ['inn', 'market']);
-    await addPiece('Once');
+    // Once is a switch at the top of the inspector, not a piece (#31).
+    await $('.insp .isets .switch[aria-label^="Once"]').click();
+    await wait(200);
     assert.equal((await cfg('Hall')).once, true);
-    await piece('once').locator('.pq[aria-label="Remove Once"]').click();
+    await $('.insp .isets .switch[aria-label^="Once"]').click();
     await wait(200);
     assert.equal((await cfg('Hall')).once, undefined);
     await shot('switch');

@@ -230,6 +230,7 @@ export function renderInspector(box, x) {
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
+    if (c.moment !== true) entrySettings(body, x, c, update);
     // A path of a switch says so, and opens the switch (#17). The gate the switch gave it is the switch's own
     // "can't fire before the fork" rule, so a gate that is only that isn't shown as a gate of its own.
     const forkGateOnly = !!x.pathOf && Array.isArray(c.gate) && c.gate.length === 1 && c.gate[0].length === 1 && c.gate[0][0] === x.pathOf.id;
@@ -248,6 +249,7 @@ export function renderInspector(box, x) {
     }
     for (const p of PIECES) {
         if (c.moment === true && !MOMENT_PIECES.includes(p.key)) continue;
+        if (SETTINGS.includes(p.key) && c.moment !== true) continue; // drawn by entrySettings
         if (p.key === 'gate' && forkGateOnly && x.open !== 'gate') continue;
         if (!hasPiece(c, p.key) && x.open !== p.key) continue;
         const open = x.open === p.key;
@@ -460,6 +462,40 @@ function editorOf(key, x, update) {
         box.append(seg);
     }
     return box;
+}
+
+/** Entry settings drawn as controls, not pieces (#14, #31). */
+const SETTINGS = ['by', 'once'];
+
+/**
+ * Who triggers and Once (#14, #31): settings of the entry itself, not links, so they are a selector and a switch
+ * at the top of its logic, the same selector Moments and locks use, rather than pieces to add.
+ */
+function entrySettings(body, x, c, update) {
+    const box = el('div', 'isets');
+    box.style.setProperty('--c', FAMILY_COLOR.by);
+    const by = c.by ?? null;
+    const seg = el('div', 'pseg iseg');
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', 'Who triggers');
+    for (const [v, label] of [[null, 'Anyone'], ['user', 'You'], ['char', 'Character']]) {
+        const b = btn(by === v ? 'on' : '', '', () => update(cc => { if (v) cc.by = v; else delete cc.by; }));
+        b.textContent = label;
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(by === v));
+        seg.append(b);
+    }
+    const who = el('div', 'iset');
+    who.append(el('span', 'isetl', 'Who triggers'), seg);
+    box.append(who);
+    const once = el('div', 'iset');
+    if (c.glue) once.append(el('span', 'isetl', 'Once'), el('span', 'isetn', 'Not with glue: glue has its own way of ending.'));
+    else {
+        const sw = swEl(c.once === true, on => update(cc => { if (on) cc.once = true; else delete cc.once; }), 'Once: fires one time, then closes');
+        once.append(el('span', 'isetl', 'Once'), el('span', 'isetn', 'Fires one time, then closes'), sw);
+    }
+    box.append(once);
+    body.append(box);
 }
 
 /**
