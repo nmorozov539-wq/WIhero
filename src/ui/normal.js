@@ -52,11 +52,13 @@ export function createNormal(A) {
     }
 
     function bookRow(name) {
-        const it = el('div', 'item');
+        // In select mode a tap selects the row: it lights up and its book icon becomes a check mark (#42).
+        const picked = !!S.select?.has(name);
+        const it = el('div', `item${picked ? ' sel' : ''}`);
         it.dataset.book = name;
-        if (S.select) it.append(check(S.select.has(name)));
+        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
         const i = el('div', 'ic');
-        i.innerHTML = ic('book');
+        i.innerHTML = ic(picked ? 'check' : 'book');
         const tx = el('div', 'txt');
         tx.append(el('div', 't', name));
         const m = el('div', 'm');
@@ -140,12 +142,14 @@ export function createNormal(A) {
     }
 
     function entryRow(book, e, model) {
-        const it = el('div', `item ent st-${strategyOf(e)}`);
+        const picked = !!S.select?.has(e.uid);
+        const it = el('div', `item ent st-${strategyOf(e)}${picked ? ' sel' : ''}`);
         it.dataset.uid = e.uid;
-        if (S.select) it.append(check(S.select.has(e.uid)));
+        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
         // Just the strategy stripe (no icon: it was the same on every row), and the teal dot desktop shows for an
         // entry with story logic.
         const i = el('div', 'ic');
+        if (picked) i.innerHTML = ic('check');
         const tx = el('div', 'txt');
         const t = el('div', 't');
         t.append(el('span', 'nm', titleOf(e)));
