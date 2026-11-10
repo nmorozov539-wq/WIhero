@@ -64,14 +64,14 @@ await run(async () => {
     await page.click('#WI-SP-button .drawer-toggle');
     await $(`.item[data-book="${BOOK}"]`).click();
     await card('Mill').waitFor();
-    assert.deepEqual(await $('.pchip').allTextContents(), ['Opens', 'Closes', 'Glue', 'Switch', 'Mask', 'Pack', 'Lock', 'Wait', 'Moment']);
+    assert.deepEqual(await $('.pchip').allTextContents(), ['Opens', 'Closes', 'Glue', 'Switch', 'Mask', 'Pack', 'Tracker', 'Lock', 'Wait', 'Moment']);
     assert.equal(await $('.pchips .pdiv').count(), 1, 'a divider before Lock and Wait');
     await $('.pfold').click();
     assert.equal(await $('.pchip').count(), 0, 'folded');
     await $('.pfold').click();
-    assert.equal(await $('.pchip').count(), 9);
+    assert.equal(await $('.pchip').count(), 10);
     await shot('bar');
-    ok('the bar is under the canvas with its nine chips and a divider, and folds');
+    ok('the bar is under the canvas with its ten chips and a divider, and folds');
 
     // ── Opens: tap the chip, tap Road (the source, doing the verb), drag the loose end to Mill ──
     await chip('Opens').click();
@@ -104,32 +104,40 @@ await run(async () => {
     await done();
     ok('Opens: a chip dragged onto Bridge, Mill picked from the list, "both" chosen: one row of two');
 
-    // ── A line reopens its strip; ⇄ turns it around; Cancel puts it back ──
+    // ── A tapped line: its looks, Remove, and Edit logic, which jumps to the entry keeping the rule (#3) ──
     await page.mouse.click(...await linePoint('id:road>id:mill'));
     await strip().waitFor();
     assert.match(await say(), /Road opens Mill/);
     assert.ok(await $('.pstrip .pbtn.bad:has-text("Remove")').count(), 'a link already there can be removed');
-    assert.ok(await $('.pstrip .switch[aria-label="Road closes when Mill fires"]').count(), 'the story moves on, as a switch');
+    assert.equal(await $('.pstrip .flipb').count(), 0, 'turning it around is for a new link');
+    await $('.pstrip .pbtn:has-text("Edit logic")').click();
+    await $('.insp .ihead h2:text-is("Mill")').waitFor();
+    assert.ok(await $('.insp .pc.open[data-piece="gate"]').count(), 'Mill\'s gate editor is open');
+    await $('.insp .ihead button[aria-label="Close the inspector"]').click();
+    await wait(200);
+    ok('a tap on a line opens its looks with Remove; Edit logic jumps to Mill with its gate open');
+
+    // ── A new link: logic first. ⇄ turns it around; the story moves on; four line types; Cancel puts it back (#2) ──
+    await drag(await chipAt('Opens'), await center(card('Road')));
+    await strip().waitFor();
+    await pick('Tunnel');
+    assert.match(await say(), /Road opens Tunnel/);
+    assert.equal(await $('.pstrip .pshapes .pshp').count(), 4, 'four line-type icons');
+    assert.ok(await $('.pstrip .pbtn:text-is("+ Lock")').count() && await $('.pstrip .pbtn:text-is("+ Wait")').count(), '+ Lock and + Wait');
+    await $('.pstrip .switch[aria-label="Road closes when Tunnel fires"]').click();
+    await wait(250);
+    assert.deepEqual((await cfg('Road')).closeGate, [['tunnel']]);
     await $('.pstrip .flipb').click();
     await wait(250);
-    assert.match(await say(), /Mill opens Road · Road waits for Mill/);
-    assert.match(await $('.pstrip .pnote').textContent(), /Road was needed together with Bridge\. Turned around, it's a rule of its own\./);
-    assert.deepEqual((await cfg('Mill')).gate, [['bridge']]);
-    assert.deepEqual((await cfg('Road')).gate, [['mill']]);
+    assert.match(await say(), /Tunnel opens Road · Road waits for Tunnel/);
+    assert.deepEqual((await cfg('Road')).gate, [['tunnel']]);
     await shot('flip');
     await $('.pstrip .pbtn:text-is("Cancel")').click();
     await wait(300);
-    assert.deepEqual((await cfg('Mill')).gate, [['road', 'bridge']]);
     assert.equal((await cfg('Road')).gate, undefined);
-    ok('a tap on a line opens its strip with Remove; ⇄ turns it around and says it left its row; Cancel puts the book back');
-
-    // ── The story moves on writes a real Closes ──
-    await page.mouse.click(...await linePoint('id:road>id:mill'));
-    await $('.pstrip .switch[aria-label="Road closes when Mill fires"]').click();
-    await wait(250);
-    assert.deepEqual((await cfg('Road')).closeGate, [['mill']]);
-    await done();
-    ok('"Road closes when Mill fires" writes Road\'s close gate');
+    assert.equal((await cfg('Road')).closeGate, undefined);
+    assert.equal((await cfg('Tunnel'))?.gate, undefined);
+    ok('a new link\'s strip: "Road closes when Tunnel fires" writes a close gate, ⇄ turns it around, Cancel puts the book back');
 
     // ── A loop is refused; closing itself points to Once ──
     await chip('Opens').click();
