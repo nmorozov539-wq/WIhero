@@ -47,10 +47,10 @@ test('Story moves on writes Closes for to the gate\'s entries, once', () => {
     assert.deepEqual(movesOn(c).missing, []);
 });
 
-test('pieces: what can be added (Who triggers and Once are settings, not pieces), glue drops Once', () => {
+test('pieces: what can be added (Who triggers, Once and Tracker are settings, not pieces), glue drops Once', () => {
     const c = {};
-    assert.equal(missingPieces(c).length, 9);
-    assert.ok(!missingPieces(c).some(p => p.key === 'once' || p.key === 'by'));
+    assert.equal(missingPieces(c).length, 8);
+    assert.ok(!missingPieces(c).some(p => p.key === 'once' || p.key === 'by' || p.key === 'written'));
     addPiece(c, 'once');
     assert.ok(hasPiece(c, 'once'));
     addPiece(c, 'glue');

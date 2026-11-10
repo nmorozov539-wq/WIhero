@@ -43,8 +43,8 @@ export function hasPiece(c, key) {
 /** The pieces a config doesn't have yet that may be added. Once isn't offered on glued entries (CONCEPTS 3.5). */
 export function missingPieces(c) {
     if (c?.moment === true) return PIECES.filter(p => MOMENT_PIECES.includes(p.key) && !hasPiece(c, p.key));
-    // Who triggers and Once are settings in the inspector, not pieces to add (#14, #31).
-    return PIECES.filter(p => !hasPiece(c, p.key) && p.key !== 'once' && p.key !== 'by');
+    // Who triggers, Once and Tracker are settings in the inspector, not pieces to add (#14, #31, #7).
+    return PIECES.filter(p => !hasPiece(c, p.key) && p.key !== 'once' && p.key !== 'by' && p.key !== 'written');
 }
 
 /** A new, empty piece. Row and list pieces start empty; the editor fills them. */

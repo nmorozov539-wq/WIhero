@@ -500,6 +500,15 @@ function entrySettings(body, x, c, update) {
         once.append(el('span', 'isetl', 'Once'), el('span', 'isetn', 'Fires one time, then closes'), sw);
     }
     box.append(once);
+    // The tracker (#7): "the AI can write to this entry" is a setting of the entry too. Turning it on opens its
+    // settings at once; turning it off takes them away.
+    const trk = el('div', 'iset');
+    const on = hasPiece(c, 'written');
+    trk.append(el('span', 'isetl', 'Tracker'), el('span', 'isetn', 'The AI can write to this entry'), swEl(on, v => {
+        if (v) { update(cc => { addPiece(cc, 'written'); Object.assign(cc.written, x.tracker?.shared ?? {}); }); x.setOpen('written'); }
+        else update(cc => removePiece(cc, 'written'));
+    }, 'Tracker: the AI can write to this entry'));
+    box.append(trk);
     body.append(box);
 }
 

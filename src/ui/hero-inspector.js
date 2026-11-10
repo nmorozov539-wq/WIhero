@@ -91,7 +91,7 @@ export function createHeroInspector(A) {
         if (piece && data && !key.startsWith('greet:')) {
             const e = entriesOf(data).find(x => cardKey(x) === key);
             const c = e ? configOf(e) ?? {} : {};
-            const has = piece === 'masks' ? Array.isArray(c.masks) && c.masks.length : piece === 'glue' ? isObject(c.glue) : Array.isArray(c[piece]) && c[piece].length;
+            const has = piece === 'masks' ? Array.isArray(c.masks) && c.masks.length : piece === 'glue' || piece === 'written' ? isObject(c[piece]) || c[piece] === true : Array.isArray(c[piece]) && c[piece].length;
             if (has) open = piece;
         }
         const keep = H.insp?.key === key ? H.insp : null;

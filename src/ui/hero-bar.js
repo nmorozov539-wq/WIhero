@@ -7,7 +7,7 @@ import {
 import { PIECE_ANCHOR } from './guide.js';
 import { PORT } from './canvas-graph.js';
 import { addLink, removeLink } from './links.js';
-import { bookEditor, greetingName, packsOf } from './pieces.js';
+import { addPiece, bookEditor, greetingName, hasPiece, packsOf } from './pieces.js';
 import { canvasMemory } from './canvas.js';
 import { editExisting, startPiece } from './piecebar.js';
 import { el } from './dom.js';
@@ -126,10 +126,27 @@ export function createHeroBar(A) {
     }
 
     function dropPiece(book, k, hit, at = null) {
+        if (k === 'tracker') { makeTracker(book, hit); return; }
         if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null, hit?.card ? null : at); return; }
         const r = startPiece(k, hit, barApi(book));
         if (r.why) { render(); layer.toast(r.why); return; }
         openStrip(book, r.edit);
+    }
+
+    /**
+     * The Tracker chip (#7): the card it lands on becomes a tracker (the same switch as the inspector's), with the
+     * book's tracker syntax, and its inspector opens at the tracker settings.
+     */
+    function makeTracker(book, hit) {
+        const end = hit?.card ? nodeOf(book, hit.card) : null;
+        if (!end || end.t !== 'entry' || end.moment) { render(); layer.toast('A tracker is an entry the AI writes to: pick an entry.'); return; }
+        const t = modelOf(book, library.peek(book))?.trackers?.get(book);
+        barAct(book, ed => ed.update(end.uid, c => {
+            if (hasPiece(c, 'written')) return;
+            addPiece(c, 'written');
+            if (t) Object.assign(c.written, { syntax: t.syntax, teach: t.teach });
+        }));
+        inspect(book, hit.card, 'written');
     }
 
     /** Opens a piece's strip: the inspector and the panel make way for it. */
