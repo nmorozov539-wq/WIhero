@@ -252,7 +252,8 @@ export function slotValue(state, chat, key, readGreeting) {
 export function instruction(tracker, open, values) {
     if (!open.length) return '';
     const lines = open.map(s => {
-        const v = values.get(s.key);
+        // Cleared or never written, a written main's own text is its value (the start value).
+        const v = values.get(s.key) || s.start || '';
         const notes = [s.describe ? s.describe.replace(/[.\s]+$/, '') : '', s.shape === 'line' && v ? `now ${v}` : ''].filter(Boolean);
         const form = sample(tracker.syntax, s, s.shape === 'block' ? '(value, any number of lines)' : '(value)');
         return `${form}${notes.length ? `\n  (${notes.join('; ')})` : ''}`;

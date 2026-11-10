@@ -165,6 +165,8 @@ export function buildModel(entries, options = {}) {
             probability: entry.useProbability !== false ? Number(entry.probability ?? 100) : 100,
             cooldown: Number(entry.cooldown) || 0,
             moment: null, written: null,
+            // The book's own text: a tracker's start value (TRACKERS 2.2).
+            content: typeof entry.content === 'string' ? entry.content : '',
             // Whether ST can ever activate it: switched on, with key words, Permanent, or held by glue (TRACKERS 6).
             disabled: entry.disable === true,
             hasTrigger: entry.constant === true || (Array.isArray(entry.key) && entry.key.some(k => typeof k === 'string' && k.trim())),
@@ -587,8 +589,8 @@ function buildTrackers(nodes, report) {
     for (const node of nodes.values()) {
         if (node.moment) continue;
         const list = [];
-        if (node.written) list.push({ ...node.written, mask: null, label: node.written.label ?? node.label });
-        for (const m of node.masks) if (m.written) list.push({ ...m.written, mask: m.name, label: m.written.label ?? `${node.label} · ${m.name}` });
+        if (node.written) list.push({ ...node.written, mask: null, label: node.written.label ?? node.label, start: node.content.trim() });
+        for (const m of node.masks) if (m.written) list.push({ ...m.written, mask: m.name, label: m.written.label ?? `${node.label} · ${m.name}`, start: '' });
         for (const s of list) {
             const slot = { ...s, key: slotKey(node.key, s.mask), entryKey: node.key, stKey: node.stKey, book: node.book, bad: false };
             slots.set(slot.key, slot);

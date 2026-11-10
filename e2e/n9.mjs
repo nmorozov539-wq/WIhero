@@ -51,7 +51,7 @@ await run(async () => {
     await send('I check my gold.');
     let p = prompt();
     assert.match(p, /Story trackers\./, 'the instruction is sent');
-    assert.match(p, /\[Gold: \(value\)\]\n {2}\(coins the player carries\)/);
+    assert.match(p, /\[Gold: \(value\)\]\n {2}\(coins the player carries; now Purse: 10 coins\)/, 'the start value as the current one');
     assert.match(p, /Purse: 10 coins/, 'the start value, before anything is written');
     assert.deepEqual(await values(), { [G]: '7 coins' });
     await send('And now?');

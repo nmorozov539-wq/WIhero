@@ -78,7 +78,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
             if (settings.renamed && Object.hasOwn(settings.renamed, book)) { delete settings.renamed[book]; dropped = true; }
         }
         if (dropped) saveSettings();
-        const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}${isMoment(e) ? `|${JSON.stringify(e.key)}` : ''}`).join('\n')
+        const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}${isMoment(e) ? `|${JSON.stringify(e.key)}` : ''}${rawConfig(e)?.written ? `|${e.content}` : ''}`).join('\n')
             + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;

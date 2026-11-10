@@ -178,3 +178,12 @@ test('manual set, edit of the latest reply, the instruction, prompt stripping, s
     assert.match(text, /\[Gold: \(value\)\]\n {2}\(coins the player carries; now 8\)/);
     assert.equal(t.reader.strip('Hi. [Gold: 3]'), 'Hi.');
 });
+
+test('the instruction gives a line tracker\'s start value until one is written', async () => {
+    const { instruction } = await import('../src/engine/written.js');
+    const model = buildModel([e(0, 'gold', { id: 'gold', written: { teach: { on: true } } }, { comment: 'Gold', content: '10' })]);
+    const t = model.trackers.get('Book');
+    assert.match(instruction(t, t.slots, new Map()), /now 10/);
+    assert.match(instruction(t, t.slots, new Map([[K('gold'), '15']])), /now 15/);
+    assert.match(instruction(t, t.slots, new Map([[K('gold'), '']])), /now 10/, 'cleared: the start value again');
+});

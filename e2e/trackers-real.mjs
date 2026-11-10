@@ -33,7 +33,7 @@ async function connect() {
         $('#main_api').val('openai').trigger('change');
         $('#chat_completion_source').val('deepseek').trigger('change');
         $('#stream_toggle').prop('checked', false).trigger('input').trigger('change');
-        $('#openai_max_tokens').val(400).trigger('input');
+        $('#openai_max_tokens').val(1500).trigger('input');
         $('#api_button_openai').trigger('click');
     });
     await page.waitForFunction(() => SillyTavern.getContext().onlineStatus !== 'no_connection', null, { timeout: 30000 });
