@@ -41,7 +41,7 @@ export function refIs(ed, x, end) {
 export function whyNot(kind, src, dst) {
     if (!src || !dst) return null;
     if (sameEnd(src, dst)) {
-        if (kind === 'close') return 'An entry can\'t close itself. To close it after it fires, turn on Once in its inspector.';
+        if (kind === 'close') return 'An entry can\'t link to itself. To close it after it fires, turn on Once, or add the entry itself to its close gate in the inspector (with a wait to close it later).';
         return 'A link needs two different cards.';
     }
     if (dst.t === 'greet') return 'A greeting only starts things: it can\'t wait, close or ride along.';

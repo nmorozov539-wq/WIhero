@@ -371,3 +371,17 @@ test('left to right: links are routed around cards, never through one', () => {
     const P = computePorts(g, R, {}, { dir: LR });
     assert.ok(linksClear(g, R, P) >= 10);
 });
+
+test('delayed closing: a close row naming the card itself is a badge, not a link', () => {
+    const data = { entries: {
+        0: { uid: 0, key: ['fog'], comment: 'Fog', content: '', extensions: { wihero: { id: 'fog', glue: { mode: 'hold' }, closeGate: [['fog', { wait: 3 }], ['bell']] } } },
+        1: { uid: 1, key: ['bell'], comment: 'Bell', content: '', extensions: { wihero: { id: 'bell' } } },
+    } };
+    const m = canvasBook(data);
+    const fog = m.byId('id:fog');
+    assert.equal(fog.closesAfter, 3);
+    assert.equal(fog.closeGate.length, 1);
+    const g = buildGraph(m);
+    assert.ok(!g.edges.some(x => x.from === x.to), 'no self link');
+    assert.ok(g.edges.some(x => x.from === 'id:bell' && x.to === 'id:fog'));
+});

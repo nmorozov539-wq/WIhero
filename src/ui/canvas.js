@@ -247,6 +247,11 @@ export function mountCanvas(vp, d) {
             if (e.glue?.mode === 'hold') c.append(el('i', 'hold'));
             if (st?.fired) c.append(el('span', 'fired', `${st.fired}×`));
             else if (e.once) c.append(el('span', 'badge1', '1×'));
+            else if (e.closesAfter != null) {
+                const b = el('span', 'badge1', e.closesAfter ? `+${e.closesAfter}` : '1×');
+                b.title = e.closesAfter ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires` : 'Closes after it first fires';
+                c.append(b);
+            }
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
             if (e.note) {
                 // A sticky note (AFTER_V1): the author's own, pinned over the card; never sent to the model.

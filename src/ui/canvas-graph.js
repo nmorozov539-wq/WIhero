@@ -61,11 +61,15 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set(), gr
             if (greet(row[0])) fromGreetings.push({ from: greet(row[0]), to: aim(row[0]), kind: 'close' });
             return false;
         }) : c.closeGate;
+        // Delayed closing (CONCEPTS 3.3): rows naming the entry itself are not links; the card shows a badge.
+        const selfRow = row => Array.isArray(row) && row.includes(c.id);
+        const after = Array.isArray(closeRows) ? closeRows.filter(selfRow) : [];
+        const closesAfter = after.length ? Math.min(...after.map(row => row.find(isWait)?.wait ?? 0)) : null;
         return {
             id: cardKey(entry), uid: entry.uid, entry, title: titleOf(entry), keys: entry.key ?? [],
             strategy: s === 'off' ? (entry.constant ? 'perm' : entry.vectorized ? 'vec' : 'keys') : s, off: !!entry.disable,
             folder: folderOf(entry), problem: problems.has(entry.uid),
-            gate: rows(c.gate), gatesFor: list(c.gatesFor), closeGate: rows(closeRows), closesFor: list(c.closesFor), fromGreetings,
+            gate: rows(c.gate), gatesFor: list(c.gatesFor), closeGate: rows(Array.isArray(closeRows) ? closeRows.filter(row => !selfRow(row)) : closeRows), closesAfter, closesFor: list(c.closesFor), fromGreetings,
             glue: c.glue?.mode === 'ride' && typeof c.glue.host === 'string' ? { mode: 'ride', host: `id:${c.glue.host}` } : c.glue?.mode === 'hold' ? { mode: 'hold' } : null,
             switch: list(c.switch),
             masks: Array.isArray(c.masks) ? c.masks.filter(isObject).map(m => ({ name: m.name, content: m.content, gate: rows(m.gate), closeGate: rows(m.closeGate) })) : [],

@@ -145,8 +145,15 @@ The gate's mirror: when this entry closes for good.
   ("close when someone says *the rain stops*").
 - Once any row is complete, the entry is closed (2.2).
 - A close gate's items count from the start of the chat, like a gate's.
-- An entry can't name itself in its own close gate; Once covers "close after
-  I have fired".
+- **Delayed closing:** an entry may name itself in its own close gate. That
+  item means "after I first fired" and, like Once, never counts in the turn
+  the entry fires. With a wait in the row it closes that many messages after
+  its first firing: Sea fog's `[["fog", {"wait": 3}]]` clears three messages
+  after the fog rolls in. Alone in its row it works like Once.
+- A close met in the same turn as the entry fires wins (2.2), so "Fog closes
+  when Lighthouse fires" hides the fog if both fire in one turn. A wait of 1
+  in that row (`[["lighthouse", {"wait": 1}]]`) closes it from the next message
+  instead.
 
 ### 3.4 Closes for
 
@@ -263,7 +270,8 @@ A row item that waits for a phrase: `{"lock": ["red beard", "red-bearded"]}`.
 A row item that counts messages: `{"wait": 3}`.
 
 - It runs out three messages after the rest of its row has fired. A row that
-  holds only a wait counts from the start of the chat.
+  holds only a wait counts from the start of the chat. In an entry's own close
+  gate, a row with the entry itself counts from its first firing (3.3).
 - `"by": "user"` counts only the user's messages, `"char"` only replies.
 - A row can hold a wait and a lock: the lock is armed once the wait has run out.
 - In a close gate it gives timed endings: "close three messages after the
@@ -351,8 +359,9 @@ These are reported while editing. An entry with a problem never fires.
 - A link to an entry or pack that doesn't exist.
 - Two entries with the same id.
 - An entry targeting itself (Gates for or Closes for naming itself, Gates for a
-  pack it is in, naming itself in its own close gate, or riding along with
-  itself).
+  pack it is in, naming itself in its own gate, or riding along with itself).
+  Naming itself in its own close gate is allowed: that is delayed closing
+  (3.3).
 - Rules that loop, so they can never be met (a gate chain back to itself, or a
   loop through packs or Gates for).
 - A switch with fewer than two paths, or a pack used as a switch path.

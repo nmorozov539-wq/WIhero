@@ -32,9 +32,11 @@ export const PAGES = [
             'Closing beats opening: a card closed this turn didn\'t happen. It fires nothing and opens nothing.',
             'From the next message, like Opens. A running sticky finishes first.',
             'Its own close gate can also hold locks and waits: "close when someone says the rain stops".',
+            'A close gate can name its own card, meaning "after it first fires": Fog with a wait of 3 closes three messages after the fog rolls in.',
+            'To let a card show in the same turn as the one that closes it, add a wait of 1 to that close row: it then closes from the next message.',
         ],
         mistakes: [
-            'A card closing itself: use Once instead.',
+            'A card that should show once and then close: use Once, or its own card in its close gate.',
             'A close gate that is always met before the gate opens: the card can never fire. WI Hero warns about it.',
         ],
         show: 'id:crossing',
@@ -125,7 +127,7 @@ export const PAGES = [
         line: 'Waits for a number of messages to pass.',
         example: 'Bridge opens two messages after the road.',
         fine: [
-            'It counts from when the rest of its row has fired; alone in a row, from the start of the chat.',
+            'It counts from when the rest of its row has fired; alone in a row, from the start of the chat. With the card itself in its close gate, from its first firing.',
             'Whose messages count: everyone\'s, yours, or the character\'s.',
             'In a close gate it gives timed endings: "close three messages after the storm starts".',
             'A row with a wait and a lock: the lock is armed once the wait has run out.',
