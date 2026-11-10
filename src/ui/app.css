@@ -837,6 +837,8 @@ button.flab:hover { color: var(--fg); }
 @container (min-width: 780px) { .pg { grid-template-columns: minmax(110px, auto) minmax(0, 1fr) minmax(110px, auto) minmax(0, 1fr); } }
 .pgl { font-size: var(--t-s); color: var(--fg); }
 .pgl.ch { color: var(--accent); }
+.pnote { margin: -2px 0 4px; padding-left: 8px; border-left: 2px solid var(--warn); font-size: var(--t-s); color: var(--muted); grid-column: 1 / -1; }
+.pg .pnote { margin: -4px 0 2px; }
 .pgc { height: 30px; min-width: 0; width: 100%; max-width: 220px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 8px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
 select.pgc { padding-right: 4px; }
 select.pgc option { background: var(--tint); color: var(--fg); }
