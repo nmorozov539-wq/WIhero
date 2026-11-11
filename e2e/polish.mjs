@@ -136,6 +136,7 @@ ok('removing a gate item: the canvas arrows and Ctrl+Z / Ctrl+Shift+Z undo and r
 
 // 4b. ST timing in the Hero inspector: Sticky set there is written to the entry and shows on the card.
 await card(gated.comment).click();
+await $('.hinsp .isetpc .pct').click(); // the settings fold below a card's rules (review 2026-11-11)
 const sticky = $('.itiming input#it-sticky');
 await sticky.waitFor();
 await sticky.fill('4');
