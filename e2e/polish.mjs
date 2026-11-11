@@ -134,6 +134,19 @@ await page.waitForTimeout(100);
 assert.equal(await gateNow(), gateBefore);
 ok('removing a gate item: the canvas arrows and Ctrl+Z / Ctrl+Shift+Z undo and redo it');
 
+// 4b. ST timing in the Hero inspector: Sticky set there is written to the entry and shows on the card.
+await card(gated.comment).click();
+const sticky = $('.itiming input#it-sticky');
+await sticky.waitFor();
+await sticky.fill('4');
+await sticky.press('Enter');
+await sticky.blur();
+await page.waitForFunction(([b, u]) => Number(wihero.library.peek(b).entries[u].sticky) === 4, [BOOK, gated.uid]);
+await card(gated.comment).locator('.timing').filter({ hasText: 'S4' }).waitFor();
+assert.ok(await $('.itiming .pnote').filter({ hasText: 'sticky' }).count());
+await page.screenshot({ path: `${LOG}polish-timing.png` });
+ok('the inspector\'s ST timing writes Sticky to the entry, the card shows "S4", and the story pieces warning shows');
+
 // 5. Drag to reorder in the book list (Order sort): displayIndex changes, the Order parameter doesn't.
 await toNormal();
 const rows = $('.bllist .brow');

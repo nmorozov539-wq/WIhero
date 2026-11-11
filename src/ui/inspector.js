@@ -6,7 +6,8 @@
 import { btn, html, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { FAMILY_COLOR } from './logic-text.js';
-import { strategyColor } from './entry-page.js';
+import { storyParamNote, strategyColor } from './entry-page.js';
+import { PARAM_LIST, paramValue, setParam } from './data.js';
 import { trackerEditor } from './tracker-ui.js';
 import {
     MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
@@ -238,7 +239,7 @@ export function renderInspector(box, x) {
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
-    if (c.moment !== true) entrySettings(body, x, c, update);
+    if (c.moment !== true) { entrySettings(body, x, c, update); stTiming(body, x, e); }
     // A path of a switch says so, and opens the switch (#17). The gate the switch gave it is the switch's own
     // "can't fire before the fork" rule, so a gate that is only that isn't shown as a gate of its own.
     const forkGateOnly = !!x.pathOf && Array.isArray(c.gate) && c.gate.length === 1 && c.gate[0].length === 1 && c.gate[0][0] === x.pathOf.id;
@@ -531,6 +532,51 @@ function entrySettings(body, x, c, update) {
         else update(cc => removePiece(cc, 'written'));
     }, 'Tracker: the AI can write to this entry'));
     box.append(trk);
+    body.append(box);
+}
+
+/**
+ * ST's chance and timing (2026-11-11): Probability, Sticky, Cooldown and Delay, set right here in Hero mode. They
+ * are SillyTavern's own and apply on top of the story pieces; on an entry with pieces, each one set says how.
+ */
+const TIMING = ['probability', 'sticky', 'cooldown', 'delay'];
+function stTiming(body, x, e) {
+    const box = el('div', 'isets itiming');
+    box.style.setProperty('--c', 'var(--muted)');
+    const head = el('div', 'iset');
+    head.append(el('span', 'isetl', 'ST timing'), el('span', 'isetn', 'SillyTavern\'s own, on top of the story pieces'));
+    box.append(head);
+    const grid = el('div', 'tgrid');
+    const notes = [];
+    for (const field of TIMING) {
+        const p = PARAM_LIST.find(q => q.field === field);
+        const value = paramValue(e, p);
+        const id = `it-${field}`;
+        const l = el('label', '', p.label);
+        l.htmlFor = id;
+        const f = el('span', 'tfield');
+        const input = el('input');
+        input.id = id;
+        input.type = 'number';
+        input.inputMode = 'numeric';
+        input.min = String(p.min ?? 0);
+        if (p.max !== undefined) input.max = String(p.max);
+        input.placeholder = String(p.def);
+        input.value = value === p.def || value === null || value === undefined ? '' : String(value);
+        input.addEventListener('change', () => {
+            const v = input.value.trim();
+            let n = v === '' ? p.def : Math.round(Number(v));
+            if (!Number.isFinite(n)) { input.value = ''; return; }
+            n = Math.max(p.min ?? 0, p.max !== undefined ? Math.min(p.max, n) : n);
+            x.edit((ed, data) => setParam(data, e.uid, p, n));
+        });
+        f.append(input, el('small', '', field === 'probability' ? '%' : 'msgs'));
+        grid.append(l, f);
+        const note = storyParamNote(e, p, !!x.lines?.length);
+        if (note) notes.push(note);
+    }
+    box.append(grid);
+    for (const n of notes) box.append(el('p', 'pnote', n));
     body.append(box);
 }
 

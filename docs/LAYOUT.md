@@ -388,6 +388,7 @@ stays in view above it. Drag it up for full height.
 | Reopen line | Only for an entry closed in the open chat: "Closed in this chat by *Tunnel* · Reopen" (or "by a rule that no longer exists") |
 | Problems and warnings | The entry's own, one line each |
 | Entry settings | Settings of the entry itself, not links: **Who triggers** (Anyone · You · Character), **Once** (a switch, "Fires one time, then closes"; on a glued entry it says "Not with glue" instead) and **Tracker** (a switch, "The AI can write to this entry"; turning it on opens its settings) |
+| ST timing | SillyTavern's own Probability, Sticky, Cooldown and Delay as four small number fields, under the entry settings (not on Moments). They apply on top of the story pieces; on an entry with pieces, each one set gets a warning line saying how. A card with any of them set shows a quiet badge at its bottom right: "50% · S5 · C3 · D2" |
 | Path of *fork* | Only on a switch's path: "Path of *Fork*", tap to open the switch. A gate that is only the switch's "can't fire before the fork" rule shows here instead of as a Gate row |
 | Piece rows | One row per piece the entry has, in matrix order (Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Tracker): a stripe in the piece's color, its icon and name, and the same plain sentence as the entry page. Tap a row to expand it into its editor; one is open at a time. A "?" by the name opens the Guide at that piece; an open row has a remove button (Ctrl Z takes it back) |
 | From other entries | Rules other entries aim at this one: "Gates for this", "Closes this", "Another path of its fork", "Rides along with this". Tap one to inspect that entry |
@@ -733,7 +734,7 @@ from a list.
 | State | What it shows |
 |-------|---------------|
 | Nothing selected | The book: Problems (click jumps to the card), the link legend, and a short mouse cheat sheet |
-| One card | Header: strategy dot, name, on/off switch, ×. Tabs **Story logic** and **Text**. Story logic: as on phones (the content's first two lines, click = Text tab; problem lines; Who triggers, Once and Tracker; one row per rule, expanding into its editor; From and To other entries; + Add logic). Text: the content, editable, with its keywords above. Footer: Open entry · Add note · Data |
+| One card | Header: strategy dot, name, on/off switch, ×. Tabs **Story logic** and **Text**. Story logic: as on phones (the content's first two lines, click = Text tab; problem lines; Who triggers, Once and Tracker; ST timing; one row per rule, expanding into its editor; From and To other entries; + Add logic). Text: the content, editable, with its keywords above. Footer: Open entry · Add note · Data |
 | Several cards | Their names and the group actions |
 
 ### Preview tab

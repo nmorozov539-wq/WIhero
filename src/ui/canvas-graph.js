@@ -67,7 +67,7 @@ export function canvasBook(data, { folderOf = () => '', problems = new Set(), gr
         const after = Array.isArray(closeRows) ? closeRows.filter(selfRow) : [];
         const closesAfter = after.length ? Math.min(...after.map(row => row.find(isWait)?.wait ?? 0)) : null;
         return {
-            id: cardKey(entry), uid: entry.uid, entry, title: titleOf(entry), keys: entry.key ?? [],
+            id: cardKey(entry), uid: entry.uid, entry, title: titleOf(entry), keys: entry.key ?? [], timing: timingOf(entry),
             strategy: s === 'off' ? (entry.constant ? 'perm' : entry.vectorized ? 'vec' : 'keys') : s, off: !!entry.disable,
             folder: folderOf(entry), problem: problems.has(entry.uid),
             gate: rows(c.gate), gatesFor: list(c.gatesFor), closeGate: rows(Array.isArray(closeRows) ? closeRows.filter(row => !selfRow(row)) : closeRows), closesAfter, closesFor: list(c.closesFor), fromGreetings,
@@ -107,6 +107,22 @@ function momentNode(entry, c) {
 
 /** A Moment's name: its title without the "Moment: " ST shows. */
 export const momentName = entry => String(entry?.comment ?? '').replace(/^Moment:\s*/i, '') || (entry?.key ?? [])[0] || 'Moment';
+
+/**
+ * ST's chance and timing on an entry, for the card's badge: only what is set. "50% · S5 · C3 · D2", and the long
+ * words for its tooltip. Null when nothing is set.
+ */
+export function timingOf(entry) {
+    const parts = [];
+    const long = [];
+    const p = entry.useProbability !== false ? Number(entry.probability ?? 100) : 100;
+    if (Number.isFinite(p) && p < 100) { parts.push(`${p}%`); long.push(`Probability ${p}%`); }
+    for (const [f, s, name] of [['sticky', 'S', 'Sticky'], ['cooldown', 'C', 'Cooldown'], ['delay', 'D', 'Delay']]) {
+        const n = Number(entry[f]) || 0;
+        if (n > 0) { parts.push(`${s}${n}`); long.push(`${name} ${n} message${n === 1 ? '' : 's'}`); }
+    }
+    return parts.length ? { text: parts.join(' · '), title: long.join(', ') } : null;
+}
 
 /** All links of a book as edges between node keys (card keys or `pack:<name>`), and the rows that meet at junctions. */
 export function buildGraph(m) {

@@ -319,6 +319,7 @@ svg.lk path.head { stroke-width: 0; }
 .card .badge1, .card .fired { position: absolute; right: 6px; top: 5px; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 0 3px; line-height: 13px; }
 .card .badge1 { color: var(--p-close); border: 1.5px solid var(--p-close); }
 .card .fired { color: var(--fg); background: var(--raised); }
+.card .timing { position: absolute; right: 16px; bottom: 4px; font-size: 10px; font-weight: 600; color: var(--muted); line-height: 12px; font-variant-numeric: tabular-nums; }
 .card .cbang { position: absolute; left: -7px; top: -7px; width: 18px; height: 18px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; z-index: 3; }
 .card.masked .k { color: var(--p-mask); }
 .card.closed { opacity: .55; }
@@ -1019,6 +1020,13 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .isetl { font-size: var(--t-xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); min-width: 92px; white-space: nowrap; flex-shrink: 0; }
 .isetn { flex: 1; font-size: var(--t-s); color: var(--muted); }
 .iset .pseg { flex-wrap: nowrap; flex-shrink: 0; }
+.itiming { margin-top: 2px; }
+.tgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 8px; }
+.tgrid label { grid-row: 1; font-size: var(--t-xs); color: var(--muted); }
+.tfield { grid-row: 2; display: flex; align-items: baseline; gap: 3px; min-width: 0; }
+.tfield input { width: 100%; min-width: 0; height: 30px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--t-s); }
+.tfield small { color: var(--muted); font-size: 10px; }
+.itiming .pnote { margin: 2px 0 0; }
 .iset .pseg button { white-space: nowrap; }
 .pct b .pci { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
 .pshapes { gap: 4px; }

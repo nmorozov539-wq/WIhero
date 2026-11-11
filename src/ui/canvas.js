@@ -216,7 +216,7 @@ export function mountCanvas(vp, d) {
                 const tag = st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${who}`;
                 c.append(gr, el('div', 'tag', tag), el('div', 't', e.title),
                     el('div', 'k gk', e.moment.phrases.length ? e.moment.phrases.map(p => `“${p}”`).join(' · ') : 'no phrases yet'));
-                if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This Moment has a problem'; c.append(b); }
+            if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This Moment has a problem'; c.append(b); }
                 put(world, c);
                 continue;
             }
@@ -255,6 +255,7 @@ export function mountCanvas(vp, d) {
                 b.title = e.closesAfter ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires` : 'Closes after it first fires';
                 c.append(b);
             }
+            if (e.timing) { const b = el('span', 'timing', e.timing.text); b.title = `ST: ${e.timing.title}`; c.append(b); }
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
             if (e.note) {
                 // A sticky note (AFTER_V1): the author's own, pinned over the card; never sent to the model.
