@@ -103,7 +103,15 @@ const inView = (page, sel, root) => page.evaluate(([s, r]) => {
     await page.mouse.click(vp.x + vp.width / 2, vp.y + 60);
     await page.waitForTimeout(200);
     assert.equal(await $(page, '.placeoffer').count(), 0, 'a tap elsewhere drops the offer');
-    ok('phone: a long press let go offers Place an entry here; a slip is not a box; a tap elsewhere drops it');
+    // A real tap on the offer opens Place here (the canvas must not capture the pointer from it).
+    await page.mouse.move(hx, hy);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.up();
+    const offer = await $(page, '.placeoffer').boundingBox();
+    await page.mouse.click(offer.x + offer.width / 2, offer.y + offer.height / 2);
+    await $(page, '.sheet h2').filter({ hasText: 'Place here' }).waitFor({ timeout: 5000 });
+    ok('phone: a long press let go offers Place an entry here, and a tap on it opens Place here; a slip is not a box; a tap elsewhere drops it');
     await page.close();
 }
 

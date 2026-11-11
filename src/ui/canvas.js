@@ -931,7 +931,7 @@ export function mountCanvas(vp, d) {
     }
     const later = () => { if (!dragRaf) dragRaf = requestAnimationFrame(dragFrame); };
     vp.addEventListener('pointerdown', e => {
-        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner')) return;
+        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner, .placeoffer')) return;
         if (!camera()) return;
         if (d.desk && e.button !== 0) return; // right-click is a menu, middle-click nothing
         vp.setPointerCapture?.(e.pointerId);
