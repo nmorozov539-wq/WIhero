@@ -135,8 +135,12 @@ async function heroMode(w, h, drawer) {
     await page.keyboard.press('Escape');
 
     await card(page, 'Ferry (sticky').click({ button: 'right' });
+    await page.waitForTimeout(150);
+    assert.equal(await $(page, '.sheet.pop').count(), 0, 'right-click opens no menu: the right button only moves the view');
+    await card(page, 'Ferry (sticky').hover();
+    await $(page, '.hhandles .hh.hmore').click();
     await $(page, '.sheet.pop').filter({ hasText: 'Add piece' }).waitFor();
-    ok(`${w}: right-click a card: Inspect, Open entry, Edit text, Add piece`);
+    ok(`${w}: a card's ⋯ (not right-click): Inspect, Open entry, Edit text, Add piece`);
     await page.keyboard.press('Escape');
 
     // A link dragged from a hover handle opens the strip; Cancel (Escape) puts the book back.
@@ -158,14 +162,13 @@ async function heroMode(w, h, drawer) {
 
     const a = await cardBox(page, 'Ferry (sticky');
     const z = await cardBox(page, 'Right path');
-    await page.keyboard.down('Shift');
     await page.mouse.move(a.x - 12, a.y - 12);
     await page.mouse.down();
     await page.mouse.move(z.x + z.width + 8, z.y + z.height + 8, { steps: 5 });
     await page.mouse.up();
-    await page.keyboard.up('Shift');
     await $(page, '.hinsp h2').filter({ hasText: 'cards selected' }).waitFor();
-    ok(`${w}: Shift-drag selects several, and the inspector offers group actions`);
+    assert.equal(await $(page, '.lasso').count(), 0, 'a box only selects: no pack-name box');
+    ok(`${w}: dragging empty canvas selects several, and the inspector offers group actions`);
     await page.keyboard.press('Escape');
 
     await page.keyboard.press('o');

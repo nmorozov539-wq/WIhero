@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import { PIECE_ANCHOR } from './guide.js';
 import { PORT } from './canvas-graph.js';
-import { addLink, removeLink } from './links.js';
+import { addLink } from './links.js';
 import { addPiece, bookEditor, greetingName, hasPiece, packsOf } from './pieces.js';
 import { canvasMemory } from './canvas.js';
 import { editExisting, startPiece } from './piecebar.js';
@@ -23,7 +23,7 @@ import { FAMILY_COLOR } from './logic-text.js';
 export function createHeroBar(A) {
     const {
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
-        render, root, saveSettings, settings, sortBy, tidyNow, canvas, entryTemplate, historyStep,
+        render, root, saveSettings, settings, sortBy, canvas, entryTemplate, historyStep,
     } = A;
 
     /** A card key as the bar sees it: an entry by uid, a pack, or a greeting. */
@@ -254,8 +254,12 @@ export function createHeroBar(A) {
         });
     }
 
-    /** A long press on the canvas: pick an entry not on it yet, and it is placed there (or make a new one there). */
-    function placePicker(book, data, at) {
+    /**
+     * Add to canvas here (desktop: double-click empty canvas, or a link dropped on it) or Place here (phones: a long
+     * press, or a loose end let go on empty canvas): pick an entry not on the canvas yet, and it is placed there (or
+     * make a new one there). `then(key)` runs once it is placed: a dropped link takes it as its target.
+     */
+    function placePicker(book, data, at, then = null) {
         const on = canvas()?.view?.ids ?? new Set();
         const place = (key, title) => {
             const mem = canvasMemory(bookSettings(settings, book));
@@ -263,7 +267,7 @@ export function createHeroBar(A) {
             delete mem.cards[key].ports;
             saveSettings();
             render();
-            layer.toast(`${title} placed`);
+            if (then) then(key); else layer.toast(`${title} placed`);
         };
         layer.sheet(S.desk ? 'Add to canvas here' : 'Place here', sh => {
             const q = el('input', 'pick-q');
@@ -282,11 +286,7 @@ export function createHeroBar(A) {
                 title: 'New entry', placeholder: 'Entry name', ok: 'Create',
                 done: name => { const x = createEntry(book, name); place(cardKey(x), name); },
             }), { icon: 'plus' }), list);
-            if (S.desk) {
-                list.classList.add('plimit');
-                sh.append(layer.opt('Fit', () => { layer.close(); canvas()?.fit(); }, { icon: 'fit', val: 'F' }));
-                sh.append(layer.opt('Tidy layout', () => { layer.close(); tidyNow(); }, { icon: 'tidy', val: 'T' }));
-            }
+            if (S.desk) list.classList.add('plimit');
             fill();
             if (S.desk) setTimeout(() => q.focus(), 0);
         }, { help: S.desk ? null : 'Entries that aren\'t on the canvas yet.' });
@@ -312,20 +312,5 @@ export function createHeroBar(A) {
         if (changed) e.dirty = true;
         render();
     }
-    /** Desktop: right-click on a line. */
-    function linkMenu(book, l, shaped) {
-        const hit = { link: l };
-        layer.sheet('Link', sh => {
-            sh.append(layer.opt('Shape link', () => { layer.close(); const edit = editExisting(hit, barApi(book)); if (edit) openStrip(book, edit); }, { icon: 'edit', val: 'Click' }));
-            if (shaped) sh.append(layer.opt('Reset shape', () => { layer.close(); canvas()?.resetShapeOf(l); layer.toast('Shape reset'); }, { icon: 'x' }));
-            sh.append(layer.opt('Remove', () => {
-                layer.close();
-                const src = nodeOf(book, l.from);
-                const dst = nodeOf(book, l.to);
-                if (src && dst && barAct(book, (ed, d) => removeLink(ed, d, l.kind, src, dst, l.mask ?? null))) layer.toast('Link removed');
-            }, { icon: 'trash' }));
-        });
-    }
-
-    return { barAct, barApi, barTap, createEntry, dropPiece, nodeOf, openStrip, placePicker, shaping, shapeSet, linkMenu };
+    return { barAct, barApi, barTap, createEntry, dropPiece, nodeOf, openStrip, placePicker, shaping, shapeSet };
 }

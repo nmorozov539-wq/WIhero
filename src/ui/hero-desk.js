@@ -6,10 +6,11 @@ import { LR } from './canvas-graph.js';
 import { addLink } from './links.js';
 import { addToList, askNote, packsOf } from './pieces.js';
 import { isMoment } from '../engine/model.js';
-import { bookSettings, cardKey, configOf, isBlank, removeEntry, reorderEntries, setFolder, sortEntries, titleOf } from './data.js';
+import { bookSettings, cardKey, configOf, duplicateEntry, isBlank, removeEntry, reorderEntries, setFolder, sortEntries, titleOf } from './data.js';
+import { writeConfig } from '../book.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
-import { canvasMemory } from './canvas.js';
+import { canvasMemory, holdSpace } from './canvas.js';
 import { resizer } from './desk.js';
 import { strategyColor } from './entry-page.js';
 
@@ -20,7 +21,7 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroDesk(A) {
     const {
-        H, S, barAct, barApi, barLinkMenu, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
+        H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render, saveSettings, settings, shadow, showOnCanvas, sortBy, startExplain, stopExplain, typing,
         canvas,
@@ -111,9 +112,56 @@ export function createHeroDesk(A) {
             },
             cardMenu: key => cardMenu(book, data, key),
             lasso: lassoFor(book, data),
-            linkMenu: (l, shaped) => barLinkMenu(book, l, shaped),
-            emptyMenu: at => placePicker(book, data, at),
+            // Double-click empty canvas: Add to canvas here.
+            addHere: at => placePicker(book, data, at),
+            // A link dragged from a card and let go on empty canvas: Add to canvas here, and the entry picked there
+            // becomes its target, straight into the strip as a drop on a card would.
+            linkEmpty: (kind, from, at) => placePicker(book, data, at, key => deskCanvas(book, data).link(kind, from, key)),
+            wheel: () => (deskSettings().wheel === 'scroll' ? 'scroll' : 'zoom'),
         };
+    }
+
+    /** Ctrl D on the canvas: copies of the selected entries, placed just below and right, selected. No links. */
+    const LINK_FIELDS = ['gate', 'gatesFor', 'closeGate', 'closesFor', 'switch'];
+    function duplicatePicked(book) {
+        const data = library.peek(book);
+        const keys = canvas()?.picked() ?? [];
+        const uids = keys.map(k => nodeOf(book, k)).filter(x => x?.t === 'entry').map(x => x.uid);
+        if (!data || !uids.length) return false;
+        const made = [];
+        library.change(book, d => {
+            for (const u of uids) {
+                const src = d.entries[u];
+                if (!src) continue;
+                const copy = duplicateEntry(d, u);
+                // The copy keeps its text, masks, packs and settings, but not its links (they are the story's logic).
+                const c = configOf(copy);
+                if (c) {
+                    let cut = false;
+                    for (const f of LINK_FIELDS) if (f in c) { delete c[f]; cut = true; }
+                    if (c.glue?.mode === 'ride') { delete c.glue; cut = true; }
+                    if (cut) writeConfig(d, copy.uid, c);
+                }
+                made.push([cardKey(src), copy.uid, entryFolder(book, src)]);
+            }
+        });
+        const mem = canvasMemory(bookSettings(settings, book));
+        const fresh = library.peek(book);
+        const copies = [];
+        for (const [from, uid, folder] of made) {
+            const e = fresh.entries[uid];
+            if (!e) continue;
+            const key = cardKey(e);
+            const p = mem.cards[from];
+            mem.cards[key] = { placed: true, ...(Number.isFinite(p?.x) ? { x: p.x + 24, y: p.y + 24 } : {}) };
+            if (folder) setFolder(settings, book, e, folder);
+            copies.push(key);
+        }
+        saveSettings();
+        render();
+        canvas()?.setPicked(new Set(copies));
+        layer.toast(`${copies.length === 1 ? `Made ${titleOf(fresh.entries[made[0][1]])}` : `Made ${copies.length} copies`}, without links`);
+        return true;
     }
 
     function cardMenu(book, data, key) {
@@ -187,7 +235,7 @@ export function createHeroDesk(A) {
         }
         body.append(lg);
         body.append(el('div', 'lbl', 'Mouse'));
-        body.append(el('p', 'help', 'Rest the pointer on a card to see its links. Click to inspect, double-click to edit its text. Drag a card to move it, drag empty space to pan, Shift-drag to select several. The wheel zooms. Drag a colored port or a handle under a card onto another card to link them. Right-click a card or the canvas for more.'));
+        body.append(el('p', 'help', 'Right-drag moves the view (so do the middle button and Space-drag), from anywhere. Drag empty space to select several; Shift or Ctrl adds. The wheel zooms (☰ › Canvas can make it scroll, for a trackpad). Rest the pointer on a card or a line to see what it links. Click a card to inspect it, double-click to edit its text; ⋯ under it is its menu. Drag a card to move it. Drag a colored port or a handle under a card onto another card to link them, or onto empty space to add the target there. Double-click empty space to add an entry.'));
     }
 
     function groupPane(col, book, data, keys) {
@@ -245,10 +293,25 @@ export function createHeroDesk(A) {
         const k = e.key;
         const ctrl = e.ctrlKey || e.metaKey;
         if (ctrl && !e.altKey && k.toLowerCase() === 'k') { S.search = { query: S.search?.query ?? '', at: 0 }; render(); return true; }
+        const onCanvas = H.active === 'canvas' && !!canvas() && !!H.book;
+        // Ctrl D: duplicate the selected cards (the list keeps its own Ctrl D for its rows).
+        if (ctrl && !e.altKey && !e.shiftKey && k.toLowerCase() === 'd' && onCanvas && !S.search && !layer.isOpen() && !typing() && !H.bar.edit) {
+            return duplicatePicked(H.book);
+        }
         if (S.search || layer.isOpen() || typing() || ctrl || e.altKey) return false;
-        if (H.active !== 'canvas' || !canvas() || !H.book) return false;
+        if (!onCanvas) return false;
         const book = H.book;
         const up = k.length === 1 ? k.toUpperCase() : k;
+        // Space held: a left-drag moves the view (canvas.js clears it when the key comes up).
+        if (k === ' ') { holdSpace(true); return true; }
+        // The selected card's menu: the Menu key, or Shift F10.
+        if (k === 'ContextMenu' || (k === 'F10' && e.shiftKey)) {
+            const sel = canvas().picked();
+            if (sel.length === 1) cardMenu(book, library.peek(book), sel[0]);
+            return true;
+        }
+        // Shift 0: 100% zoom.
+        if (e.shiftKey && e.code === 'Digit0') { canvas().zoomTo(1); return true; }
         if (k === '?') { H.explain ? stopExplain() : startExplain(); return true; }
         // A drawn link's strip is open: 1–4 pick the line type, X flips it, Delete takes away the picked dot.
         const shp = H.bar.edit ? canvas().shapeState?.() : null;
@@ -263,6 +326,8 @@ export function createHeroDesk(A) {
             if (H.bar.edit) return false;
             const sel = canvas().picked();
             if (sel.length === 1) { dropPiece(book, piece.k, { card: sel[0] }); return true; }
+            // P with several cards selected: the pack-name box under them.
+            if (piece.k === 'pack' && sel.length > 1 && canvas().packPrompt()) return true;
             H.bar.armed = H.bar.armed === piece.k ? null : piece.k;
             render();
             return true;
@@ -276,7 +341,10 @@ export function createHeroDesk(A) {
         return false;
     }
 
-    /** Esc on desktop: menu, search, armed piece, strip (Cancel), text box, selection, then closes WI Hero. */
+    /**
+     * Esc on desktop: menu, search, armed piece, strip (Cancel), text box, selection, Preview's report page, and there
+     * it stops. It never closes WI Hero (people press Esc twice by habit); × does.
+     */
     function heroBackDesk() {
         if (S.search) { S.search = null; render(); return true; }
         if (H.active === 'canvas') {
@@ -298,8 +366,7 @@ export function createHeroDesk(A) {
             return true;
         }
         if (H.active === 'preview' && H.pv?.page) { H.pv.page = null; render(); return true; }
-        hide();
-        return false;
+        return true;
     }
     /** Discards a new entry left completely empty when the book pane moves on from it. */
     function leaveEntry(p) {

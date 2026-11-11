@@ -178,7 +178,7 @@ await run(async () => {
     assert.equal(await $('.tab').count(), 3, 'the Ferry tab stays open, after Canvas and Preview');
     await card('id:mill').locator('.t').click();
     await $('.insp .ihead h2:text-is("Mill: arrival")').waitFor();
-    await $('.insp .ifoot button:has-text("Open entry")').click();
+    await $('.insp .iedit').click(); // phones: Edit text at the top opens the entry
     await $('.en h1:text-is("Mill: arrival")').waitFor();
     assert.equal(await $('.tab').count(), 4);
     await page.keyboard.press('Escape');
@@ -186,7 +186,7 @@ await run(async () => {
     await page.keyboard.press('Escape');
     await card('id:mill').waitFor();
     assert.equal(await $('.tab').count(), 2, 'Back closes the entry tabs one by one, then shows the canvas');
-    ok('the inspector\'s Open entry opens a tab; Show on canvas finds it again; Back closes the tabs');
+    ok('the inspector\'s Edit text opens the entry in a tab; Show on canvas finds it again; Back closes the tabs');
 
     // The canvas scrolls rather than shrinks on a phone: pan the frame into view first.
     {

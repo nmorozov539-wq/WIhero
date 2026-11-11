@@ -509,5 +509,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, checkCounts, checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, choiceRow, checkCounts, checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }

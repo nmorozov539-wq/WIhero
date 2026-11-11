@@ -73,6 +73,66 @@ export const linkKey = x => `${x.fromPort}>${x.to}${x.mask != null ? `@${x.mask}
 let lastDotTap = null;
 /** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
 export const PHONE_FLOOR = 0.8;
+/** How near a card (screen pixels) a dropped link or loose end still lands on it: wider for a finger. */
+export const MAGNET = { mouse: 24, touch: 32 };
+
+/**
+ * Space held (desktop): a left-drag pans, wherever it starts. Kept for the page, not per canvas: the canvas is drawn
+ * again on most clicks, and the key may go up while another one is mounted. The Hero keys set it (they know when the
+ * focus is in a text box); its release and a lost window focus clear it.
+ */
+let SPACE = false;
+let spaceVp = null;
+export function holdSpace(on) {
+    SPACE = on;
+    spaceVp?.classList.toggle('spacepan', on);
+}
+if (typeof window !== 'undefined') {
+    window.addEventListener('keyup', e => { if (e.key === ' ' && SPACE) holdSpace(false); }, true);
+    window.addEventListener('blur', () => { if (SPACE) holdSpace(false); });
+}
+
+/**
+ * How a wheel event moves the camera: { zoom: factor } around the pointer, or { pan: [dx, dy] } in screen pixels.
+ * Zoom follows the size of the scroll, so a trackpad's many small events zoom smoothly and a mouse's notch is about
+ * the old 10% step. Ctrl+wheel (also what a trackpad pinch sends) always zooms; Shift+wheel always pans sideways.
+ * `wheel`: 'zoom' (default) or 'scroll' (two fingers pan, as in Figma), from ☰ › Canvas › Mouse wheel.
+ */
+export function wheelMove(e, wheel = 'zoom') {
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    const dx = e.deltaX * unit;
+    const dy = e.deltaY * unit;
+    const clamp = (v, m) => Math.max(-m, Math.min(m, v));
+    if (e.ctrlKey || e.metaKey) return { zoom: Math.exp(-clamp(dy, 10) * 0.01) };
+    if (e.shiftKey) return { pan: [-(dx || dy), 0] };
+    if (wheel === 'scroll') return { pan: [-dx, -dy] };
+    if (Math.abs(dx) > Math.abs(dy)) return { pan: [-dx, 0] };
+    return { zoom: Math.exp(-clamp(dy, 100) * 0.001) };
+}
+
+/**
+ * The pinch's camera: the canvas point that was under the fingers' midpoint stays under it, while the spread sets
+ * the zoom. So two fingers pan and zoom at once, as in every map. `p0`: { d, s, wx, wy } at the start; `mx, my`: the
+ * midpoint now (view pixels); `dd`: the spread now.
+ */
+export function pinchCamera(p0, mx, my, dd) {
+    const scale = Math.min(2, Math.max(0.25, p0.s * dd / (p0.d || 1)));
+    return { scale, tx: mx - p0.wx * scale, ty: my - p0.wy * scale };
+}
+
+/** The card nearest a canvas point within `reach` (canvas units), not counting `except`; for the link magnet. */
+export function nearCard(R, x, y, reach, except = null) {
+    let best = null;
+    let bd = reach;
+    for (const r of R.values()) {
+        if (r.key === except) continue;
+        const ddx = Math.max(r.x - x, 0, x - (r.x + r.w));
+        const ddy = Math.max(r.y - y, 0, y - (r.y + r.h));
+        const dist = Math.hypot(ddx, ddy);
+        if (dist <= bd && (!r.pack || !best)) { best = r.key; bd = dist; }
+    }
+    return best;
+}
 
 export function mountCanvas(vp, d) {
     const world = el('div', 'world');
@@ -80,8 +140,14 @@ export function mountCanvas(vp, d) {
     const tools = el('div', 'canvas-tools');
     tools.append(btn('', ic('fit'), () => fit(), 'Fit to screen'), btn('', ic('plus'), () => zoomAt(1.2), 'Zoom in'), btn('', ic('minus'), () => zoomAt(1 / 1.2), 'Zoom out'));
     d.tools?.(tools); // desktop: Tidy and the inspector toggle
-    const zl = el('div', 'zlabel');
+    // The zoom label: a click goes to 100% around the middle of the view.
+    const zl = el('button', 'zlabel');
+    zl.type = 'button';
+    zl.title = 'Zoom to 100%';
+    zl.addEventListener('click', () => zoomTo(1));
     vp.append(tools, zl);
+    spaceVp = vp;
+    vp.classList.toggle('spacepan', SPACE);
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
     vp.addEventListener('scroll', () => { vp.scrollTop = 0; vp.scrollLeft = 0; });
     let CV = null;
@@ -659,13 +725,24 @@ export function mountCanvas(vp, d) {
         saveCamera();
     }
 
-    /** Fits everything in view; the first fit keeps cards readable (55% at least) and starts at the top. */
+    /** Zooms to `scale` (100%: 1) around the middle of the view. */
+    function zoomTo(scale) {
+        const v = camera();
+        if (!v) return;
+        zoomAt(scale / v.scale);
+    }
+
+    /**
+     * Fits the picked cards in view when any are picked (F, the Fit button), else everything. The first fit keeps
+     * cards readable (55% at least) and starts at the top.
+     */
     function fit(first = false) {
         if (!vp.clientWidth) return;
         cam ??= { tx: 20, ty: 20, scale: 0.78 };
         if (!CV || !CV.R.size) { applyView(); saveCamera(); return; }
+        const sel = first ? [] : [...picked].map(k => CV.R.get(k)).filter(Boolean);
         let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
-        for (const r of CV.R.values()) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y - 40); x1 = Math.max(x1, r.x + r.w + 40); y1 = Math.max(y1, r.y + r.h + 40); }
+        for (const r of sel.length ? sel : CV.R.values()) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y - 40); x1 = Math.max(x1, r.x + r.w + 40); y1 = Math.max(y1, r.y + r.h + 40); }
         const W = vp.clientWidth; const H = vp.clientHeight - 20;
         cam.scale = Math.min(1, Math.max(0.25, Math.min((W - 24) / (x1 - x0), (H - 60) / (y1 - y0))));
         cam.tx = (W - (x1 - x0) * cam.scale) / 2 - x0 * cam.scale;
@@ -823,15 +900,6 @@ export function mountCanvas(vp, d) {
         d.save();
         d.shapeSet?.({ seg: 0, dot: null }, true);
     }
-    /** Drops a link's shape without opening its strip (the desktop's right-click menu). */
-    function resetShapeOf(l) {
-        const c = memory().cards[l.from];
-        if (!c?.links?.[l.key]) return;
-        delete c.links[l.key];
-        if (!Object.keys(c.links).length) delete c.links;
-        d.save();
-        render();
-    }
     /** Where a dragged dot goes: on the grid with a mouse (Alt: anywhere); level with a neighbour on a phone. */
     function dotPoint(cx, cy, free) {
         let [x, y] = toWorld(cx, cy);
@@ -874,6 +942,8 @@ export function mountCanvas(vp, d) {
     let drag = null;
     let pinch = null;
     let holdTimer = null;
+    let firstDown = 0; // when the first finger of a gesture landed, for a two-finger tap
+    let tap2 = null; // a pinch that may yet be a two-finger tap: { t, at: Map(id → [x, y]), far }
     const toWorld = (cx, cy) => { const r = vp.getBoundingClientRect(); const v = camera(); return [(cx - r.left - v.tx) / v.scale, (cy - r.top - v.ty) / v.scale]; };
     // The camera moves at most once per frame (a phone sends pointer moves faster than it draws), and while a finger
     // pans or pinches, the world is its own GPU layer, so moving it doesn't paint the cards again. The layer is let go
@@ -930,44 +1000,83 @@ export function mountCanvas(vp, d) {
         });
     }
     const later = () => { if (!dragRaf) dragRaf = requestAnimationFrame(dragFrame); };
+    /** A card near a screen point, for a dropped link or loose end (the magnet): `kind` is the pointer's type. */
+    function magnetAt(cx, cy, kind) {
+        if (!CV) return null;
+        const [x, y] = toWorld(cx, cy);
+        return nearCard(CV.R, x, y, (kind === 'touch' ? MAGNET.touch : MAGNET.mouse) / (camera()?.scale || 1));
+    }
     vp.addEventListener('pointerdown', e => {
-        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner, .placeoffer')) return;
+        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner, .placeoffer, .zlabel, .lasso')) return;
         if (!camera()) return;
-        if (d.desk && e.button !== 0) return; // right-click is a menu, middle-click nothing
-        vp.setPointerCapture?.(e.pointerId);
-        pts.set(e.pointerId, [e.clientX, e.clientY]);
-        if (pts.size === 2) {
+        // A mouse or pen on desktop follows the desktop rules; a finger keeps the phone's, whatever the layout.
+        const mouse = !!d.desk && e.pointerType !== 'touch';
+        // The right button only moves the view, from anywhere, even over cards and lines; so do the middle button and
+        // Space with the left one (LAYOUT "Canvas: mouse").
+        const viewDrag = mouse && (e.button === 2 || e.button === 1 || (e.button === 0 && SPACE));
+        if (mouse && e.button !== 0 && !viewDrag) return;
+        if (pts.size >= 2) return; // a third finger is ignored: the first two carry on
+        if (pts.size === 1) {
+            // A second finger pinches, unless a card, dot, port, link or box drag owns the first one.
+            if (mode && mode !== 'pan' && mode !== 'hold') return;
+            clearTimeout(holdTimer);
+            vp.setPointerCapture?.(e.pointerId);
+            pts.set(e.pointerId, [e.clientX, e.clientY]);
             const [a, b] = [...pts.values()];
-            pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: camera().scale };
+            const r = vp.getBoundingClientRect();
+            const v = camera();
+            const mx = (a[0] + b[0]) / 2 - r.left;
+            const my = (a[1] + b[1]) / 2 - r.top;
+            pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: v.scale, wx: (mx - v.tx) / v.scale, wy: (my - v.ty) / v.scale, cam: { ...v } };
+            // It may be a two-finger tap (undo): the second finger landed soon after the first, and nothing moved yet.
+            const now = performance.now();
+            tap2 = !moved && now - firstDown < 250 ? { t: now, at: new Map([...pts].map(([id, p]) => [id, [...p]])), far: 0 } : null;
             mode = 'pinch';
             return;
         }
+        vp.setPointerCapture?.(e.pointerId);
+        pts.set(e.pointerId, [e.clientX, e.clientY]);
         moved = false;
+        firstDown = performance.now();
+        tap2 = null;
         start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: lineUnder(e.target, e.clientX, e.clientY) };
+        clearTimeout(holdTimer);
+        if (viewDrag) {
+            e.preventDefault(); // no autoscroll on the middle button
+            mode = 'pan';
+            start.view = true;
+            vp.classList.add('panning');
+            return;
+        }
         const gr = e.target.closest?.('[data-grip]');
         const port = e.target.closest?.('[data-port]');
-        const card = d.desk && !port && !e.target.closest?.('[data-flip], .lockp, .junc') ? e.target.closest?.('.card[data-id]') : null;
-        const handle = d.desk ? e.target.closest?.('[data-handle]') : null;
+        const card = mouse && !port && !e.target.closest?.('[data-flip], .lockp, .junc') ? e.target.closest?.('.card[data-id]') : null;
+        const handle = mouse ? e.target.closest?.('[data-handle]') : null;
+        const more = mouse ? e.target.closest?.('[data-more]') : null;
         const sh = SH ? e.target.closest?.('[data-dot], [data-ghost]') : null;
-        if (sh) {
+        if (more) {
+            // The ⋯ after a card's hover handles: its menu, on release.
+            mode = 'more';
+            drag = { key: more.dataset.more };
+        } else if (sh) {
             // A dot of the shaped link, or a ghost dot (dragging it makes a new dot; a tap picks its part).
             mode = 'dot';
             drag = { dot: sh.dataset.dot != null ? Number(sh.dataset.dot) : null, ghost: sh.dataset.ghost != null ? Number(sh.dataset.ghost) : null };
             drag.tapped = drag.dot ?? drag.ghost;
-        } else if (handle || (d.desk && port && PORT[port.dataset.port.split('|')[1]]?.dir === 'out' && !OV)) {
+        } else if (handle || (mouse && port && PORT[port.dataset.port.split('|')[1]]?.dir === 'out' && !OV)) {
             // Desktop: drag from a hover handle or a knob onto another card makes a link (LAYOUT "Canvas: mouse").
             const [key, kindOrPort] = handle ? [handle.dataset.handle, handle.dataset.kind] : port.dataset.port.split('|');
             const kind = handle ? kindOrPort : { gout: 'open', cout: 'close', glout: 'ride' }[kindOrPort];
             mode = 'link';
             drag = { from: key, kind, port: port?.dataset.port };
-        } else if (e.target.closest?.('.loosend') && OV?.loose) { mode = 'loose'; drag = {}; } else if (card || gr) {
+        } else if (e.target.closest?.('.loosend') && OV?.loose) { mode = 'loose'; drag = { at0: [...OV.loose.at] }; } else if (card || gr) {
             const id = (card ?? gr).dataset.id ?? gr.dataset.grip;
             const [wx, wy] = toWorld(e.clientX, e.clientY);
             const c = memory().cards[id];
             const group = picked.has(id) && picked.size > 1 ? [...picked].filter(k => memory().cards[k]) : null;
             drag = { id, dx: wx - c.x, dy: wy - c.y, group, at: group ? Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) : null };
             mode = 'card';
-        } else if (!OV && !port && e.target.closest?.(d.desk ? '.packframe[data-pack]' : '.packframe[data-pack] .pn') && !(d.desk && e.shiftKey)) {
+        } else if (!OV && !port && e.target.closest?.(mouse ? '.packframe[data-pack]' : '.packframe[data-pack] .pn') && !(mouse && (e.shiftKey || e.ctrlKey || e.metaKey))) {
             // A pack frame moves the whole pack (#22): by its label or empty area with a mouse, by its label on a
             // phone, where the rest of the frame pans like the canvas around it. A tap still opens the pack.
             const name = e.target.closest('.packframe').dataset.pack;
@@ -978,11 +1087,12 @@ export function mountCanvas(vp, d) {
                 drag = { id: group[0], dx: wx - c.x, dy: wy - c.y, group, at: Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) };
                 mode = 'card';
             } else mode = 'pan';
-        } else if (d.desk && e.shiftKey && !e.target.closest?.('[data-port], [data-pack], [data-link], [data-row], [data-cond]')) {
+        } else if (mouse && !port) {
+            // A mouse's left-drag on empty canvas or a line is a box select; Shift or Ctrl adds to the selection.
+            // A click without moving is still a click (a line opens its strip, empty canvas lets go of the selection).
             mode = 'box';
             const r = vp.getBoundingClientRect();
-            drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, box: el('div', 'selbox') };
-            vp.append(drag.box);
+            drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, box: null, add: e.shiftKey || e.ctrlKey || e.metaKey, mouse: true };
         } else if (gr) {
             const id = gr.dataset.grip;
             const [wx, wy] = toWorld(e.clientX, e.clientY);
@@ -991,8 +1101,7 @@ export function mountCanvas(vp, d) {
             mode = 'card';
         } else if (port) { mode = 'port'; drag = { port: port.dataset.port }; } else mode = 'pan';
         // A long press on empty canvas picks an entry to place there.
-        clearTimeout(holdTimer);
-        if (mode === 'pan' && d.holdEmpty && !d.desk && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-row]')) {
+        if (mode === 'pan' && d.holdEmpty && !mouse && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-row]')) {
             const at = { x: e.clientX, y: e.clientY };
             holdTimer = setTimeout(() => {
                 if (moved || mode !== 'pan' || pts.size !== 1) return;
@@ -1006,12 +1115,16 @@ export function mountCanvas(vp, d) {
     vp.addEventListener('pointermove', e => {
         if (!pts.has(e.pointerId)) return;
         pts.set(e.pointerId, [e.clientX, e.clientY]);
-        if (mode === 'pinch' && pts.size === 2) {
+        if (tap2) { const s0 = tap2.at.get(e.pointerId); if (s0) tap2.far = Math.max(tap2.far, Math.hypot(e.clientX - s0[0], e.clientY - s0[1])); }
+        if (mode === 'pinch') {
+            if (pts.size !== 2) return;
+            // Two fingers pan and zoom at once: the point under their middle stays under it.
             const [a, b] = [...pts.values()];
             const r = vp.getBoundingClientRect();
-            const dd = Math.hypot(a[0] - b[0], a[1] - b[1]);
             gesture(true);
-            zoomAt(pinch.s * dd / pinch.d / camera().scale, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top, true);
+            Object.assign(camera(), pinchCamera(pinch, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top, Math.hypot(a[0] - b[0], a[1] - b[1])));
+            viewLater();
+            saveCamera();
             return;
         }
         if (!start) return;
@@ -1031,10 +1144,11 @@ export function mountCanvas(vp, d) {
         } else if (mode === 'link') {
             drag.to = toWorld(e.clientX, e.clientY);
             drawLinkGuide();
-            const h = hitAt(e.clientX, e.clientY);
-            markTarget(h?.card && h.card !== drag.from ? h : null);
+            const k = hitAt(e.clientX, e.clientY)?.card ?? magnetAt(e.clientX, e.clientY, e.pointerType);
+            markTarget(k && k !== drag.from ? { card: k } : null);
         } else if (mode === 'box') {
             const r = vp.getBoundingClientRect();
+            if (!drag.box) { drag.box = el('div', 'selbox'); vp.append(drag.box); }
             const x1 = e.clientX - r.left;
             const y1 = e.clientY - r.top;
             Object.assign(drag.box.style, { left: `${Math.min(drag.x0, x1)}px`, top: `${Math.min(drag.y0, y1)}px`, width: `${Math.abs(x1 - drag.x0)}px`, height: `${Math.abs(y1 - drag.y0)}px` });
@@ -1043,8 +1157,8 @@ export function mountCanvas(vp, d) {
         } else if (mode === 'port') { drag.at = toWorld(e.clientX, e.clientY); vp.style.cursor = 'crosshair'; } else if (mode === 'loose') {
             OV.loose.at = toWorld(e.clientX, e.clientY);
             drawOverlay();
-            const h = hitAt(e.clientX, e.clientY);
-            markTarget(h?.card && !OV.dim?.(h.card) ? h : null);
+            const k = hitAt(e.clientX, e.clientY)?.card ?? magnetAt(e.clientX, e.clientY, e.pointerType);
+            markTarget(k && k !== OV.loose.from && !OV.dim?.(k) ? { card: k } : null);
         }
     });
     /**
@@ -1053,7 +1167,7 @@ export function mountCanvas(vp, d) {
      * Esc or a click elsewhere leaves the selection as it is.
      */
     /** After a long press let go on empty canvas: a "Place an entry here" button at the spot; a tap elsewhere drops it. */
-    function placeOffer(at) {
+    function placeOffer(at, then = p => d.holdEmpty?.(p)) {
         vp.querySelector('.placeoffer')?.remove();
         const r = vp.getBoundingClientRect();
         const b = el('button', 'placeoffer');
@@ -1063,9 +1177,19 @@ export function mountCanvas(vp, d) {
         Object.assign(b.style, { left: `${Math.min(Math.max(at.x - r.left, 90), r.width - 90)}px`, top: `${at.y - r.top}px` });
         const drop = () => { b.remove(); vp.removeEventListener('pointerdown', away, true); };
         const away = ev => { if (!b.contains(ev.target)) drop(); };
-        b.addEventListener('click', () => { drop(); d.holdEmpty?.(pointAt(at.x, at.y)); });
+        b.addEventListener('click', () => { drop(); then(pointAt(at.x, at.y)); });
         vp.append(b);
         setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
+    }
+    /** P with several cards picked (desktop): the pack-name box under them, as after a phone's lasso. */
+    function packPrompt() {
+        const rs = [...picked].map(k => CV?.R.get(k)).filter(r => r && !r.pack);
+        const v = camera();
+        if (!rs.length || !v) return false;
+        const x0 = Math.min(...rs.map(r => r.x));
+        const y1 = Math.max(...rs.map(r => r.y + r.h));
+        lassoPrompt(rs.map(r => r.key), x0 * v.scale + v.tx, y1 * v.scale + v.ty);
+        return true;
     }
     function lassoPrompt(keys, x, y) {
         vp.querySelector('.lasso')?.remove();
@@ -1152,26 +1276,75 @@ export function mountCanvas(vp, d) {
         if (scrolled) saveCamera();
         if (!pts.has(e.pointerId)) return;
         pts.delete(e.pointerId);
-        if (mode === 'pinch') { if (pts.size === 0) { mode = null; gesture(false); } return; }
+        vp.classList.remove('panning');
+        if (tap2 && !pts.size) {
+            // Both fingers up: a quick two-finger tap that didn't move undoes, and the view goes back as it was.
+            const t = tap2;
+            tap2 = null;
+            if (e.type === 'pointerup' && performance.now() - t.t <= 300 && t.far <= 10) {
+                Object.assign(camera(), pinch.cam);
+                mode = null; start = null; drag = null;
+                gesture(false);
+                applyView();
+                saveCamera();
+                navigator.vibrate?.(12);
+                d.undo?.();
+                return;
+            }
+        }
+        if (mode === 'pinch') {
+            if (pts.size === 1) {
+                // One finger left: it pans on from where it is, so the view doesn't jump; it never counts as a tap.
+                const p = [...pts.values()][0];
+                const v = camera();
+                mode = 'pan';
+                moved = true;
+                start = { x: p[0], y: p[1], tx: v.tx, ty: v.ty, target: vp };
+                return;
+            }
+            if (pts.size === 0) { mode = null; gesture(false); saveCamera(); }
+            return;
+        }
         if (!pts.size) gesture(false);
         vp.style.cursor = '';
         if (mode === 'pan' && moved) saveCamera();
-        if (mode === 'loose') {
-            const h = moved && e.type === 'pointerup' ? hitAt(e.clientX, e.clientY) : null;
-            markTarget(null);
+        if (mode === 'pan' && start?.view) { mode = null; start = null; drag = null; return; } // right, middle, Space
+        const up = moved && e.type === 'pointerup';
+        if (mode === 'more') {
+            const key = drag.key;
             mode = null; start = null; drag = null;
-            OV?.onLoose?.(h, OV?.loose?.at);
+            if (!moved) d.cardMenu?.(key);
+            return;
+        }
+        if (mode === 'loose') {
+            // On a card (or near one: the magnet), it's picked; back on its own card nothing changes; on empty canvas
+            // the end parks there, and Place an entry here (a mouse: Add to canvas here at once) offers a new target.
+            const h = up ? hitAt(e.clientX, e.clientY) : null;
+            const k = up ? h?.card ?? magnetAt(e.clientX, e.clientY, e.pointerType) : null;
+            markTarget(null);
+            const at0 = drag.at0;
+            mode = null; start = null; drag = null;
+            if (k && k === OV?.loose?.from) { OV.loose.at = at0; drawOverlay(); return; }
+            OV?.onLoose?.(k ? { card: k } : h, OV?.loose?.at);
+            if (!k && !h && up && d.looseEmpty) {
+                if (e.pointerType === 'touch' || !d.desk) placeOffer({ x: e.clientX, y: e.clientY }, p => d.looseEmpty(p));
+                else d.looseEmpty(pointAt(e.clientX, e.clientY));
+            }
             return;
         }
         if (mode === 'link') {
+            // Desktop link drag: on a card (or within the magnet's reach) links to it; let go on its own card it's
+            // nothing; on empty canvas, Add to canvas here, and the entry picked arrives already linked.
             world.querySelector('.linkguide')?.remove();
-            const h = moved && e.type === 'pointerup' ? hitAt(e.clientX, e.clientY) : null;
+            const h = up ? hitAt(e.clientX, e.clientY) : null;
+            const k = up ? h?.card ?? magnetAt(e.clientX, e.clientY, e.pointerType) : null;
             markTarget(null);
             const from = drag.from;
             const kind = drag.kind;
             const portKey = drag.port;
             mode = null; start = null; drag = null;
-            if (h?.card && h.card !== from) d.link?.(kind, from, h.card);
+            if (k && k !== from) d.link?.(kind, from, k);
+            else if (up && !k && !h) d.linkEmpty?.(kind, from, pointAt(e.clientX, e.clientY));
             else if (!moved && portKey) tapAt(e.target, e);
             return;
         }
@@ -1183,16 +1356,20 @@ export function mountCanvas(vp, d) {
             return;
         }
         if (mode === 'box') {
-            drag.box.remove();
-            if (moved && drag.x1 !== undefined) {
-                const [ax, ay] = toWorldLocal(Math.min(drag.x0, drag.x1), Math.min(drag.y0, drag.y1));
-                const [bx, by] = toWorldLocal(Math.max(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
-                const inside = [...CV.R.values()].filter(r => !r.pack && r.x < bx && r.x + r.w > ax && r.y < by && r.y + r.h > ay).map(r => r.key);
-                setPicked(e.ctrlKey || e.metaKey ? new Set([...picked, ...inside]) : new Set(inside));
-                if (inside.length) lassoPrompt([...picked], Math.min(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
+            drag.box?.remove();
+            if (moved || !drag.mouse) {
+                if (moved && drag.x1 !== undefined) {
+                    const [ax, ay] = toWorldLocal(Math.min(drag.x0, drag.x1), Math.min(drag.y0, drag.y1));
+                    const [bx, by] = toWorldLocal(Math.max(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
+                    const inside = [...CV.R.values()].filter(r => !r.pack && r.x < bx && r.x + r.w > ax && r.y < by && r.y + r.h > ay).map(r => r.key);
+                    setPicked(drag.add || e.ctrlKey || e.metaKey ? new Set([...picked, ...inside]) : new Set(inside));
+                    // A finger's lasso asks for a pack name at once; with a mouse a box only selects, and P asks.
+                    if (inside.length && !drag.mouse) lassoPrompt([...picked], Math.min(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
+                }
+                mode = null; start = null; drag = null;
+                return;
             }
-            mode = null; start = null; drag = null;
-            return;
+            mode = null; // a mouse's click without a drag: a click, below
         }
         if (mode === 'dot') {
             const was = drag;
@@ -1248,11 +1425,21 @@ export function mountCanvas(vp, d) {
     vp.addEventListener('pointercancel', end);
     vp.addEventListener('wheel', e => {
         e.preventDefault();
+        const v = camera();
+        if (!v) return;
         const r = vp.getBoundingClientRect();
         gesture(true);
         gestureTimer = setTimeout(() => gesture(false), 250);
-        zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top, true);
+        const step = wheelMove(e, d.wheel?.() ?? 'zoom');
+        if (step.zoom) { zoomAt(step.zoom, e.clientX - r.left, e.clientY - r.top, true); return; }
+        v.tx += step.pan[0];
+        v.ty += step.pan[1];
+        viewLater();
+        saveCamera();
     }, { passive: false });
+    // The middle button pans: no autoscroll (Windows) and no paste (Linux) on the canvas.
+    vp.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+    vp.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
     // Keyboard: the canvas tools are buttons; a focused card opens with Enter.
     vp.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset?.id) d.open(e.target.dataset.id); });
 
@@ -1297,6 +1484,12 @@ export function mountCanvas(vp, d) {
             h.title = label;
             box.append(h);
         }
+        // The card's menu (the right button only moves the view): Menu key or Shift F10 for a selected card too.
+        const more = el('i', 'hh hmore', '⋯');
+        more.dataset.more = key;
+        more.title = 'Card menu (Shift F10)';
+        more.setAttribute('aria-label', 'Card menu');
+        box.append(more);
         world.append(box);
     }
     function hideHandles() { world.querySelector('.hhandles')?.remove(); }
@@ -1322,6 +1515,25 @@ export function mountCanvas(vp, d) {
         if (f && CV?.R.has(f) && !OV) applyFocus(f);
         else if (focusKey) clearFocus();
     }
+    /** A hovered line: it and its two cards stay bright, the rest dims (#11). */
+    let litLine = null; // the line under the pointer
+    let lineOn = false; // it is lit
+    let lineTimer = null;
+    function lightLine(l) {
+        const ends = new Set([l.from, l.to]);
+        for (const k of [l.from, l.to]) if (k.startsWith('pack:')) CV.m.packMembers(k.slice(5)).forEach(m => ends.add(m.id));
+        vp.classList.add('focusdim');
+        for (const n of world.querySelectorAll('[data-of]')) {
+            const of = n.dataset.of.split(' ');
+            n.classList.toggle('lit', of.length > 1 ? n.dataset.lid === l.id : ends.has(of[0]));
+        }
+        lineOn = true;
+    }
+    function unlightLine() {
+        clearTimeout(lineTimer);
+        litLine = null;
+        if (lineOn) { lineOn = false; clearFocus(); }
+    }
     function clearFocus() {
         focusKey = null;
         vp.classList.remove('focusdim');
@@ -1334,6 +1546,7 @@ export function mountCanvas(vp, d) {
             const onHandles = e.target.closest?.('.hhandles');
             const key = c?.dataset.id ?? (onHandles ? hoverKey : null);
             if (key) {
+                if (litLine) unlightLine();
                 clearTimeout(leaveTimer);
                 if (key !== hoverKey) {
                     hoverKey = key;
@@ -1344,6 +1557,16 @@ export function mountCanvas(vp, d) {
                 } else if (litKey === key && focusKey !== key && !OV && !mode) applyFocus(key); // back from the gap
                 return;
             }
+            // A line under the pointer lights up after the same 350ms.
+            const ln = !OV && !SH && e.target.closest?.('.lhit') ? lineUnder(e.target, e.clientX, e.clientY) : null;
+            const l = ln ? CV?.links[ln.dataset.link] : null;
+            if ((l?.id ?? null) !== litLine) {
+                unlightLine();
+                if (l) {
+                    litLine = l.id;
+                    lineTimer = setTimeout(() => { if (litLine === l.id && !mode && !OV && !hoverKey) lightLine(l); }, 350);
+                }
+            }
             if (!hoverKey) return;
             // Off the card: everything lights up again at once (#23). The handles stay a moment, so crossing to them
             // doesn't lose them; reaching them lights the card's links again.
@@ -1351,29 +1574,25 @@ export function mountCanvas(vp, d) {
             clearTimeout(leaveTimer);
             leaveTimer = setTimeout(() => { hoverKey = null; litKey = null; clearTimeout(focusTimer); hideHandles(); }, 160);
         });
-        vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); hoverKey = null; hideHandles(); clearFocus(); });
+        vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); hoverKey = null; hideHandles(); unlightLine(); clearFocus(); });
         vp.addEventListener('dblclick', e => {
+            if (e.target.closest?.('button, input, .lasso, .placeoffer')) return;
             // The press captured the pointer, so the event's target is the view: look under the pointer instead.
             if (SH) {
                 const under = vp.getRootNode().elementFromPoint?.(e.clientX, e.clientY);
                 if (under?.closest?.('[data-dot], [data-ghost]')) return;
                 if (hitAt(e.clientX, e.clientY)?.link?.id === SH.l.id) { addDotAt(e.clientX, e.clientY, e.altKey); return; }
             }
-            const key = hitAt(e.clientX, e.clientY)?.card;
+            const h = hitAt(e.clientX, e.clientY);
+            const key = h?.card;
             if (key && (key.startsWith('id:') || key.startsWith('uid:'))) d.openText?.(key);
+            // Double-click empty canvas: Add to canvas here, at that spot (#10).
+            else if (!h && !OV && !SH && !e.target.closest?.('.hhandles')) d.addHere?.(pointAt(e.clientX, e.clientY));
         });
+        // The right button only moves the view: no menu on the canvas, the browser's or ours.
         vp.addEventListener('contextmenu', e => {
-            if (e.target.closest('.canvas-tools, .panelBtn')) return;
+            if (e.target.closest('.canvas-tools, .panelBtn, .lasso input')) return;
             e.preventDefault();
-            const c = e.target.closest?.('.card[data-id]');
-            if (c) { if (!picked.has(c.dataset.id)) setPicked(new Set([c.dataset.id]), true); d.cardMenu?.(c.dataset.id, { x: e.clientX, y: e.clientY }); return; }
-            const ln = lineUnder(e.target, e.clientX, e.clientY).closest?.('.lhit');
-            if (ln && CV.links[ln.dataset.link]) {
-                const l = CV.links[ln.dataset.link];
-                d.linkMenu?.(l, !!memory().cards[l.from]?.links?.[l.key], { x: e.clientX, y: e.clientY });
-                return;
-            }
-            d.emptyMenu?.(pointAt(e.clientX, e.clientY), { x: e.clientX, y: e.clientY });
         });
     }
 
@@ -1472,8 +1691,8 @@ export function mountCanvas(vp, d) {
     }
 
     return {
-        render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt,
-        shapeState, patchShape, removeShapeDot, resetShape, resetShapeOf, refreshShaping: () => drawShaping(),
+        render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
+        shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(),
         picked: () => [...picked], setPicked, phoneFocus,
         get view() { return CV; }, get camera() { return camera(); },
     };
