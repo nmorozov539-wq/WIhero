@@ -13,7 +13,7 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: built. This page matches the code as of **0.42.0** (2026-11-10).
+- Status: built. This page matches the code as of **0.43.0** (2026-11-11).
   Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
   N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
   Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here
@@ -83,6 +83,7 @@ to be changed while building.
 | D30 | **Moments are entries that are never sent.** A Moment (CONCEPTS 3.13) is stored as an entry flagged `moment: true`, with its phrases as `key`, empty content, `disable: true` and the title "Moment: *name*". The model gives it happen rows: each of its gate rows (or one empty row) plus a lock on its phrases, with its `by`. The engine checks them with the locks (D1): in `stateForScan` against the newest user message and reply, in `advance` against the new reply. When one is met it writes the Moment as fired at that message, once, so everything that reads fired entries (rows, Gates for, Closes for, Preview, rewind) works unchanged. `keepAtLoad` never keeps a Moment. Hidden from Normal mode and Hero's entry list; the panel has a Moments group. |
 | D31 | **One Guide, reached from everywhere.** The pieces are explained in one data file (`src/ui/guide.js`, kept in step with CONCEPTS) and shown in a Guide tab (`guide-page.js`). Explain mode is one capture-phase listener on WI Hero's root: while it is on, presses never reach the elements, and a click maps its target to a Guide anchor by selector (chips by `data-piece`, lines and pills by `data-kind`, ports through `PORT`). The inspector's "?", the strip's "?" and "+ Add logic" open the same anchors directly. |
 | D32 | **Delayed closing.** An entry may name itself in its own close gate (still not in its gate). The item is compiled as Once's `self` item: it counts from the entry's first firing and never in the turn it fires, so `[["fog", {"wait": 3}]]` closes Fog three messages after it first fires. The inspector's close gate picker offers "This entry"; the canvas draws no self link and shows a `+N` badge instead. CONCEPTS 3.3. |
+| D33 | **One name per relation, and the review polish** (2026-11-11, 0.43.0). User-facing text says Opens / Closes for the action and Waits for / Closes when for the reading; Gate, Gates for, Close gate and Closes for stay the stored fields' names, shown only in Data and the specs (CONCEPTS 3). The inspector puts a card's rules first and folds Who triggers, Once, Tracker and ST timing into one Settings row below them. The mode switch is one guarded door in ☰ on both sides (no desktop Normal mode button, no book menu row). Polish only: no new piece or stored field |
 
 ---
 
@@ -456,7 +457,7 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
   contentFont: 'serif',
   colorMode: 'standard',            // D22: 'standard' | 'red-green' | 'blue-yellow'
   markClashes: true,                 // ☰ Display, Mark keyword clashes (unset counts as on)
-  sortBy: 'order',                   // Sort by: 'order' (List order, displayIndex) | 'prompt' (the Order parameter) | 'az' | 'keys' | 'perm' | 'vec'
+  sortBy: 'order',                   // Sort by: 'order' (List order, displayIndex) | 'prompt' (the Order parameter) | 'az' | 'size' (Largest first, rough tokens) | 'keys' | 'perm' | 'vec'
   renamed: { 'Old name': 'New name' },  // book renames, for chat state (4.2)
   desk: { },                         // desktop: column widths, Home view, widened
   bookFolders: { 'Fantasy': ['Eldoria', 'Tavern'] },

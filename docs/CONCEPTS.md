@@ -103,8 +103,16 @@ affects, or on the entry that causes it:
 
 |            | On the entry itself | On the source, aimed at others |
 |------------|---------------------|--------------------------------|
-| **Opens**  | Gate                | Gates for                      |
-| **Closes** | Close gate          | Closes for                     |
+| **Opens**  | Gate (shown as **Waits for**) | Gates for (shown as **Opens**) |
+| **Closes** | Close gate (shown as **Closes when**) | Closes for (shown as **Closes**) |
+
+**One name per relation (D33, 2026-11-11).** What the user reads says
+**Opens / Closes** for the action and **Waits for / Closes when** for the
+reading, everywhere: the piece bar, the inspector, the entry page, the Guide,
+Preview and Problems. Gate, Gates for, Close gate and Closes for are the
+stored fields' names: this spec, BUILD_SPEC and Data use them, the screen
+doesn't. "Fires" is the one word for an entry going in, explained once in the
+Guide's "When a card fires" (LAYOUT, Guide).
 
 On the canvas the matrix is two pieces, **Opens** and **Closes**, and the
 side a rule is written on is the link's direction: the piece bar stores it in
