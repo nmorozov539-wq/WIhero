@@ -2,7 +2,7 @@
 // the entry page. Moved out of app.js; it reaches the app only through the context given to it.
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, configOf, groupEntries, idOf, paramSummary,
-    paramText, paramValue, promptOrder, rekeyEntry, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
+    bookTokens, paramText, paramValue, promptOrder, rekeyEntry, tokenGuess, tokensText, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
 } from './data.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
@@ -120,6 +120,7 @@ export function createNormal(A) {
             const lk = btn('chip2', html`${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links');
             lk.querySelector('span').textContent = linkText(book) || 'Not linked';
             chips.append(g, lk);
+            chips.append(el('span', 'bksize', `${all.length} ${all.length === 1 ? 'entry' : 'entries'} · ${tokensText(bookTokens(all))}`));
             v.append(chips);
             const off = offHint(book);
             if (off) v.append(off);
@@ -141,7 +142,7 @@ export function createNormal(A) {
             }
             for (const e of list) v.append(entryRow(book, e, model));
         }
-        if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (⌄ menu).' : 'No entries yet. Tap + to write the first one.'));
+        if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
     }
 
     function entryRow(book, e, model) {
@@ -169,6 +170,8 @@ export function createNormal(A) {
             }), `Order ${promptOrder(e)}: where ${titleOf(e)} goes in the prompt`);
             it.append(ob);
         }
+        // Largest first: each row's rough size.
+        if (!S.select && sortBy() === 'size') it.append(el('span', 'tokn', `${tokenGuess(e.content)} tk`));
         if (!S.select) {
             it.append(swEl(!e.disable, on => library.change(book, d => { d.entries[e.uid].disable = !on; }), `${titleOf(e)} on`));
             it.append(btn('more', ic('more'), () => entryMenu(book, e.uid), `${titleOf(e)} actions`));
@@ -426,7 +429,7 @@ export function createNormal(A) {
             ui: new Proxy(S.ui, { set: (t, k, v) => { t[k] = v; if (k === 'condition') p.condition = v; return true; } }),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
-            // Keyword clash marking can be turned off (⌄ menu, Display); the ⌄ menu's Keyword clashes row stays.
+            // Keyword clash marking can be turned off (☰ menu, Display); the ☰ menu's Keyword clashes row stays.
             clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
             lines,
             incoming: [...incoming],

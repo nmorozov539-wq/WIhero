@@ -23,7 +23,7 @@ export function createHeroShell(A) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
-        stopExplain, strip, switchMode, tabbar, visibleNames, desk, checkCounts, checksSheet, undoHistory, historyStep,
+        stopExplain, strip, tabbar, visibleNames, desk, checkCounts, checksSheet, undoHistory, historyStep,
     } = A;
 
     let heroCanvas = null;
@@ -110,7 +110,8 @@ export function createHeroShell(A) {
         revealActiveTab();
     }
 
-    /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search, Normal mode, Widen/Drawer size, ×. */
+    /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search, Widen/Drawer size, ×. The mode switch is
+     * only in ☰, one guarded door on each side (LAYOUT "Mode switch"). */
     function heroTabsRight() {
         const right = el('div', 'tright');
         const book = heroBook();
@@ -118,7 +119,6 @@ export function createHeroShell(A) {
         bp.querySelector('span').textContent = book ?? 'No book';
         bp.title = 'Switch book';
         const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
-        const nm = btn('tmode', html`${ic('entry', 's')}<span>Normal mode</span>`, () => switchMode(), 'Switch to Normal mode');
         const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
         eq.title = 'Explain (?)';
         const wide = deskSettings().heroWide !== false;
@@ -131,7 +131,7 @@ export function createHeroShell(A) {
             requestAnimationFrame(() => heroCanvas?.fit());
         }, wide ? 'Drawer size' : 'Widen');
         wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(bp, sb, eq, nm, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
+        right.append(bp, sb, eq, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
         tabbar.append(right);
     }
 
@@ -279,7 +279,7 @@ export function createHeroShell(A) {
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (S.desk) { H.insp = null; heroInspector(book, data); return; }
-                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
+                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); heroCanvas?.phoneFocus?.(); }
             },
             ...(S.desk ? deskCanvas(book, data) : {}),
         });
@@ -291,7 +291,7 @@ export function createHeroShell(A) {
     }
     /**
      * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
-     * (the ⌄ menu keeps its rows too). Nothing when the book is clean.
+     * (the ☰ menu keeps its rows too). Nothing when the book is clean.
      */
     /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */
     function historyButtons(book) {

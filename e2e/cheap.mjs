@@ -1,5 +1,5 @@
 // The cheap AFTER_V1 additions on desktop, in the browser harness (e2e/desktop/harness.html), no SillyTavern
-// needed: Hero's + New book and Duplicate, the keyword clash finder (chips and ⌄), the dead branch report (⌄),
+// needed: Hero's + New book and Duplicate, the keyword clash finder (chips and ☰), the dead branch report (☰),
 // lasso to make a pack, sticky notes, and the switch's dice. Screenshots go to e2e/log/cheap-*.png.
 //   node e2e/cheap.mjs
 import { createRequire } from 'node:module';
@@ -73,7 +73,7 @@ const clashRow = $('.sheet').last().getByText(/Keyword clashes \(\d+\)/);
 await clashRow.waitFor();
 await clashRow.click();
 await $('.sheet').last().getByText('“shared word”').waitFor();
-ok('⌄ lists Keyword clashes, and the sheet groups entries by the word');
+ok('☰ lists Keyword clashes, and the sheet groups entries by the word');
 await page.keyboard.press('Escape');
 await page.keyboard.press('Escape');
 const clashed = (await entries()).find(e => (e.key ?? []).includes('shared word'));
@@ -96,7 +96,7 @@ await menu();
 await $('.sheet').last().getByText(/Dead branches \(\d+\)/).click();
 await $('.sheet').last().getByText('Both paths').waitFor();
 assert.match(await $('.sheet').last().textContent(), /two paths of the .* switch/);
-ok('⌄ lists Dead branches; a row needing both paths of a switch can never open');
+ok('☰ lists Dead branches; a row needing both paths of a switch can never open');
 await page.keyboard.press('Escape');
 await toHero();
 

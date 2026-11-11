@@ -48,9 +48,10 @@ the original design (DESIGN.md, in the git history), these win.
   inclusion groups and the token budget work as usual. A running sticky finishes
   even after its entry closes. Cooldown and delay can hold back a glued entry.
   An entry held in by sticky still counts as fired. On an entry with story
-  pieces, the entry page puts a warning line under Probability, Sticky,
-  Cooldown and Delay when they are set, saying how each can work against the
-  pieces; it changes nothing about how they work.
+  pieces, the entry page and the Hero inspector's ST timing block put a
+  warning line under Probability, Sticky, Cooldown and Delay when they are
+  set, saying how each can work against the pieces; it changes nothing about
+  how they work. A card with any of them set shows them in a small badge.
 
 ### 2.2 Open and closed
 
@@ -102,8 +103,16 @@ affects, or on the entry that causes it:
 
 |            | On the entry itself | On the source, aimed at others |
 |------------|---------------------|--------------------------------|
-| **Opens**  | Gate                | Gates for                      |
-| **Closes** | Close gate          | Closes for                     |
+| **Opens**  | Gate (shown as **Waits for**) | Gates for (shown as **Opens**) |
+| **Closes** | Close gate (shown as **Closes when**) | Closes for (shown as **Closes**) |
+
+**One name per relation (D33, 2026-11-11).** What the user reads says
+**Opens / Closes** for the action and **Waits for / Closes when** for the
+reading, everywhere: the piece bar, the inspector, the entry page, the Guide,
+Preview and Problems. Gate, Gates for, Close gate and Closes for are the
+stored fields' names: this spec, BUILD_SPEC and Data use them, the screen
+doesn't. "Fires" is the one word for an entry going in, explained once in the
+Guide's "When a card fires" (LAYOUT, Guide).
 
 On the canvas the matrix is two pieces, **Opens** and **Closes**, and the
 side a rule is written on is the link's direction: the piece bar stores it in
@@ -403,10 +412,10 @@ Warnings, which don't block:
   words and not Permanent or held), and, with WI Hero teaching, a tracker with
   no description.
 
-Problems put a red "!" on the card and on the entry's row; ⌄ lists them all
+Problems put a red "!" on the card and on the entry's row; ☰ lists them all
 under "Problems".
 
-Two more lists in ⌄, read from the book alone, never from a chat:
+Two more lists in ☰, read from the book alone, never from a chat:
 
 - **Dead branches**: entries that can never fire, and gate rows and masks that
   can never open. Nothing sets the entry off (no key words, not Permanent or
@@ -419,8 +428,8 @@ Two more lists in ⌄, read from the book alone, never from a chat:
   in both ("mill" in Mill and Miller's Yard) or a word inside another entry's
   longer key ("mill" inside "old mill"). The entry page marks such a key word
   and says what else it fires. Plain World Info too, so Normal mode shows it.
-  The marking can be turned off (⌄ Display, Mark keyword clashes); the list
-  in ⌄ stays.
+  The marking can be turned off (☰ Display, Mark keyword clashes); the list
+  in ☰ stays.
 
 In Hero mode a chip at the top of the canvas counts both ("2 dead · 1 clash")
 and opens their lists; it is gone when the book is clean.
@@ -439,6 +448,11 @@ For story changes WI Hero can't see, such as a hand-edited old message.
   the new rules on the same history. Deleted entries' history is ignored.
   Closed stays closed even when the rule that closed it is removed; Reopen is
   the way back.
+- **Undo**: every edit to a book (text, parameters, story logic, card places
+  and link shapes) can be undone and redone, with Ctrl Z and Ctrl Shift Z or
+  the canvas's arrows. It is the editor's history, not the chat's: it never
+  touches story state. A change made outside WI Hero starts the book's history
+  over.
 - **Snapshots**: a manual "Snapshot" saves a named copy of the whole book, and
   Restore puts it back (with Undo), leaving the chat's state alone. One
   "As imported" copy is kept automatically the first time WI Hero opens or changes a book.
@@ -539,4 +553,4 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
   and close gates already cover them).
 
 Decided since the first version (see BUILD_SPEC): where Reopen and the problem
-list live (6, 5), and the canvas state view ("Show chat state" in ⌄).
+list live (6, 5), and the canvas state view ("Show chat state" in ☰).

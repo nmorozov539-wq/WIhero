@@ -131,7 +131,7 @@ export function normalize(raw) {
 
 const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice', 'note', 'written'];
 /** What a Moment can't take (CONCEPTS 3.13): it sends nothing, so nothing that shapes what is sent. */
-const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'a close gate', dice: 'dice', written: 'written text' };
+const NOT_ON_MOMENT = { glue: 'glue', masks: 'masks', once: 'Once', switch: 'a switch', closeGate: 'Closes when', dice: 'dice', written: 'written text' };
 
 /** Whether an ST entry is a Moment (CONCEPTS 3.13): a WI Hero entry flagged `moment: true`. */
 export const isMoment = entry => rawConfig(entry)?.moment === true;
@@ -330,14 +330,14 @@ export function buildModel(entries, options = {}) {
         const c = node.moment ? Object.fromEntries(Object.entries(node.config).filter(([k]) => !(k in NOT_ON_MOMENT))) : node.config;
         const fail = message => report(node, message);
         if (c.gate !== undefined) {
-            const rows = compileRows(node, c.gate, `${node.key}|g`, m => fail(`gate: ${m}`));
+            const rows = compileRows(node, c.gate, `${node.key}|g`, m => fail(`Waits for: ${m}`));
             if (rows) {
-                if (rows.some(r => r.items.some(i => i.key === node.key))) fail('gate names this entry itself');
+                if (rows.some(r => r.items.some(i => i.key === node.key))) fail('Waits for names this entry itself');
                 node.opens.rows = rows;
             }
         }
         if (c.closeGate !== undefined) {
-            const rows = compileRows(node, c.closeGate, `${node.key}|c`, m => fail(`close gate: ${m}`));
+            const rows = compileRows(node, c.closeGate, `${node.key}|c`, m => fail(`Closes when: ${m}`));
             if (rows) {
                 // The entry itself in its own close gate means "after it first fires" (delayed closing, CONCEPTS
                 // 3.3): read like Once's row, from its first firing and never in the turn it fires.
@@ -392,8 +392,8 @@ export function buildModel(entries, options = {}) {
             const unknown = Object.keys(mask).filter(k => !['name', 'content', 'gate', 'closeGate', 'written'].includes(k));
             if (unknown.length) return skip(`has unknown field${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}`);
             let bad = null;
-            const opens = mask.gate === undefined ? [] : compileRows(node, mask.gate, `${node.key}|m:${name}|g`, m => { bad ??= `gate: ${m}`; });
-            const closes = mask.closeGate === undefined ? [] : compileRows(node, mask.closeGate, `${node.key}|m:${name}|c`, m => { bad ??= `close gate: ${m}`; });
+            const opens = mask.gate === undefined ? [] : compileRows(node, mask.gate, `${node.key}|m:${name}|g`, m => { bad ??= `on when: ${m}`; });
+            const closes = mask.closeGate === undefined ? [] : compileRows(node, mask.closeGate, `${node.key}|m:${name}|c`, m => { bad ??= `off when: ${m}`; });
             if (bad) return skip(`has a bad ${bad}`);
             for (const w of warnings) report(node, `mask "${name}": ${w}`, { warning: true });
             out.push({ name, content: typeof mask.content === 'string' ? mask.content : '', key: `${node.key}/${name}`, opens, closes, written });
@@ -402,7 +402,8 @@ export function buildModel(entries, options = {}) {
     }
 
     // 4. Rules written on the source: Gates for and Closes for.
-    const targetsOf = (node, list, field) => {
+    const targetsOf = (node, list, key) => {
+        const field = key === 'gatesFor' ? 'Opens' : key === 'closesFor' ? 'Closes' : key;
         if (!Array.isArray(list) || list.some(x => typeof x !== 'string' || !x)) {
             report(node, `${field} must be a list of entries or #packs`);
             return [];
@@ -414,7 +415,7 @@ export function buildModel(entries, options = {}) {
                 if (!reading || reading[2]) { report(node, `${field} "${target}" must name a pack, as #name`); continue; }
                 const keys = members(node.book, reading[1]);
                 if (!keys.length) { report(node, `${field} targets pack "${target}", which no entry carries`); continue; }
-                if (keys.includes(node.key) && field === 'gatesFor') { report(node, `gatesFor ${target} includes this entry itself`); continue; }
+                if (keys.includes(node.key) && key === 'gatesFor') { report(node, `Opens ${target} includes this entry itself`); continue; }
                 for (const k of keys) if (k !== node.key) out.add(k);
             } else if (target === node.id) {
                 report(node, `${field} targets itself`);
@@ -436,7 +437,7 @@ export function buildModel(entries, options = {}) {
         if (c.closesFor !== undefined) {
             for (const target of targetsOf(node, c.closesFor, 'closesFor')) {
                 const t = nodes.get(target);
-                if (t.moment) { report(node, `closesFor targets the Moment "${t.id}": a Moment can't be closed`); continue; }
+                if (t.moment) { report(node, `Closes targets the Moment "${t.id}": a Moment can't be closed`); continue; }
                 const raw = [node.id];
                 t.closes.push({ row: { key: `${t.key}|c|for:${node.id}`, items: [{ type: 'entry', key: node.key }], waits: [], locks: [], raw }, kind: 'closesFor', source: node.key });
             }
@@ -493,7 +494,7 @@ export function buildModel(entries, options = {}) {
         for (const p of paths) {
             const path = nodes.get(p);
             if (!path.opens.rows.some(r => r.items.some(i => i.key === node.key))) {
-                report(path, `switch path "${path.id}" doesn't gate on ${node.id}, so it can be taken before the fork`, { warning: true });
+                report(path, `switch path "${path.id}" doesn't wait for ${node.id}, so it can be taken before the fork`, { warning: true });
             }
             for (const other of paths) {
                 if (other === p) continue;
@@ -577,7 +578,7 @@ export function buildModel(entries, options = {}) {
             const keys = new Set(row.items.flatMap(refKeys));
             const first = node.closes.find(cl => cl.kind !== 'once' && !cl.row.waits.length && !cl.row.locks.length && cl.row.items.length
                 && cl.row.items.every(i => i.type !== 'pack' && keys.has(i.key)));
-            if (first) report(node, `its close gate is always met before gate row ${JSON.stringify(row.raw)} opens, so that row can never let it fire`, { warning: true });
+            if (first) report(node, `its Closes when is always met before Waits for row ${JSON.stringify(row.raw)} is, so that row can never let it fire`, { warning: true });
         }
     }
     for (const info of greetings.values()) {

@@ -1,6 +1,6 @@
 // N5's in-ST checks (ROADMAP N5, BUILD_SPEC 13): at 390px wide, the Preview tab seeded from the open chat agrees
 // with what the chat really fired, and every block reason of CONCEPTS 7 shows up for the sample book: waiting on
-// an entry, lock not armed, lock waiting, wait not run out, closed earlier, close gate met, closed this turn by
+// an entry, lock not armed, lock waiting, wait not run out, closed earlier, Closes when met, closed this turn by
 // another entry, wrong side, turned off, and the switch already picked. Setup: e2e/README.md.
 import assert from 'node:assert/strict';
 import { LOG, ev, ok, page, run, send, start, wait } from './lib.mjs';
@@ -100,7 +100,7 @@ await run(async () => {
     assert.equal(blockedWhy(r, 'Right path'), 'Because Fork (switch: left or right)\'s switch already picked Left path');
     assert.equal(blockedWhy(r, 'Cave'), 'Because its lock is armed and waiting for "red beard"');
     assert.equal(blockedWhy(r, 'Shrine'), 'Because the entry is turned off (plain entry)');
-    assert.equal(blockedWhy(r, 'Storm'), 'Because its close gate is met ("storm passes" is said)');
+    assert.equal(blockedWhy(r, 'Storm'), 'Because its Closes when is met ("storm passes" is said)');
     await back();
     assert.ok(await $('.slot.user .hlx.no:text-is("road")').count(), 'a blocked phrase is struck');
     assert.ok(await $('.slot.user .hlx.plain:text-is("shrine")').count(), 'a plain entry is dotted');
@@ -110,13 +110,13 @@ await run(async () => {
     await opt('Show on canvas').click();
     await $('.card.hit, .card[data-id="id:left"]').first().waitFor();
     assert.equal(await $('.tab.active').getAttribute('aria-label'), 'Canvas');
-    ok('closed earlier, Once, closed this turn, the switch, a lock waiting, turned off and close gate met; a highlight explains itself and shows its card');
+    ok('closed earlier, Once, closed this turn, the switch, a lock waiting, turned off and Closes when met; a highlight explains itself and shows its card');
 
     // The reply only counts from the next message (D1): a phrase there, and who triggers.
     await $('.tab.fixed[aria-label="Preview"]').click();
     await type('reply', 'A whisper. A guard with a red beard shouts.');
     assert.equal(await tap('reply', 'whisper'), '"whisper": it is in the reply, so it counts from the next message. Then Whisper (only your messages) doesn\'t fire, because only your messages trigger it, and this was in the reply.');
-    assert.equal(await tap('reply', 'red beard'), '"red beard": opens the lock on Cave (lock: "red beard", after the mill)\'s gate from the next message.');
+    assert.equal(await tap('reply', 'red beard'), '"red beard": opens the lock on Cave (lock: "red beard", after the mill) from the next message.');
     assert.ok(await $('.slot.reply .hlx:text-is("red beard") svg').count(), 'a lock phrase has the lock icon');
     await shot('reply');
     ok('in the reply, a lock opens from the next message and a user-only entry is the wrong side');
@@ -129,7 +129,7 @@ await run(async () => {
     await type('user', 'To the mill!');
     await type('reply', 'A man with a red beard.');
     assert.equal(await tap('user', 'mill'), '"mill": Mill: arrival doesn\'t fire, because its gate is waiting for Road: leaving the village.');
-    assert.match(await tap('reply', 'red beard'), /^"red beard": the lock on Cave .*'s gate isn't armed yet: it arms once Mill: arrival has fired\.$/);
+    assert.match(await tap('reply', 'red beard'), /^"red beard": the lock on Cave .* isn't armed yet: it arms once Mill: arrival has fired\.$/);
     r = await report();
     assert.match(r.start, /nothing has fired or closed yet/);
     assert.ok(r.Fires.some(([t, why]) => t === 'Sky (permanent)' && /^Permanent/.test(why)));

@@ -20,7 +20,7 @@ Big ideas we agreed are worth doing, but not in V1. Each has a short note on why
 
 ## Configurable behavior
 
-**The idea:** a Behavior section in ⌄ for how actions work, not how things look. The first setting: explain mode ends after one tap (the default) or stays on until you cancel it. Other candidates that already behave one fixed way: whether the mode switch asks for a second tap, and whether opening from the list uses this tab or a new one.
+**The idea:** a Behavior section in ☰ for how actions work, not how things look. The first setting: explain mode ends after one tap (the default) or stays on until you cancel it. Other candidates that already behave one fixed way: whether the mode switch asks for a second tap, and whether opening from the list uses this tab or a new one.
 
 **Why it waits:** each setting doubles the cases to test, and the defaults should prove themselves first.
 

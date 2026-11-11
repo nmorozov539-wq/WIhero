@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings, forgetReusedNames,
-    duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
+    bookTokens, duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
     rekeyEntry, removeEntry, renameBookSettings, reorderEntries, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
 } from '../src/ui/data.js';
 import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
@@ -177,32 +177,32 @@ test('Story logic sentences, with the rules other entries put on this one', () =
     ];
     const model = buildModel(entries);
     const lines = key => logicLines(model.nodes.get(`Book/${key}`), model).map(l => `${l.label}: ${l.text}`);
-    assert.deepEqual(lines('mill'), ['Gate: Opens when Road has fired', 'Closed by: Tunnel when it fires', 'Closes for: When it fires, closes Road']);
-    assert.deepEqual(lines('tunnel'), ['Gate: Opens when Mill has fired and you say "red beard"', 'Closes for: When it fires, closes Mill', 'Ridden by: Echo rides along when it fires']);
+    assert.deepEqual(lines('mill'), ['Waits for: Opens when Road has fired', 'Closes when: Closes when Tunnel fires', 'Closes: When it fires, closes Road']);
+    assert.deepEqual(lines('tunnel'), ['Waits for: Opens when Mill has fired and you say "red beard"', 'Closes: When it fires, closes Mill', 'Ridden by: Echo rides along when it fires']);
     assert.deepEqual(lines('echo'), ['Glue: Rides along with Tunnel: fires when it fires', 'Once: Fires one time, then closes', 'Who triggers: Only the character\'s replies trigger it']);
     assert.deepEqual(lines('storm'), [
-        'Held back by: Waits until Fork has fired',
-        'Close gate: Closes when "calm" or "the rain stops" is said; or when 3 messages have passed',
-        'Glue: Holds: once fired it stays on until its close gate',
+        'Waits for: Waits until Fork has fired',
+        'Closes when: Closes when "calm" or "the rain stops" is said; or when 3 messages have passed',
+        'Glue: Holds: once fired it stays on until Closes when is met',
         'Switch path: Closes when Road fires: only one path of the fork can follow',
         'Packs: In #weather',
     ]);
-    assert.ok(lines('fork').includes('Gates for: Holds back #weather until this fires'));
-    assert.equal(logicSummary(logicLines(model.nodes.get('Book/mill'), model)), 'Gate, Closed by, Closes for');
+    assert.ok(lines('fork').includes('Opens: #weather also wait for this to fire'));
+    assert.equal(logicSummary(logicLines(model.nodes.get('Book/mill'), model)), 'Waits for, Closes when, Closes');
     assert.deepEqual(logicLines(null, model), []);
 });
 
 test('delayed closing reads "it has fired" in the story logic', () => {
     const model = buildModel([e(0, 'fog', { id: 'fog', glue: { mode: 'hold' }, closeGate: [['fog', { wait: 3 }]] }, { comment: 'Fog' })]);
     const lines = logicLines(model.nodes.get('Book/fog'), model).map(l => `${l.label}: ${l.text}`);
-    assert.ok(lines.includes('Close gate: Closes when it has fired and 3 messages have passed'), lines.join('\n'));
+    assert.ok(lines.includes('Closes when: Closes when it has fired and 3 messages have passed'), lines.join('\n'));
 });
 
 test('closed in this chat by …', () => {
     const name = key => ({ 'Book/tunnel': 'Tunnel' })[key] ?? null;
     assert.equal(closedText('closesFor:Book/tunnel', name), 'Tunnel');
     assert.equal(closedText('switch:Book/gone', name), 'a rule that no longer exists');
-    assert.equal(closedText('closeGate', name), 'its close gate');
+    assert.equal(closedText('closeGate', name), 'its Closes when rule');
     assert.equal(closedText('once', name), 'Once, after it fired');
 });
 
@@ -273,4 +273,10 @@ test('sortEntries by prompt order: the Order parameter (100 when unset), then li
     ];
     assert.deepEqual(sortEntries(list, 'prompt').map(e => e.comment), ['C', 'B', 'D', 'A']);
     assert.deepEqual(sortEntries(list, 'order').map(e => e.comment), ['A', 'B', 'C', 'D']);
+});
+
+test('Largest first sorts by rough size, and the book\'s size counts the entries that are on', () => {
+    const list = [{ uid: 0, content: 'aa' }, { uid: 1, content: 'a'.repeat(400) }, { uid: 2, content: 'a'.repeat(40) }, { uid: 3, content: 'a'.repeat(380), disable: true }];
+    assert.deepEqual(sortEntries(list, 'size').map(e => e.uid), [1, 3, 2, 0]);
+    assert.equal(bookTokens(list), Math.round(2 / 3.8) + Math.round(400 / 3.8) + Math.round(40 / 3.8));
 });

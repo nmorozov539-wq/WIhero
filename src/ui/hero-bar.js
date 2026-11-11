@@ -2,7 +2,7 @@
 // they reach the book, taps on the canvas seen by the bar first, new entries and Moments, and the place picker.
 // The bar itself is piecebar.js. Moved out of app.js; it reaches the app only through the context given to it.
 import {
-    PARAM_LIST, addEntry, addMoment, bookSettings, cardKey, entriesOf, idOf, rekeyEntry, setParam, sortEntries, titleOf,
+    PARAM_LIST, addEntry, addMoment, bookSettings, cardKey, configOf, entriesOf, idOf, rekeyEntry, setParam, sortEntries, titleOf,
 } from './data.js';
 import { PIECE_ANCHOR } from './guide.js';
 import { PORT } from './canvas-graph.js';
@@ -23,7 +23,7 @@ import { FAMILY_COLOR } from './logic-text.js';
 export function createHeroBar(A) {
     const {
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
-        render, root, saveSettings, settings, sortBy, tidyNow, canvas, entryTemplate,
+        render, root, saveSettings, settings, sortBy, tidyNow, canvas, entryTemplate, historyStep,
     } = A;
 
     /** A card key as the bar sees it: an entry by uid, a pack, or a greeting. */
@@ -151,12 +151,16 @@ export function createHeroBar(A) {
         const end = hit?.card ? nodeOf(book, hit.card) : null;
         if (!end || end.t !== 'entry' || end.moment) { render(); layer.toast('A tracker is an entry the AI writes to: pick an entry.'); return; }
         const t = modelOf(book, library.peek(book))?.trackers?.get(book);
+        const entry = library.peek(book)?.entries?.[end.uid];
+        const was = hasPiece(configOf(entry) ?? {}, 'written');
         barAct(book, ed => ed.update(end.uid, c => {
             if (hasPiece(c, 'written')) return;
             addPiece(c, 'written');
             if (t) Object.assign(c.written, { syntax: t.syntax, teach: t.teach });
         }));
         inspect(book, hit.card, 'written');
+        // The change is at once and easy to miss: say it, with Undo (review 2026-11-11).
+        if (!was) layer.toast(`${titleOf(entry) || 'The entry'} is now a tracker: the model writes its text`, { action: ['Undo', () => historyStep(false)] });
     }
 
     /** Opens a piece's strip: the inspector and the panel make way for it. */

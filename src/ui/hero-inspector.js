@@ -114,6 +114,7 @@ export function createHeroInspector(A) {
             }
             main.querySelector('.insp')?.remove();
             inspectorFor(book, data);
+            canvas().phoneFocus?.();
             canvas().reveal(key, 0.5);
             return;
         }
@@ -163,7 +164,7 @@ export function createHeroInspector(A) {
             const byUid = uid => entriesOf(data).find(x => x.uid === uid);
             const usedBy = r.usedBy.map(byUid).filter(Boolean);
             const gwhy = [];
-            if (r.gatesFor.length || r.closesFor.length) gwhy.push('Remove its Gates for and Closes for (above).');
+            if (r.gatesFor.length || r.closesFor.length) gwhy.push('Remove its Opens and Closes (above).');
             if (usedBy.length) gwhy.push(`Remove the pieces in other entries that point at it: ${[...new Set(usedBy.map(titleOf))].join(', ')}.`);
             renderGreetingInspector(box, {
                 ...common, g, others: others(null), takeOff: takeOffFor(book, g.title, gwhy),
@@ -179,7 +180,7 @@ export function createHeroInspector(A) {
         const nameOf = k => model.nodes.get(k)?.label ?? (k.startsWith('@') ? model.greetings?.get(k)?.ref ? `${greetingName(model.greetings.get(k).ref.greeting)} of ${model.greetings.get(k).ref.name || model.greetings.get(k).ref.char}` : 'a greeting' : k);
         const sources = [];
         if (node?.key) {
-            for (const i of node.opens.all) if (i.source && i.source !== node.key) sources.push({ name: nameOf(i.source), key: stateKeyToCard(i.source), what: i.type === 'greeting' ? 'Starts this' : 'Gates for this', family: 'open' });
+            for (const i of node.opens.all) if (i.source && i.source !== node.key) sources.push({ name: nameOf(i.source), key: stateKeyToCard(i.source), what: i.type === 'greeting' ? 'Starts this' : 'Opens this', family: 'open' });
             for (const cl of node.closes) if (cl.source && cl.source !== node.key && (cl.kind === 'closesFor' || cl.kind === 'switch')) sources.push({ name: nameOf(cl.source), key: stateKeyToCard(cl.source), what: cl.kind === 'switch' ? 'Another path of its fork' : 'Closes this', family: 'close' });
             for (const k of model.riders?.get(node.key) ?? []) sources.push({ name: nameOf(k), key: stateKeyToCard(k), what: 'Rides along with this', family: 'glue' });
         }
@@ -192,8 +193,8 @@ export function createHeroInspector(A) {
             for (const n of model.nodes.values()) {
                 if (n === node || n.book !== node.book) continue;
                 const card = stateKeyToCard(n.key);
-                if (n.opens.rows.some(names)) outgoing.push({ name: `Opens ${n.label}`, key: card, piece: 'gate', what: `${n.label}'s gate waits for this`, family: 'open' });
-                if (n.closes.some(cl => cl.kind === 'closeGate' && names(cl.row))) outgoing.push({ name: `Closes ${n.label}`, key: card, piece: 'closeGate', what: `${n.label}'s close gate waits for this`, family: 'close' });
+                if (n.opens.rows.some(names)) outgoing.push({ name: `Opens ${n.label}`, key: card, piece: 'gate', what: `${n.label} waits for this`, family: 'open' });
+                if (n.closes.some(cl => cl.kind === 'closeGate' && names(cl.row))) outgoing.push({ name: `Closes ${n.label}`, key: card, piece: 'closeGate', what: `${n.label} closes when this fires`, family: 'close' });
                 if (n.masks.some(m => [...m.opens, ...m.closes].some(names))) outgoing.push({ name: `Turns on a mask of ${n.label}`, key: card, piece: 'masks', what: `A mask of ${n.label} waits for this`, family: 'mask' });
             }
             const sw = model.switches?.find(s => s.paths.includes(node.key));

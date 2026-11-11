@@ -13,7 +13,7 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: built. This page matches the code as of **0.42.0** (2026-11-10).
+- Status: built. This page matches the code as of **0.43.0** (2026-11-11).
   Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
   N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
   Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here
@@ -67,12 +67,12 @@ to be changed while building.
 | D14 | **The inspector opens half height** with the card visible above it. Top: the first two lines of the entry's text (tap to open the entry). Then one plain sentence per piece, the same sentences as the entry page's Story logic; tapping one expands it for editing, one at a time. Tapping a port opens the inspector with that piece expanded. Help lines sit behind a small "?". Drag up for full height. **[layout change]** to LAYOUT "Inspector" (was: every piece expanded with its help line). |
 | D15 | **Mask text is written on the entry page** through a row of chips above Content: "Main · ruined · rebuilt". A chip switches the text box to that version, with its own token count; a dot marks the version active in the open chat. The inspector's mask block has "Edit text", which opens the entry on that chip. **[layout change]** to LAYOUT "Entry page" (was: mask blocks stacked under Content). |
 | D16 | **Mask text is stored in the book**, in `extensions.wihero.masks[].content`, so it travels with export and cards. Not as extra hidden ST entries. Accepted: ST's vector search only knows the main text. |
-| D17 | **"Show chat state"** is a switch in ⌄ (Canvas section), off by default. When on, cards show the open chat's state at its latest message: fired count, closed (dimmed and struck), holding (glue bar lit), waiting on the gate (hollow). |
+| D17 | **"Show chat state"** is a switch in ☰ (Canvas section), off by default. When on, cards show the open chat's state at its latest message: fired count, closed (dimmed and struck), holding (glue bar lit), waiting on the gate (hollow). |
 | D18 | **Reopen lives in the inspector.** A closed entry's inspector starts with one line: "Closed in this chat by *Tunnel* · Reopen" (or "by a rule that no longer exists"). Shown only with a chat open in which the entry is closed. |
-| D19 | **Problems** put a red "!" on the card and on the entry's row in normal mode. ⌄ gets "Problems (n) ›", a sheet listing them; tapping one opens that entry's inspector. Warnings are listed there in yellow, without badges. Problems and warnings are counted apart wherever they are counted ("2 problems · 1 warning", "Warnings (1)"). |
+| D19 | **Problems** put a red "!" on the card and on the entry's row in normal mode. ☰ gets "Problems (n) ›", a sheet listing them; tapping one opens that entry's inspector. Warnings are listed there in yellow, without badges. Problems and warnings are counted apart wherever they are counted ("2 problems · 1 warning", "Warnings (1)"). |
 | D20 | **Editing story logic mid-play is safe.** The chat's state is mostly history (what fired and when); after an edit, the next message is worked out with the new rules on the same history. Deleted entries' history is ignored. Closed stays closed even when the rule that closed it is removed; Reopen (D18) is the way back. |
 | D21 | **Snapshots are manual.** A "Snapshot" button saves a named copy of the whole book; nothing is copied automatically except one "As imported" copy, kept the first time WI Hero opens or changes a book. Restore puts the book back (with Undo) and leaves the chat's story state alone. Saving stays automatic. Details in section 11. |
-| D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ⌄ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
+| D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ☰ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
 | D23 | **Retired for V1** (#41; `GREETINGS` in `src/engine/model.js` is false: greeting links are read as if not written, and the editor hides greetings; books keep their data). As decided: **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
 | D24 | **A chat that ran without WI Hero is caught up on request.** Replies with no snapshot after the last one that has one (WI Hero switched off, or not yet installed) leave the story behind. When WI Hero is switched on or the chat opens, it asks once: **Catch up** replays the skipped turns through the engine, oldest first, each starting from the one before, with Preview's keyword matching (ST doesn't save what it sent); **Keep as is** carries the old state on; **Start from here** starts the state again; **Not now** leaves the choice on the chat bubble and the panel. Details in section 17.1. |
 | D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and ST internal the engine needs) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
@@ -83,6 +83,7 @@ to be changed while building.
 | D30 | **Moments are entries that are never sent.** A Moment (CONCEPTS 3.13) is stored as an entry flagged `moment: true`, with its phrases as `key`, empty content, `disable: true` and the title "Moment: *name*". The model gives it happen rows: each of its gate rows (or one empty row) plus a lock on its phrases, with its `by`. The engine checks them with the locks (D1): in `stateForScan` against the newest user message and reply, in `advance` against the new reply. When one is met it writes the Moment as fired at that message, once, so everything that reads fired entries (rows, Gates for, Closes for, Preview, rewind) works unchanged. `keepAtLoad` never keeps a Moment. Hidden from Normal mode and Hero's entry list; the panel has a Moments group. |
 | D31 | **One Guide, reached from everywhere.** The pieces are explained in one data file (`src/ui/guide.js`, kept in step with CONCEPTS) and shown in a Guide tab (`guide-page.js`). Explain mode is one capture-phase listener on WI Hero's root: while it is on, presses never reach the elements, and a click maps its target to a Guide anchor by selector (chips by `data-piece`, lines and pills by `data-kind`, ports through `PORT`). The inspector's "?", the strip's "?" and "+ Add logic" open the same anchors directly. |
 | D32 | **Delayed closing.** An entry may name itself in its own close gate (still not in its gate). The item is compiled as Once's `self` item: it counts from the entry's first firing and never in the turn it fires, so `[["fog", {"wait": 3}]]` closes Fog three messages after it first fires. The inspector's close gate picker offers "This entry"; the canvas draws no self link and shows a `+N` badge instead. CONCEPTS 3.3. |
+| D33 | **One name per relation, and the review polish** (2026-11-11, 0.43.0). User-facing text says Opens / Closes for the action and Waits for / Closes when for the reading; Gate, Gates for, Close gate and Closes for stay the stored fields' names, shown only in Data and the specs (CONCEPTS 3). The inspector puts a card's rules first and folds Who triggers, Once, Tracker and ST timing into one Settings row below them. The mode switch is one guarded door in ☰ on both sides (no desktop Normal mode button, no book menu row). Polish only: no new piece or stored field |
 
 ---
 
@@ -455,8 +456,8 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
   openInHero: false,                 // "Open books in Hero mode"
   contentFont: 'serif',
   colorMode: 'standard',            // D22: 'standard' | 'red-green' | 'blue-yellow'
-  markClashes: true,                 // ⌄ Display, Mark keyword clashes (unset counts as on)
-  sortBy: 'order',                   // the book list's Sort by
+  markClashes: true,                 // ☰ Display, Mark keyword clashes (unset counts as on)
+  sortBy: 'order',                   // Sort by: 'order' (List order, displayIndex) | 'prompt' (the Order parameter) | 'az' | 'size' (Largest first, rough tokens) | 'keys' | 'perm' | 'vec'
   renamed: { 'Old name': 'New name' },  // book renames, for chat state (4.2)
   desk: { },                         // desktop: column widths, Home view, widened
   bookFolders: { 'Fantasy': ['Eldoria', 'Tavern'] },
@@ -570,10 +571,11 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `normal.js` | Normal mode's views on phones: Home, the book page with its bottom bar and selection, search, the entry page |
 | `hero-inspector.js` | Hero mode's inspector wiring (N4): opening a card's inspector, closed reasons, Take off canvas, Show on canvas |
 | `hero-bar.js` | The piece bar's wiring (`piecebar.js` is the bar itself): edits checked on a copy, canvas taps seen by the bar, new entries and Moments, the place picker |
-| `menus.js` | The ⌄ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, keyword clashes, dead branches (and the canvas's checks chip counts), colors, World Info settings |
+| `menus.js` | The ☰ menu and the book and entry menus, with their sheets: snapshots, folders, links, problems, keyword clashes, dead branches (and the canvas's checks chip counts), colors, World Info settings |
 | `explain.js` | Explain mode and the Guide tab in Hero mode: what a tap explains (`explainAnchor`), opening the Guide at it (D31) |
 | `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
 | `snapshots.js` | Snapshots (11) |
+| `history.js` | The undo history: per book, over its entries and its WI Hero settings (not the camera), by comparing with a last seen copy; outside saves start it over |
 | `clashes.js` | `keywordClashes`: key words that fire two or more entries (CONCEPTS 5) |
 | `data.js`, `dom.js`, `html.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, safe markup, the icon set |
 
@@ -620,7 +622,7 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
 The tests live in `test/`, one file per area (`engine`, `moments`, `trackers`,
 `timers`, `chat-state`, `generation`, `st-hooks`, `compat`, `st-drift`,
 `preview`, `pieces`, `links`, `canvas`, `link-engine`, `book`, `st-books`,
-`snapshots`, `explain`, `html`, `cheap`, `sample`, `ui`); `test/sim.js` plays
+`snapshots`, `history`, `explain`, `html`, `cheap`, `sample`, `ui`); `test/sim.js` plays
 turns and `test/fixtures/card-book.js` holds ST's card conversion. The in-ST
 and browser checks are in `e2e/` ([e2e/README.md](../e2e/README.md)).
 
@@ -655,7 +657,7 @@ Accepted for now, listed so nobody rediscovers them:
 ### 11.1 Where
 
 - In the book's menus: normal mode's book page name ▾ and book ⋯, and Hero
-  mode's ⌄ (Book section): **Snapshots ›**.
+  mode's ☰ (Book section): **Snapshots ›**.
 - The Snapshots sheet: **Take snapshot** (asks for a name, prefilled with the
   date and time), then the list, newest first, with "As imported" pinned at the
   bottom. Each row: name, date, entry count; tap for **Restore** · Rename ·
@@ -692,7 +694,9 @@ Accepted for now, listed so nobody rediscovers them:
   waiting, the outside save is merged into the working copy against the book
   as WI Hero last loaded or saved it: every entry WI Hero hasn't changed takes
   the outside version (added and deleted entries too); an entry changed on
-  both sides keeps WI Hero's, and a toast says how many did.
+  both sides keeps WI Hero's, and a toast says how many did. An outside save
+  also starts that book's undo history over (`history.js`), so Undo never
+  writes over it.
 
 ### 11.3 Restore
 
@@ -723,15 +727,15 @@ LAYOUT since):
 | Inspector, Masks block | Each mask gets "Edit text", which opens the entry on that mask's chip (D15). |
 | Entry page, Content | D15: chips "Main · *mask* · …" above Content (Hero mode only, as now); one text box; token count per version; a dot on the version active in the open chat. Replaces the stacked mask blocks. |
 | Entry page, Story logic | A closed entry adds "Closed in this chat by *X*" with Reopen, as in the inspector. |
-| ⌄ Display, both modes | "Colors": Standard · Red-green safe · Blue-yellow safe (D22). |
-| ⌄, Hero mode | Canvas section: "Show chat state" switch (D17). Book section: "Problems (n) ›" (D19) and "Snapshots ›" (section 11). |
-| ⌄ / book menus, normal mode | Book page name ▾ and book ⋯: "Snapshots ›". The Problems row shows on the book page's ⌄ when the book has problems. |
+| ☰ Display, both modes | "Colors": Standard · Red-green safe · Blue-yellow safe (D22). |
+| ☰, Hero mode | Canvas section: "Show chat state" switch (D17). Book section: "Problems (n) ›" (D19) and "Snapshots ›" (section 11). |
+| ☰ / book menus, normal mode | Book page name ▾ and book ⋯: "Snapshots ›". The Problems row shows on the book page's ☰ when the book has problems. |
 | Cards | Red "!" badge for a blocking problem (D19). With chat state on: fired count, closed dimmed and struck, glue bar lit while holding, hollow while waiting (D17). |
 | Normal mode rows | Red "!" after the name for an entry with a blocking problem. |
 | Preview | A lock phrase in the pretend reply reads "opens the lock from the next message" (D1). |
 | Canvas, first open | D8: arrange once, or the empty-canvas line when the book has no pieces. |
 
-Everything else (tabs, ⌄ structure, sheets and Undo toasts, Home, book page,
+Everything else (tabs, ☰ structure, sheets and Undo toasts, Home, book page,
 selection, entry panel, Back order, Preview layout) is built as LAYOUT says.
 
 ---
@@ -767,7 +771,7 @@ didn't contradict it:
   editing mid-play, D20); 8 (`extensions.wihero`, mask text in the book,
   snapshots); a new section for greetings (D23); 9 (Reopen and the problem list are decided: D18, D19; the canvas
   state filter is D17).
-- **LAYOUT.md**: Inspector (D14), Entry page (D15, Reopen line), ⌄ menu rows,
+- **LAYOUT.md**: Inspector (D14), Entry page (D15, Reopen line), ☰ menu rows,
   cards, and the list of what the demo left out (since removed with the demo).
 - **TECHNICAL_NOTES.md**: section 8 (where config lives, with the card
   round trip), 12 (point here for the turn order), add the scan-loop extra

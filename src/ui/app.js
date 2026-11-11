@@ -27,6 +27,14 @@ import { createHeroInspector } from './hero-inspector.js';
 import { SAMPLE, createExplain } from './explain.js';
 import { deskNormal } from './desk.js';
 
+/** "light" when the theme's text is dark (a light theme), so the piece colors can deepen (VISUAL 2). */
+function toneOf(root) {
+    const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/.exec(getComputedStyle(root).color);
+    if (!m) return 'dark';
+    const [r, g, b] = m.slice(1, 4).map(Number);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'light' : 'dark';
+}
+
 /**
  * @param {object} deps
  *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }
@@ -55,7 +63,7 @@ export function createApp(deps) {
     link.href = deps.cssUrl;
     const root = el('div', 'wih');
     const tabbar = el('div', 'tabbar');
-    const menuBtn = btn('iconbtn', ic('down'), () => openMenu(), 'Menu');
+    const menuBtn = btn('iconbtn', ic('menu'), () => openMenu(), 'Menu');
     const strip = el('div', 'strip');
     tabbar.append(menuBtn, strip);
     const main = el('div', 'main');
@@ -265,6 +273,7 @@ export function createApp(deps) {
         pendingRender = false;
         undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
+        root.dataset.tone = toneOf(root);
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
         shape();
@@ -651,7 +660,7 @@ export function createApp(deps) {
     const heroBar = () => (heroBarView ??= createHeroBar({
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
         render: () => render(), root, saveSettings, settings, sortBy: () => sortBy(), tidyNow,
-        canvas: () => heroCanvas(),
+        canvas: () => heroCanvas(), historyStep,
         entryTemplate: deps.entryTemplate,
     }));
     function barAct(...a) { return heroBar().barAct(...a); }
@@ -756,7 +765,7 @@ export function createApp(deps) {
                 sh.append(el('div', 'lbl', 'Used by'));
                 for (const e of users) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry) }));
             }
-        }, { help: 'A pack is a tag. Gates can wait for any, all, or a number of its entries.' });
+        }, { help: 'A pack is a tag. Rules can wait for any, all, or a number of its entries.' });
     }
 
     // ---------------------------------------------------------------- the inspector (hero-inspector.js)
@@ -774,7 +783,7 @@ export function createApp(deps) {
     function inspectorFor(...a) { return heroInsp().inspectorFor(...a); }
     function showOnCanvas(...a) { return heroInsp().showOnCanvas(...a); }
 
-    /** The mode switch at the top of ⌄: tap once to arm it, again to switch (LAYOUT "Modes"). */
+    /** The mode switch at the top of the ☰ menu: tap once to arm it, again to switch (LAYOUT "Modes"). */
     function modeButton(sh) {
         const target = S.mode === 'hero' ? 'Normal mode' : 'Hero mode';
         const b = btn('modebtn', html`${ic(S.mode === 'hero' ? 'entry' : 'canvas')}<span>Switch to ${target}</span>`, () => {

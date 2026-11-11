@@ -50,7 +50,7 @@ function whyNotOn(k, end) {
     if (end.moment && k === 'glue') return 'A Moment sends nothing, so nothing rides along with it.';
     if (end.moment && (k === 'switch' || k === 'mask')) return `A Moment sends nothing, so it can't take ${k === 'mask' ? 'a mask' : 'a switch'}.`;
     if (end.t === 'greet') return 'A greeting only starts things. It can be the start of an Opens or a Closes line.';
-    if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no gate of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
+    if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no Waits for of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
     return null;
 }
 
@@ -98,6 +98,17 @@ export function mountPieceBar(x) {
         }
         // Desktop: a hint. Both layouts: while a chip is armed, a banner that says what to tap, with Cancel.
         if (x.desk) bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
+        // A bar wider than its room fades at the cut edge, with an arrow that scrolls it (review 2026-11-11).
+        const more = btn('pmore', ic('right', 's'), () => bar.scrollBy({ left: bar.clientWidth * 0.7, behavior: 'smooth' }), 'More pieces');
+        bottom.append(more);
+        const edges = () => {
+            const right = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
+            bottom.classList.toggle('more-r', right);
+            bottom.classList.toggle('more-l', bar.scrollLeft > 4);
+        };
+        bar.addEventListener('scroll', edges, { passive: true });
+        requestAnimationFrame(edges);
+        if (typeof ResizeObserver === 'function') new ResizeObserver(edges).observe(bar);
         if (B.armed) bottom.prepend(armBanner(B.armed));
         armOverlay();
         return;
@@ -845,7 +856,7 @@ export function startPiece(k, hit, x) {
         const src = x.nodeOf(l.from);
         const dst = x.nodeOf(l.to);
         if (!src || !dst) return { why: 'That link is gone.' };
-        if (l.kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on the host\'s gate instead.' };
+        if (l.kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on what the host waits for instead.' };
         let at = null;
         let why = null;
         const ok = x.act((ed2, d2) => {
@@ -878,7 +889,7 @@ function condOnCard(k, end, base, x) {
     const text = row => row.filter(y => !L.isCond(y)).map(y => refLabel(y, x.nameOfId).text).join(' and ');
     const targets = [];
     const add = (field, mask) => L.rowsOf(c, field, mask).forEach((row, i) => {
-        const what = mask === null ? (field === 'gate' ? 'Gate' : 'Close gate') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;
+        const what = mask === null ? (field === 'gate' ? 'Waits for' : 'Closes when') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;
         const links = text(row);
         targets.push({
             label: what, family: mask !== null ? 'mask' : field === 'gate' ? 'open' : 'close',

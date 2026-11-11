@@ -204,7 +204,7 @@ await run(async () => {
     }
     await $('.packframe').click({ position: { x: 6, y: 30 } });
     await $('.sheet h2:text-is("#town")').waitFor();
-    assert.deepEqual(await $('.sheet .opt .lab').allTextContents(), ['Rename', 'Tavern (#town)', 'Market (#town, after the tavern)', 'Rumor (after anything in #town)', 'Gatehouse (gates all of #town)', 'Blaze (closes all of #town)']);
+    assert.deepEqual(await $('.sheet .opt .lab').allTextContents(), ['Rename', 'Tavern (#town)', 'Market (#town, after the tavern)', 'Rumor (after anything in #town)', 'Gatehouse (opens all of #town)', 'Blaze (closes all of #town)']);
     await page.keyboard.press('Escape');
     ok('a pack frame lists its members and who uses it');
 

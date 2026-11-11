@@ -72,19 +72,19 @@ export function logicLines(node, model) {
     const add = (family, label, text) => lines.push({ family, label, text });
 
     // The entry's own pieces, in matrix order, each followed by what other entries aim at it.
-    if (Array.isArray(c.gate) && c.gate.length) add('open', 'Gate', `Opens when ${rowsText(c.gate)}`);
+    if (Array.isArray(c.gate) && c.gate.length) add('open', 'Waits for', `Opens when ${rowsText(c.gate)}`);
     const heldBy = node.opens.all.filter(i => i.type === 'entry').map(i => nameOf(i.source));
-    if (heldBy.length) add('open', 'Held back by', `Waits until ${and(heldBy)} ${heldBy.length === 1 ? 'has' : 'have'} fired`);
+    if (heldBy.length) add('open', 'Waits for', `Waits until ${and(heldBy)} ${heldBy.length === 1 ? 'has' : 'have'} fired`);
     const startsWith = node.opens.all.filter(i => i.type === 'greeting').map(i => nameOf(i.key));
     if (startsWith.length) add('open', 'Started by', `Opens only in a chat that opened with ${and(startsWith, 'or')}`);
-    if (Array.isArray(c.gatesFor) && c.gatesFor.length) add('open', 'Gates for', `Holds back ${targets(c.gatesFor)} until this fires`);
-    if (Array.isArray(c.closeGate) && c.closeGate.length) add('close', 'Close gate', `Closes when ${rowsText(c.closeGate)}`);
+    if (Array.isArray(c.gatesFor) && c.gatesFor.length) add('open', 'Opens', `${targets(c.gatesFor)} also wait${c.gatesFor.length === 1 && !c.gatesFor[0].startsWith('#') ? 's' : ''} for this to fire`);
+    if (Array.isArray(c.closeGate) && c.closeGate.length) add('close', 'Closes when', `Closes when ${rowsText(c.closeGate)}`);
     const closedBy = node.closes.filter(cl => cl.kind === 'closesFor' && cl.source !== node.key && !(Array.isArray(c.closeGate) && cl.source?.startsWith('@')));
-    if (closedBy.length) add('close', 'Closed by', `${and(closedBy.map(cl => nameOf(cl.source)), 'or')} when it fires`);
-    if (Array.isArray(c.closesFor) && c.closesFor.length) add('close', 'Closes for', `When it fires, closes ${targets(c.closesFor)}`);
+    if (closedBy.length) add('close', 'Closes when', `Closes when ${and(closedBy.map(cl => nameOf(cl.source)), 'or')} fires`);
+    if (Array.isArray(c.closesFor) && c.closesFor.length) add('close', 'Closes', `When it fires, closes ${targets(c.closesFor)}`);
     if (c.glue?.mode === 'ride') add('glue', 'Glue', `Rides along with ${idName(c.glue.host)}: fires when it fires`);
     if (c.glue?.mode === 'hold') add('glue', 'Glue', node.closes.some(cl => cl.kind !== 'once')
-        ? 'Holds: once fired it stays on until its close gate'
+        ? 'Holds: once fired it stays on until Closes when is met'
         : 'Holds: once fired it stays on; nothing ends it yet');
     const riders = (model.riders?.get(node.key) ?? []).map(nameOf);
     if (riders.length) add('glue', 'Ridden by', `${and(riders)} ${riders.length === 1 ? 'rides' : 'ride'} along when it fires`);
@@ -111,7 +111,7 @@ export const logicSummary = lines => [...new Set(lines.map(l => l.label))].join(
  * @param {(key: string) => string | null} nameOf the name of a loaded entry or greeting, null if it is gone
  */
 export function closedText(by, nameOf) {
-    if (by === 'closeGate') return 'its close gate';
+    if (by === 'closeGate') return 'its Closes when rule';
     if (by === 'once') return 'Once, after it fired';
     if (by === 'earlier version') return 'an earlier version of WI Hero';
     const m = /^(closesFor|switch|dice):(.+)$/.exec(String(by ?? ''));

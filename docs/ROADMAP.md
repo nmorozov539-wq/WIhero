@@ -32,7 +32,8 @@ After it:
 | 0.39.0 | #39 | Delayed closing (D32, CONCEPTS 3.3) |
 | 0.40.0 | #40 | Playtest polish |
 | 0.41.0 | #41 | UI polish from the impressions list; greetings retired for V1 (CONCEPTS 3.12) |
-| 0.42.0 | #42 | Feature freeze polish: undo history (Ctrl Z, canvas arrows; freeze exception), warnings under ST's chance and timing settings, the checks chip on the canvas, Mark keyword clashes, drag to reorder the book list; docs checked against the code |
+| 0.42.0 | #42 | Feature freeze polish: undo history (Ctrl Z, canvas arrows; freeze exception), ST timing in the Hero inspector with a badge on cards and warnings under it, the checks chip on the canvas, Mark keyword clashes, List order and Prompt order sorts with drag to reorder and Order on each row, New entry below; docs checked against the code |
+| 0.43.0 | #43 | The 2026-11-11 review's polish (D33): one name per relation (Opens / Closes, Waits for / Closes when), the inspector's rules before its settings, the Guide's When a card fires and Tabs, one guarded mode door, phone titles on two lines and tap to focus, light theme piece colors, the piece bar's scroll arrow, Place an entry here after a long press, the Tracker chip's toast with Undo, ☰ for the menu, the book's size and Largest first; docs in step with 0.42.0 and 0.43.0 |
 
 The feature freeze for V1 is on: no new systems, only fixes and polish.
 
@@ -51,5 +52,9 @@ them done, and note here what was tried.
 ## Later
 
 Preview over several turns, greetings (retired for V1) and then group chats, a
-timeline scrubber across branches. Bigger ideas are in
+timeline scrubber across branches. From the 2026-11-11 review, ranked: "When *X*
+is written" as a row item (a tracker or written mask being written is a
+stronger signal than a key word), Preview over several turns, held-back entries
+folded into the chat bubble, a helper for converting an existing book (shaped
+by notes from converting a real one), find and replace. Bigger ideas are in
 [AFTER_V1.md](AFTER_V1.md).

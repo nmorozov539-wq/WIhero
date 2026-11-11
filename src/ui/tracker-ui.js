@@ -38,7 +38,7 @@ export function trackerEditor(box, x, update) {
         const syntax = t.shared?.syntax ?? DEFAULT_SYNTAX;
         const label = first.written.label || t.labelOf?.(first.mask) || 'Label';
         box.append(el('p', 'phelp', `The model writes ${sample(syntax, { label, shape: first.written.shape ?? 'line' }, '…').replace(/\n/g, ' ')}${t.shared?.teach?.on ? '. WI Hero teaches it the format.' : '. Your preset or card tells the model to write it.'}`));
-        if (t.builder) box.append(btn('addb', 'Syntax and teaching…', t.builder));
+        if (t.builder) { box.append(btn('addb', 'Syntax and teaching…', t.builder)); box.append(el('p', 'pnote', 'One syntax for every tracker in this book.')); }
     }
 }
 
@@ -180,7 +180,8 @@ export function openBuilder(layer, o) {
         sh.append(el('div', 'sub', 'Advice'));
         const tips = el('ul', 'phelp trktips');
         for (const tip of ['Keep labels short and different from each other.', 'Ask for the lines at the very end of the reply.',
-            'Use a block only when the value really needs several lines.', 'One fact per label: Gold, not Gold and gems.']) tips.append(el('li', '', tip));
+            'Use a block only when the value really needs several lines.', 'One fact per label: Gold, not Gold and gems.',
+            'Values that move together, like coins: one tracker the model rewrites whole ([Purse: 12g 5s 30c]), with the format in its description, not three to keep in step.']) tips.append(el('li', '', tip));
         sh.append(tips);
         const row = el('div', 'row trkrow');
         const save = btn('pri', 'Save', () => { layer.close(); o.save(syntax, teach); });

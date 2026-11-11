@@ -882,7 +882,7 @@
                 "gatehouse"
             ],
             "keysecondary": [],
-            "comment": "Gatehouse (gates all of #town)",
+            "comment": "Gatehouse (opens all of #town)",
             "content": "[WIH-16 The gatehouse.]",
             "constant": false,
             "vectorized": false,

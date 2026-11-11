@@ -239,7 +239,6 @@ export function renderInspector(box, x) {
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
-    if (c.moment !== true) { entrySettings(body, x, c, update); stTiming(body, x, e); }
     // A path of a switch says so, and opens the switch (#17). The gate the switch gave it is the switch's own
     // "can't fire before the fork" rule, so a gate that is only that isn't shown as a gate of its own.
     const forkGateOnly = !!x.pathOf && Array.isArray(c.gate) && c.gate.length === 1 && c.gate[0].length === 1 && c.gate[0][0] === x.pathOf.id;
@@ -306,6 +305,10 @@ export function renderInspector(box, x) {
             if (x.guide) sh.append(layer.opt('How each piece works', () => { layer.close(); x.guide(null); }, { icon: 'help', val: 'Guide ›' }));
         }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' })));
     }
+
+    // The entry's settings come after its rules (review 2026-11-11): folded into one row that names what is set,
+    // open by default only when the card has no rules to show above it.
+    if (c.moment !== true) settingsRow(body, x, c, e, update, !!body.querySelector('.pc'));
 
     const foot = el('div', 'ifoot');
     if (c.moment === true) {
@@ -408,10 +411,10 @@ function editorOf(key, x, update) {
             box.append(wrap);
             box.append(el('p', 'phelp', 'Fires whenever its host fires, and stops when the host closes.'));
         } else if (hasPiece(c, 'closeGate')) {
-            box.append(el('p', 'phelp', `Ends through its close gate: ${x.lines.find(l => l.label === 'Close gate')?.text ?? ''}`));
+            box.append(el('p', 'phelp', `Ends through Closes when: ${x.lines.find(l => l.label === 'Closes when')?.text ?? ''}`));
         } else {
             box.append(el('p', 'phelp', 'Nothing ends it yet: once fired it stays on for the rest of the chat.'));
-            box.append(btn('addb', '+ Close gate', () => x.setOpen('closeGate')));
+            box.append(btn('addb', '+ Closes when', () => x.setOpen('closeGate')));
         }
     } else if (key === 'masks') {
         const masks = Array.isArray(c.masks) ? c.masks : [];
@@ -489,6 +492,41 @@ function editorOf(key, x, update) {
     return box;
 }
 
+/** What the folded Settings row names: the settings that are set, or the list of what it holds. */
+function settingsSummary(c, e) {
+    const set = [];
+    if (c.by) set.push(`Who triggers: ${c.by === 'user' ? 'You' : 'Character'}`);
+    if (c.once === true) set.push('Once');
+    if (hasPiece(c, 'written')) set.push('Tracker');
+    for (const field of TIMING) {
+        const p = PARAM_LIST.find(q => q.field === field);
+        const v = paramValue(e, p);
+        if (v !== null && v !== undefined && v !== p.def) set.push(`${p.label} ${v}${field === 'probability' ? '%' : ''}`);
+    }
+    return set.length ? set.join(' · ') : 'Who triggers, Once, Tracker, ST timing';
+}
+
+/** Who triggers, Once, Tracker and ST timing, in one row that folds (open: x.open === 'settings'). */
+function settingsRow(body, x, c, e, update, hasRules) {
+    const open = x.open === 'settings' || (!hasRules && x.open !== 'settings-shut');
+    const pc = el('div', `pc isetpc${open ? ' open' : ''}`);
+    pc.dataset.piece = 'settings';
+    pc.style.setProperty('--c', FAMILY_COLOR.by);
+    const ph = el('div', 'pch');
+    const tap = el('button', 'pct');
+    tap.type = 'button';
+    tap.setAttribute('aria-expanded', String(open));
+    const lab = el('b');
+    lab.innerHTML = ic('pby', 'pci');
+    lab.append('Settings');
+    tap.append(lab, el('span', 'pcs', settingsSummary(c, e)));
+    tap.addEventListener('click', () => x.setOpen(open ? (hasRules ? null : 'settings-shut') : 'settings'));
+    ph.append(tap);
+    pc.append(ph);
+    if (open) { entrySettings(pc, x, c, update); stTiming(pc, x, e); }
+    body.append(pc);
+}
+
 /** Masks whose "+ Off when…" was opened, so their Off when editor shows while still empty. */
 const OFF_OPEN = new Set();
 
@@ -497,7 +535,7 @@ const SETTINGS = ['by', 'once'];
 
 /**
  * Who triggers and Once (#14, #31): settings of the entry itself, not links, so they are a selector and a switch
- * at the top of its logic, the same selector Moments and locks use, rather than pieces to add.
+ * in the folded Settings row after its rules, the same selector Moments and locks use, rather than pieces to add.
  */
 function entrySettings(body, x, c, update) {
     const box = el('div', 'isets');
@@ -571,7 +609,9 @@ function stTiming(body, x, e) {
             x.edit((ed, data) => setParam(data, e.uid, p, n));
         });
         f.append(input, el('small', '', field === 'probability' ? '%' : 'msgs'));
-        grid.append(l, f);
+        const cell = el('div', 'tcell');
+        cell.append(l, f);
+        grid.append(cell);
         const note = storyParamNote(e, p, !!x.lines?.length);
         if (note) notes.push(note);
     }

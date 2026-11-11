@@ -45,6 +45,10 @@
 }
 .wih[data-colors="red-green"] { --p-open: #56b4e9; --p-close: #e8681a; --p-glue: #f0e442; --p-mask: #cc79a7; --p-pack: #cfccc2; --p-track: #c9a26b; }
 .wih[data-colors="blue-yellow"] { --p-open: #2fc4c4; --p-close: #ff4a4a; --p-glue: #f5f5f5; --p-mask: #ff9ad5; --p-pack: #8a8f99; --p-track: #d9a066; }
+/* A light theme (dark text, data-tone set by app.js): the same hues, deep enough to read on a pale canvas (review 2026-11-11). */
+.wih[data-tone="light"] { --p-open: #138f85; --p-close: #dc4436; --p-glue: #a88200; --p-mask: #c9459a; --p-pack: #6b675e; --p-track: #a0672a; }
+.wih[data-tone="light"][data-colors="red-green"] { --p-open: #1c7ab3; --p-close: #c0500e; --p-glue: #8f8300; --p-mask: #a3517f; --p-pack: #6b675e; --p-track: #8f6a36; }
+.wih[data-tone="light"][data-colors="blue-yellow"] { --p-open: #108585; --p-close: #d42a2a; --p-glue: #4f535a; --p-mask: #c2558f; --p-pack: #5a5f68; --p-track: #a0672a; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -299,11 +303,11 @@ svg.lk path.head { stroke-width: 0; }
 .card { position: absolute; padding: 9px 10px 0 30px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); cursor: pointer; z-index: 2; }
 .card:hover { border-color: color-mix(in srgb, var(--fg) 34%, transparent); }
 .card .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
-/* Desktop: a title takes two lines, so "Road: leaving the village" reads whole at 100%. */
-[data-desk="1"] .card:not(.greet) .t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
-[data-desk="1"] .card:not(.greet) { padding-top: 7px; }
+/* A title takes two lines, so "Road: leaving the village" reads whole (phones too, since the 2026-11-11 review). */
+.card:not(.greet) .t { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+.card:not(.greet) { padding-top: 7px; }
 /* A Moment has a tag line and its phrases too: one line of title, so it never runs into the phrases. */
-[data-desk="1"] .card.moment .t { -webkit-line-clamp: 1; }
+.card.moment .t { -webkit-line-clamp: 1; }
 .card .k { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; display: flex; gap: 5px; align-items: center; }
 .card .k > span { overflow: hidden; text-overflow: ellipsis; }
 .card .k svg { width: 12px; height: 12px; flex-shrink: 0; }
@@ -574,6 +578,14 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .pbar.folded .pfold svg { transform: rotate(180deg); }
 .pchips { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 9px max(12px, env(safe-area-inset-left, 0px)) 9px; touch-action: pan-x; }
 .pchips::-webkit-scrollbar { display: none; }
+/* More pieces than room: the cut edge fades and an arrow scrolls on (review 2026-11-11). */
+.pbar::before, .pbar::after { content: ''; position: absolute; top: 0; bottom: 0; width: 36px; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 1; }
+.pbar::before { left: 0; background: linear-gradient(90deg, var(--tint), transparent); }
+.pbar::after { right: var(--pmore-at, 0px); background: linear-gradient(270deg, var(--tint), transparent); }
+.pbar.more-l::before, .pbar.more-r::after { opacity: 1; }
+.pbar.folded::before, .pbar.folded::after, .pbar:has(.pstrip)::before, .pbar:has(.pstrip)::after { display: none; }
+.pmore { display: none; position: absolute; z-index: 2; top: 50%; right: var(--pmore-at, 2px); transform: translateY(-50%); width: 30px; height: 30px; border-radius: 15px; align-items: center; justify-content: center; background: color-mix(in srgb, var(--fg) 14%, var(--tint)); border: 1px solid var(--line); color: var(--fg); box-shadow: 0 0 0 6px color-mix(in srgb, var(--fg) 4%, var(--tint)); }
+.pbar.more-r:not(.folded) .pmore { display: flex; }
 .pchip, .dragchip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--fg); font-weight: 600; font-size: var(--t-s); touch-action: pan-x; }
 .pchip i, .dragchip i { width: 9px; height: 9px; border-radius: 5px; background: var(--c); }
 .pchip svg, .dragchip svg { width: 16px; height: 16px; color: var(--c); flex-shrink: 0; }
@@ -747,6 +759,8 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 /* Prompt order sort: the Order parameter on each row. */
 .brow .ordin { width: 52px; height: 24px; flex-shrink: 0; padding: 0 4px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--t-xs); text-align: right; font-variant-numeric: tabular-nums; }
 .item .ordb { flex-shrink: 0; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: var(--t-s); font-variant-numeric: tabular-nums; }
+.tokn { flex-shrink: 0; color: var(--muted); font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bksize { align-self: center; margin-left: auto; color: var(--muted); font-size: var(--t-xs); }
 /* Drag to reorder (List order sort): a line where the entries will land. */
 .brow.dropbefore { box-shadow: 0 2px 0 var(--accent) inset; }
 .brow.dropafter { box-shadow: 0 -2px 0 var(--accent) inset; }
@@ -891,9 +905,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 /* ---------- Desktop: Hero mode (LAYOUT "Desktop: Hero mode") ---------- */
 [data-desk="1"] .tbook { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--fg); font-size: var(--t-s); font-weight: 600; max-width: 240px; }
 [data-desk="1"] .tbook span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-[data-desk="1"] .tbook:hover, [data-desk="1"] .tmode:hover { background: var(--hover); }
-[data-desk="1"] .tmode { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font-size: var(--t-s); white-space: nowrap; }
-[data-desk="1"] .tmode:hover { color: var(--fg); }
+[data-desk="1"] .tbook:hover { background: var(--hover); }
 
 /* Three columns: the entry list, the canvas over the piece bar, the inspector. */
 [data-desk="1"] .main[data-page="hero:canvas"] { display: grid; grid-template-columns: var(--lw, 250px) minmax(0, 1fr) min(var(--iw, 320px), 50%); grid-template-rows: minmax(0, 1fr) auto; }
@@ -963,6 +975,8 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .linkguide { overflow: visible; pointer-events: none; position: absolute; left: 0; top: 0; }
 .linkguide path { fill: none; stroke-width: 2.5; }
 .selbox { position: absolute; z-index: 7; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
+.placeoffer { position: absolute; z-index: 8; transform: translate(-50%, -130%); display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--fg) 10%, var(--tint)); box-shadow: 0 6px 18px var(--shadow); color: var(--fg); font-weight: 600; font-size: var(--t-s); white-space: nowrap; }
+.placeoffer svg { color: var(--accent); }
 [data-desk="1"] .vp { cursor: default; }
 [data-desk="1"] .vp .card { cursor: grab; }
 [data-desk="1"] .sheet.pop .plimit { max-height: 320px; overflow-y: auto; }
@@ -979,7 +993,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 /* A narrow drawer: the tab row's right side keeps its icons, so the tabs keep their room. */
 [data-desk="1"] .tabbar { container-type: inline-size; }
 @container (max-width: 760px) {
-  .tsearch span, .tsearch kbd, .tmode span { display: none; }
+  .tsearch span, .tsearch kbd { display: none; }
   .tbook { max-width: 150px; }
 }
 
@@ -994,6 +1008,7 @@ select.pgc option { background: var(--tint); color: var(--fg); }
    narrow canvas (1366 × 768 with both columns) the hint goes first, then the key letters, so Wait is never cut. */
 [data-desk="1"] .pbar { container-type: inline-size; }
 [data-desk="1"] .pbar .pchips { padding-right: 48px; }
+[data-desk="1"] .pbar { --pmore-at: 40px; }
 [data-desk="1"] .pfold { top: 50%; left: auto; right: 8px; transform: translateY(-50%); width: 30px; height: 30px; border: none; border-radius: 8px; background: none; }
 [data-desk="1"] .pfold:hover { background: var(--hover); color: var(--fg); }
 [data-desk="1"] .pbar:has(.pstrip) .pfold { display: none; }
@@ -1019,17 +1034,22 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .ihead h2.rn:hover { background: var(--raised); }
 .ihead h2.rn[contenteditable="plaintext-only"] { box-shadow: 0 0 0 2px var(--accent); white-space: normal; text-overflow: clip; }
 .isets { margin: 8px 12px 4px; display: flex; flex-direction: column; gap: 6px; }
-.iset { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.iset { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 34px; }
+.isetpc .isets { margin: 0 4px 6px 0; }
+.isetpc { container-type: inline-size; }
+.isetpc .itiming { margin-top: 0; }
 .isetl { font-size: var(--t-xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); min-width: 92px; white-space: nowrap; flex-shrink: 0; }
 .isetn { flex: 1; font-size: var(--t-s); color: var(--muted); }
 .iset .pseg { flex-wrap: nowrap; flex-shrink: 0; }
 .itiming { margin-top: 2px; }
 .tgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 8px; }
-.tgrid label { grid-row: 1; font-size: var(--t-xs); color: var(--muted); }
-.tfield { grid-row: 2; display: flex; align-items: baseline; gap: 3px; min-width: 0; }
+.tcell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tgrid label { font-size: var(--t-xs); color: var(--muted); }
+.tfield { display: flex; align-items: baseline; gap: 3px; min-width: 0; }
 .tfield input { width: 100%; min-width: 0; height: 30px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--t-s); }
 .tfield small { color: var(--muted); font-size: 10px; }
 .itiming .pnote { margin: 2px 0 0; }
+@container (max-width: 330px) { .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; } }
 .iset .pseg button { white-space: nowrap; }
 .pct b .pci { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
 .pshapes { gap: 4px; }

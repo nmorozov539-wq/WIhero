@@ -1,4 +1,4 @@
-// The sheets and menus (LAYOUT "Sheets and toasts", "⌄ menu"): the ⌄ menu, book and entry menus, snapshots,
+// The sheets and menus (LAYOUT "Sheets and toasts", "☰ menu"): the ☰ menu, book and entry menus, snapshots,
 // folders, links, problems, colors and World Info settings. Moved out of app.js; it reaches the app only through
 // the context given to it.
 import { el, issueText, swEl } from './dom.js';
@@ -136,7 +136,7 @@ export function createMenus(A) {
         }, { help: 'Problems (red) stop an entry from firing. Warnings (yellow) only point at something odd.' });
     }
 
-    /** The ⌄ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
+    /** The ☰ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
     function checkRows(sh, book, data) {
         const n = keywordClashes(data, hiddenIn(book)).groups.length;
         if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));
@@ -184,7 +184,7 @@ export function createMenus(A) {
                     if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
                 }, { sub: f.dead ? `Can never fire: ${why}` : why.replace(/^./, c => c.toUpperCase()), dot: f.dead ? 'var(--bad)' : 'var(--warn)' }));
             }
-        }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its gate rows or masks never will.' });
+        }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its Waits for rows or masks never will.' });
     }
 
     /** Every key word that fires two or more entries, with those entries; a tap opens one. */

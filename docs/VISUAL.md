@@ -54,7 +54,7 @@ themes, and `e2e/desktop.mjs` makes a light-theme pass.
 
   Nothing uses a size outside the scale.
 - **Noto Sans** for everything, **Noto Serif** for entry content (the text that
-  gets injected). The content font is a Display setting in ⌄ (Serif or Sans),
+  gets injected). The content font is a Display setting in ☰ (Serif or Sans),
   so it is easy to go back.
 
 ## 4. Icons
@@ -137,7 +137,7 @@ gate), and their piece bar chips use `--muted`.
 
 ### 6.4 Color vision modes
 
-⌄ Display → Colors. Each mode swaps the piece colors (and, when built, the
+☰ Display → Colors. Each mode swaps the piece colors (and, when built, the
 strategy colors) for a set that stays apart under one kind of color blindness.
 The surfaces, the accent and the shapes don't change. There is no other color
 customizing. Drawn in sketch 7 (in the git history).
@@ -151,6 +151,18 @@ customizing. Drawn in sketch 7 (in the git history).
 Strategy sets for the modes are chosen and checked the same way when they are
 built.
 
+**Light themes.** The sets above are bright, for dark canvases; on a light
+theme (the theme's text is dark: `data-tone="light"`, worked out from its text
+color) glue, the pack frame and its ANY label nearly vanished. Each mode has a
+deeper twin there, the same hues at least 3:1 against the canvas (checked by
+`e2e/review.mjs`):
+
+| Mode, light theme | Opens | Closes | Glue | Mask | Pack | Tracker |
+|------|-------|--------|------|------|------|---------|
+| Standard | #138f85 | #dc4436 | #a88200 | #c9459a | #6b675e | #a0672a |
+| Red-green safe | #1c7ab3 | #c0500e | #8f8300 | #a3517f | #6b675e | #8f6a36 |
+| Blue-yellow safe | #108585 | #d42a2a | #4f535a | #c2558f | #5a5f68 | #a0672a |
+
 ## 7. The canvas
 
 ### 7.1 Cards
@@ -160,8 +172,11 @@ built.
 - Pieces are drawn as **marks on the card** (ports) and **links between
   cards**, never as blocks wrapping the card or as boxes between cards.
 - Cards move only by the grip.
-- On desktop the title takes up to two lines, so a name like "Road: leaving
-  the village" reads whole at 100%. Phones keep one line.
+- The title takes up to two lines, so a name like "Road: leaving the village"
+  reads whole (phones too since 2026-11-11; a Moment keeps one line).
+- **ST timing**: a card whose entry has Probability under 100% or a Sticky,
+  Cooldown or Delay shows a quiet badge at its bottom right, "50% · S5 · C3 ·
+  D2" (the full words on hover).
 - A **sticky note** sits over the card's top right edge: a small pale yellow
   slip, tilted a little, up to three lines (the whole note on hover). It is the
   author's own and never reaches the model.
@@ -221,7 +236,7 @@ built.
 
 ### 7.5 Chat state, problems, Moments and greetings
 
-- **Show chat state** (⌄, off by default) marks each card with the open chat's
+- **Show chat state** (☰, off by default) marks each card with the open chat's
   state at its latest message: a small "2×" fired count top right; closed cards
   dimmed, the title struck through in red, "CLOSED" and "by *X*"; a holding
   card's glue bar glows; a card still waiting on its gate is hollow (dashed
@@ -256,7 +271,8 @@ built.
   sits on the top edge. On side edges the ports run, top to bottom: opens,
   glue, closes.
 - On desktop, resting the pointer on a card for 350ms dims everything not
-  linked to it, the same look as a phone's tap-to-focus.
+  linked to it. On phones a tapped card does the same for as long as its
+  inspector is open.
 - On phones a Closes line that runs back up the canvas (its closer sits below
   the card it closes) is drawn faint until one of its two cards is inspected,
   so the long lines climbing the page don't drown the story running down it.
@@ -264,6 +280,8 @@ built.
   width, never below 80% zoom, from the top; the canvas then scrolls down. Fit
   zooms out until every card shows. Fit, + and − sit on the right; the zoom
   level shows bottom left.
+- The undo and redo arrows sit top left, beside the panel button: round
+  buttons, greyed out when there is nothing to step to.
 - The checks chip (LAYOUT, "Buttons on the canvas") sits top right: a pill
   with a yellow mark, red when anything is dead.
 - The legend, when shown, names the five link colors.
