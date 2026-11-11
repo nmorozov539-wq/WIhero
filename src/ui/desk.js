@@ -759,7 +759,6 @@ export function deskNormal(A) {
 
     function bookPageMenu(p, book, at) {
         layer.sheet(null, sh => {
-            sh.append(layer.opt('Open in Hero mode', () => { layer.close(); A.openHero(book); }, { icon: 'canvas' }));
             sh.append(layer.opt('Book settings', () => { layer.close(); p.pane = 'settings'; p.select = null; A.render(); }, { icon: 'gear' }));
             sh.append(el('div', 'div'));
             sh.append(layer.opt('New folder…', () => A.newEntryFolder(book), { icon: 'folder' }));
