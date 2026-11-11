@@ -48,9 +48,10 @@ the original design (DESIGN.md, in the git history), these win.
   inclusion groups and the token budget work as usual. A running sticky finishes
   even after its entry closes. Cooldown and delay can hold back a glued entry.
   An entry held in by sticky still counts as fired. On an entry with story
-  pieces, the entry page puts a warning line under Probability, Sticky,
-  Cooldown and Delay when they are set, saying how each can work against the
-  pieces; it changes nothing about how they work.
+  pieces, the entry page and the Hero inspector's ST timing block put a
+  warning line under Probability, Sticky, Cooldown and Delay when they are
+  set, saying how each can work against the pieces; it changes nothing about
+  how they work. A card with any of them set shows them in a small badge.
 
 ### 2.2 Open and closed
 
@@ -439,6 +440,11 @@ For story changes WI Hero can't see, such as a hand-edited old message.
   the new rules on the same history. Deleted entries' history is ignored.
   Closed stays closed even when the rule that closed it is removed; Reopen is
   the way back.
+- **Undo**: every edit to a book (text, parameters, story logic, card places
+  and link shapes) can be undone and redone, with Ctrl Z and Ctrl Shift Z or
+  the canvas's arrows. It is the editor's history, not the chat's: it never
+  touches story state. A change made outside WI Hero starts the book's history
+  over.
 - **Snapshots**: a manual "Snapshot" saves a named copy of the whole book, and
   Restore puts it back (with Undo), leaving the chat's state alone. One
   "As imported" copy is kept automatically the first time WI Hero opens or changes a book.

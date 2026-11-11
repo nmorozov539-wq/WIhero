@@ -162,6 +162,9 @@ built.
 - Cards move only by the grip.
 - On desktop the title takes up to two lines, so a name like "Road: leaving
   the village" reads whole at 100%. Phones keep one line.
+- **ST timing**: a card whose entry has Probability under 100% or a Sticky,
+  Cooldown or Delay shows a quiet badge at its bottom right, "50% · S5 · C3 ·
+  D2" (the full words on hover).
 - A **sticky note** sits over the card's top right edge: a small pale yellow
   slip, tilted a little, up to three lines (the whole note on hover). It is the
   author's own and never reaches the model.
@@ -264,6 +267,8 @@ built.
   width, never below 80% zoom, from the top; the canvas then scrolls down. Fit
   zooms out until every card shows. Fit, + and − sit on the right; the zoom
   level shows bottom left.
+- The undo and redo arrows sit top left, beside the panel button: round
+  buttons, greyed out when there is nothing to step to.
 - The checks chip (LAYOUT, "Buttons on the canvas") sits top right: a pill
   with a yellow mark, red when anything is dead.
 - The legend, when shown, names the five link colors.

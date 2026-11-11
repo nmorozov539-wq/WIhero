@@ -456,7 +456,7 @@ All in `extension_settings.wihero`, saved with ST's `saveSettingsDebounced`:
   contentFont: 'serif',
   colorMode: 'standard',            // D22: 'standard' | 'red-green' | 'blue-yellow'
   markClashes: true,                 // ⌄ Display, Mark keyword clashes (unset counts as on)
-  sortBy: 'order',                   // the book list's Sort by
+  sortBy: 'order',                   // Sort by: 'order' (List order, displayIndex) | 'prompt' (the Order parameter) | 'az' | 'keys' | 'perm' | 'vec'
   renamed: { 'Old name': 'New name' },  // book renames, for chat state (4.2)
   desk: { },                         // desktop: column widths, Home view, widened
   bookFolders: { 'Fantasy': ['Eldoria', 'Tavern'] },
@@ -574,6 +574,7 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `explain.js` | Explain mode and the Guide tab in Hero mode: what a tap explains (`explainAnchor`), opening the Guide at it (D31) |
 | `st-books.js` | WI Hero's way into ST's books: working copies, saving, create, rename, import (D28), export, global |
 | `snapshots.js` | Snapshots (11) |
+| `history.js` | The undo history: per book, over its entries and its WI Hero settings (not the camera), by comparing with a last seen copy; outside saves start it over |
 | `clashes.js` | `keywordClashes`: key words that fire two or more entries (CONCEPTS 5) |
 | `data.js`, `dom.js`, `html.js`, `icons.js` | Helpers over book data and settings, sheets and toasts, safe markup, the icon set |
 
@@ -620,7 +621,7 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
 The tests live in `test/`, one file per area (`engine`, `moments`, `trackers`,
 `timers`, `chat-state`, `generation`, `st-hooks`, `compat`, `st-drift`,
 `preview`, `pieces`, `links`, `canvas`, `link-engine`, `book`, `st-books`,
-`snapshots`, `explain`, `html`, `cheap`, `sample`, `ui`); `test/sim.js` plays
+`snapshots`, `history`, `explain`, `html`, `cheap`, `sample`, `ui`); `test/sim.js` plays
 turns and `test/fixtures/card-book.js` holds ST's card conversion. The in-ST
 and browser checks are in `e2e/` ([e2e/README.md](../e2e/README.md)).
 
@@ -692,7 +693,9 @@ Accepted for now, listed so nobody rediscovers them:
   waiting, the outside save is merged into the working copy against the book
   as WI Hero last loaded or saved it: every entry WI Hero hasn't changed takes
   the outside version (added and deleted entries too); an entry changed on
-  both sides keeps WI Hero's, and a toast says how many did.
+  both sides keeps WI Hero's, and a toast says how many did. An outside save
+  also starts that book's undo history over (`history.js`), so Undo never
+  writes over it.
 
 ### 11.3 Restore
 
