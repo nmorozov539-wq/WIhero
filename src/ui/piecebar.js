@@ -845,7 +845,7 @@ export function startPiece(k, hit, x) {
         const src = x.nodeOf(l.from);
         const dst = x.nodeOf(l.to);
         if (!src || !dst) return { why: 'That link is gone.' };
-        if (l.kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on the host\'s gate instead.' };
+        if (l.kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on what the host waits for instead.' };
         let at = null;
         let why = null;
         const ok = x.act((ed2, d2) => {

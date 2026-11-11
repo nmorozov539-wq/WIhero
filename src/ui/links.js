@@ -41,11 +41,11 @@ export function refIs(ed, x, end) {
 export function whyNot(kind, src, dst) {
     if (!src || !dst) return null;
     if (sameEnd(src, dst)) {
-        if (kind === 'close') return 'An entry can\'t link to itself. To close it after it fires, turn on Once, or add the entry itself to its close gate in the inspector (with a wait to close it later).';
+        if (kind === 'close') return 'An entry can\'t link to itself. To close it after it fires, turn on Once, or add the entry itself to its Closes when in the inspector (with a wait to close it later).';
         return 'A link needs two different cards.';
     }
     if (dst.t === 'greet') return 'A greeting only starts things: it can\'t wait, close or ride along.';
-    if (dst.moment && kind === 'close') return 'A Moment can\'t be closed: once it happens, it has happened. Give it a gate to say when it counts.';
+    if (dst.moment && kind === 'close') return 'A Moment can\'t be closed: once it happens, it has happened. Give it a Waits for to say when it counts.';
     if ((src.moment || dst.moment) && kind === 'ride') return 'A Moment sends nothing, so nothing rides along with it.';
     if (kind === 'ride') {
         if (src.t !== 'entry' || dst.t !== 'entry') return 'Ride along joins two entries: a pack or a greeting can\'t be a host or a rider.';
@@ -269,7 +269,7 @@ export function removeCond(ed, at) {
  * @returns {{ at?: {uid, field, mask, row}, why?: string }}
  */
 export function condRowFor(ed, data, kind, src, dst, mask = null) {
-    if (kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on the host\'s gate instead.' };
+    if (kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on what the host waits for instead.' };
     if (dst.t === 'pack') return { why: 'Links into a pack are stored in the source\'s Opens or Closes list, which has no row for a lock or a wait.' };
     let loc = findLink(ed, data, kind, src, dst, mask);
     if (!loc) return { why: 'That link isn\'t there any more.' };

@@ -192,7 +192,7 @@ export function createHeroInspector(A) {
             for (const n of model.nodes.values()) {
                 if (n === node || n.book !== node.book) continue;
                 const card = stateKeyToCard(n.key);
-                if (n.opens.rows.some(names)) outgoing.push({ name: `Opens ${n.label}`, key: card, piece: 'gate', what: `${n.label}'s gate waits for this`, family: 'open' });
+                if (n.opens.rows.some(names)) outgoing.push({ name: `Opens ${n.label}`, key: card, piece: 'gate', what: `${n.label} waits for this`, family: 'open' });
                 if (n.closes.some(cl => cl.kind === 'closeGate' && names(cl.row))) outgoing.push({ name: `Closes ${n.label}`, key: card, piece: 'closeGate', what: `${n.label} closes when this fires`, family: 'close' });
                 if (n.masks.some(m => [...m.opens, ...m.closes].some(names))) outgoing.push({ name: `Turns on a mask of ${n.label}`, key: card, piece: 'masks', what: `A mask of ${n.label} waits for this`, family: 'mask' });
             }
