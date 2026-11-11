@@ -759,6 +759,8 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 /* Prompt order sort: the Order parameter on each row. */
 .brow .ordin { width: 52px; height: 24px; flex-shrink: 0; padding: 0 4px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--t-xs); text-align: right; font-variant-numeric: tabular-nums; }
 .item .ordb { flex-shrink: 0; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: var(--t-s); font-variant-numeric: tabular-nums; }
+.tokn { flex-shrink: 0; color: var(--muted); font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bksize { align-self: center; margin-left: auto; color: var(--muted); font-size: var(--t-xs); }
 /* Drag to reorder (List order sort): a line where the entries will land. */
 .brow.dropbefore { box-shadow: 0 2px 0 var(--accent) inset; }
 .brow.dropafter { box-shadow: 0 -2px 0 var(--accent) inset; }

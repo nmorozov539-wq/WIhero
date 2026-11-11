@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings, forgetReusedNames,
-    duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
+    bookTokens, duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
     rekeyEntry, removeEntry, renameBookSettings, reorderEntries, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
 } from '../src/ui/data.js';
 import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
@@ -273,4 +273,10 @@ test('sortEntries by prompt order: the Order parameter (100 when unset), then li
     ];
     assert.deepEqual(sortEntries(list, 'prompt').map(e => e.comment), ['C', 'B', 'D', 'A']);
     assert.deepEqual(sortEntries(list, 'order').map(e => e.comment), ['A', 'B', 'C', 'D']);
+});
+
+test('Largest first sorts by rough size, and the book\'s size counts the entries that are on', () => {
+    const list = [{ uid: 0, content: 'aa' }, { uid: 1, content: 'a'.repeat(400) }, { uid: 2, content: 'a'.repeat(40) }, { uid: 3, content: 'a'.repeat(380), disable: true }];
+    assert.deepEqual(sortEntries(list, 'size').map(e => e.uid), [1, 3, 2, 0]);
+    assert.equal(bookTokens(list), Math.round(2 / 3.8) + Math.round(400 / 3.8) + Math.round(40 / 3.8));
 });

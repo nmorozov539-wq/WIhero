@@ -31,6 +31,10 @@ export const cardKey = e => idOf(e) ? `id:${idOf(e)}` : `uid:${e.uid}`;
 
 /** A rough token estimate, shown until ST's own count arrives. */
 export const tokenGuess = text => Math.round(String(text ?? '').length / 3.8);
+/** The book's size (review 2026-11-11): the rough tokens of every entry that is on, as if all of them were sent. */
+export const bookTokens = entries => entries.reduce((n, e) => n + (e.disable ? 0 : tokenGuess(e.content)), 0);
+/** "about 1,240 tokens" */
+export const tokensText = n => `about ${n.toLocaleString('en-US')} tokens`;
 
 export function freeUid(data) {
     for (let uid = 0; uid < 1_000_000; uid++) if (!(uid in data.entries)) return uid;
@@ -336,7 +340,7 @@ export function copyBookSettings(s, from, to) {
 /** The orders entries can be sorted in, inside each folder (LAYOUT "Book page"). */
 // `order` is ST's list position (displayIndex, what drag changes); `prompt` is the Order parameter, which places
 // the entry in the prompt (higher goes in later, closer to the chat).
-export const SORT_NAMES = { order: 'List order', prompt: 'Prompt order', az: 'A–Z', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
+export const SORT_NAMES = { order: 'List order', prompt: 'Prompt order', az: 'A–Z', size: 'Largest first', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
 
 /**
  * Sorts entries: ST's list order (displayIndex), prompt order (the Order parameter, then list order), A–Z, or one
@@ -350,6 +354,7 @@ export function sortEntries(entries, by = 'order') {
     const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
     const cmp = by === 'az' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || order(a, b)
         : by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
+        : by === 'size' ? (a, b) => tokenGuess(b.content) - tokenGuess(a.content) || order(a, b)
         : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
         : order;
     return [...entries].sort(cmp);

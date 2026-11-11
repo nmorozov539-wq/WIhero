@@ -6,7 +6,7 @@ import { btn, html, el, issueText, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
-    promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf,
+    bookTokens, promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf, tokenGuess, tokensText,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
 
@@ -478,7 +478,7 @@ export function deskNormal(A) {
         const lk = btn('chip2 sm', html`${ic('chain', 's')}<span></span>`, e => linksMenu(book, e.currentTarget), 'Links');
         lk.querySelector('span').textContent = A.linkText(book) || 'Not linked';
         st.append(g, lk);
-        head.append(st, el('div', 'blcount', plural(all.length, 'entry', 'entries')));
+        head.append(st, el('div', 'blcount', `${plural(all.length, 'entry', 'entries')} · ${tokensText(bookTokens(all))}`));
         left.append(head);
         const off = A.offHint(book);
         if (off) left.append(off);
@@ -569,6 +569,8 @@ export function deskNormal(A) {
         const node = model.byStKey.get(`${book}.${e.uid}`);
         if (node && (A.hasLogic?.(e, node) ?? true)) { const d = el('i', 'ldot'); d.title = 'Has story logic'; r.append(d); }
         if (A.problemsOf(model, e.uid, book).length) { const b = el('span', 'bang2', '!'); b.title = 'This entry has a problem'; r.append(b); }
+        // Largest first: each row's rough size.
+        if (A.sortBy() === 'size') r.append(el('span', 'tokn', `${tokenGuess(e.content)} tk`));
         // Prompt order sort: the Order parameter right on the row (where the entry goes in the prompt).
         if (A.sortBy() === 'prompt') {
             const o = el('input', 'ordin');

@@ -156,6 +156,23 @@ const inView = (page, sel, root) => page.evaluate(([s, r]) => {
     await page.close();
 }
 
+// 2c. The book's size on its page, and Largest first with each row's size.
+{
+    const page = await open(1366, 768);
+    await page.evaluate(b => { wihero.app.state.mode = 'normal'; wihero.app.openBook(b); wihero.app.refresh(); }, BOOK);
+    await $(page, '.brow').first().waitFor();
+    assert.match(await $(page, '.blcount').textContent(), /^\d+ entries · about [\d,]+ tokens$/);
+    await page.evaluate(() => { wihero.settings.sortBy = 'size'; wihero.app.refresh(); });
+    await $(page, '.brow .tokn').first().waitFor();
+    const sizes = await $(page, '.brow .tokn').allTextContents();
+    const n = sizes.map(t => parseInt(t, 10));
+    assert.ok(n.length > 3, sizes.join());
+    await shot(page, 'size');
+    ok(`the book page says its size (${await $(page, '.blcount').textContent()}); Largest first shows each row's size`);
+    await page.evaluate(() => { wihero.settings.sortBy = 'order'; });
+    await page.close();
+}
+
 // 3. Light theme: the piece colors deepen, so glue, the pack frame and its ANY label read on a pale canvas.
 {
     const page = await open(1366, 768, '&theme=light');
