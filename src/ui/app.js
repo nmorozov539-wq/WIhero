@@ -2,6 +2,7 @@
 // ST's drawer. Closing only hides it; after a reload it starts on Home (D6). N2 builds the shared chrome and normal
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
+import { createHistory, withHistory } from './history.js';
 import { buildModel, isMoment } from '../engine/model.js';
 import { btn, html, createLayer, el, issueText } from './dom.js';
 import { ic } from './icons.js';
@@ -31,7 +32,11 @@ import { deskNormal } from './desk.js';
  *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }
  */
 export function createApp(deps) {
-    const { ctx, library, snapshots, hooks, settings, saveSettings } = deps;
+    const { ctx, snapshots, hooks, settings, saveSettings } = deps;
+    // Undo history (history.js): every change through the library is looked at; Ctrl+Z, Ctrl+Shift+Z and the
+    // canvas's arrows step through it.
+    const undoHistory = createHistory({ library: deps.library, settings, saveSettings, held: () => !!S.hero.bar.edit });
+    const library = withHistory(deps.library, undoHistory);
     // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
     filterChoices.get = () => {
         const c = ctx();
@@ -72,6 +77,13 @@ export function createApp(deps) {
         // In Hero mode a click on the list or the canvas can leave the focus on the page itself.
         const inside = e.composedPath().includes(host) || (S.mode === 'hero' && document.activeElement === document.body);
         const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
+        const z = e.key.toLowerCase();
+        // Undo and redo: also when a click left the focus on the page itself (a list redrawn under it).
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && (z === 'z' || z === 'y') && !typing() && !layer.isOpen()
+            && (inside || document.activeElement === document.body)) {
+            if (historyStep(z === 'y' || e.shiftKey)) { e.preventDefault(); e.stopPropagation(); }
+            return;
+        }
         if (!inside && !ctrlK) return;
         const took = S.mode === 'hero' ? heroKey(e) : deskN.key(e);
         if (took) { e.preventDefault(); e.stopPropagation(); }
@@ -236,8 +248,22 @@ export function createApp(deps) {
     }).observe(root);
     root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) render(); }, 0));
 
+    /** The book on screen: Hero's, or the page's in Normal mode. */
+    const currentBook = () => (S.mode === 'hero' ? S.hero.book : page()?.book) ?? null;
+    /** Undo or redo one step on the book on screen. Returns false when there is no book (the key isn't ours). */
+    function historyStep(redo = false) {
+        const book = currentBook();
+        if (!book || !library.peek(book)) return false;
+        if (S.hero.bar.edit) { layer.toast('Finish the piece first: Done or Cancel'); return true; }
+        const ok = redo ? undoHistory.redo(book) : undoHistory.undo(book);
+        if (ok) render();
+        layer.toast(ok ? (redo ? 'Redone' : 'Undone') : (redo ? 'Nothing to redo' : 'Nothing to undo'));
+        return true;
+    }
+
     function render() {
         pendingRender = false;
+        undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
@@ -597,7 +623,7 @@ export function createApp(deps) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
-        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, checkCounts, checksSheet,
+        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, checkCounts, checksSheet, undoHistory, historyStep,
     }));
     function chatStatus(...a) { return heroShell().chatStatus(...a); }
     function heroBack(...a) { return heroShell().heroBack(...a); }

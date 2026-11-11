@@ -2,7 +2,7 @@
 // they reach the book, taps on the canvas seen by the bar first, new entries and Moments, and the place picker.
 // The bar itself is piecebar.js. Moved out of app.js; it reaches the app only through the context given to it.
 import {
-    PARAM_LIST, addEntry, addMoment, bookSettings, cardKey, entriesOf, idOf, rekeyEntry, setParam, sortEntries, titleOf, undoPoint,
+    PARAM_LIST, addEntry, addMoment, bookSettings, cardKey, entriesOf, idOf, rekeyEntry, setParam, sortEntries, titleOf,
 } from './data.js';
 import { PIECE_ANCHOR } from './guide.js';
 import { PORT } from './canvas-graph.js';
@@ -82,8 +82,6 @@ export function createHeroBar(A) {
                 settings.books[book] = structuredClone(snap.settings);
                 saveSettings();
             },
-            /** For a removal's Undo toast: call before the change; the function it returns puts the book back and redraws. */
-            undoPoint: () => { const back = undoPoint(library, settings, saveSettings, book); return back && (() => { back(); render(); }); },
             render: () => render(),
             inspect: (key, piece) => inspect(book, key, piece),
             nodeOf: key => nodeOf(book, key),
@@ -320,8 +318,7 @@ export function createHeroBar(A) {
                 layer.close();
                 const src = nodeOf(book, l.from);
                 const dst = nodeOf(book, l.to);
-                const back = barApi(book).undoPoint();
-                if (src && dst && barAct(book, (ed, d) => removeLink(ed, d, l.kind, src, dst, l.mask ?? null))) layer.toast('Link removed', back ? { action: ['Undo', () => { back(); layer.toast('Link put back'); }] } : {});
+                if (src && dst && barAct(book, (ed, d) => removeLink(ed, d, l.kind, src, dst, l.mask ?? null))) layer.toast('Link removed');
             }, { icon: 'trash' }));
         });
     }

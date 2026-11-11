@@ -37,6 +37,7 @@ export function explainAnchor(t, H) {
     if (/^Fit/.test(label)) return 'fit';
     if (/^Tidy/.test(label)) return 'tidy';
     if (at('.checkchip')) return 'checks';
+    if (at('.histbtns')) return 'undo';
     if (at('.panelBtn, .panel, .pfold')) return 'panel';
     if (at('.hl, mark, .hit')) return 'highlights';
     if (at('.also')) return 'also';

@@ -596,7 +596,7 @@ export function deskNormal(A) {
     /**
      * Drag to reorder (#42): dropping on a row puts the dragged entries just above or below it. Only in the Order
      * sort, where the list shows ST's order; it writes displayIndex, never the Order parameter. A row in another
-     * folder takes them into that folder too. Undo puts both back.
+     * folder takes them into that folder too. Ctrl+Z puts both back.
      */
     function rowDrop(r, p, book, e) {
         const ok = () => !!dragEntries && dragEntries.book === book && A.sortBy() === 'order' && !dragEntries.uids.includes(e.uid);
@@ -629,19 +629,12 @@ export function deskNormal(A) {
                 setFolder(settings, book, x, folder);
             }
             if (oldFolders.size) save();
-            let old = null;
-            library.change(book, d => { old = reorderEntries(d, uids, e.uid, after); }, { quiet: true });
-            if (!old && !oldFolders.size) { A.render(); return; }
+            let moved = null;
+            library.change(book, d => { moved = reorderEntries(d, uids, e.uid, after); }, { quiet: true });
             A.render();
+            if (!moved && !oldFolders.size) return;
             const n = uids.length;
-            layer.toast(n === 1 ? `Moved ${titleOf(data.entries[uids[0]] ?? {})}` : `Moved ${n} entries`, { action: ['Undo', () => {
-                if (old) library.change(book, d => { for (const [u, v] of old) if (d.entries[u]) { if (v === undefined) delete d.entries[u].displayIndex; else d.entries[u].displayIndex = v; } }, { quiet: true });
-                const now = library.peek(book);
-                for (const [u, f] of oldFolders) if (now.entries[u]) setFolder(settings, book, now.entries[u], f);
-                if (oldFolders.size) save();
-                A.render();
-                layer.toast('Order put back');
-            }] });
+            layer.toast(n === 1 ? `Moved ${titleOf(data.entries[uids[0]] ?? {})}` : `Moved ${n} entries`);
         });
     }
     function entryDrop(node, book, folder, p, onlySelf = false) {

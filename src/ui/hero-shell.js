@@ -23,7 +23,7 @@ export function createHeroShell(A) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
-        stopExplain, strip, switchMode, tabbar, visibleNames, desk, checkCounts, checksSheet,
+        stopExplain, strip, switchMode, tabbar, visibleNames, desk, checkCounts, checksSheet, undoHistory, historyStep,
     } = A;
 
     let heroCanvas = null;
@@ -292,6 +292,20 @@ export function createHeroShell(A) {
      * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
      * (the ⌄ menu keeps its rows too). Nothing when the book is clean.
      */
+    /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */
+    function historyButtons(book) {
+        const box = el('div', 'histbtns');
+        const u = btn('', ic('undo'), () => historyStep(false), 'Undo (Ctrl Z)');
+        const r = btn('', ic('redo'), () => historyStep(true), 'Redo (Ctrl Shift Z)');
+        u.disabled = !undoHistory.canUndo(book);
+        r.disabled = !undoHistory.canRedo(book);
+        u.title = 'Undo (Ctrl Z)';
+        r.title = 'Redo (Ctrl Shift Z)';
+        box.append(u, r);
+        box.addEventListener('pointerdown', e => e.stopPropagation()); // not a canvas pan
+        return box;
+    }
+
     let checksMemo = null;
     function checksChip(book, data) {
         // Counted again only when a book changed (library.version), or its pending deletes or the setting did.
@@ -312,7 +326,11 @@ export function createHeroShell(A) {
     function heroAround(book, data) {
         if (S.desk) deskColumns();
         const vp = heroMount?.vp;
-        if (vp) { vp.querySelector(':scope > .checkchip')?.remove(); vp.append(...checksChip(book, data)); }
+        if (vp) {
+            vp.querySelector(':scope > .checkchip')?.remove();
+            vp.querySelector(':scope > .histbtns')?.remove();
+            vp.append(...checksChip(book, data), historyButtons(book));
+        }
         if (!S.desk) {
             // Phones: the "?" sits at the top right of the canvas.
             const q = btn('explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: tap something to learn about it');

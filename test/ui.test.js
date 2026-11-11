@@ -6,7 +6,7 @@ import { buildModel } from '../src/engine/model.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings, forgetReusedNames,
     duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
-    rekeyEntry, removeEntry, renameBookSettings, reorderEntries, undoPoint, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
+    rekeyEntry, removeEntry, renameBookSettings, reorderEntries, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
 } from '../src/ui/data.js';
 import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
 import { defaultSnapshotName, snapshotFileName, sortSnapshots, toBase64 } from '../src/ui/snapshots.js';
@@ -262,19 +262,4 @@ test('reorderEntries moves entries by displayIndex only, never the Order paramet
     assert.ok(old2.has(0));
     assert.equal(reorderEntries(d, [1], 1), null); // onto itself
     assert.equal(reorderEntries(d, [9], 1), null); // nothing to move
-});
-
-test('undoPoint puts entries and the book\'s settings back', () => {
-    const books = { b: { entries: { 0: { uid: 0, comment: 'A', extensions: { wihero: { gate: [['x']] } } } } } };
-    const library = { peek: n => books[n], change: (n, fn) => fn(books[n]) };
-    const settings = { books: { b: { defaults: {}, folders: {}, canvas: { cards: { k: { x: 1 } } } } } };
-    let saved = 0;
-    const back = undoPoint(library, settings, () => { saved++; }, 'b');
-    books.b.entries[0].extensions.wihero.gate = [];
-    settings.books.b.canvas.cards.k.x = 9;
-    back();
-    assert.deepEqual(books.b.entries[0].extensions.wihero.gate, [['x']]);
-    assert.equal(settings.books.b.canvas.cards.k.x, 1);
-    assert.equal(saved, 1);
-    assert.equal(undoPoint(library, settings, () => {}, 'missing'), null);
 });

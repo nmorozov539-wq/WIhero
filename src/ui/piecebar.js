@@ -57,7 +57,7 @@ function whyNotOn(k, end) {
 /**
  * Mounts the bar (or the open piece's strip) under the canvas. Called on every Hero render; what is being set
  * up lives in `x.B` ({ armed, edit }), so it survives the redraws a book change causes.
- * @param {object} x { B, main, root, canvas, layer, data(), act(fn) → bool, snapshot(), restore(snap), undoPoint(), render(),
+ * @param {object} x { B, main, root, canvas, layer, data(), act(fn) → bool, snapshot(), restore(snap), render(),
  *   nodeOf(key), keyOf(end), nameOf(end), nameOfId(id), candidates(), packs(), closersOf(uid), openMask(uid, name),
  *   showMask(uid, name), inspect(key, piece), folded(), setFolded(v), toast(text) }
  */
@@ -212,9 +212,9 @@ export function mountPieceBar(x) {
         return s;
     };
     const run = fn => { const ok = x.act(fn); if (ok) e.dirty = true; return ok; };
-    /** A Remove button: the change, then the strip closes with an Undo toast that puts the book back as it was just before.
+    /** A Remove button: the change, then the strip closes (Ctrl+Z or the canvas's undo arrow takes it back).
      * A refused change keeps the strip open with its reason. */
-    const removing = (fn, msg) => { const back = x.undoPoint?.(); if (fn() === false) return; close(msg, back); };
+    const removing = (fn, msg) => { if (fn() === false) return; close(msg); };
     const refuse = why => { e.note = why; e.noteBad = true; x.render(); };
 
     if (e.piece === 'opens' || e.piece === 'closes' || (e.piece === 'glue' && e.mode === 'ride')) linkStrip();
@@ -785,13 +785,12 @@ export function mountPieceBar(x) {
         if (e.dirty) x.restore(e.snap);
         close(null);
     }
-    function close(msg, undo = null) {
+    function close(msg) {
         B.edit = null;
         B.loosePick = null;
         canvas.overlay(null);
         x.render();
-        if (msg && undo) x.toast(msg, { action: ['Undo', () => { undo(); x.toast('Put back'); }] });
-        else if (msg) x.toast(msg);
+        if (msg) x.toast(msg);
     }
 
     // Focus comes back to the phrase box after a phrase is added (the strip was drawn again).

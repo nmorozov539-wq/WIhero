@@ -3,7 +3,7 @@
 // app.js; it reaches the app only through the context given to it.
 import { PIECE_ANCHOR } from './guide.js';
 import { askNote, bookEditor, greetingName, greetingRules, packsOf } from './pieces.js';
-import { bookSettings, cardKey, configOf, entriesOf, idOf, rekeyEntry, titleOf, undoPoint } from './data.js';
+import { bookSettings, cardKey, configOf, entriesOf, idOf, rekeyEntry, titleOf } from './data.js';
 import { buildGraph, canvasSet, momentName } from './canvas-graph.js';
 import { canvasMemory } from './canvas.js';
 import { closedText, logicLines } from './logic-text.js';
@@ -150,7 +150,6 @@ export function createHeroInspector(A) {
             close: () => { H.insp = null; if (S.desk) canvas()?.setPicked(new Set(), true); render(); },
             inspect: key => inspect(book, key),
             edit: fn => editBook(book, fn),
-            undoPoint: () => { const back = undoPoint(library, settings, saveSettings, book); return back && (() => { back(); render(); }); },
             desk: S.desk,
             tab: I.tab ?? 'logic',
             focusText: !!I.focusText,

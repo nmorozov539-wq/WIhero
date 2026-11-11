@@ -105,11 +105,15 @@ mode's icon.
   area closes them.
 - Deleting never asks. An Undo toast shows instead, and the delete only happens
   once the toast is gone.
-- Removals get an Undo toast too: a link, lock, wait, glue, switch or mask from
-  its strip; a piece, a row item, a mask or a pack from the inspector; a
-  secondary key word condition; the packs of a box selection (Unpack); an entry
-  list reorder. Undo puts the book back as it was just before. Other edits have
-  no Undo (a full history is in AFTER_V1).
+- Every other edit goes into the book's undo history (`src/ui/history.js`):
+  Ctrl Z and Ctrl Shift Z (or Ctrl Y) on desktop, and the undo and redo arrows
+  at the top left of the Hero canvas. It covers the entries (text, parameters,
+  story logic) and the book's WI Hero settings (card places, link shapes,
+  folders), not the camera. One action is one step; typing without a pause is
+  one step; a piece set up in the strip is one step on Done and none on Cancel.
+  In a text box the keys undo the typing instead. A change from outside WI Hero
+  (ST's editor, a slash command) starts the book's history over, so Undo never
+  writes over it.
 
 ### Entry page
 
@@ -385,7 +389,7 @@ stays in view above it. Drag it up for full height.
 | Problems and warnings | The entry's own, one line each |
 | Entry settings | Settings of the entry itself, not links: **Who triggers** (Anyone · You · Character), **Once** (a switch, "Fires one time, then closes"; on a glued entry it says "Not with glue" instead) and **Tracker** (a switch, "The AI can write to this entry"; turning it on opens its settings) |
 | Path of *fork* | Only on a switch's path: "Path of *Fork*", tap to open the switch. A gate that is only the switch's "can't fire before the fork" rule shows here instead of as a Gate row |
-| Piece rows | One row per piece the entry has, in matrix order (Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Tracker): a stripe in the piece's color, its icon and name, and the same plain sentence as the entry page. Tap a row to expand it into its editor; one is open at a time. A "?" by the name opens the Guide at that piece; an open row has a remove button (Undo toast) |
+| Piece rows | One row per piece the entry has, in matrix order (Gate, Gates for, Close gate, Closes for, Glue, Switch, Masks, Packs, Tracker): a stripe in the piece's color, its icon and name, and the same plain sentence as the entry page. Tap a row to expand it into its editor; one is open at a time. A "?" by the name opens the Guide at that piece; an open row has a remove button (Ctrl Z takes it back) |
 | From other entries | Rules other entries aim at this one: "Gates for this", "Closes this", "Another path of its fork", "Rides along with this". Tap one to inspect that entry |
 | To other entries | Rules other entries keep that wait for this one: "Opens *Mill*", "Closes *Tower*", "Turns on a mask of *Inn*". The rule lives on that entry; a tap inspects it with the rule's editor open |
 | + Add logic | A sheet of the pieces the entry doesn't have yet, each with its help line, then "How each piece works" (the Guide); a note says links are quicker from the piece bar |
@@ -397,7 +401,7 @@ Piece cards:
 
 | Piece | Editor |
 |-------|--------|
-| Gate, Close gate | One box per row, items as chips with × (Undo toast), "+ add" per row (entry, pack reading, lock phrase or wait), "+ Another row (OR)". Between items an "and" chip, between rows an "OR" chip: tapping "and" splits the row there (either one), tapping "OR" merges the two rows (both). The gate card adds a "Story moves on" button that writes Closes for to its entries, or says that it already does. A close gate can also pick "This entry" (delayed closing, CONCEPTS 3.3) |
+| Gate, Close gate | One box per row, items as chips with × (Ctrl Z takes one back), "+ add" per row (entry, pack reading, lock phrase or wait), "+ Another row (OR)". Between items an "and" chip, between rows an "OR" chip: tapping "and" splits the row there (either one), tapping "OR" merges the two rows (both). The gate card adds a "Story moves on" button that writes Closes for to its entries, or says that it already does. A close gate can also pick "This entry" (delayed closing, CONCEPTS 3.3) |
 | Gates for, Closes for | One list of entries and packs |
 | Switch | Its paths, entries only |
 | Glue | Ride along / Hold. Ride shows its host as a chip. Hold says what ends it ("Ends through its close gate: …") or "Nothing ends it yet" with "+ Close gate" |
@@ -574,7 +578,7 @@ the edge to reset):
 | Middle-click | Opens the entry in its own background tab |
 | Double-click | Opens the entry in its own tab |
 | Right-click, ⋯ | Open in new tab · Turn off · Duplicate · Move to folder · Move to another book · Copy as text · Delete. With several selected, the same for all of them |
-| Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the Order sort (⌄), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. An Undo toast puts both back. Other sorts don't reorder |
+| Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the Order sort (⌄), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
 | Keyboard | ↑ ↓ move, Shift ↑ ↓ extend, Space turns on/off, Enter goes to the title, Delete deletes (Undo toast) |
 | Footer | Book settings · "N problems" when there are any (click goes to the first) |
 
@@ -624,6 +628,7 @@ the two panes back.
 | Ctrl D | Book list | Duplicate the selected entries |
 | Ctrl A | Home | Select every book |
 | Delete | Selection | Delete (Undo toast) |
+| Ctrl Z, Ctrl Shift Z / Ctrl Y | Not typing | Undo, redo (the book on screen) |
 | Esc | Anywhere | Closes a menu or the search, then clears a selection, then leaves a text box, then closes WI Hero |
 
 Browser keys (Ctrl W, Ctrl T, Ctrl Tab) are left alone: WI Hero lives inside

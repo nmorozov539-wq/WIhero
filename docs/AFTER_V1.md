@@ -52,9 +52,9 @@ Parked while polishing for V1. Each one is a new behavior or a new view, not a f
 
 ## From the freeze triage, 2026-11-10
 
-Asked for during the feature freeze; both need a new system, so they wait.
+Asked for during the feature freeze. Both need a new system; undo got an exception.
 
-- **Granular undo: one history over text, params, logic and layout.** Today Undo is a toast after one change: deleting entries or books, Tidy, snapshot restore, and (since 0.42.0) every removal in the piece bar and the inspector, a condition, a box selection's packs and a list reorder. A real history needs every edit to go through one place, and has to agree with ST's own saves and with Snapshots.
+- **Granular undo: one history over text, params, logic and layout.** *Built in 0.42.0 as a freeze exception (user, 2026-11-11): Ctrl Z / Ctrl Shift Z and the canvas's arrows, see LAYOUT "Sheets and toasts".*
 - **Gating on a tracker value** ("open *Rich* when Gold is at least 100"). Needs comparisons, which CONCEPTS 9 keeps out for now. See [TRACKERS.md](TRACKERS.md) section 8.
 
 ## Brainstorm, 2026-11-09

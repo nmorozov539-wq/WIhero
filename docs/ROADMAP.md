@@ -32,7 +32,7 @@ After it:
 | 0.39.0 | #39 | Delayed closing (D32, CONCEPTS 3.3) |
 | 0.40.0 | #40 | Playtest polish |
 | 0.41.0 | #41 | UI polish from the impressions list; greetings retired for V1 (CONCEPTS 3.12) |
-| 0.42.0 | #42 | Feature freeze polish: Undo toasts on removals, warnings under ST's chance and timing settings, the checks chip on the canvas, Mark keyword clashes, drag to reorder the book list; docs checked against the code |
+| 0.42.0 | #42 | Feature freeze polish: undo history (Ctrl Z, canvas arrows; freeze exception), warnings under ST's chance and timing settings, the checks chip on the canvas, Mark keyword clashes, drag to reorder the book list; docs checked against the code |
 
 The feature freeze for V1 is on: no new systems, only fixes and polish.
 

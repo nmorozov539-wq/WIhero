@@ -13,13 +13,11 @@ const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
 
 /** The strategy dot; vectorized is a chain icon, so shape carries it too (VISUAL 6.1). */
-/** Remove condition: the second key words and the logic go, with Undo. */
+/** Remove condition: the second key words and the logic go (Ctrl+Z takes it back). */
 function removeCondition(o, e, ui) {
-    const keys = [...(e.keysecondary ?? [])];
-    const logic = e.selectiveLogic;
     ui.condition = false;
     o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; });
-    o.layer.toast('Condition removed', { action: ['Undo', () => { ui.condition = true; o.change(x => { x.keysecondary = keys; x.selectiveLogic = logic; }); }] });
+    o.layer.toast('Condition removed');
 }
 
 export function sdot(e) {

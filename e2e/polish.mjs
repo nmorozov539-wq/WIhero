@@ -1,6 +1,7 @@
 // The freeze polish on desktop, in the browser harness (e2e/desktop/harness.html), no SillyTavern needed: the
 // checks chip on the canvas, turning keyword clash marking off, warnings on ST parameters that work against story
-// pieces, Undo after removing a gate item, and drag to reorder in the book list. Screenshots: e2e/log/polish-*.png.
+// pieces, undo history (the canvas arrows, Ctrl+Z and Ctrl+Shift+Z), and drag to reorder in the book list.
+// Screenshots: e2e/log/polish-*.png.
 //   node e2e/polish.mjs
 import { createRequire } from 'node:module';
 import http from 'node:http';
@@ -100,7 +101,7 @@ if (plain) {
 }
 ok(`Probability on an entry with story pieces says how it works against them${plain ? '; a plain entry stays quiet' : ''}`);
 
-// 4. Removing an item from a gate row shows Undo, which puts it back.
+// 4. Undo history: a gate item removed, the canvas's undo arrow puts it back, redo takes it away, Ctrl+Z again.
 await toHero();
 await card(gated.comment).click();
 const gatePiece = $('.pc[data-piece="gate"]');
@@ -108,12 +109,30 @@ await gatePiece.waitFor();
 if (!(await gatePiece.getAttribute('class')).includes('open')) await gatePiece.locator('.pct').click();
 const gateBefore = JSON.stringify(cfg((await entries()).find(e => e.uid === gated.uid)).gate);
 await $('.pc[data-piece="gate"].open .chip button').first().click();
-await $('.toast.show button:text-is("Undo")').waitFor();
+await page.waitForTimeout(100);
+const undoBtn = $('.histbtns button[aria-label^="Undo"]');
+const redoBtn = $('.histbtns button[aria-label^="Redo"]');
+assert.ok(await undoBtn.isEnabled());
 assert.notEqual(JSON.stringify(cfg((await entries()).find(e => e.uid === gated.uid)).gate ?? null), gateBefore);
 await page.screenshot({ path: `${LOG}polish-undo.png` });
-await $('.toast.show button:text-is("Undo")').click();
-await page.waitForFunction(([b, u, g]) => JSON.stringify((wihero.library.peek(b).entries[u].extensions?.wihero ?? {}).gate) === g, [BOOK, gated.uid, gateBefore]);
-ok('removing a gate item shows Undo, and Undo puts the gate back');
+const gateNow = () => page.evaluate(([b, u]) => JSON.stringify((wihero.library.peek(b).entries[u].extensions?.wihero ?? {}).gate), [BOOK, gated.uid]);
+await undoBtn.click();
+await page.waitForTimeout(100);
+assert.equal(await gateNow(), gateBefore, 'the undo arrow puts the gate back');
+assert.ok(await redoBtn.isEnabled());
+await redoBtn.click();
+await page.waitForTimeout(100);
+assert.notEqual(await gateNow(), gateBefore, 'redo takes it away again');
+await page.keyboard.press('Control+z');
+await page.waitForTimeout(100);
+assert.equal(await gateNow(), gateBefore, 'Ctrl+Z puts it back');
+await page.keyboard.press('Control+Shift+z');
+await page.waitForTimeout(100);
+assert.notEqual(await gateNow(), gateBefore, 'Ctrl+Shift+Z redoes');
+await page.keyboard.press('Control+z');
+await page.waitForTimeout(100);
+assert.equal(await gateNow(), gateBefore);
+ok('removing a gate item: the canvas arrows and Ctrl+Z / Ctrl+Shift+Z undo and redo it');
 
 // 5. Drag to reorder in the book list (Order sort): displayIndex changes, the Order parameter doesn't.
 await toNormal();
@@ -128,10 +147,11 @@ await page.waitForTimeout(200);
 const after = await rows.evaluateAll(rs => rs.map(r => r.querySelector('.nm').textContent));
 assert.equal(after[0], names[2], `"${names[2]}" is first now (${after.slice(0, 3).join(', ')})`);
 assert.deepEqual(Object.fromEntries((await entries()).map(e => [e.uid, e.order])), orderBefore, 'the Order parameter is untouched');
-await $('.toast.show button:text-is("Undo")').click();
+await rows.first().click();
+await page.keyboard.press('Control+z');
 await page.waitForTimeout(200);
 assert.deepEqual((await rows.evaluateAll(rs => rs.map(r => r.querySelector('.nm').textContent))).slice(0, 3), names.slice(0, 3));
-ok(`dragging a row onto the top of another moves it there by displayIndex only; Undo puts it back (box ${Math.round(box.height)}px)`);
+ok(`dragging a row onto the top of another moves it there by displayIndex only; Ctrl+Z puts it back (box ${Math.round(box.height)}px)`);
 
 // 6. A–Z sort: no reordering.
 await page.evaluate(() => { wihero.settings.sortBy = 'az'; wihero.app.refresh(); });
