@@ -35,6 +35,12 @@ async function menu(...path) {
     for (const p of path) { await opt(p).click(); await wait(200); }
     if (path.length && await $('.sheet.menu').count()) { await page.keyboard.press('Escape'); await wait(100); }
 }
+/** Unfolds the inspector's Settings row (Who triggers, Once, Tracker, ST timing) if it is shut. */
+async function openSettings() {
+    const tap = $('.insp .isetpc .pct');
+    if (await tap.getAttribute('aria-expanded') !== 'true') await tap.click();
+    await $('.insp .isets').first().waitFor();
+}
 /** Finds an entry from the panel (placing it if needed), then taps its card: the inspector opens. */
 async function inspect(title) {
     if (await $('.insp').count()) await $('.insp .ihead button[aria-label="Close the inspector"]').click();
@@ -185,7 +191,8 @@ await run(async () => {
     await addPiece('Opens');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Key')).gatesFor, ['market']);
-    // Who triggers is a selector at the top of the inspector, not a piece (#14).
+    // Who triggers is a selector in the folded Settings row below the rules, not a piece (#14, review 2026-11-11).
+    await openSettings();
     await $('.insp .isets [aria-label="Who triggers"] button:text-is("You")').click();
     await wait(200);
     assert.equal((await cfg('Key')).by, 'user');
@@ -197,7 +204,9 @@ await run(async () => {
     await addPiece('Glue');
     assert.deepEqual((await cfg('Storm')).glue, { mode: 'hold' });
     assert.ok(await piece('glue').locator('.phelp:has-text("Nothing ends it yet")').count());
+    await openSettings();
     assert.equal(await $('.insp .isets .switch[aria-label^="Once"]').count(), 0, 'Once isn\'t offered on a glued entry');
+    await piece('glue').locator('.pct').click(); // opening Settings folded the Glue piece
     await piece('glue').locator('.seg button:text-is("Ride along")').click();
     await opt('Key').click();
     await wait(200);
@@ -211,7 +220,8 @@ await run(async () => {
     await pick('+ add', 'Inn');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Hall')).switch, ['inn', 'market']);
-    // Once is a switch at the top of the inspector, not a piece (#31).
+    // Once is a switch in the Settings row, not a piece (#31).
+    await openSettings();
     await $('.insp .isets .switch[aria-label^="Once"]').click();
     await wait(200);
     assert.equal((await cfg('Hall')).once, true);
