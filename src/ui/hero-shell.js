@@ -216,7 +216,7 @@ export function createHeroShell(A) {
             if (H.legend) kept.vp.append(legendBox());
             const sig = canvasSig(keepBook);
             heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
-            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); kept.sig = canvasSig(keepBook); } // a draw can place cards
+            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); undoHistory.settle(keepBook); kept.sig = canvasSig(keepBook); } // a draw can place cards
             else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
             heroAround(keepBook, kept.data);
             return;
@@ -285,6 +285,7 @@ export function createHeroShell(A) {
         });
         heroMount = mount;
         heroCanvas.render();
+        undoHistory.settle(book); // cards the draw placed on its own are not an edit
         mount.sig = canvasSig(book); // after the draw, which can place cards
         heroAround(book, data);
     }

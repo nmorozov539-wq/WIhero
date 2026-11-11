@@ -16,13 +16,17 @@
 const LIMIT = 100;
 const MERGE_MS = 1000;
 
-/** The book's settings without the camera. */
+/** The book's settings without the camera, and without empty parts (made on first use, not edits). */
 function settingsOf(settings, book) {
     const s = settings.books?.[book];
     if (!s) return {};
-    if (!s.canvas?.camera) return s;
-    const { camera, ...canvas } = s.canvas;
-    return { ...s, canvas };
+    const out = {};
+    for (const [k, v] of Object.entries(s)) {
+        if (k === 'canvas' && v && typeof v === 'object') { const { camera, ...canvas } = v; out.canvas = canvas; continue; }
+        if (v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length) continue;
+        out[k] = v;
+    }
+    return out;
 }
 
 /**
@@ -97,6 +101,8 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
         const camera = settings.books?.[book]?.canvas?.camera;
         const s = JSON.parse(st.settings);
         if (camera) { s.canvas ??= {}; s.canvas.camera = camera; }
+        s.defaults ??= {}; // the parts left out when empty (bookSettings makes them)
+        s.folders ??= {};
         settings.books[book] = s;
         saveSettings();
     }
@@ -117,6 +123,16 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
 
     return {
         touch,
+        /**
+         * A canvas draw placed cards on its own (a new book, a new entry): taken as the book's current state, not a
+         * step, when only the settings changed. A pending entry change is left for touch.
+         */
+        settle(book) {
+            const h = books.get(book);
+            const d = book ? library.peek(book) : null;
+            if (!h || !d || held() || library.version !== h.ver) return;
+            h.cur = { ...h.cur, settings: JSON.stringify(settingsOf(settings, book)) };
+        },
         /** Called around library.change: the version after it counts as ours. */
         changed(book, quiet) { ourVersion = library.version; touch(book, { quiet, ours: true }); },
         undo: book => step(book, 'undo', 'redo'),
