@@ -51,7 +51,7 @@ test('lock not armed, then armed and waiting; a lock phrase in the reply opens i
     p = c.run('the cave', 'A guard with a red beard.');
     const hit = p.hits.reply.find(h => h.lock === 'red beard');
     assert.ok(hit.ok);
-    assert.equal(`"red beard": ${hit.why}.`, '"red beard": opens the lock on Cave (lock: "red beard", after the mill)\'s gate from the next message.');
+    assert.equal(`"red beard": ${hit.why}.`, '"red beard": opens the lock on Cave (lock: "red beard", after the mill) from the next message.');
     assert.equal(status(p, 'Cave'), 'blocked', 'not in this reply');
     assert.ok(p.changes.some(x => x.text.startsWith('The lock on Cave') && x.when === 'From the next message'));
     // In the user's own message it opens for this reply.
@@ -62,7 +62,7 @@ test('lock not armed, then armed and waiting; a lock phrase in the reply opens i
 test('a wait that hasn\'t run out', () => {
     const p = chatOf([['road', 'ok']]).run('the bridge');
     assert.equal(why(p, 'Bridge'), 'its wait hasn\'t run out: 1 more message');
-    assert.ok(p.changes.some(x => x.text === 'Bridge (two messages after the road)\'s gate opens from the next message'));
+    assert.ok(p.changes.some(x => x.text === 'Bridge (two messages after the road) opens from the next message'));
 });
 
 test('closed earlier, Once, closed this turn by another entry, and the switch already picked', () => {
@@ -83,7 +83,7 @@ test('close gate met: the storm passes in your message', () => {
     assert.equal(status(p, 'Storm'), 'fires');
     assert.ok(p.also.includes(stKey('Storm')), 'a hold is Also active');
     p = c.run('the storm passes');
-    assert.equal(why(p, 'Storm'), 'its close gate is met ("storm passes" is said)');
+    assert.equal(why(p, 'Storm'), 'its Closes when is met ("storm passes" is said)');
 });
 
 test('what would change: closes, holds, masks, and key words in the reply from the next message', () => {

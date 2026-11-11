@@ -141,7 +141,7 @@ function blockedWhy(node, state, chat, model, words, issues) {
     if (closed) {
         if (closed.at >= chat.length) {
             const cl = node.closes.find(c => c.kind === 'closeGate' && rowMet(c.row, { state, chat, baseline: state.baseline[node.key] }).met);
-            return cl ? `its close gate is met (${wording(node, model).rowText(cl.row.raw)})` : 'its close gate is met';
+            return cl ? `its Closes when is met (${wording(node, model).rowText(cl.row.raw)})` : 'its Closes when is met';
         }
         if (closed.by === 'once') return 'it fires once, and it already fired';
         return `it was closed earlier in the chat, by ${closedText(closed.by, words.label)}`;
@@ -157,7 +157,7 @@ function blockedWhy(node, state, chat, model, words, issues) {
         const why = rowWhy(row, ctx, words);
         if (why && (!best || why.stage > best.stage)) best = why;
     }
-    return best?.text ?? 'its gate is closed';
+    return best?.text ?? 'it is still waiting';
 }
 
 /**
@@ -250,7 +250,7 @@ function scanTurn({ entries, model, chat, opts, globals, words, current = chat.l
                     why = `${words.label(sw?.fork)}'s switch already picked ${words.label(m[2])}`;
                 } else if (m) why = `${words.label(m[2])} closes it this turn, and closing beats opening`;
                 else if (by === 'loop') why = 'it and other entries close each other this turn, so they all close';
-                else why = 'its close gate is met this turn, and closing beats opening';
+                else why = 'its Closes when is met this turn, and closing beats opening';
             } else if (node?.glue?.mode === 'ride') why = `it only rides along with ${words.label(node.glue.host)}, and that doesn't fire`;
             else why = 'it is dropped this turn';
             Object.assign(r, { status: 'blocked', why });
@@ -348,7 +348,7 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
         const when = thisTurn ? 'This turn' : 'From the next message';
         if (m) change('close', `${name} closes for good, closed by ${words.label(m[2])}`, key, when, m[2]);
         else if (c.by === 'once') change('close', `${name} closes after this: it fires once`, key, when);
-        else change('close', `${name} closes: its close gate is met`, key, when);
+        else change('close', `${name} closes: its Closes when is met`, key, when);
     }
     // Moments that happen (CONCEPTS 3.13): said in your message, this turn; said in the reply, from the next message.
     const { state: atStart } = baseState(chatGen, model, opts);
@@ -374,7 +374,7 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
         };
         if (!before && after) {
             const latched = node.opens.rows.some(r => r.locks.some(l => next.latches[l.key] !== undefined && working.latches[l.key] === undefined));
-            change('open', latched ? `The lock on ${node.label}'s gate opens from the next message` : `${node.label}'s gate opens from the next message`, node.key, 'From the next message', opener(node.opens.rows));
+            change('open', latched ? `The lock on ${node.label} opens from the next message` : `${node.label} opens from the next message`, node.key, 'From the next message', opener(node.opens.rows));
             continue;
         }
         if (after) continue;
@@ -409,7 +409,7 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
         const r2 = fromReply.get(k);
         if (r2) for (const h of keyHits(entry, reply, globals)) hits.reply.push({ ...h, stKey: k, ok: r2.status === 'fires', next: r2 });
     }
-    const nameOfLock = (x) => x.what === 'gate' ? `${x.node.label}'s gate` : x.what === 'close gate' ? `${x.node.label}'s close gate` : x.what === 'mask' ? `${x.node.label}'s "${x.mask}" mask` : `the close gate of ${x.node.label}'s "${x.mask}" mask`;
+    const nameOfLock = (x) => x.what === 'gate' ? x.node.label : x.what === 'close gate' ? `${x.node.label}'s Closes when` : x.what === 'mask' ? `${x.node.label}'s "${x.mask}" mask` : `the off when of ${x.node.label}'s "${x.mask}" mask`;
     const verb = x => x.what === 'close gate' || x.what === 'mask close gate' ? `meets ${nameOfLock(x)}` : `opens the lock on ${nameOfLock(x)}`;
     const { state: before } = baseState(chatGen, model, opts);
     for (const x of locksOf(model)) {
@@ -453,7 +453,7 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
                 if ((before.fired[node.key] ?? 0) > 0) why = `${name} already happened earlier in the chat`;
                 else if (!sideOk) why = node.moment.by === 'user' ? `only your words make ${name} happen, and this was in the reply` : `only the character's words make ${name} happen, and this was in your message`;
                 else if ((state.fired[node.key] ?? 0) > 0) { ok = true; why = side === 'user' ? `${name} happens` : `${name} happens, from the next message`; }
-                else why = `${name} isn't armed yet: its gate isn't met`;
+                else why = `${name} isn't armed yet: what it waits for hasn't happened`;
                 for (const h of found) hits[side].push({ ...h, stKey: node.stKey, lock: phrase, close: false, ok, why, moment: true });
             }
         }

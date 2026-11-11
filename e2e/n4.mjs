@@ -119,7 +119,7 @@ await run(async () => {
     // ── Gate, with a pack reading, a lock, a wait; Story moves on ──
     const door = await inspect('Door');
     assert.equal(door, 'uid:2');
-    await addPiece('Gate');
+    await addPiece('Waits for');
     await pick('+ add', 'Key');
     assert.deepEqual((await cfg('Door')).gate, [['key']]);
     await pick('+ add', '#town', 'All of them');
@@ -144,7 +144,7 @@ await run(async () => {
     ok('Gate: an entry, a pack reading, a lock and a wait in two rows; a chip removed; Story moves on writes Closes for');
 
     // ── Close gate, Closes for ──
-    await addPiece('Close gate');
+    await addPiece('Closes when');
     await pick('+ add', 'Storm');
     assert.deepEqual((await cfg('Door')).closeGate, [['storm']]);
     await piece('closesFor').locator('.pct').click();
@@ -181,7 +181,7 @@ await run(async () => {
 
     // ── Gates for, Glue, Switch, Once, Who triggers ──
     await inspect('Key');
-    await addPiece('Gates for');
+    await addPiece('Opens');
     await pick('+ add', 'Market');
     assert.deepEqual((await cfg('Key')).gatesFor, ['market']);
     // Who triggers is a selector at the top of the inspector, not a piece (#14).

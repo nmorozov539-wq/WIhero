@@ -100,17 +100,17 @@ export function deadBranches(model, entries) {
         if (dead) {
             if (!triggered(node)) reasons.push(node.moment ? 'has no phrases' : 'nothing sets it off: no key words, not Permanent or Vectorized, no glue');
             else if (node.glue?.mode === 'ride' && !can.has(node.glue.host)) reasons.push(`rides along with ${name(node.glue.host)}, which can never fire`);
-            for (const item of node.opens.all) if (!itemOk(item)) reasons.push(`waits for ${item.type === 'pack' ? `#${item.name}` : name(item.key)} (Gates for), which can never fire`);
+            for (const item of node.opens.all) if (!itemOk(item)) reasons.push(`waits for ${item.type === 'pack' ? `#${item.name}` : name(item.key)} (through its Opens), which can never fire`);
             if (rowsOf(node).length && !rowsOf(node).some(rowOk)) {
-                for (const row of node.opens.rows) reasons.push(`gate row ${rowText(row)} ${rowWhy(row) ?? 'can never open'}`);
-                if (!node.opens.rows.length && node.moment) for (const row of node.moment.rows) { const w = rowWhy(row); if (w) reasons.push(`its gate ${w}`); }
+                for (const row of node.opens.rows) reasons.push(`Waits for row ${rowText(row)} ${rowWhy(row) ?? 'can never open'}`);
+                if (!node.opens.rows.length && node.moment) for (const row of node.moment.rows) { const w = rowWhy(row); if (w) reasons.push(`its Waits for ${w}`); }
             }
             if (!reasons.length) reasons.push('can never fire');
         } else {
-            for (const row of node.opens.rows) if (!rowOk(row)) reasons.push(`gate row ${rowText(row)} ${rowWhy(row)}`);
+            for (const row of node.opens.rows) if (!rowOk(row)) reasons.push(`Waits for row ${rowText(row)} ${rowWhy(row)}`);
         }
         for (const mask of node.masks ?? []) {
-            if (mask.opens.length && !mask.opens.some(rowOk)) reasons.push(`mask "${mask.name}" can never turn on: ${mask.opens.map(r => rowWhy(r)).filter(Boolean)[0] ?? 'its gate can never open'}`);
+            if (mask.opens.length && !mask.opens.some(rowOk)) reasons.push(`mask "${mask.name}" can never turn on: ${mask.opens.map(r => rowWhy(r)).filter(Boolean)[0] ?? 'its on when can never be met'}`);
         }
         if (reasons.length) out.push({ key: node.key, stKey: node.stKey, label: node.label, dead, reasons });
     }

@@ -7,10 +7,10 @@ import { canonical, isObject } from '../engine/util.js';
 
 /** The pieces in matrix order (LAYOUT "Inspector"), with their help lines. */
 export const PIECES = [
-    { key: 'gate', label: 'Gate', family: 'open', help: 'What this entry waits for before it may fire. A row means "all of these"; the gate opens as soon as any row is complete.' },
-    { key: 'gatesFor', label: 'Gates for', family: 'open', help: 'These entries or packs also wait for this one to fire, on top of their own gate.' },
-    { key: 'closeGate', label: 'Close gate', family: 'close', help: 'When this entry closes for good. Built like a gate: rows, any complete row closes it.' },
-    { key: 'closesFor', label: 'Closes for', family: 'close', help: 'When this entry fires, these entries or packs close for good.' },
+    { key: 'gate', label: 'Waits for', family: 'open', help: 'What this entry waits for before it may fire. A row means "all of these"; it opens as soon as any row is complete.' },
+    { key: 'gatesFor', label: 'Opens', family: 'open', help: 'These entries or packs also wait for this one to fire, on top of what they already wait for.' },
+    { key: 'closeGate', label: 'Closes when', family: 'close', help: 'When this entry closes for good. Built like Waits for: rows, any complete row closes it.' },
+    { key: 'closesFor', label: 'Closes', family: 'close', help: 'When this entry fires, these entries or packs close for good.' },
     { key: 'glue', label: 'Glue', family: 'glue', help: 'Keeps the entry on whether or not its key words match: ride along with a host, or hold until it closes.' },
     { key: 'switch', label: 'Switch', family: 'close', help: 'Makes this entry a fork: when one path fires, every other path closes for good.' },
     { key: 'masks', label: 'Masks', family: 'mask', help: 'Other versions of the text. The last mask that is on wins; below them all is the main text.' },

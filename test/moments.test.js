@@ -55,7 +55,7 @@ test('a Moment closes things (Closes for and close gates) and rewinds with a swi
 
 test('problems and warnings: no phrases, nothing uses it, pieces a Moment takes none of, closing a Moment', () => {
     const model = buildModel([m(0, [], { id: 'empty', gatesFor: ['x'] }), e(1, 'x', { id: 'x' }), m(2, ['lonely']), m(3, ['held'], { id: 'held', glue: { mode: 'hold' }, gatesFor: ['x'] }), e(4, 'closer', { id: 'closer', closesFor: ['held'] })]);
-    assert.deepEqual(problems(model), ['empty: is a Moment with no phrases, so it can never happen', 'closer: closesFor targets the Moment "held": a Moment can\'t be closed']);
+    assert.deepEqual(problems(model), ['empty: is a Moment with no phrases, so it can never happen', 'closer: Closes targets the Moment "held": a Moment can\'t be closed']);
     assert.deepEqual(warnings(model), ['held: is a Moment, which takes no glue; it is ignored', 'm2: is a Moment nothing uses yet']);
 });
 

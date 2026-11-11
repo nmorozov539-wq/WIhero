@@ -408,10 +408,10 @@ function editorOf(key, x, update) {
             box.append(wrap);
             box.append(el('p', 'phelp', 'Fires whenever its host fires, and stops when the host closes.'));
         } else if (hasPiece(c, 'closeGate')) {
-            box.append(el('p', 'phelp', `Ends through its close gate: ${x.lines.find(l => l.label === 'Close gate')?.text ?? ''}`));
+            box.append(el('p', 'phelp', `Ends through Closes when: ${x.lines.find(l => l.label === 'Closes when')?.text ?? ''}`));
         } else {
             box.append(el('p', 'phelp', 'Nothing ends it yet: once fired it stays on for the rest of the chat.'));
-            box.append(btn('addb', '+ Close gate', () => x.setOpen('closeGate')));
+            box.append(btn('addb', '+ Closes when', () => x.setOpen('closeGate')));
         }
     } else if (key === 'masks') {
         const masks = Array.isArray(c.masks) ? c.masks : [];

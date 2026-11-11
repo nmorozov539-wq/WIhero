@@ -3,7 +3,7 @@
 // print, common mistakes, and Show me (the Sample book on a matching card).
 import { btn, html, el } from './dom.js';
 import { ic } from './icons.js';
-import { PAGES, TOPICS } from './guide.js';
+import { BASICS, PAGES, TOPICS } from './guide.js';
 
 const COLOR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)', moment: 'var(--accent)', by: 'var(--muted)', track: 'var(--p-track)' };
 
@@ -47,7 +47,7 @@ export function renderGuide(main, x) {
     const head = el('div', 'ghead');
     head.append(el('h1', '', 'Guide'), el('p', 'help', 'How each piece works. In explain mode (the "?" on the canvas), tap anything to come here.'));
     const idx = el('div', 'gidx');
-    for (const p of [...PAGES, ...TOPICS]) {
+    for (const p of [...BASICS, ...PAGES, ...TOPICS]) {
         const b = btn('gchip', '', () => v.querySelector(`[data-anchor="${p.id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
         b.textContent = p.title;
         if (p.family) b.style.setProperty('--c', COLOR[p.family]);
@@ -55,6 +55,16 @@ export function renderGuide(main, x) {
     }
     head.append(idx);
     v.append(head);
+    const topic = t => {
+        const sec = el('section', 'gpage gtopic');
+        sec.dataset.anchor = t.id;
+        sec.append(el('h2', '', t.title), el('p', 'gline', t.line));
+        const ul = el('ul');
+        for (const f of t.fine) ul.append(el('li', '', f));
+        sec.append(ul);
+        v.append(sec);
+    };
+    for (const t of BASICS) topic(t);
     for (const p of PAGES) {
         const sec = el('section', 'gpage');
         sec.dataset.anchor = p.id;
@@ -70,15 +80,7 @@ export function renderGuide(main, x) {
     }
     const more = el('div', 'glbl gtopics', 'On the screen');
     v.append(more);
-    for (const t of TOPICS) {
-        const sec = el('section', 'gpage gtopic');
-        sec.dataset.anchor = t.id;
-        sec.append(el('h2', '', t.title), el('p', 'gline', t.line));
-        const ul = el('ul');
-        for (const f of t.fine) ul.append(el('li', '', f));
-        sec.append(ul);
-        v.append(sec);
-    }
+    for (const t of TOPICS) topic(t);
     if (x.anchor) requestAnimationFrame(() => {
         const n = v.querySelector(`[data-anchor="${x.anchor}"]`);
         if (n) { n.scrollIntoView({ block: 'start' }); n.classList.add('flash'); }

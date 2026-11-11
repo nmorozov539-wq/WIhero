@@ -494,6 +494,6 @@ export function entryStatus(node, state, chat, model) {
     const closed = state.closed[node.key];
     if (closed) return { status: 'closed', text: `closed (${closed.by})`, mask };
     if (state.holding[node.key]) return { status: 'holding', text: 'holding', mask };
-    if (opensMet(node, state, chat, model)) return { status: 'open', text: node.opens.rows.length || node.opens.all.length ? 'gate open' : 'open', mask };
+    if (opensMet(node, state, chat, model)) return { status: 'open', text: node.opens.rows.length || node.opens.all.length ? 'opened' : 'open', mask };
     return { status: 'waiting', text: 'waiting', mask };
 }

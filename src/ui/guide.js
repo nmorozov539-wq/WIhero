@@ -17,9 +17,10 @@ export const PAGES = [
             'From the next message: the card opens for the generation after the one where the other fired, so a chain never runs ahead of the chat.',
             'Several links into one card are joined: "both" (all of them, one row) or "either one" (any of them, separate rows).',
             'A pack can open a card, read as any one, all, or at least a number of its members.',
-            'Stored on the waiting card as its Gate, or on the source as Gates for when the other end is a pack. Both mean the same.',
+            'In the inspector it shows twice: as Waits for on the waiting card, and as Opens on the card doing the opening. Both are the same link.',
         ],
         mistakes: [
+            'A key word that comes up without the thing happening ("I\'d rather avoid the road" still fires Road): see When a card fires, at the top.',
             'A link the wrong way round: the first card you pick is the one doing the opening. ⇄ in the strip turns it around.',
             'A loop (A waits for B, B waits for A): it can never open. WI Hero refuses it.',
         ],
@@ -33,20 +34,20 @@ export const PAGES = [
             'Closed stays closed for this branch of the chat. A swipe or a delete rewinds it; Reopen in the inspector undoes it by hand.',
             'Closing beats opening: a card closed this turn didn\'t happen. It fires nothing and opens nothing.',
             'From the next message, like Opens. A running sticky finishes first.',
-            'Its own close gate can also hold locks and waits: "close when someone says the rain stops".',
-            'A close gate can name its own card, meaning "after it first fires": Fog with a wait of 3 closes three messages after the fog rolls in.',
+            'Its own Closes when can also hold locks and waits: "close when someone says the rain stops".',
+            'Closes when can name the card itself, meaning "after it first fires": Fog with a wait of 3 closes three messages after the fog rolls in.',
             'To let a card show in the same turn as the one that closes it, add a wait of 1 to that close row: it then closes from the next message.',
         ],
         mistakes: [
-            'A card that should show once and then close: use Once, or its own card in its close gate.',
-            'A close gate that is always met before the gate opens: the card can never fire. WI Hero warns about it.',
+            'A card that should show once and then close: use Once, or the card itself in its Closes when.',
+            'A Closes when that is always met before Waits for is: the card can never fire. WI Hero warns about it.',
         ],
         show: 'id:crossing',
     },
     {
         id: 'glue', title: 'Glue', family: 'glue',
         line: 'Keeps a card on whether or not its key words match.',
-        example: 'Storm holds until it passes: once the storm starts, it stays in every reply until its close gate is met.',
+        example: 'Storm holds until it passes: once the storm starts, it stays in every reply until its Closes when is met.',
         fine: [
             'Ride along: the card fires whenever its host fires, and only then. One host per card.',
             'Hold: from its first firing it stays on every turn until something closes it.',
@@ -65,7 +66,7 @@ export const PAGES = [
         fine: [
             'Two or more paths, entries only (not packs).',
             'If two paths would fire in the same turn, only the first in switch order goes in; the others close.',
-            '"The paths can\'t fire before the fork does" (on by default) makes the switch a gate too: each path waits for the fork card.',
+            '"The paths can\'t fire before the fork does" (on by default) also makes each path wait for the fork card.',
             '"Roll the dice" picks the path at random when the fork first fires; the other paths close. The picked path still fires the usual way, so to have it just happen, make the paths Permanent and keep them waiting for the fork (else they fire on the first turn, before the roll). A swipe keeps the roll; rewriting the message before it rolls again.',
         ],
         mistakes: ['A path that doesn\'t wait for its fork can be taken before the fork. WI Hero warns about it.'],
@@ -76,7 +77,7 @@ export const PAGES = [
         line: 'Another version of a card\'s text, used when the story calls for it.',
         example: 'Tower, ruined after the storm: the same tower, described as a ruin once the storm has passed.',
         fine: [
-            'Each mask has its own text, an "on when" (its gate) and an "off when" (its close gate).',
+            'Each mask has its own text, an "on when" and an "off when", built like Waits for and Closes when.',
             'Order is priority: the last mask that is on wins. Below them all is the main text.',
             'A mask with no "on when" is only used when picked by hand (/wihero-mask).',
             'The masked text doesn\'t drive recursion.',
@@ -92,7 +93,7 @@ export const PAGES = [
             'The main text or any mask can be written by the model. The card\'s own text is the start value.',
             'A written mask is on while it holds a value: writing it turns it on, an empty value ([Gold: ]) turns it off.',
             'A reply without the line keeps the last value. Swipes, deletes and branches rewind it.',
-            'Only an open card reads: not waiting on its gate, not closed, not switched off.',
+            'Only an open card reads: not still waiting, not closed, not switched off.',
             'One syntax per book (Syntax and teaching…). Your preset can tell the model what to write, or WI Hero can teach it with one short instruction.',
             'Fix a value by hand from the card, or with /wihero-set entry=<id> [mask=<name>] <text>.',
         ],
@@ -121,7 +122,7 @@ export const PAGES = [
             'Armed only once the rest of its row has fired; a phrase said before that does nothing. A lock alone in a row is always armed.',
             'Several phrases: any one is enough. Who says it: anyone, you, or the character.',
         ],
-        mistakes: ['A lock that is never armed because its row waits for a card that never fires.', 'Many cards reacting to the same phrase: make it a Moment instead.'],
+        mistakes: ['A lock fires on the phrase, not on the event: pick a phrase that is only said when the thing truly happens. See When a card fires, at the top.', 'A lock that is never armed because its row waits for a card that never fires.', 'Many cards reacting to the same phrase: make it a Moment instead.'],
         show: 'id:cave',
     },
     {
@@ -129,9 +130,9 @@ export const PAGES = [
         line: 'Waits for a number of messages to pass.',
         example: 'Bridge opens two messages after the road.',
         fine: [
-            'It counts from when the rest of its row has fired; alone in a row, from the start of the chat. With the card itself in its close gate, from its first firing.',
+            'It counts from when the rest of its row has fired; alone in a row, from the start of the chat. With the card itself in its Closes when, from its first firing.',
             'Whose messages count: everyone\'s, yours, or the character\'s.',
-            'In a close gate it gives timed endings: "close three messages after the storm starts".',
+            'In Closes when it gives timed endings: "close three messages after the storm starts".',
             'A row with a wait and a lock: the lock is armed once the wait has run out.',
         ],
         mistakes: ['A wait on a card that never fires never runs out.'],
@@ -145,7 +146,7 @@ export const PAGES = [
             'It happens when one of its phrases is in your newest message or the newest reply, said by the side it allows.',
             'Timing follows locks: in your message, in time for the reply to it; in a reply, from the next message.',
             'Once it has happened it stays happened, and rewinds with the chat.',
-            'Its own gate arms it: "only counts after the kiss".',
+            'Its own Waits for arms it: "only counts after the kiss".',
             'It sends nothing to the model, and can\'t be closed.',
         ],
         mistakes: ['A Moment with no phrases can never happen.', 'A Moment nothing uses does nothing: link it to a card.'],
@@ -179,7 +180,7 @@ export const PAGES = [
         fine: [
             'It counts as fired from the chat\'s first message when that is the greeting the chat opened with.',
             'Only the open chat\'s character\'s greetings show; single-character chats only.',
-            'It can open and close cards; it takes no gate of its own.',
+            'It can open and close cards; it waits for nothing itself.',
             'If the greeting\'s text changes, it stops until it is re-picked.',
         ],
         mistakes: [],
@@ -187,13 +188,28 @@ export const PAGES = [
     },
 ].filter(p => GREETINGS || p.id !== 'greeting'); // greetings are retired for v1 (#33)
 
+/** Read before the pieces: what every rule in the book counts on. Shown first in the Guide. */
+export const BASICS = [
+    {
+        id: 'fires', title: 'When a card fires',
+        line: 'A card fires when one of its key words is in the chat, and SillyTavern sends its text to the model. Every rule in WI Hero counts on that moment.',
+        fine: [
+            'A key word fires the card whatever the sentence says. "I\'d rather avoid the road" fires Road, and from the next message Mill is open, though nobody went anywhere.',
+            'So pick key words that only come up when the thing truly happens: "leave the village" or "set off east" say more than "road".',
+            'Who triggers narrows it to one side: with only the character\'s replies counting, the story moves when the narrator says it did, not when you ask for it. In the Sample book, Whisper counts only your messages.',
+            'A lock works the same way: it waits for a phrase, not for the event.',
+            'Rules are for progress, for things that happen once and stay happened. A place you can leave and come back to, like the tavern, is best left a plain keyword entry, as Village is in the Sample book. When a place changes, a mask carries the new version (Tower, ruined after the storm).',
+        ],
+    },
+];
+
 /** Anchors for things that aren't pieces: the canvas controls, the strip, the inspector and Preview. */
 export const TOPICS = [
     { id: 'canvas', title: 'Cards and lines', line: 'Each card is an entry; each line is a rule between two of them.', fine: ['A socket (a notch) is a way in, a knob (a half disc) a way out. Teal opens, red closes, yellow is glue.', '"and" and "or" chips are where several links meet before a card.', 'On a phone, cards move by their six-dot grip and everything else pans; with a mouse, drag the whole card.', 'A long press on empty canvas, then a drag, picks every card in the box: pack them, unpack them, or drag them together by a grip. Let go without dragging to place an entry there.'] },
     { id: 'fit', title: 'Fit', line: 'Brings every card into view.', fine: ['On a phone, a book opens at a readable size, fitting the width and scrolling down from there; Fit zooms out until everything shows.'] },
     { id: 'tidy', title: 'Tidy layout', line: 'Lays every card out again from the links.', fine: ['Ports go back to their default sides. Undo puts everything back.'] },
     { id: 'undo', title: 'Undo and redo', line: 'Steps back through your changes to this book, and forward again.', fine: ['Everything WI Hero keeps for the book counts: text, parameters, story logic, where cards sit and how links are shaped. Looking around (pan and zoom) doesn\'t.', 'On desktop: Ctrl Z, and Ctrl Shift Z or Ctrl Y to redo. In a text box they undo the typing instead.', 'A piece being set up in the strip is one step once you press Done.', 'A change made outside WI Hero (ST\'s own editor, a slash command) starts the book\'s history over.'] },
-    { id: 'checks', title: 'Dead branches and clashes', line: 'The chip at the top of the canvas counts what the book alone says is off.', fine: ['Dead: an entry that can never fire, or a gate row or mask that can never open. The chip\'s mark turns red when anything is dead.', 'Clashes: a key word that fires two or more entries. Their marking can be turned off: ⌄ menu, Display, Mark keyword clashes.', 'Tap the chip for the list; tap a line there to go to the card. The chip is gone when the book is clean.'] },
+    { id: 'checks', title: 'Dead branches and clashes', line: 'The chip at the top of the canvas counts what the book alone says is off.', fine: ['Dead: an entry that can never fire, or a Waits for row or mask that can never open. The chip\'s mark turns red when anything is dead.', 'Clashes: a key word that fires two or more entries. Their marking can be turned off: ⌄ menu, Display, Mark keyword clashes.', 'Tap the chip for the list; tap a line there to go to the card. The chip is gone when the book is clean.'] },
     { id: 'panel', title: 'Entry panel', line: 'Every entry in the book, with a dot to place it on the canvas.', fine: ['A filled dot is on the canvas; a hollow dot isn\'t yet.', 'Moments have their own group at the top.'] },
     { id: 'strip', title: 'The strip', line: 'The piece bar turns into it while a piece is set up.', fine: ['What it sets is written at once, so the canvas shows it.', 'Cancel puts the book back as it was; Done keeps it.', 'Anything that would be a problem is refused with one line saying why.'] },
     { id: 'inspector', title: 'The inspector', line: 'One card\'s story logic: a row per piece, tap one to edit it.', fine: ['"From other entries" lists the rules other cards aim at this one.', 'ST timing is SillyTavern\'s own Probability, Sticky, Cooldown and Delay. They still apply on top of the story pieces, and a card with any of them set shows them in a small badge.', 'The "?" by a piece opens its page here.'] },
@@ -201,7 +217,7 @@ export const TOPICS = [
     { id: 'also', title: 'Also active', line: 'What goes in without a word pointing at it.', fine: ['Permanent and vector entries, glue, and key words matched in earlier messages.'] },
 ];
 
-export const pageOf = id => PAGES.find(p => p.id === id) ?? TOPICS.find(t => t.id === id) ?? null;
+export const pageOf = id => BASICS.find(p => p.id === id) ?? PAGES.find(p => p.id === id) ?? TOPICS.find(t => t.id === id) ?? null;
 
 /** The Guide page for an inspector piece key (CONCEPTS 3) or a piece bar chip. */
 export const PIECE_ANCHOR = { gate: 'opens', gatesFor: 'opens', closeGate: 'closes', closesFor: 'closes', glue: 'glue', switch: 'switch', masks: 'mask', written: 'tracker', packs: 'pack', once: 'once', by: 'by', opens: 'opens', closes: 'closes', mask: 'mask', pack: 'pack', lock: 'lock', wait: 'wait', moment: 'moment' };

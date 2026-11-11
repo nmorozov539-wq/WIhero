@@ -184,7 +184,7 @@ export function createMenus(A) {
                     if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
                 }, { sub: f.dead ? `Can never fire: ${why}` : why.replace(/^./, c => c.toUpperCase()), dot: f.dead ? 'var(--bad)' : 'var(--warn)' }));
             }
-        }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its gate rows or masks never will.' });
+        }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its Waits for rows or masks never will.' });
     }
 
     /** Every key word that fires two or more entries, with those entries; a tap opens one. */

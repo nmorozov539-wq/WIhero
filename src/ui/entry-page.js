@@ -117,10 +117,10 @@ function editCharacters(layer, p, current, set) {
  * Set on an entry that has pieces, each gets one line saying how it can work against them.
  */
 const STORY_PARAM_NOTE = {
-    probability: 'With story pieces: a failed roll skips it even when its gate is open.',
+    probability: 'With story pieces: a failed roll skips it even when nothing holds it back.',
     sticky: 'With story pieces: a running sticky finishes even after this entry closes.',
     cooldown: 'With story pieces: cooldown can hold it back while it is open or glued.',
-    delay: 'With story pieces: ST\'s delay counts chat messages, not gates. For "close later", use a wait.',
+    delay: 'With story pieces: ST\'s delay counts chat messages, not story rules. For "close later", use a wait.',
 };
 /** The warning for a parameter, or null: only on an entry with story pieces, and only when the value is set. */
 export function storyParamNote(e, p, pieced) {
@@ -641,14 +641,14 @@ export function paramGrid(e, set, o = {}) {
 }
 
 /**
- * The story chip's words: the first rule said plainly, then how many more ("Unlocks after Road · 2 more rules").
+ * The story chip's words: the first rule said plainly, then how many more ("Waits for Road · 2 more rules").
  * @param {{ text: string }[]} lines logicLines
  */
 export function storyHeadline(lines) {
     if (!lines.length) return '';
     const t = lines[0].text;
     const m = /^(?:Opens when|Waits until) (.+?) (?:has|have) fired$/.exec(t);
-    const head = m ? `Unlocks after ${m[1]}` : t;
+    const head = m ? `Waits for ${m[1]}` : t;
     const more = lines.length - 1;
     return more ? `${head} · ${more} more rule${more === 1 ? '' : 's'}` : head;
 }

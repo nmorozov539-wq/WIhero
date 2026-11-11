@@ -151,7 +151,7 @@ export function addLink(ed, data, kind, src, dst, { join = 'or', conds = [], mas
         return { t: 'row', uid: dst.uid, field: ROW_FIELD[kind], mask, ...at };
     }
     // Into a pack: Gates for / Closes for on the source.
-    if (conds.length) throw new Error('Links into a pack are stored as Gates for or Closes for, which have no row for a lock or a wait.');
+    if (conds.length) throw new Error('Links into a pack are stored in the source\'s Opens or Closes list, which has no row for a lock or a wait.');
     if (src.t === 'greet') { setGreetingRule(ed, src.ref, LIST_FIELD[kind], `#${dst.name}`, true); return { t: 'greet', field: LIST_FIELD[kind] }; }
     ed.update(src.uid, c => { c[LIST_FIELD[kind]] = addToList(Array.isArray(c[LIST_FIELD[kind]]) ? c[LIST_FIELD[kind]] : [], `#${dst.name}`); });
     return findLink(ed, data, kind, src, dst);
@@ -270,14 +270,14 @@ export function removeCond(ed, at) {
  */
 export function condRowFor(ed, data, kind, src, dst, mask = null) {
     if (kind === 'ride') return { why: 'Glue has no row for a lock or a wait. Put it on the host\'s gate instead.' };
-    if (dst.t === 'pack') return { why: 'Links into a pack are stored as Gates for or Closes for, which have no row for a lock or a wait.' };
+    if (dst.t === 'pack') return { why: 'Links into a pack are stored in the source\'s Opens or Closes list, which has no row for a lock or a wait.' };
     let loc = findLink(ed, data, kind, src, dst, mask);
     if (!loc) return { why: 'That link isn\'t there any more.' };
     if (loc.t === 'list' && kind === 'close') {
         removeLink(ed, data, kind, src, dst);
         loc = addLink(ed, data, kind, src, dst, { join: 'or' });
     } else if (loc.t === 'list' || loc.t === 'gatedBy') {
-        if (rowsOf(ed.config(dst.uid), 'gate').length) return { why: 'This link is stored as Gates for, on top of rows that are already there, so it has no row of its own. Remove it and link it again to add a lock or a wait.' };
+        if (rowsOf(ed.config(dst.uid), 'gate').length) return { why: 'This link is stored in the source\'s Opens list, on top of rows that are already there, so it has no row of its own. Remove it and link it again to add a lock or a wait.' };
         removeLink(ed, data, kind, src, dst);
         loc = addLink(ed, data, kind, src, dst, { join: 'or' });
     }

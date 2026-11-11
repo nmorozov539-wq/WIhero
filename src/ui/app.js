@@ -756,7 +756,7 @@ export function createApp(deps) {
                 sh.append(el('div', 'lbl', 'Used by'));
                 for (const e of users) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry) }));
             }
-        }, { help: 'A pack is a tag. Gates can wait for any, all, or a number of its entries.' });
+        }, { help: 'A pack is a tag. Rules can wait for any, all, or a number of its entries.' });
     }
 
     // ---------------------------------------------------------------- the inspector (hero-inspector.js)

@@ -40,7 +40,7 @@ test('pack readings: any, all and at least n', () => {
 test('a pack reading of 0 is a problem, not a gate that is always met', () => {
     const entries = [e(0, 'inn', { id: 'inn', packs: ['town'] }), e(1, 'zero', { id: 'zero', gate: [['#town:0']] })];
     const s = new Sim(entries);
-    assert.deepEqual(problems(s.model), ['zero: gate: "#town:0" counts from 1: use #town for any member']);
+    assert.deepEqual(problems(s.model), ['zero: Waits for: "#town:0" counts from 1: use #town for any member']);
     assert.deepEqual(s.send('zero'), []);
 });
 
@@ -523,8 +523,8 @@ test('problems block an entry; warnings don\'t', () => {
         e(12, 'n', { id: 'n', glue: { mode: 'ride', host: 'n' } }),
     ]);
     const p = problems(model).join('\n');
-    for (const re of [/a: gate: links to "nope"/, /dup: id "dup" is used by more than one entry/, /d: gatesFor targets itself/, /f: is in a loop/, /g: is in a loop/,
-        /h: a switch needs at least two paths/, /j: ride-along glue can't ride a pack/, /l: gatesFor #p includes this entry itself/, /n: rides along with itself/]) assert.match(p, re);
+    for (const re of [/a: Waits for: links to "nope"/, /dup: id "dup" is used by more than one entry/, /d: Opens targets itself/, /f: is in a loop/, /g: is in a loop/,
+        /h: a switch needs at least two paths/, /j: ride-along glue can't ride a pack/, /l: Opens #p includes this entry itself/, /n: rides along with itself/]) assert.match(p, re);
     const w = warnings(model).join('\n');
     assert.match(w, /k: has a cooldown/);
     assert.match(w, /k: holds with nothing that can close it/);
@@ -542,8 +542,8 @@ test('warns about a switch path not gated on its fork, and a gate row the close 
     const model = buildModel([e(0, 'fork', { id: 'fork', switch: ['l', 'r'] }), e(1, 'l', { id: 'l', gate: [['fork']] }), e(2, 'r', { id: 'r' }),
         e(3, 'x', { id: 'x', gate: [['l']], closeGate: [['l']] })]);
     const w = warnings(model).join('\n');
-    assert.match(w, /r: switch path "r" doesn't gate on fork/);
-    assert.match(w, /x: its close gate is always met before gate row/);
+    assert.match(w, /r: switch path "r" doesn't wait for fork/);
+    assert.match(w, /x: its Closes when is always met before Waits for row/);
 });
 
 test('an entry with a problem is removed at load and never fires', () => {

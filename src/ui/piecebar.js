@@ -50,7 +50,7 @@ function whyNotOn(k, end) {
     if (end.moment && k === 'glue') return 'A Moment sends nothing, so nothing rides along with it.';
     if (end.moment && (k === 'switch' || k === 'mask')) return `A Moment sends nothing, so it can't take ${k === 'mask' ? 'a mask' : 'a switch'}.`;
     if (end.t === 'greet') return 'A greeting only starts things. It can be the start of an Opens or a Closes line.';
-    if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no gate of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
+    if (end.t === 'pack') return k === 'lock' || k === 'wait' ? 'A pack has no Waits for of its own. Put the lock or wait on a line into it, or on an entry.' : 'Packs take Opens and Closes lines. This piece goes on an entry.';
     return null;
 }
 
@@ -878,7 +878,7 @@ function condOnCard(k, end, base, x) {
     const text = row => row.filter(y => !L.isCond(y)).map(y => refLabel(y, x.nameOfId).text).join(' and ');
     const targets = [];
     const add = (field, mask) => L.rowsOf(c, field, mask).forEach((row, i) => {
-        const what = mask === null ? (field === 'gate' ? 'Gate' : 'Close gate') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;
+        const what = mask === null ? (field === 'gate' ? 'Waits for' : 'Closes when') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;
         const links = text(row);
         targets.push({
             label: what, family: mask !== null ? 'mask' : field === 'gate' ? 'open' : 'close',
