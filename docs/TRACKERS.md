@@ -42,9 +42,10 @@ The model never has to remember what the standard was.
 ### 2.1 Reading
 
 - A slot reads **the newest reply** when it lands (BUILD_SPEC 6.6), and the
-  **greeting** the chat opens with (3.12). A greeting that carries a line seeds
-  that chat's starting value, so each alternate greeting can start with
-  different values.
+  chat's **first message**, the character's greeting. A greeting that carries a
+  line seeds that chat's starting value, so each alternate greeting can start
+  with different values. (This reads the message's text; it doesn't need the
+  greeting cards of CONCEPTS 3.12, which are retired for V1.)
 - It reads the user's messages too only if its Who triggers allows it
   (`by`, CONCEPTS 3.8). Default for a written slot: `"char"`.
 - **The last match in the message wins.** Labels match without regard to case
@@ -58,8 +59,7 @@ The model never has to remember what the standard was.
 - **A slot reads only while its entry is open**: not waiting on a gate, not
   closed, not switched off. Lines meant for a closed tracker are ignored. This
   one rule gives scoping for free: a tracker in a pack reads only while that
-  pack's gates let it, and a tracker gated on a greeting reads only in chats
-  that opened with it.
+  pack's gates let it.
 
 ### 2.2 Which text is injected
 

@@ -4,9 +4,8 @@ Part 1 of the spec: what WI Hero's story logic does and the rules it follows.
 [LAYOUT.md](LAYOUT.md) maps every screen and control, and [VISUAL.md](VISUAL.md)
 says how it all looks. None of them says how anything is built; that is
 [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md) and, for the build,
-[BUILD_SPEC.md](BUILD_SPEC.md), which records every decision (D1–D31). Where they disagree with
-DESIGN.md (in the git history) (the original design), these win. The
-demo (in the git history) follows this model.
+[BUILD_SPEC.md](BUILD_SPEC.md), which records every decision (D1–D32). Where they disagree with
+the original design (DESIGN.md, in the git history), these win.
 
 ## 1. What WI Hero is
 
@@ -48,7 +47,10 @@ demo (in the git history) follows this model.
 - **ST's own rules still apply on top.** Sticky, cooldown, delay, probability,
   inclusion groups and the token budget work as usual. A running sticky finishes
   even after its entry closes. Cooldown and delay can hold back a glued entry.
-  An entry held in by sticky still counts as fired.
+  An entry held in by sticky still counts as fired. On an entry with story
+  pieces, the entry page puts a warning line under Probability, Sticky,
+  Cooldown and Delay when they are set, saying how each can work against the
+  pieces; it changes nothing about how they work.
 
 ### 2.2 Open and closed
 
@@ -85,8 +87,7 @@ demo (in the git history) follows this model.
   messages, so the story **rewinds by itself**. No replay, no global flags.
 - State is per chat, not per character: two playthroughs of the same book never
   share progress.
-- A new chat starts fresh: every gate shut, nothing fired, except the greeting
-  it opened with (3.12).
+- A new chat starts fresh: every gate shut, nothing fired.
 - State is kept per book, so two active books that both have a "mill" never
   mix.
 
@@ -277,7 +278,16 @@ A row item that counts messages: `{"wait": 3}`.
 - In a close gate it gives timed endings: "close three messages after the
   storm starts".
 
-### 3.12 Greeting
+### 3.12 Greeting (retired for V1)
+
+**Not in V1.** Greetings are switched off (`GREETINGS` in
+`src/engine/model.js`): the engine reads every greeting link as if it weren't
+written, no chat counts as opened with a greeting, and the editor shows no
+greeting cards, panel rows, picker options or Preview starts. Greeting data
+already in a book is kept untouched, so switching it back on restores it. Why,
+and the stricter version planned instead, are in
+[AFTER_V1.md](AFTER_V1.md#greetings-the-strict-version). The rules below are
+what the switch brings back.
 
 A node point for one of a character's greetings. It is not an entry: nothing
 is added to the book or the card, nothing is copied, nothing reaches the
@@ -368,7 +378,8 @@ These are reported while editing. An entry with a problem never fires.
 - A ride-along host that is missing, or a pack.
 - A malformed mask (reported, skipped, not blocking the entry).
 - A greeting that changed (edited or reordered since it was linked): it doesn't
-  fire until it is re-picked.
+  fire until it is re-picked. (Greetings are retired for V1, 3.12, so this
+  isn't reported now.)
 - A Moment with no phrases (it can never happen), and Closes for aimed at a
   Moment (a Moment can't be closed).
 - Trackers (these never block the entry; only the tracker isn't read): two
@@ -382,7 +393,9 @@ Warnings, which don't block:
 - A hold with nothing that can close it.
 - A gate row that the entry's own close gate always meets first, so the entry
   could never fire.
-- A greeting whose character is missing (it never fires).
+- A greeting whose character is missing (it never fires; not reported while
+  greetings are retired).
+- Dice on an entry that has no switch (the dice do nothing).
 - A Moment nothing uses yet.
 - A Moment carrying a piece it takes none of (glue, masks, Once, a switch, a
   close gate): it is ignored.
@@ -406,6 +419,11 @@ Two more lists in ⌄, read from the book alone, never from a chat:
   in both ("mill" in Mill and Miller's Yard) or a word inside another entry's
   longer key ("mill" inside "old mill"). The entry page marks such a key word
   and says what else it fires. Plain World Info too, so Normal mode shows it.
+  The marking can be turned off (⌄ Display, Mark keyword clashes); the list
+  in ⌄ stays.
+
+In Hero mode a chip at the top of the canvas counts both ("2 dead · 1 clash")
+and opens their lists; it is gone when the book is clean.
 
 ## 6. Manual overrides and safety
 
@@ -456,17 +474,19 @@ Nothing in it is saved to the chat or the book.
   without WI Hero; WI Hero matches its phrases itself. Its Who triggers is who
   says it. It travels with export, cards and import like any entry.
 - **Story state**: on each chat message, per swipe (2.3).
-- **WI Hero's own settings**: canvas positions, port sides, the mask layer
-  shown on each card, each canvas's camera, entry folders, book folders, each
-  book's New entry defaults, the snapshot list and the color vision mode live
-  in the extension settings, not in the books. Layout is local: a book
+- **WI Hero's own settings**: canvas positions, port sides, link shapes, the
+  mask layer shown on each card, each canvas's camera, entry folders, book
+  folders, each book's New entry defaults, the snapshot list, the color vision
+  mode and whether keyword clashes are marked live in the extension settings,
+  not in the books. Layout is local: a book
   exported elsewhere gets the automatic arrangement there.
 - **Snapshots**: full copies of a book as files in ST's user files folder.
 
 A **ref** is an entry id (`"mill"`), a pack reading (`"#town"`, `"#town:all"`,
 `"#town:2"`), a lock (`{"lock": [...]}`), a wait (`{"wait": 3}`) or a greeting
-(`{"greeting": 2, "char": "Seraphina.png", "name": "Seraphina", "fp": "9f3a1c"}`).
-Rows are lists of refs.
+(`{"greeting": 2, "char": "Seraphina.png", "name": "Seraphina", "fp": "9f3a1c"}`,
+kept but read as if absent while greetings are retired, 3.12). Rows are lists
+of refs.
 
 `wihero` fields:
 
@@ -483,7 +503,7 @@ Rows are lists of refs.
 | `packs`     | `["town/inn"]`                                                 |
 | `once`      | Close after the first firing                                   |
 | `by`        | `"user"` or `"char"`; left out means both                      |
-| `gatedBy`   | Greetings whose Gates for target this entry (3.12)             |
+| `gatedBy`   | Greetings whose Gates for target this entry (3.12; skipped while retired) |
 | `moment`    | `true` on a Moment (3.13); left out on every other entry       |
 | `dice`      | `true` on a switch's fork: it picks its path at random (3.5)   |
 | `note`      | The card's sticky note: for the author only, never sent        |
@@ -509,7 +529,9 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
 
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
-- Greetings in group chats.
+- Greetings, retired for V1 (3.12): a stricter version is parked in
+  [AFTER_V1.md](AFTER_V1.md#greetings-the-strict-version), and group chats
+  after that.
 - Bigger ideas kept out of V1 (locks that match by meaning, among others) are
   in [AFTER_V1.md](AFTER_V1.md).
 - Out of scope for now: several books on one canvas, cross-book links,

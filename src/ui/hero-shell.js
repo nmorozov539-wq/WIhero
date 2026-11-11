@@ -23,7 +23,7 @@ export function createHeroShell(A) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
-        stopExplain, strip, switchMode, tabbar, visibleNames, desk,
+        stopExplain, strip, switchMode, tabbar, visibleNames, desk, checkCounts, checksSheet, undoHistory, historyStep,
     } = A;
 
     let heroCanvas = null;
@@ -216,7 +216,7 @@ export function createHeroShell(A) {
             if (H.legend) kept.vp.append(legendBox());
             const sig = canvasSig(keepBook);
             heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
-            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); kept.sig = canvasSig(keepBook); } // a draw can place cards
+            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); undoHistory.settle(keepBook); kept.sig = canvasSig(keepBook); } // a draw can place cards
             else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
             heroAround(keepBook, kept.data);
             return;
@@ -285,12 +285,54 @@ export function createHeroShell(A) {
         });
         heroMount = mount;
         heroCanvas.render();
+        undoHistory.settle(book); // cards the draw placed on its own are not an edit
         mount.sig = canvasSig(book); // after the draw, which can place cards
         heroAround(book, data);
     }
+    /**
+     * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
+     * (the ⌄ menu keeps its rows too). Nothing when the book is clean.
+     */
+    /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */
+    function historyButtons(book) {
+        const box = el('div', 'histbtns');
+        const u = btn('', ic('undo'), () => historyStep(false), 'Undo (Ctrl Z)');
+        const r = btn('', ic('redo'), () => historyStep(true), 'Redo (Ctrl Shift Z)');
+        // While a piece is set up in the strip, its edits aren't steps yet: Done or Cancel first.
+        u.disabled = !!H.bar.edit || !undoHistory.canUndo(book);
+        r.disabled = !!H.bar.edit || !undoHistory.canRedo(book);
+        u.title = 'Undo (Ctrl Z)';
+        r.title = 'Redo (Ctrl Shift Z)';
+        box.append(u, r);
+        box.addEventListener('pointerdown', e => e.stopPropagation()); // not a canvas pan
+        return box;
+    }
+
+    let checksMemo = null;
+    function checksChip(book, data) {
+        // Counted again only when a book changed (library.version), or its pending deletes or the setting did.
+        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
+        if (checksMemo?.data !== data || checksMemo.sig !== sig) checksMemo = { data, sig, n: checkCounts(book, data) };
+        const { dead, clashes } = checksMemo.n;
+        if (!dead && !clashes) return [];
+        const parts = [dead ? `${dead} dead` : '', clashes ? `${clashes} clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean);
+        const label = [dead ? `${dead} dead branch${dead === 1 ? '' : 'es'}` : '', clashes ? `${clashes} keyword clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ');
+        const b = btn(`checkchip${dead ? ' dead' : ''}`, html`${ic('alert', 's')}<span></span>`, () => checksSheet(book), label);
+        b.querySelector('span').textContent = parts.join(' · ');
+        b.title = label;
+        b.addEventListener('pointerdown', e => e.stopPropagation()); // not a canvas pan
+        return [b];
+    }
+
     /** What sits around the canvas: the entry panel, the piece bar and the inspector. */
     function heroAround(book, data) {
         if (S.desk) deskColumns();
+        const vp = heroMount?.vp;
+        if (vp) {
+            vp.querySelector(':scope > .checkchip')?.remove();
+            vp.querySelector(':scope > .histbtns')?.remove();
+            vp.append(...checksChip(book, data), historyButtons(book));
+        }
         if (!S.desk) {
             // Phones: the "?" sits at the top right of the canvas.
             const q = btn('explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: tap something to learn about it');

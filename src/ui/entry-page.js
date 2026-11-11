@@ -13,6 +13,13 @@ const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
 
 /** The strategy dot; vectorized is a chain icon, so shape carries it too (VISUAL 6.1). */
+/** Remove condition: the second key words and the logic go (Ctrl+Z takes it back). */
+function removeCondition(o, e, ui) {
+    ui.condition = false;
+    o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; });
+    o.layer.toast('Condition removed');
+}
+
 export function sdot(e) {
     const s = strategyOf(e);
     const d = el('i', `sdot ${s}`);
@@ -103,6 +110,21 @@ function editCharacters(layer, p, current, set) {
         };
         draw();
     }, { help: 'Which characters this entry can fire for. Any character, unless some are picked.' });
+}
+
+/**
+ * ST's chance and timing settings still apply on top of story pieces (CONCEPTS "ST's own rules still apply on top").
+ * Set on an entry that has pieces, each gets one line saying how it can work against them.
+ */
+const STORY_PARAM_NOTE = {
+    probability: 'With story pieces: a failed roll skips it even when its gate is open.',
+    sticky: 'With story pieces: a running sticky finishes even after this entry closes.',
+    cooldown: 'With story pieces: cooldown can hold it back while it is open or glued.',
+    delay: 'With story pieces: ST\'s delay counts chat messages, not gates. For "close later", use a wait.',
+};
+/** The warning for a parameter, or null: only on an entry with story pieces, and only when the value is set. */
+export function storyParamNote(e, p, pieced) {
+    return pieced && STORY_PARAM_NOTE[p.field] && paramChanged(e, p) ? STORY_PARAM_NOTE[p.field] : null;
 }
 
 /** A row of the Parameters list. */
@@ -236,7 +258,7 @@ export function renderEntryPage(main, o) {
             lt.append(el('b', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
             lt.addEventListener('click', () => layer.sheet('Condition', sh => {
                 for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); ui.condition = false; o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; }); }, { icon: 'trash' }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash' }));
             }));
             cl.append(lt);
             en.append(cl, keyBox(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
@@ -308,7 +330,9 @@ export function renderEntryPage(main, o) {
     pd.append(el('span', 'sum', paramSummary(e)));
     pd.addEventListener('click', () => { ui.params = !ui.params; o.redraw(); });
     en.append(pd);
-    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x), { layer }));
+    // Story pieces on this entry: Probability, Sticky, Cooldown and Delay get a warning line when set.
+    const pieced = !!o.lines?.length;
+    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x), { layer, note: p => storyParamNote(e, p, pieced) }));
     else if (ui.params) {
         for (const [group, list] of PARAMS) {
             en.append(el('div', 'plbl', group));
@@ -317,6 +341,8 @@ export function renderEntryPage(main, o) {
                 const value = paramValue(e, p);
                 const changed = paramChanged(e, p);
                 en.append(paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x))));
+                const note = storyParamNote(e, p, pieced);
+                if (note) en.append(el('p', 'pnote', note));
             }
         }
     }
@@ -463,7 +489,7 @@ function deskFields(en, o, main) {
             lt.append(el('span', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
             lt.addEventListener('click', () => layer.sheet(null, sh => {
                 for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); ui.condition = false; o.change(x => { x.keysecondary = []; x.selectiveLogic = 0; }); }, { icon: 'trash' }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash' }));
             }, { at: lt }));
             g.append(lt, keyChips(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
         } else {
@@ -544,7 +570,8 @@ export function keyChips(list, placeholder, done, clash) {
  * The parameters as real controls in two columns, grouped as on phones (desktop). Changed labels turn accent.
  * @param {object} e the entry (or what new entries start with)
  * @param {(p, value) => void} set
- * @param {{ value?: (p) => any, mixed?: (p) => boolean, changed?: (p) => boolean, when?: (p) => boolean }} [o]
+ * @param {{ value?: (p) => any, mixed?: (p) => boolean, changed?: (p) => boolean, when?: (p) => boolean, note?: (p) => string|null }} [o]
+ *   `note` gives a warning line under a parameter (storyParamNote).
  */
 export function paramGrid(e, set, o = {}) {
     const valueOf = o.value ?? (p => paramValue(e, p));
@@ -605,6 +632,8 @@ export function paramGrid(e, set, o = {}) {
             }
             c.id = id;
             if (p.unit && p.type === 'int') { const u = el('span', 'pgu'); u.append(c, el('small', '', p.unit.trim())); g.append(l, u); } else g.append(l, c);
+            const note = o.note?.(p);
+            if (note) g.append(el('p', 'pnote', note));
         }
         wrap.append(g);
     }

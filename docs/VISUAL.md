@@ -2,9 +2,8 @@
 
 Part 3 of the spec: how WI Hero looks. What things do is in
 [CONCEPTS.md](CONCEPTS.md), where they sit is in [LAYOUT.md](LAYOUT.md). The
-demo (in the git history) is built to this page, and the
-sketches (in the git history) record how it was reached; where a sketch
-disagrees with this page, this page wins.
+sketches and the demo it was first drawn in are in the git history; where they
+disagree with this page, this page wins.
 
 ## 1. Direction
 
@@ -13,8 +12,8 @@ disagrees with this page, this page wins.
   the entry page. Only the main area differs.
 - **Color is what tells them apart.** Normal mode is nearly monochrome: ST's
   neutrals, the accent, and the strategy stripe. Piece colors live in Hero
-  mode, plus the Story logic section on entries. The Hero canvas ground is a
-  little darker and cooler than the app.
+  mode, plus the Story logic section on entries. The Hero canvas ground is the
+  theme's background made solid, with a faint dot grid.
 - **Fit into SillyTavern.** WI Hero takes its colors and type size from the
   user's ST theme, so it looks like part of ST in any theme.
 
@@ -28,15 +27,17 @@ WI Hero reads it and keeps a fallback for use outside ST:
 | `--fs` | `--mainFontSize` | 15px | Base of the type scale |
 | `--sans` | `--mainFontFamily` | Noto Sans | All UI text |
 | `--fg` | `--SmartThemeBodyColor` | #e4e2da | Text |
-| `--accent` | `--SmartThemeQuoteColor` | #e3913a | Active tab, focus ring, toggles, mode switch |
-| `--ground`, `--app`, `--bar`, `--surface`, `--raised` | | #121315 to #2f3238 | Surfaces, darkest to lightest |
-| `--line`, `--line2` | | #3a3d44, #2a2c31 | Borders and dividers |
-| `--muted` | | #a3a49d | Secondary text, muted links |
-| `--canvas`, `--canvas-dot` | | #16171b, #2a2c33 | Hero canvas ground and dot grid |
+| `--tint` | `--SmartThemeBlurTintColor` | #1d1e22 | The background behind everything |
+| `--accent` | `--SmartThemeQuoteColor` | #e3913a | Active tab, focus ring, toggles, mode switch, Moments |
+| `--blur`, `--shadow` | `--SmartThemeBlurStrength`, `--SmartThemeShadowColor` | 10px, black at 50% | Backdrop blur, shadows |
+| `--bar`, `--surface`, `--raised` | | | Surfaces: the text color mixed over the tint at 4%, 8% and 13% |
+| `--line`, `--line2` | | | Borders and dividers: the text color at 20% and 10% |
+| `--muted` | | | Secondary text, muted links: the text color at 64% |
+| `--canvas`, `--canvas-dot` | | | Hero canvas ground (the tint, solid) and dot grid (the text color at 14%) |
 
-The building step should map the surfaces onto ST's blur tint and border
-colors (`--SmartThemeBlurTintColor`, `--SmartThemeBorderColor`) and check the
-result in ST's default themes, light ones included.
+Mixing the surfaces from the theme's own text color over its tint works for
+light and dark themes alike; `e2e/n2.mjs` takes screenshots in several of ST's
+themes, and `e2e/desktop.mjs` makes a light-theme pass.
 
 ## 3. Type
 
@@ -61,9 +62,10 @@ result in ST's default themes, light ones included.
 - One line-icon set, 24px grid, 2px stroke, round caps and joins, drawn in
   `currentColor`. 22px in buttons, 16px inline.
 - No emoji anywhere in the UI.
-- The set: down, right, left, back, x, check, home, canvas, eye, search, plus,
-  minus, select, more, book, folder, entry, drawer, chain, lock, user, bot,
-  fit, tidy, panel, trash, code, on, off, move, gear, edit, tab.
+- The set lives in `src/ui/icons.js`. Every piece has an icon of its own
+  (Opens, Closes, Glue, Switch, Mask, Pack, Tracker, Lock, Wait, Moment, Once,
+  Who triggers), on the piece bar and in the inspector's rows, so pieces are
+  told apart by more than their color.
 
 ## 5. Components
 
@@ -115,6 +117,8 @@ tells the pieces apart.
 | Glue | #f2cf4a yellow | Glue (ride along, hold) |
 | Mask | #f07cc8 pink | Masks |
 | Pack | #cfccc2 light gray | Packs, drawn dashed |
+| Tracker | #d9a066 bronze | Tracker (a written slot), its value on the card |
+| Moment | the theme's accent (orange by default) | Moments |
 
 Who triggers has no color of its own; it uses `--muted`. Neither do Lock and
 Wait: on the canvas they take their row's color (teal in a gate, red in a close
@@ -138,11 +142,11 @@ strategy colors) for a set that stays apart under one kind of color blindness.
 The surfaces, the accent and the shapes don't change. There is no other color
 customizing. Drawn in sketch 7 (in the git history).
 
-| Mode | Opens | Closes | Glue | Mask | Pack |
-|------|-------|--------|------|------|------|
-| Standard | #45c9bd | #ff6f61 | #f2cf4a | #f07cc8 | #cfccc2 |
-| Red-green safe | #56b4e9 | #e8681a | #f0e442 | #cc79a7 | #cfccc2 |
-| Blue-yellow safe | #2fc4c4 | #ff4a4a | #f5f5f5 | #ff9ad5 | #8a8f99 |
+| Mode | Opens | Closes | Glue | Mask | Pack | Tracker |
+|------|-------|--------|------|------|------|---------|
+| Standard | #45c9bd | #ff6f61 | #f2cf4a | #f07cc8 | #cfccc2 | #d9a066 |
+| Red-green safe | #56b4e9 | #e8681a | #f0e442 | #cc79a7 | #cfccc2 | #c9a26b |
+| Blue-yellow safe | #2fc4c4 | #ff4a4a | #f5f5f5 | #ff9ad5 | #8a8f99 | #d9a066 |
 
 Strategy sets for the modes are chosen and checked the same way when they are
 built.
@@ -197,10 +201,11 @@ built.
   labelled "and" or "or". Items in one row meet at an "and" chip; rows meet at
   an "or" chip, each row of several items with its own "and" chip feeding it.
   A gate with a single item has no junction.
-- **Routing**: links run on a 12px lattice, with rounded corners. They may
-  cross other links but **never pass through a card**. The layout leaves lanes
-  between cards, and links reroute while a card is dragged. No stubs: every
-  link is drawn whole.
+- **Routing**: the link engine ([LINK_ENGINE.md](LINK_ENGINE.md)) draws
+  smooth curves that go around cards, keep a lane apart from each other and
+  cross cleanly. They **never pass through a card**, and a line can be shaped
+  by hand (dots, curve, arc, straight or step). No stubs: every link is drawn
+  whole.
 
 ### 7.4 Masks
 
@@ -208,14 +213,13 @@ built.
   to the right, up to two visible.
 - Under the card, a ‹ › control shows which layer is on top: "main", "1/2",
   "2/2". When the bottom edge is taken, it sits vertically on a side.
-- Only the links of the shown layer are drawn; the entry's own links (gate,
-  glue and the rest) always show.
+- The shown layer's links are drawn as usual, the other layers' links faded;
+  switching the layer swaps which are faded. The entry's own links (gate, glue
+  and the rest) always show.
 - The mask that is active in the open chat gets a dot after its number
   ("‹ 1/2 • ›").
 
-### 7.5 Chat state, problems and greetings
-
-Drawn in sketch 7 (in the git history).
+### 7.5 Chat state, problems, Moments and greetings
 
 - **Show chat state** (⌄, off by default) marks each card with the open chat's
   state at its latest message: a small "2×" fired count top right; closed cards
@@ -230,7 +234,9 @@ Drawn in sketch 7 (in the git history).
   italics. No strategy stripe and never dimmed (it is stored off on purpose).
   Out ports, plus the gate socket when it has a gate. With chat state on the
   tag reads "HAPPENED" (solid accent border) or "NOT YET".
-- **Greeting cards** are start cards: rounded on the left like a speech bubble,
+- **Trackers**: a card whose text the model writes shows its value in the
+  open chat in bronze.
+- **Greeting cards** (retired for V1, CONCEPTS 3.12, so not drawn now) are start cards: rounded on the left like a speech bubble,
   a chat icon, "START" above the name ("Greeting", "Alt 2"), the greeting's
   opening words in the content font, in italics. No color of their own; out
   ports only. A missing character's greeting is drawn dashed and faded.
@@ -255,8 +261,11 @@ Drawn in sketch 7 (in the git history).
   the card it closes) is drawn faint until one of its two cards is inspected,
   so the long lines climbing the page don't drown the story running down it.
 - The canvas fits itself to the screen on first open. On phones that means the
-  width, never below 80% zoom, from the top; the canvas then scrolls down. Fit, + and − sit on the
-  right; the zoom level shows bottom left.
+  width, never below 80% zoom, from the top; the canvas then scrolls down. Fit
+  zooms out until every card shows. Fit, + and − sit on the right; the zoom
+  level shows bottom left.
+- The checks chip (LAYOUT, "Buttons on the canvas") sits top right: a pill
+  with a yellow mark, red when anything is dead.
 - The legend, when shown, names the five link colors.
 
 ### 7.7 Explain mode and the Guide
@@ -281,6 +290,3 @@ Drawn in sketch 7 (in the git history).
 ## 9. Still open
 
 - The strategy colors for the color vision modes (6.4).
-
-- Mapping the surface tokens onto ST's SmartTheme colors (section 2), and a
-  light-theme pass.

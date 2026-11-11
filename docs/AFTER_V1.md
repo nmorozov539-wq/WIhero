@@ -50,6 +50,13 @@ Parked while polishing for V1. Each one is a new behavior or a new view, not a f
 - **Tile view for folders in Normal mode (#38).** Folders as tiles.
 - **Greeting nicknames (#13).** Waits with greetings: see [Greetings, the strict version](#greetings-the-strict-version).
 
+## From the freeze triage, 2026-11-10
+
+Asked for during the feature freeze. Both need a new system; undo got an exception.
+
+- **Granular undo: one history over text, params, logic and layout.** *Built in 0.42.0 as a freeze exception (user, 2026-11-11): Ctrl Z / Ctrl Shift Z and the canvas's arrows, see LAYOUT "Sheets and toasts".*
+- **Gating on a tracker value** ("open *Rich* when Gold is at least 100"). Needs comparisons, which CONCEPTS 9 keeps out for now. See [TRACKERS.md](TRACKERS.md) section 8.
+
 ## Brainstorm, 2026-11-09
 
 A no-commitment brainstorm. Nothing here is planned; each line is the idea plus any catch we spotted.
@@ -58,13 +65,13 @@ A no-commitment brainstorm. Nothing here is planned; each line is the idea plus 
 
 - **Dice for switches.** *Built (CONCEPTS 3.5): a swipe keeps the roll; going back past the message before it rolls again.* A switch rolls its path at random instead of waiting for keywords. Replayable books with no extra writing.
 - **Endings.** Underneath, an ending is a gated entry. The one real rule it would add: when an ending fires, it closes the rest of the book. Then a counter ("ending 2 of 4"), the player view and the dead branch report all know what an ending is. Telling the model to wrap up stays in the entry's own text. Needs more thought.
-- **Pack kinds.** Ready-made kinds such as chapters and arcs, each with exactly one behaviour. A chapter is ordered: opening the next closes the last. An arc spans chapters and shows progress. Catch: a pack is only a tag today (CONCEPTS 3.7), so kinds need somewhere to live.
+- **Pack kinds.** Ready-made kinds such as chapters and arcs, each with exactly one behaviour. A chapter is ordered: opening the next closes the last. An arc spans chapters and shows progress. Catch: a pack is only a tag today (CONCEPTS 3.9), so kinds need somewhere to live.
 - **Chapters in the chat.** When the first entry of a chapter pack opens, the chat gets a quiet "Chapter: The Mill" divider. Pack names become the story's table of contents.
 - **Cycles, event-driven only.** Masks that rotate (dawn, day, dusk, night) when the story says so: a lock phrase like "next morning", or a value the model writes (see [Trackers](TRACKERS.md)). Counting turns doesn't work, because 100 messages can be one 10-minute scene.
 
 ### Canvas and editor
 
-- **Lasso to make a pack (desktop).** *Built: Shift-drag a box, then type the name.* Drag a box, the cards inside light up, type a name. Can add to an existing pack; typing `town/` offers subpacks.
+- **Lasso to make a pack.** *Built: Shift-drag a box on desktop, or long press and drag on a phone, then type the name.* Drag a box, the cards inside light up, type a name. Can add to an existing pack; typing `town/` offers subpacks.
 - **Drag in and out of packs.** Dropping a card on a frame joins the pack. Leaving is the hard part: a frame wraps its members, so dragging a card away just stretches it. Leaving needs a clear gesture (a "pop" past the edge, or a held key). Pulling a card out of `town/inn` shouldn't drop it from `town`.
 - **Folders in Hero mode, with motifs.** A folder side panel in Hero mode, the same folders as Normal mode. Each folder sets an abstract look for its cards: square corners, or portrait cards (taller instead of wider). Folders suit this better than packs because an entry has only one folder. Catches: portrait cards change where pieces sit and how links route, since card sides turn with the flow direction; and it's a scope change, since Hero mode leaves folders out today.
 - **Folder symbols and a far zoom.** Each folder gets a symbol. Zoomed far out, every card becomes a circle with its folder's symbol, and link colours show how the book is wired.

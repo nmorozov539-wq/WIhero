@@ -212,6 +212,9 @@ export function mountPieceBar(x) {
         return s;
     };
     const run = fn => { const ok = x.act(fn); if (ok) e.dirty = true; return ok; };
+    /** A Remove button: the change, then the strip closes (Ctrl+Z or the canvas's undo arrow takes it back).
+     * A refused change keeps the strip open with its reason. */
+    const removing = (fn, msg) => { if (fn() === false) return; close(msg); };
     const refuse = why => { e.note = why; e.noteBad = true; x.render(); };
 
     if (e.piece === 'opens' || e.piece === 'closes' || (e.piece === 'glue' && e.mode === 'ride')) linkStrip();
@@ -356,7 +359,7 @@ export function mountPieceBar(x) {
         const tools = shapeRow();
         note();
         // The shape's buttons share a row with the link's Remove, so the strip stays short on a phone.
-        tools.push(removeBtn(() => { x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)); close('Link removed'); }));
+        tools.push(removeBtn(() => removing(() => x.act((ed2, d2) => L.removeLink(ed2, d2, kind, e.src, e.dst, e.mask ?? null)), 'Link removed')));
         mid.append(row(...tools));
         canvas.overlay({ sel: new Set([x.keyOf(e.src), x.keyOf(e.dst)]) });
     }
@@ -440,7 +443,7 @@ export function mountPieceBar(x) {
             else mid.append(el('div', 'pnote', `Nothing ends it yet. Add a Closes to ${name(e.dst)}.`));
         }
         note();
-        if (!e.isNew && e.mode) mid.append(row(removeBtn(() => { x.act(ed2 => ed2.update(e.dst.uid, c => { delete c.glue; })); close('Glue removed'); })));
+        if (!e.isNew && e.mode) mid.append(row(removeBtn(() => removing(() => x.act(ed2 => ed2.update(e.dst.uid, c => { delete c.glue; })), 'Glue removed'))));
         canvas.overlay({ sel: new Set([x.keyOf(e.dst)]) });
     }
 
@@ -490,7 +493,7 @@ export function mountPieceBar(x) {
         mid.append(row(swEl(e.dice, v => { e.dice = v; writeSwitch(); }, 'Roll the dice'), el('span', 'plabel2', 'Roll the dice')));
         if (e.dice) mid.append(el('div', 'phint', `When ${name(e.fork)} first fires, one path is picked at random and the others close. A swipe keeps the roll; rewriting the message before it rolls again.`));
         note();
-        if (!e.isNew) mid.append(row(removeBtn(() => { x.act(ed2 => ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; })); close('Switch removed'); })));
+        if (!e.isNew) mid.append(row(removeBtn(() => removing(() => x.act(ed2 => ed2.update(e.fork.uid, c => { delete c.switch; delete c.dice; })), 'Switch removed'))));
         right.disabled = e.paths.length < 2;
         loose(e.fork, 'close', ok, add, new Set([e.fork, ...e.paths].map(x.keyOf)));
     }
@@ -603,7 +606,7 @@ export function mountPieceBar(x) {
             else if (links.length) mid.append(el('div', 'phint', `Counted from when ${links.join(' and ')} ${links.length > 1 ? 'have' : 'has'} fired.`));
         }
         note();
-        const remove = !e.isNew ? removeBtn(() => { x.act(ed2 => L.removeCond(ed2, e.at)); close(isLock ? 'Lock removed' : 'Wait removed'); }) : null;
+        const remove = !e.isNew ? removeBtn(() => removing(() => x.act(ed2 => L.removeCond(ed2, e.at)), isLock ? 'Lock removed' : 'Wait removed')) : null;
         // A lock already in the book can stand on its own card: its phrases move to a new Moment, and the lock
         // becomes a link from it, in the same row (CONCEPTS 3.13).
         if (isLock && e.at && (c.lock ?? []).length && x.makeMoment) {
@@ -677,7 +680,7 @@ export function mountPieceBar(x) {
         if (e.offOpen) side('closeGate', 'Off when', false);
         else mid.append(row(small('Off when ▸', () => { e.offOpen = true; x.render(); })));
         note();
-        if (!e.isNew) mid.append(row(removeBtn(() => { x.act(ed2 => ed2.update(e.uid, cc => { cc.masks.splice(e.mi, 1); })); close('Mask removed'); })));
+        if (!e.isNew) mid.append(row(removeBtn(() => removing(() => x.act(ed2 => ed2.update(e.uid, cc => { cc.masks.splice(e.mi, 1); })), 'Mask removed'))));
         function swap(j) {
             if (j < 0 || j >= n) return;
             if (run(ed2 => ed2.update(e.uid, cc => { [cc.masks[e.mi], cc.masks[j]] = [cc.masks[j], cc.masks[e.mi]]; }))) { e.mi = j; x.render(); }

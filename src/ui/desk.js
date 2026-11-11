@@ -6,7 +6,7 @@ import { btn, html, el, issueText, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
-    setBookFolder, setFolder, strategyOf, titleOf,
+    promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
 
@@ -569,6 +569,22 @@ export function deskNormal(A) {
         const node = model.byStKey.get(`${book}.${e.uid}`);
         if (node && (A.hasLogic?.(e, node) ?? true)) { const d = el('i', 'ldot'); d.title = 'Has story logic'; r.append(d); }
         if (A.problemsOf(model, e.uid, book).length) { const b = el('span', 'bang2', '!'); b.title = 'This entry has a problem'; r.append(b); }
+        // Prompt order sort: the Order parameter right on the row (where the entry goes in the prompt).
+        if (A.sortBy() === 'prompt') {
+            const o = el('input', 'ordin');
+            o.type = 'number';
+            o.value = String(promptOrder(e));
+            o.title = 'Order: where this entry goes in the prompt (higher goes in later, closer to the chat)';
+            o.setAttribute('aria-label', `Order of ${titleOf(e)}`);
+            o.addEventListener('click', ev => ev.stopPropagation());
+            o.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') o.blur(); });
+            o.addEventListener('change', () => {
+                const n = Math.round(Number(o.value));
+                if (o.value.trim() === '' || !Number.isFinite(n)) { o.value = String(promptOrder(e)); return; }
+                library.change(book, d => setParam(d, e.uid, PARAM_LIST.find(q => q.field === 'order'), n));
+            });
+            r.append(o);
+        }
         const sw = swEl(!e.disable, v => library.change(book, d => { d.entries[e.uid].disable = !v; }), `${titleOf(e)} on`);
         sw.classList.add('sm');
         r.append(sw, btn('more', ic('more', 's'), ev => { ev.stopPropagation(); entryMenu(p, book, e.uid, ev.currentTarget); }, `${titleOf(e)} actions`));
@@ -588,9 +604,55 @@ export function deskNormal(A) {
             ev.dataTransfer.setData('text/plain', titleOf(e));
         });
         r.addEventListener('dragend', () => { dragEntries = null; });
+        rowDrop(r, p, book, e);
         return r;
     }
     let dragEntries = null;
+
+    /**
+     * Drag to reorder (#42): dropping on a row puts the dragged entries just above or below it. Only in the Order
+     * sort, where the list shows ST's order; it writes displayIndex, never the Order parameter. A row in another
+     * folder takes them into that folder too. Ctrl+Z puts both back.
+     */
+    function rowDrop(r, p, book, e) {
+        const ok = () => !!dragEntries && dragEntries.book === book && A.sortBy() === 'order' && !dragEntries.uids.includes(e.uid);
+        const below = ev => { const b = r.getBoundingClientRect(); return ev.clientY > b.top + b.height / 2; };
+        const clear = () => r.classList.remove('dropbefore', 'dropafter');
+        r.addEventListener('dragover', ev => {
+            if (!ok()) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const after = below(ev);
+            r.classList.toggle('dropafter', after);
+            r.classList.toggle('dropbefore', !after);
+        });
+        r.addEventListener('dragleave', clear);
+        r.addEventListener('drop', ev => {
+            clear();
+            if (!ok()) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const after = below(ev);
+            const { uids } = dragEntries;
+            dragEntries = null;
+            const data = library.peek(book);
+            const folder = A.entryFolder(book, e);
+            const oldFolders = new Map();
+            for (const u of uids) {
+                const x = data.entries[u];
+                if (!x || A.entryFolder(book, x) === folder) continue;
+                oldFolders.set(u, A.entryFolder(book, x));
+                setFolder(settings, book, x, folder);
+            }
+            if (oldFolders.size) save();
+            let moved = null;
+            library.change(book, d => { moved = reorderEntries(d, uids, e.uid, after); }, { quiet: true });
+            A.render();
+            if (!moved && !oldFolders.size) return;
+            const n = uids.length;
+            layer.toast(n === 1 ? `Moved ${titleOf(data.entries[uids[0]] ?? {})}` : `Moved ${n} entries`);
+        });
+    }
     function entryDrop(node, book, folder, p, onlySelf = false) {
         node.addEventListener('dragover', e => {
             if (!dragEntries || dragEntries.book !== book || (onlySelf && e.target !== node && !e.target.classList?.contains('blnone'))) return;
@@ -681,8 +743,8 @@ export function deskNormal(A) {
         A.deleteEntries(book, uids);
     }
 
-    function newEntry(p, book, folder = '') {
-        const x = A.createEntryIn(book, folder);
+    function newEntry(p, book, folder = '', after = null) {
+        const x = A.createEntryIn(book, folder, after);
         if (!x) return;
         p.sel = x.uid;
         p.anchor = x.uid;
@@ -729,7 +791,11 @@ export function deskNormal(A) {
     /** Right-click or ⋯ on an entry row; with several selected, for all of them. */
     function entryMenu(p, book, uid, at) {
         const many = p.select?.size > 1 && p.select.has(uid) ? [...p.select] : null;
-        if (!many) { A.entryMenu(book, uid, { desk: { at, openTab: () => openEntryTab(book, uid), afterDelete: () => deleteSome(p, book, [uid]) } }); return; }
+        if (!many) {
+            const below = () => { const e = library.peek(book)?.entries[uid]; if (e) newEntry(p, book, A.entryFolder(book, e), uid); };
+            A.entryMenu(book, uid, { desk: { at, openTab: () => openEntryTab(book, uid), afterDelete: () => deleteSome(p, book, [uid]), newBelow: below } });
+            return;
+        }
         layer.sheet(null, sh => bulkActions(sh, p, book, many, true), { at });
     }
     function bulkActions(box, p, book, uids, asMenu) {

@@ -114,7 +114,7 @@ export function createHeroBar(A) {
             },
             folded: () => !!settings.pieceBarFolded,
             setFolded: v => { settings.pieceBarFolded = v; saveSettings(); },
-            toast: t => layer.toast(t),
+            toast: (t, o) => layer.toast(t, o),
             place: (k, hit, at) => dropPiece(book, k, hit, at),
             entryTemplate,
             guide: piece => openGuide(PIECE_ANCHOR[piece] ?? 'strip'),

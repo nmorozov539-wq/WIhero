@@ -334,16 +334,46 @@ export function copyBookSettings(s, from, to) {
  * @returns {[string, object[]][]}
  */
 /** The orders entries can be sorted in, inside each folder (LAYOUT "Book page"). */
-export const SORT_NAMES = { order: 'Order', az: 'A–Z', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
+// `order` is ST's list position (displayIndex, what drag changes); `prompt` is the Order parameter, which places
+// the entry in the prompt (higher goes in later, closer to the chat).
+export const SORT_NAMES = { order: 'List order', prompt: 'Prompt order', az: 'A–Z', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
 
-/** Sorts entries: ST's order (displayIndex), A–Z, or one strategy first (then the rest in order, off entries last). */
+/**
+ * Sorts entries: ST's list order (displayIndex), prompt order (the Order parameter, then list order), A–Z, or one
+ * strategy first (then the rest in list order, off entries last).
+ */
+/** The Order parameter as ST reads it (100 when unset). */
+export const promptOrder = e => (Number.isFinite(Number(e.order)) && e.order !== null && e.order !== '' ? Number(e.order) : 100);
+
 export function sortEntries(entries, by = 'order') {
     const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
     const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
     const cmp = by === 'az' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || order(a, b)
+        : by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
         : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
         : order;
     return [...entries].sort(cmp);
+}
+
+/**
+ * Drag to reorder (book list, "Order" sort only): puts `uids` just before `target`, or just after it, in ST's order,
+ * keeping their own order. Only `displayIndex` is written, renumbered 0, 1, 2… over the whole book like ST's own
+ * drag in its editor; the Order parameter (`order`, the prompt position) is never touched.
+ * @returns {Map<number, number|undefined>|null} each changed entry's old displayIndex (for Undo), or null when
+ *   nothing moved.
+ */
+export function reorderEntries(data, uids, target, after = false) {
+    const moving = new Set(uids.map(Number));
+    if (moving.has(Number(target))) return null;
+    const all = sortEntries(Object.values(data.entries ?? {}), 'order').map(e => e.uid);
+    const rest = all.filter(u => !moving.has(Number(u)));
+    let at = rest.findIndex(u => Number(u) === Number(target));
+    if (at < 0 || !all.some(u => moving.has(Number(u)))) return null;
+    if (after) at++;
+    rest.splice(at, 0, ...all.filter(u => moving.has(Number(u))));
+    const old = new Map();
+    rest.forEach((u, i) => { const e = data.entries[u]; if (e.displayIndex !== i) { old.set(u, e.displayIndex); e.displayIndex = i; } });
+    return old.size ? old : null;
 }
 
 /**

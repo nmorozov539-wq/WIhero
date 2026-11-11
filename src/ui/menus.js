@@ -18,7 +18,7 @@ const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], 
  */
 export function createMenus(A) {
     const {
-        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     } = A;
 
     /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
@@ -84,6 +84,8 @@ export function createMenus(A) {
                 render();
             });
             sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard' }));
+            switchRow(sh, 'Mark keyword clashes', settings.markClashes !== false, v => { settings.markClashes = v; saveSettings(); render(); },
+                { sub: 'Key words that fire more than one entry: outlined, with an "also fires" line, and counted on the canvas' });
             sh.append(el('div', 'lbl', 'Tabs'));
             sh.append(layer.opt('Close other tabs', () => {
                 layer.close();
@@ -143,6 +145,27 @@ export function createMenus(A) {
     }
 
     const deadOf = (book, data) => deadBranches(modelOf(book, data), entriesOf(data).map(e => ({ ...e, world: book })));
+
+    /**
+     * The book's checks for the chip on the Hero canvas: dead branches, and keyword clashes unless their marking is
+     * turned off (settings.markClashes).
+     */
+    function checkCounts(book, data) {
+        return {
+            dead: deadOf(book, data).length,
+            clashes: settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book)).groups.length,
+        };
+    }
+
+    /** The chip's tap: the one sheet when only one kind is found, else both rows to pick from. */
+    function checksSheet(book) {
+        const data = library.peek(book);
+        if (!data) return;
+        const { dead, clashes } = checkCounts(book, data);
+        if (dead && !clashes) { deadSheet(book); return; }
+        if (clashes && !dead) { clashesSheet(book); return; }
+        layer.sheet('Checks', sh => checkRows(sh, book, data));
+    }
 
     /** What the book alone says can never happen: entries that can never fire, gate rows and masks that can never open. */
     function deadSheet(book) {
@@ -314,6 +337,7 @@ export function createMenus(A) {
         layer.sheet(titleOf(e), sh => {
             if (ht) sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, cardKey(e)); }, { icon: 'canvas' }));
             else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab' }));
+            if (!ht) sh.append(layer.opt('New entry below', () => { layer.close(); newEntry(book, entryFolder(book, e), uid); }, { icon: 'plus' }));
             sh.append(layer.opt('Duplicate', () => {
                 layer.close();
                 const copy = library.change(book, d => duplicateEntry(d, uid));
@@ -366,6 +390,7 @@ export function createMenus(A) {
             if (d.openTab) sh.append(layer.opt('Open in new tab', () => { layer.close(); d.openTab(); }, { icon: 'tab', val: 'Double-click' }));
             if (d.inBook) sh.append(layer.opt('Show in its book', () => { layer.close(); d.inBook(); }, { icon: 'book' }));
             sh.append(layer.opt(e.disable ? 'Turn on' : 'Turn off', () => { layer.close(); library.change(book, x => { x.entries[uid].disable = !e.disable; }); }, { icon: e.disable ? 'on' : 'off', val: 'Space' }));
+            if (d.newBelow) sh.append(layer.opt('New entry below', () => { layer.close(); d.newBelow(); }, { icon: 'plus' }));
             sh.append(layer.opt('Duplicate', () => {
                 layer.close();
                 const copy = library.change(book, x => duplicateEntry(x, uid), { quiet: true });
@@ -484,5 +509,5 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, checkRows, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, checkCounts, checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }

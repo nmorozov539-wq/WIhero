@@ -6,7 +6,8 @@
 import { btn, html, el, swEl } from './dom.js';
 import { ic } from './icons.js';
 import { FAMILY_COLOR } from './logic-text.js';
-import { strategyColor } from './entry-page.js';
+import { storyParamNote, strategyColor } from './entry-page.js';
+import { PARAM_LIST, paramValue, setParam } from './data.js';
 import { trackerEditor } from './tracker-ui.js';
 import {
     MOMENT_PIECES, PIECE, PIECES, addMask, addPiece, addToList, addToRow, applyMovesOn, greetingName, hasPiece, maskName, missingPieces,
@@ -61,6 +62,12 @@ function frame(box, x, cls) {
     return body;
 }
 
+/** Runs a removal and says so; Ctrl+Z or the canvas's undo arrow takes it back. */
+function removeAndSay(x, msg, fn) {
+    fn();
+    x.layer.toast(msg);
+}
+
 /** A chip for a ref: icon for locks, waits and greetings, × to remove. */
 function chip(ref, x, onRemove, target = false) {
     const label = refLabel(ref, x.nameOfId);
@@ -72,7 +79,7 @@ function chip(ref, x, onRemove, target = false) {
     if (KIND_ICON[kind]) t.innerHTML = ic(KIND_ICON[kind]);
     t.append(text);
     c.append(t);
-    if (onRemove) c.append(btn('', ic('x'), onRemove, `Remove ${text}`));
+    if (onRemove) c.append(btn('', ic('x'), () => removeAndSay(x, `${text} removed`, onRemove), `Remove ${text}`));
     return c;
 }
 
@@ -232,7 +239,7 @@ export function renderInspector(box, x) {
 
     const sentence = label => x.lines.find(l => l.label === label)?.text ?? '';
     const update = fn => x.edit(ed => ed.update(e.uid, (cc, id) => fn(cc, id, ed)));
-    if (c.moment !== true) entrySettings(body, x, c, update);
+    if (c.moment !== true) { entrySettings(body, x, c, update); stTiming(body, x, e); }
     // A path of a switch says so, and opens the switch (#17). The gate the switch gave it is the switch's own
     // "can't fire before the fork" rule, so a gate that is only that isn't shown as a gate of its own.
     const forkGateOnly = !!x.pathOf && Array.isArray(c.gate) && c.gate.length === 1 && c.gate[0].length === 1 && c.gate[0][0] === x.pathOf.id;
@@ -267,7 +274,7 @@ export function renderInspector(box, x) {
         tap.append(lab, el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
         ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
-        if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); layer.toast(`${p.label} removed`); }, `Remove ${p.label}`));
+        if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => removeAndSay(x, `${p.label} removed`, () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); }), `Remove ${p.label}`));
         pc.append(ph);
         if (open) pc.append(editorOf(p.key, x, update));
         body.append(pc);
@@ -424,7 +431,7 @@ function editorOf(key, x, update) {
                     sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit' }));
                     sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry' }));
                     if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins' }));
-                    sh.append(layer.opt('Delete', () => { layer.close(); update(cc => { cc.masks.splice(i, 1); }); layer.toast(`Mask ${m.name} removed`); }, { icon: 'trash', danger: true }));
+                    sh.append(layer.opt('Delete', () => { layer.close(); removeAndSay(x, `Mask ${m.name} removed`, () => update(cc => { cc.masks.splice(i, 1); })); }, { icon: 'trash', danger: true }));
                 }), `${m.name} actions`),
             );
             ml.append(mh);
@@ -456,7 +463,7 @@ function editorOf(key, x, update) {
             const t = el('span');
             t.innerHTML = ic('tag');
             t.append(`#${p}`);
-            ch.append(t, btn('', ic('x'), () => update(cc => { cc.packs.splice(i, 1); }), `Remove #${p}`));
+            ch.append(t, btn('', ic('x'), () => removeAndSay(x, `#${p} removed`, () => update(cc => { cc.packs.splice(i, 1); })), `Remove #${p}`));
             wrap.append(ch);
         });
         const addPack = name => update(cc => { cc.packs = addToList(Array.isArray(cc.packs) ? cc.packs : [], name); });
@@ -525,6 +532,51 @@ function entrySettings(body, x, c, update) {
         else update(cc => removePiece(cc, 'written'));
     }, 'Tracker: the AI can write to this entry'));
     box.append(trk);
+    body.append(box);
+}
+
+/**
+ * ST's chance and timing (2026-11-11): Probability, Sticky, Cooldown and Delay, set right here in Hero mode. They
+ * are SillyTavern's own and apply on top of the story pieces; on an entry with pieces, each one set says how.
+ */
+const TIMING = ['probability', 'sticky', 'cooldown', 'delay'];
+function stTiming(body, x, e) {
+    const box = el('div', 'isets itiming');
+    box.style.setProperty('--c', 'var(--muted)');
+    const head = el('div', 'iset');
+    head.append(el('span', 'isetl', 'ST timing'), el('span', 'isetn', 'SillyTavern\'s own, on top of the story pieces'));
+    box.append(head);
+    const grid = el('div', 'tgrid');
+    const notes = [];
+    for (const field of TIMING) {
+        const p = PARAM_LIST.find(q => q.field === field);
+        const value = paramValue(e, p);
+        const id = `it-${field}`;
+        const l = el('label', '', p.label);
+        l.htmlFor = id;
+        const f = el('span', 'tfield');
+        const input = el('input');
+        input.id = id;
+        input.type = 'number';
+        input.inputMode = 'numeric';
+        input.min = String(p.min ?? 0);
+        if (p.max !== undefined) input.max = String(p.max);
+        input.placeholder = String(p.def);
+        input.value = value === p.def || value === null || value === undefined ? '' : String(value);
+        input.addEventListener('change', () => {
+            const v = input.value.trim();
+            let n = v === '' ? p.def : Math.round(Number(v));
+            if (!Number.isFinite(n)) { input.value = ''; return; }
+            n = Math.max(p.min ?? 0, p.max !== undefined ? Math.min(p.max, n) : n);
+            x.edit((ed, data) => setParam(data, e.uid, p, n));
+        });
+        f.append(input, el('small', '', field === 'probability' ? '%' : 'msgs'));
+        grid.append(l, f);
+        const note = storyParamNote(e, p, !!x.lines?.length);
+        if (note) notes.push(note);
+    }
+    box.append(grid);
+    for (const n of notes) box.append(el('p', 'pnote', n));
     body.append(box);
 }
 
