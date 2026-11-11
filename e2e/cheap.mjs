@@ -34,6 +34,8 @@ await page.goto(`${BASE}?reset`);
 await page.locator('#wihero-editor .tab').first().waitFor();
 const $ = sel => page.locator(`#wihero-editor ${sel}`);
 const card = name => $('.card').filter({ hasText: name }).first();
+/** A card's menu: its ⋯ after the hover handles (the right button only moves the view). */
+const menuOf = async name => { await card(name).hover(); await $('.hhandles .hh.hmore').click(); };
 const entries = (book = BOOK) => page.evaluate(b => Object.values(wihero.library.peek(b).entries), book);
 const toHero = async (book = BOOK) => {
     await page.evaluate(b => { const S = wihero.app.state; S.mode = 'hero'; S.hero.book = b; wihero.app.refresh(); }, book);
@@ -100,25 +102,24 @@ ok('☰ lists Dead branches; a row needing both paths of a switch can never open
 await page.keyboard.press('Escape');
 await toHero();
 
-// 4. Lasso: Shift-drag a box, name the pack.
+// 4. Lasso: drag a box, P, name the pack.
 const a = await card('Left path').boundingBox();
 const z = await card('Right path').boundingBox();
-await page.keyboard.down('Shift');
 await page.mouse.move(Math.min(a.x, z.x) - 10, Math.min(a.y, z.y) - 10);
 await page.mouse.down();
 await page.mouse.move(Math.max(a.x + a.width, z.x + z.width) + 8, Math.max(a.y + a.height, z.y + z.height) + 8, { steps: 6 });
 await page.mouse.up();
-await page.keyboard.up('Shift');
+await page.keyboard.press('p');
 await $('.lasso input').waitFor();
 await page.waitForTimeout(100);
 await page.keyboard.type('crossing/paths');
 await page.screenshot({ path: `${LOG}cheap-lasso.png` });
 await page.keyboard.press('Enter');
 await page.waitForFunction(b => Object.values(wihero.library.peek(b).entries).filter(e => (e.extensions?.wihero ?? e.wihero)?.packs?.includes('crossing/paths')).length >= 2, BOOK);
-ok('a box select asks for a pack name; Enter packs the cards (crossing/paths)');
+ok('a box select, then P, asks for a pack name; Enter packs the cards (crossing/paths)');
 
 // 5. Sticky note from the card menu.
-await card('Rumor').click({ button: 'right' });
+await menuOf('Rumor');
 await $('.sheet.pop').getByText('Add note').click();
 await $('.dlg input').fill('TODO: a second way in');
 await $('.dlg .pri').click();
@@ -127,7 +128,7 @@ const rumor = (await entries()).find(e => e.comment?.startsWith('Rumor'));
 assert.equal(rumor.extensions.wihero.note, 'TODO: a second way in');
 await page.screenshot({ path: `${LOG}cheap-sticky.png` });
 ok('Add note pins a sticky note on the card, stored in extensions.wihero.note');
-await card('Rumor').click({ button: 'right' });
+await menuOf('Rumor');
 await $('.sheet.pop').getByText('Edit note').click();
 await $('.dlg input').fill('');
 await $('.dlg .pri').click();
@@ -137,7 +138,7 @@ ok('an empty note removes it');
 
 // 6. Dice on the switch strip.
 const forkName = await page.evaluate(b => Object.values(wihero.library.peek(b).entries).find(e => Array.isArray((e.extensions?.wihero ?? e.wihero)?.switch)).comment, BOOK);
-await card(forkName).click({ button: 'right' });
+await menuOf(forkName);
 await $('.sheet.pop').getByText('Switch', { exact: true }).click();
 await $('.pstrip').getByText('Roll the dice').waitFor();
 await $('.pstrip [aria-label="Roll the dice"]').click();

@@ -1,7 +1,7 @@
 // Link shaping checks (the link engine's editing UI) in the browser harness, like desktop.mjs: no SillyTavern needed.
 // Desktop at 1366 × 768 and a phone at 390 × 844: a tapped line shows its dots, a ghost dot dragged bends it, the
 // strip's line types, Flip and Reset, a dot picked and removed, double-click to add one, Cancel putting the shape
-// back, a tap on empty canvas as Done, the right-click menu, and edge-scrolling a card. Screenshots go to
+// back, a tap on empty canvas as Done, Reset shape in the strip, and edge-scrolling a card. Screenshots go to
 // e2e/log/shape-*.png.
 //   node e2e/shape.mjs
 import { createRequire } from 'node:module';
@@ -159,14 +159,15 @@ async function desktop() {
     ok('1366: a click on empty canvas is Done and keeps the shape');
     await shot(page, 'desk-done');
 
-    // Right-click the line: Shape link · Reset shape · Remove.
+    // The line's strip has Reset shape (the right-click menu is gone: the right button only moves the view).
     const ln3 = await lineAt(page, ln.ends);
-    await page.mouse.click(ln3.x, ln3.y, { button: 'right' });
-    await $(page, '.sheet, .menu, .pop').filter({ hasText: 'Reset shape' }).first().waitFor();
-    await page.locator('#wihero-editor').getByText('Reset shape').click();
+    await page.mouse.click(ln3.x, ln3.y);
+    await $(page, '.pstrip button').filter({ hasText: 'Reset shape' }).click();
     await page.waitForTimeout(150);
-    assert.equal(Object.keys(await shapes(page)).length, 0, 'Reset shape from the menu');
-    ok('1366: right-click on a line offers Shape link, Reset shape and Remove');
+    assert.equal(Object.keys(await shapes(page)).length, 0, 'Reset shape from the strip');
+    await $(page, '.pstrip .pbtn').filter({ hasText: 'Done' }).click();
+    await page.waitForTimeout(150);
+    ok('1366: the line\'s strip resets its shape');
 
     // Edge-scrolling: a card held at the view's edge moves the camera.
     const cam0 = await page.evaluate(() => ({ ...wihero.settings.books['WIHero-Sample'].canvas.camera }));

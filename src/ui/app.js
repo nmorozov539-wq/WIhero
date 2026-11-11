@@ -668,7 +668,6 @@ export function createApp(deps) {
     function barTap(...a) { return heroBar().barTap(...a); }
     function barShaping(...a) { return heroBar().shaping(...a); }
     function barShapeSet(...a) { return heroBar().shapeSet(...a); }
-    function barLinkMenu(...a) { return heroBar().linkMenu(...a); }
     function createEntry(...a) { return heroBar().createEntry(...a); }
     function dropPiece(...a) { return heroBar().dropPiece(...a); }
     function nodeOf(...a) { return heroBar().nodeOf(...a); }
@@ -844,6 +843,11 @@ export function createApp(deps) {
             if (H.active !== 'canvas') { H.active = 'canvas'; render(); }
             tidyNow();
         }, { icon: 'tidy', val: S.desk ? 'T' : undefined }));
+        // A trackpad pans with two fingers when the wheel scrolls; Ctrl+wheel and a pinch zoom either way.
+        if (S.desk) {
+            menus().choiceRow(sh, 'Mouse wheel', [['zoom', 'Zoom', 'Node-editor style: two fingers on a trackpad zoom'], ['scroll', 'Scroll', 'For a trackpad: two fingers pan, pinch or Ctrl+wheel zooms']],
+                deskSettings().wheel === 'scroll' ? 'scroll' : 'zoom', k => { deskSettings().wheel = k; saveSettings(); });
+        }
         switchRow(sh, 'Legend', H.legend, v => { H.legend = v; render(); });
         switchRow(sh, 'Show chat state', H.chatState, v => { H.chatState = v; render(); }, { sub: library.chatOpen() ? 'The open chat, at its latest message' : 'Open a chat to see it' });
     }
@@ -890,7 +894,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let heroDeskView = null;
     const heroDesk = () => (heroDeskView ??= createHeroDesk({
-        H, S, barAct, barApi, barLinkMenu, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, hide,
+        H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder, hide,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),

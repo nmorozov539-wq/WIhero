@@ -34,6 +34,7 @@ After it:
 | 0.41.0 | #41 | UI polish from the impressions list; greetings retired for V1 (CONCEPTS 3.12) |
 | 0.42.0 | #42 | Feature freeze polish: undo history (Ctrl Z, canvas arrows; freeze exception), ST timing in the Hero inspector with a badge on cards and warnings under it, the checks chip on the canvas, Mark keyword clashes, List order and Prompt order sorts with drag to reorder and Order on each row, New entry below; docs checked against the code |
 | 0.43.0 | #43 | The 2026-11-11 review's polish (D33): one name per relation (Opens / Closes, Waits for / Closes when), the inspector's rules before its settings, the Guide's When a card fires and Tabs, one guarded mode door, phone titles on two lines and tap to focus, light theme piece colors, the piece bar's scroll arrow, Place an entry here after a long press, the Tracker chip's toast with Undo, ☰ for the menu, the book's size and Largest first; docs in step with 0.42.0 and 0.43.0 |
+| 0.44.0 | #44 | Canvas controls (D34): the right button moves the view, box select by drag, P to pack, the card menu on ⋯, the trackpad-friendly wheel with a Zoom/Scroll switch, F fits the selection, 100% by Shift 0 or the zoom label, links dropped on empty canvas or a double-click add an entry there, the drop magnet, line hover, Ctrl D, Esc never closes on desktop; on phones two fingers pan and zoom, two-finger tap undoes, the inspector reordered. Canvas input split by pointer |
 
 The feature freeze for V1 is on: no new systems, only fixes and polish.
 

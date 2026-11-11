@@ -111,6 +111,8 @@ still the one WI Hero uses:*
 
 ## 10. The canvas on phones and big books
 
+- Canvas input is split by pointer: `canvas-mouse.js` (mouse and pen on the desktop layout: right, middle and Space-drag move the view, the wheel, hover, double-click), `canvas-touch.js` (fingers anywhere, and every pointer on the phone layout: pinch, two-finger tap, long press) and the shared core `canvas-input.js` (pointer bookkeeping, grabbing and dragging cards, dots, links and ports, drops, the magnet). Each pointerdown picks its rules from `e.pointerType`; drawing stays in `canvas.js`.
+- The pinch keeps the canvas point under the fingers' midpoint under it while the spread sets the zoom (`pinchCamera`: `tx = mx − wx·scale`), so two fingers pan and zoom at once. A drag owns its finger: a second one is ignored until it ends.
 - Pan and pinch only move the camera: one transform per frame, with the world on its own GPU layer while a finger is down (`.vp.gesture`), let go at the end so the text is drawn sharp at the new zoom.
 - A card drag doesn't draw the canvas: every node is tagged with the cards it belongs to (`data-of`), the card's own nodes (card, mask layers, ports, its junctions and pills) are moved with `translate`, and its links to other cards are hidden behind straight guide lines. The drop draws once and routes again.
 - Hero mode builds the engine model of a book once per change (`library.version`), and fills the entry panel the first time it opens.

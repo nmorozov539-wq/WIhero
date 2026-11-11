@@ -1,11 +1,12 @@
 // The Hero canvas on screen (VISUAL 7): cards, ports, junctions, lock tags, links routed around cards, mask
 // stacks, pack frames; pan, pinch and wheel zoom, Fit, card and port dragging. Lifted from the demo. Positions,
 // port sides, the mask layer on each card and the camera are kept in the extension settings (D7, BUILD_SPEC 8.2).
-import { CH, CW, G, PORT, SIDE_NAME, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, nodeRects, placeNew, rounded, snap } from './canvas-graph.js';
+import { CH, CW, G, PORT, SIDE_OF, TB, buildGraph, canvasSet, withFrames, computePorts, layout, nodeRects, placeNew, rounded, snap } from './canvas-graph.js';
 import { createLinkEngine } from '../link-engine/index.js';
 import { addDot, moveDot, normalize, removeDot, setSegment, toCanvas } from '../link-engine/shape.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
+import { wireInput } from './canvas-input.js';
 
 const FAMILY_VAR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)' };
 const STRAT_VAR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
@@ -69,10 +70,11 @@ export function arrange(m, memory, center, dir = TB) {
 const LINKS = createLinkEngine({ grid: G });
 /** Where a link's hand-made shape is kept: on its source card, `canvas.cards[<from>].links[<this>]`. */
 export const linkKey = x => `${x.fromPort}>${x.to}${x.mask != null ? `@${x.mask}` : ''}`;
-/** The last tap on a shaped link's dot (kept across draws: a tap draws the app again), for a double tap. */
-let lastDotTap = null;
 /** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
 export const PHONE_FLOOR = 0.8;
+export { holdSpace, wheelMove } from './canvas-mouse.js';
+export { pinchCamera } from './canvas-touch.js';
+export { MAGNET, nearCard } from './canvas-input.js';
 
 export function mountCanvas(vp, d) {
     const world = el('div', 'world');
@@ -80,7 +82,11 @@ export function mountCanvas(vp, d) {
     const tools = el('div', 'canvas-tools');
     tools.append(btn('', ic('fit'), () => fit(), 'Fit to screen'), btn('', ic('plus'), () => zoomAt(1.2), 'Zoom in'), btn('', ic('minus'), () => zoomAt(1 / 1.2), 'Zoom out'));
     d.tools?.(tools); // desktop: Tidy and the inspector toggle
-    const zl = el('div', 'zlabel');
+    // The zoom label: a click goes to 100% around the middle of the view.
+    const zl = el('button', 'zlabel');
+    zl.type = 'button';
+    zl.title = 'Zoom to 100%';
+    zl.addEventListener('click', () => zoomTo(1));
     vp.append(tools, zl);
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
     vp.addEventListener('scroll', () => { vp.scrollTop = 0; vp.scrollLeft = 0; });
@@ -89,7 +95,7 @@ export function mountCanvas(vp, d) {
     let moving = null;
     let hit = null;
     let cam = null;
-    /** Desktop: the cards selected on the canvas (click, Shift/Ctrl-click, Shift-drag a box). */
+    /** Desktop: the cards selected on the canvas (click, Shift/Ctrl-click, a drag on empty canvas). */
     let picked = new Set();
 
     const memory = () => d.book().memory;
@@ -659,13 +665,24 @@ export function mountCanvas(vp, d) {
         saveCamera();
     }
 
-    /** Fits everything in view; the first fit keeps cards readable (55% at least) and starts at the top. */
+    /** Zooms to `scale` (100%: 1) around the middle of the view. */
+    function zoomTo(scale) {
+        const v = camera();
+        if (!v) return;
+        zoomAt(scale / v.scale);
+    }
+
+    /**
+     * Fits the picked cards in view when any are picked (F, the Fit button), else everything. The first fit keeps
+     * cards readable (55% at least) and starts at the top.
+     */
     function fit(first = false) {
         if (!vp.clientWidth) return;
         cam ??= { tx: 20, ty: 20, scale: 0.78 };
         if (!CV || !CV.R.size) { applyView(); saveCamera(); return; }
+        const sel = first ? [] : [...picked].map(k => CV.R.get(k)).filter(Boolean);
         let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
-        for (const r of CV.R.values()) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y - 40); x1 = Math.max(x1, r.x + r.w + 40); y1 = Math.max(y1, r.y + r.h + 40); }
+        for (const r of sel.length ? sel : CV.R.values()) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y - 40); x1 = Math.max(x1, r.x + r.w + 40); y1 = Math.max(y1, r.y + r.h + 40); }
         const W = vp.clientWidth; const H = vp.clientHeight - 20;
         cam.scale = Math.min(1, Math.max(0.25, Math.min((W - 24) / (x1 - x0), (H - 60) / (y1 - y0))));
         cam.tx = (W - (x1 - x0) * cam.scale) / 2 - x0 * cam.scale;
@@ -823,17 +840,8 @@ export function mountCanvas(vp, d) {
         d.save();
         d.shapeSet?.({ seg: 0, dot: null }, true);
     }
-    /** Drops a link's shape without opening its strip (the desktop's right-click menu). */
-    function resetShapeOf(l) {
-        const c = memory().cards[l.from];
-        if (!c?.links?.[l.key]) return;
-        delete c.links[l.key];
-        if (!Object.keys(c.links).length) delete c.links;
-        d.save();
-        render();
-    }
     /** Where a dragged dot goes: on the grid with a mouse (Alt: anywhere); level with a neighbour on a phone. */
-    function dotPoint(cx, cy, free) {
+    function dotPoint(drag, cx, cy, free) {
         let [x, y] = toWorld(cx, cy);
         if (d.desk) return free ? { x, y } : { x: snap(x), y: snap(y) };
         const P = shapePoints(storedShape());
@@ -846,8 +854,9 @@ export function mountCanvas(vp, d) {
         }
         return { x, y };
     }
-    function dotTo(cx, cy, free) {
-        const p = dotPoint(cx, cy, free);
+    /** A dot drag (`drag`: the input's { dot, ghost }) at a screen point. */
+    function dotTo(drag, cx, cy, free) {
+        const p = dotPoint(drag, cx, cy, free);
         const ends = LINKS.ends(SH.l.id);
         let shape = storedShape();
         if (drag.dot == null) { shape = addDot(shape, drag.ghost, p, ends); drag.dot = drag.ghost; drag.ghost = null; } else shape = moveDot(shape, drag.dot, p, ends);
@@ -866,194 +875,25 @@ export function mountCanvas(vp, d) {
         d.shapeSet?.({ seg: null, dot: n.segment }, true);
     }
 
-    // ---- input
-    const pts = new Map();
-    let mode = null;
-    let start = null;
-    let moved = false;
-    let drag = null;
-    let pinch = null;
-    let holdTimer = null;
+    // ---- input (canvas-input.js, with canvas-mouse.js and canvas-touch.js)
     const toWorld = (cx, cy) => { const r = vp.getBoundingClientRect(); const v = camera(); return [(cx - r.left - v.tx) / v.scale, (cy - r.top - v.ty) / v.scale]; };
     // The camera moves at most once per frame (a phone sends pointer moves faster than it draws), and while a finger
     // pans or pinches, the world is its own GPU layer, so moving it doesn't paint the cards again. The layer is let go
-    // at the end, which draws the text sharp at the new zoom.
+    // at the end, which draws the text sharp at the new zoom. `off`: let it go that many ms later (the wheel).
     let viewRaf = 0;
     const viewLater = () => { if (!viewRaf) viewRaf = requestAnimationFrame(() => { viewRaf = 0; applyView(); }); };
     let gestureTimer = null;
-    const gesture = on => {
+    const gesture = (on, off = 0) => {
         clearTimeout(gestureTimer);
-        if (on) vp.classList.add('gesture');
-        else { if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); } vp.classList.remove('gesture'); }
+        if (on) { vp.classList.add('gesture'); if (off) gestureTimer = setTimeout(() => gesture(false), off); } else { if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); } vp.classList.remove('gesture'); }
     };
-
-    // A card drag moves the card's own nodes (the card, its mask layers, ports, junctions and pills) and swaps its
-    // links to other cards for straight guide lines, once per frame. The canvas is drawn again once, on the drop.
-    let dragRaf = 0;
-    let DR = null;
-    function dragSetup(id) {
-        // The card itself, or (desktop) every selected card when it is one of them.
-        const group = new Set(drag?.group ?? [id]);
-        const own = [];
-        const others = new Map();
-        for (const n of world.querySelectorAll('[data-of]')) {
-            const of = n.dataset.of.split(' ');
-            if (!of.some(k => group.has(k))) continue;
-            if (of.every(k => group.has(k))) own.push(n);
-            else {
-                n.style.visibility = 'hidden';
-                const mine = of.find(k => group.has(k));
-                for (const k of of) if (!group.has(k)) others.set(`${mine}>${k}`, [mine, k]);
-            }
-        }
-        for (const k of group) world.querySelector(`.card[data-id="${CSS.escape(k)}"]`)?.classList.add('moving');
-        const guide = sv('svg', { class: 'lk dragguide', width: 1, height: 1 });
-        world.prepend(guide);
-        const r0 = CV.R.get(id);
-        DR = { id, drawn, own, guide, from: r0 ? [r0.x, r0.y] : null, others: [...others.values()].map(([a, k]) => [a, CV.R.get(k)]).filter(([, r]) => r),
-            paths: [] };
-        for (let i = 0; i < DR.others.length; i++) DR.paths.push(guide.appendChild(sv('path', {}, 'stroke:var(--muted);stroke-dasharray:4 5;opacity:.7')));
-    }
-    function dragFrame() {
-        dragRaf = 0;
-        if (!moving) return;
-        if (!DR || DR.id !== moving || DR.drawn !== drawn) dragSetup(moving);
-        const c = memory().cards[moving];
-        if (!DR.from || !c) return;
-        const dx = c.x - DR.from[0];
-        const dy = c.y - DR.from[1];
-        for (const n of DR.own) n.style.translate = `${dx}px ${dy}px`;
-        DR.others.forEach(([a, r], i) => {
-            const q = memory().cards[a];
-            if (!q) return;
-            DR.paths[i].setAttribute('d', `M${q.x + CW / 2},${q.y + CH / 2} L${r.x + r.w / 2},${r.y + r.h / 2}`);
-        });
-    }
-    const later = () => { if (!dragRaf) dragRaf = requestAnimationFrame(dragFrame); };
-    vp.addEventListener('pointerdown', e => {
-        if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner, .placeoffer')) return;
-        if (!camera()) return;
-        if (d.desk && e.button !== 0) return; // right-click is a menu, middle-click nothing
-        vp.setPointerCapture?.(e.pointerId);
-        pts.set(e.pointerId, [e.clientX, e.clientY]);
-        if (pts.size === 2) {
-            const [a, b] = [...pts.values()];
-            pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: camera().scale };
-            mode = 'pinch';
-            return;
-        }
-        moved = false;
-        start = { x: e.clientX, y: e.clientY, tx: camera().tx, ty: camera().ty, target: lineUnder(e.target, e.clientX, e.clientY) };
-        const gr = e.target.closest?.('[data-grip]');
-        const port = e.target.closest?.('[data-port]');
-        const card = d.desk && !port && !e.target.closest?.('[data-flip], .lockp, .junc') ? e.target.closest?.('.card[data-id]') : null;
-        const handle = d.desk ? e.target.closest?.('[data-handle]') : null;
-        const sh = SH ? e.target.closest?.('[data-dot], [data-ghost]') : null;
-        if (sh) {
-            // A dot of the shaped link, or a ghost dot (dragging it makes a new dot; a tap picks its part).
-            mode = 'dot';
-            drag = { dot: sh.dataset.dot != null ? Number(sh.dataset.dot) : null, ghost: sh.dataset.ghost != null ? Number(sh.dataset.ghost) : null };
-            drag.tapped = drag.dot ?? drag.ghost;
-        } else if (handle || (d.desk && port && PORT[port.dataset.port.split('|')[1]]?.dir === 'out' && !OV)) {
-            // Desktop: drag from a hover handle or a knob onto another card makes a link (LAYOUT "Canvas: mouse").
-            const [key, kindOrPort] = handle ? [handle.dataset.handle, handle.dataset.kind] : port.dataset.port.split('|');
-            const kind = handle ? kindOrPort : { gout: 'open', cout: 'close', glout: 'ride' }[kindOrPort];
-            mode = 'link';
-            drag = { from: key, kind, port: port?.dataset.port };
-        } else if (e.target.closest?.('.loosend') && OV?.loose) { mode = 'loose'; drag = {}; } else if (card || gr) {
-            const id = (card ?? gr).dataset.id ?? gr.dataset.grip;
-            const [wx, wy] = toWorld(e.clientX, e.clientY);
-            const c = memory().cards[id];
-            const group = picked.has(id) && picked.size > 1 ? [...picked].filter(k => memory().cards[k]) : null;
-            drag = { id, dx: wx - c.x, dy: wy - c.y, group, at: group ? Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) : null };
-            mode = 'card';
-        } else if (!OV && !port && e.target.closest?.(d.desk ? '.packframe[data-pack]' : '.packframe[data-pack] .pn') && !(d.desk && e.shiftKey)) {
-            // A pack frame moves the whole pack (#22): by its label or empty area with a mouse, by its label on a
-            // phone, where the rest of the frame pans like the canvas around it. A tap still opens the pack.
-            const name = e.target.closest('.packframe').dataset.pack;
-            const group = (CV.R.get(`pack:${name}`)?.members ?? []).filter(k => Number.isFinite(memory().cards[k]?.x));
-            if (group.length) {
-                const [wx, wy] = toWorld(e.clientX, e.clientY);
-                const c = memory().cards[group[0]];
-                drag = { id: group[0], dx: wx - c.x, dy: wy - c.y, group, at: Object.fromEntries(group.map(k => [k, { x: memory().cards[k].x, y: memory().cards[k].y }])) };
-                mode = 'card';
-            } else mode = 'pan';
-        } else if (d.desk && e.shiftKey && !e.target.closest?.('[data-port], [data-pack], [data-link], [data-row], [data-cond]')) {
-            mode = 'box';
-            const r = vp.getBoundingClientRect();
-            drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, box: el('div', 'selbox') };
-            vp.append(drag.box);
-        } else if (gr) {
-            const id = gr.dataset.grip;
-            const [wx, wy] = toWorld(e.clientX, e.clientY);
-            const c = memory().cards[id];
-            drag = { id, dx: wx - c.x, dy: wy - c.y };
-            mode = 'card';
-        } else if (port) { mode = 'port'; drag = { port: port.dataset.port }; } else mode = 'pan';
-        // A long press on empty canvas picks an entry to place there.
-        clearTimeout(holdTimer);
-        if (mode === 'pan' && d.holdEmpty && !d.desk && !OV && !e.target.closest?.('.card, [data-port], [data-pack], [data-flip], [data-open], [data-row]')) {
-            const at = { x: e.clientX, y: e.clientY };
-            holdTimer = setTimeout(() => {
-                if (moved || mode !== 'pan' || pts.size !== 1) return;
-                // A long press on empty canvas (#24): drag from here to box-select cards, or let go to place one.
-                mode = 'hold';
-                drag = { at };
-                navigator.vibrate?.(12);
-            }, 520);
-        }
-    });
-    vp.addEventListener('pointermove', e => {
-        if (!pts.has(e.pointerId)) return;
-        pts.set(e.pointerId, [e.clientX, e.clientY]);
-        if (mode === 'pinch' && pts.size === 2) {
-            const [a, b] = [...pts.values()];
-            const r = vp.getBoundingClientRect();
-            const dd = Math.hypot(a[0] - b[0], a[1] - b[1]);
-            gesture(true);
-            zoomAt(pinch.s * dd / pinch.d / camera().scale, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top, true);
-            return;
-        }
-        if (!start) return;
-        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) { moved = true; clearTimeout(holdTimer); }
-        if (!moved) return;
-        // A slip of the finger isn't a box: it takes 18px from the held spot to start one (review 2026-11-11).
-        if (mode === 'hold' && Math.hypot(e.clientX - drag.at.x, e.clientY - drag.at.y) > 18) {
-            const r = vp.getBoundingClientRect();
-            drag = { x0: drag.at.x - r.left, y0: drag.at.y - r.top, box: el('div', 'selbox') };
-            vp.append(drag.box);
-            mode = 'box';
-        }
-        if (mode === 'pan') { const v = camera(); v.tx = start.tx + e.clientX - start.x; v.ty = start.ty + e.clientY - start.y; gesture(true); viewLater(); } else if (mode === 'card' || mode === 'dot') {
-            edgeAt = { x: e.clientX, y: e.clientY, alt: e.altKey };
-            dragTo(edgeAt);
-            if (!edgeRaf) edgeRaf = requestAnimationFrame(edgeTick);
-        } else if (mode === 'link') {
-            drag.to = toWorld(e.clientX, e.clientY);
-            drawLinkGuide();
-            const h = hitAt(e.clientX, e.clientY);
-            markTarget(h?.card && h.card !== drag.from ? h : null);
-        } else if (mode === 'box') {
-            const r = vp.getBoundingClientRect();
-            const x1 = e.clientX - r.left;
-            const y1 = e.clientY - r.top;
-            Object.assign(drag.box.style, { left: `${Math.min(drag.x0, x1)}px`, top: `${Math.min(drag.y0, y1)}px`, width: `${Math.abs(x1 - drag.x0)}px`, height: `${Math.abs(y1 - drag.y0)}px` });
-            drag.x1 = x1;
-            drag.y1 = y1;
-        } else if (mode === 'port') { drag.at = toWorld(e.clientX, e.clientY); vp.style.cursor = 'crosshair'; } else if (mode === 'loose') {
-            OV.loose.at = toWorld(e.clientX, e.clientY);
-            drawOverlay();
-            const h = hitAt(e.clientX, e.clientY);
-            markTarget(h?.card && !OV.dim?.(h.card) ? h : null);
-        }
-    });
     /**
      * Lasso to make a pack (desktop, AFTER_V1): after a box select, a small box under it asks for a pack name.
      * Existing packs are offered as you type, so `town/` lists the packs inside town. Enter packs the cards;
      * Esc or a click elsewhere leaves the selection as it is.
      */
     /** After a long press let go on empty canvas: a "Place an entry here" button at the spot; a tap elsewhere drops it. */
-    function placeOffer(at) {
+    function placeOffer(at, then = p => d.holdEmpty?.(p)) {
         vp.querySelector('.placeoffer')?.remove();
         const r = vp.getBoundingClientRect();
         const b = el('button', 'placeoffer');
@@ -1063,9 +903,19 @@ export function mountCanvas(vp, d) {
         Object.assign(b.style, { left: `${Math.min(Math.max(at.x - r.left, 90), r.width - 90)}px`, top: `${at.y - r.top}px` });
         const drop = () => { b.remove(); vp.removeEventListener('pointerdown', away, true); };
         const away = ev => { if (!b.contains(ev.target)) drop(); };
-        b.addEventListener('click', () => { drop(); d.holdEmpty?.(pointAt(at.x, at.y)); });
+        b.addEventListener('click', () => { drop(); then(pointAt(at.x, at.y)); });
         vp.append(b);
         setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
+    }
+    /** P with several cards picked (desktop): the pack-name box under them, as after a phone's lasso. */
+    function packPrompt() {
+        const rs = [...picked].map(k => CV?.R.get(k)).filter(r => r && !r.pack);
+        const v = camera();
+        if (!rs.length || !v) return false;
+        const x0 = Math.min(...rs.map(r => r.x));
+        const y1 = Math.max(...rs.map(r => r.y + r.h));
+        lassoPrompt(rs.map(r => r.key), x0 * v.scale + v.tx, y1 * v.scale + v.ty);
+        return true;
     }
     function lassoPrompt(keys, x, y) {
         vp.querySelector('.lasso')?.remove();
@@ -1078,6 +928,7 @@ export function mountCanvas(vp, d) {
         const input = el('input');
         input.placeholder = `Pack ${uids.length === 1 ? 'it' : `these ${uids.length}`}: name, then Enter`;
         input.setAttribute('aria-label', 'Pack name');
+        input.dataset.ownEscape = '1'; // Esc closes this box, not a step of Back
         input.setAttribute('list', list.id);
         box.append(el('span', 'lh', '#'), input, list);
         // Unpack (#24): takes the picked entries out of every pack they are in.
@@ -1109,176 +960,15 @@ export function mountCanvas(vp, d) {
         setTimeout(() => { document.addEventListener('pointerdown', away, true); input.focus(); }, 0);
     }
 
-    /** A card or dot drag at a screen point (the pointer, or the same point again while the view edge-scrolls). */
-    function dragTo(at) {
-        if (mode === 'dot') { dotTo(at.x, at.y, at.alt); return; }
-        const [wx, wy] = toWorld(at.x, at.y);
-        moving = drag.id;
-        hideHandles();
-        const c = memory().cards[drag.id];
-        const nx = snap(wx - drag.dx);
-        const ny = snap(wy - drag.dy);
-        if (drag.group) {
-            const dx = nx - drag.at[drag.id].x;
-            const dy = ny - drag.at[drag.id].y;
-            for (const k of drag.group) Object.assign(memory().cards[k], { x: drag.at[k].x + dx, y: drag.at[k].y + dy });
-        } else Object.assign(c, { x: nx, y: ny });
-        later();
-    }
-    // Edge-scrolling: a card or dot held within 32px of the view's edge moves the camera, faster nearer the edge.
-    let edgeRaf = 0;
-    let edgeAt = null;
-    function edgeTick() {
-        edgeRaf = 0;
-        if (!edgeAt || !moved || (mode !== 'card' && mode !== 'dot')) return;
-        const r = vp.getBoundingClientRect();
-        const EDGE = 32;
-        const push = (p, lo, hi) => Math.max(-1, Math.min(1, p < lo + EDGE ? (lo + EDGE - p) / EDGE : p > hi - EDGE ? (hi - EDGE - p) / EDGE : 0));
-        const fx = push(edgeAt.x, r.left, r.right);
-        const fy = push(edgeAt.y, r.top, r.bottom);
-        if (!fx && !fy) return;
-        const v = camera();
-        v.tx += fx * 14;
-        v.ty += fy * 14;
-        applyView();
-        dragTo(edgeAt);
-        edgeRaf = requestAnimationFrame(edgeTick);
-    }
-    const end = e => {
-        clearTimeout(holdTimer);
-        if (edgeRaf) { cancelAnimationFrame(edgeRaf); edgeRaf = 0; }
-        const scrolled = edgeAt && moved && (mode === 'card' || mode === 'dot');
-        edgeAt = null;
-        if (scrolled) saveCamera();
-        if (!pts.has(e.pointerId)) return;
-        pts.delete(e.pointerId);
-        if (mode === 'pinch') { if (pts.size === 0) { mode = null; gesture(false); } return; }
-        if (!pts.size) gesture(false);
-        vp.style.cursor = '';
-        if (mode === 'pan' && moved) saveCamera();
-        if (mode === 'loose') {
-            const h = moved && e.type === 'pointerup' ? hitAt(e.clientX, e.clientY) : null;
-            markTarget(null);
-            mode = null; start = null; drag = null;
-            OV?.onLoose?.(h, OV?.loose?.at);
-            return;
-        }
-        if (mode === 'link') {
-            world.querySelector('.linkguide')?.remove();
-            const h = moved && e.type === 'pointerup' ? hitAt(e.clientX, e.clientY) : null;
-            markTarget(null);
-            const from = drag.from;
-            const kind = drag.kind;
-            const portKey = drag.port;
-            mode = null; start = null; drag = null;
-            if (h?.card && h.card !== from) d.link?.(kind, from, h.card);
-            else if (!moved && portKey) tapAt(e.target, e);
-            return;
-        }
-        if (mode === 'hold') {
-            // Let go without a box: offer Place here as a button to tap, so a lasso cut short never opens the picker.
-            const at = drag.at;
-            mode = null; start = null; drag = null;
-            placeOffer(at);
-            return;
-        }
-        if (mode === 'box') {
-            drag.box.remove();
-            if (moved && drag.x1 !== undefined) {
-                const [ax, ay] = toWorldLocal(Math.min(drag.x0, drag.x1), Math.min(drag.y0, drag.y1));
-                const [bx, by] = toWorldLocal(Math.max(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
-                const inside = [...CV.R.values()].filter(r => !r.pack && r.x < bx && r.x + r.w > ax && r.y < by && r.y + r.h > ay).map(r => r.key);
-                setPicked(e.ctrlKey || e.metaKey ? new Set([...picked, ...inside]) : new Set(inside));
-                if (inside.length) lassoPrompt([...picked], Math.min(drag.x0, drag.x1), Math.max(drag.y0, drag.y1));
-            }
-            mode = null; start = null; drag = null;
-            return;
-        }
-        if (mode === 'dot') {
-            const was = drag;
-            mode = null; start = null; drag = null;
-            if (moved) {
-                if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
-                d.save();
-                d.shapeSet?.({ seg: null, dot: was.dot }, true);
-                return;
-            }
-            if (was.ghost != null) { d.shapeSet?.({ seg: was.ghost, dot: null }); return; }
-            // A tap picks a dot; a second tap on it soon after takes it away (a double-click, with a mouse).
-            const now = performance.now();
-            if (lastDotTap && lastDotTap.id === SH.l.id && lastDotTap.i === was.dot && now - lastDotTap.t < 350) { lastDotTap = null; removeShapeDot(was.dot); return; }
-            lastDotTap = { id: SH.l.id, i: was.dot, t: now };
-            d.shapeSet?.({ seg: null, dot: was.dot });
-            return;
-        }
-        if (mode === 'card' && moved) { moving = null; DR = null; if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; } d.save(); render(); } else if (mode === 'port' && moved && drag.at) {
-            const [key, kind] = drag.port.split('|');
-            const r = CV.R.get(key);
-            const [x, y] = drag.at;
-            const dist = { t: Math.abs(y - r.y), b: Math.abs(y - r.y - r.h), l: Math.abs(x - r.x), r: Math.abs(x - r.x - r.w) };
-            const side = Object.entries(dist).sort((a, b) => a[1] - b[1])[0][0];
-            if (!key.startsWith('pack:')) {
-                const c = (memory().cards[key] ??= {});
-                (c.ports ??= {})[kind] = SIDE_NAME[side];
-                d.save();
-                render();
-                d.toast('Port moved');
-            }
-        } else if (!moved && start) {
-            // Desktop: Shift/Ctrl-click adds a card to the selection; a click selects it alone (then inspects it).
-            const c = d.desk ? start.target.closest?.('.card[data-id]') : null;
-            if (c && (e.shiftKey || e.ctrlKey || e.metaKey) && !OV) {
-                const s2 = new Set(picked);
-                s2.has(c.dataset.id) ? s2.delete(c.dataset.id) : s2.add(c.dataset.id);
-                setPicked(s2);
-            } else if (SH && start.target.closest?.('.lhit')?.dataset.lid === SH.l.id) {
-                // A tap on the shaped line picks the part of it under the finger.
-                const [x, y] = toWorld(e.clientX, e.clientY);
-                const n = LINKS.nearest(SH.l.id, { x, y });
-                d.shapeSet?.({ seg: n?.segment ?? 0, dot: null });
-            } else {
-                if (d.desk && !OV) setPicked(c ? new Set([c.dataset.id]) : new Set(), true);
-                tapAt(start.target, e);
-            }
-        }
-        moving = null;
-        mode = null; start = null; drag = null;
-    };
-    vp.addEventListener('pointerup', end);
-    vp.addEventListener('pointercancel', end);
-    vp.addEventListener('wheel', e => {
-        e.preventDefault();
-        const r = vp.getBoundingClientRect();
-        gesture(true);
-        gestureTimer = setTimeout(() => gesture(false), 250);
-        zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top, true);
-    }, { passive: false });
-    // Keyboard: the canvas tools are buttons; a focused card opens with Enter.
-    vp.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset?.id) d.open(e.target.dataset.id); });
-
-    const toWorldLocal = (x, y) => { const v = camera(); return [(x - v.tx) / v.scale, (y - v.ty) / v.scale]; };
     /** Desktop selection; `quiet` leaves telling the app to the tap that follows. */
     function setPicked(next, quiet = false) {
         picked = next;
         for (const n of world.querySelectorAll('.card[data-id]')) n.classList.toggle('picked', picked.has(n.dataset.id));
         if (!quiet) d.onPick?.([...picked]);
     }
-    function drawLinkGuide() {
-        world.querySelector('.linkguide')?.remove();
-        const r = CV?.R.get(drag.from);
-        if (!r || !drag.to) return;
-        const col = { open: 'var(--p-open)', close: 'var(--p-close)', ride: 'var(--p-glue)' }[drag.kind];
-        const line = sv('svg', { class: 'lk linkguide', width: 1, height: 1 });
-        line.append(sv('path', { d: `M${r.x + r.w / 2},${r.y + r.h / 2} L${drag.to[0]},${drag.to[1]}` }, `stroke:${col};stroke-dasharray:6 5`));
-        world.append(line);
-    }
-
     // ---- desktop hover: handles under a card at once, its links bright after 350ms (LAYOUT "Canvas: mouse")
     let hoverKey = null;
     let focusKey = null;
-    let litKey = null; // the hovered card whose links were lit, to light again on its handles
-    let focusTimer = null;
-    let leaveTimer = null;
     function showHandles(key) {
         world.querySelector('.hhandles')?.remove();
         const r = CV?.R.get(key);
@@ -1297,6 +987,12 @@ export function mountCanvas(vp, d) {
             h.title = label;
             box.append(h);
         }
+        // The card's menu (the right button only moves the view): Menu key or Shift F10 for a selected card too.
+        const more = el('i', 'hh hmore', '⋯');
+        more.dataset.more = key;
+        more.title = 'Card menu (Shift F10)';
+        more.setAttribute('aria-label', 'Card menu');
+        box.append(more);
         world.append(box);
     }
     function hideHandles() { world.querySelector('.hhandles')?.remove(); }
@@ -1327,56 +1023,6 @@ export function mountCanvas(vp, d) {
         vp.classList.remove('focusdim');
         for (const n of world.querySelectorAll('.lit')) n.classList.remove('lit');
     }
-    if (d.desk) {
-        vp.addEventListener('pointermove', e => {
-            if (pts.size || e.buttons) return;
-            const c = e.target.closest?.('.card[data-id]');
-            const onHandles = e.target.closest?.('.hhandles');
-            const key = c?.dataset.id ?? (onHandles ? hoverKey : null);
-            if (key) {
-                clearTimeout(leaveTimer);
-                if (key !== hoverKey) {
-                    hoverKey = key;
-                    litKey = null;
-                    showHandles(key);
-                    clearTimeout(focusTimer);
-                    focusTimer = setTimeout(() => { if (hoverKey === key && !OV && !mode) { applyFocus(key); litKey = key; } }, 350);
-                } else if (litKey === key && focusKey !== key && !OV && !mode) applyFocus(key); // back from the gap
-                return;
-            }
-            if (!hoverKey) return;
-            // Off the card: everything lights up again at once (#23). The handles stay a moment, so crossing to them
-            // doesn't lose them; reaching them lights the card's links again.
-            if (focusKey) clearFocus();
-            clearTimeout(leaveTimer);
-            leaveTimer = setTimeout(() => { hoverKey = null; litKey = null; clearTimeout(focusTimer); hideHandles(); }, 160);
-        });
-        vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); hoverKey = null; hideHandles(); clearFocus(); });
-        vp.addEventListener('dblclick', e => {
-            // The press captured the pointer, so the event's target is the view: look under the pointer instead.
-            if (SH) {
-                const under = vp.getRootNode().elementFromPoint?.(e.clientX, e.clientY);
-                if (under?.closest?.('[data-dot], [data-ghost]')) return;
-                if (hitAt(e.clientX, e.clientY)?.link?.id === SH.l.id) { addDotAt(e.clientX, e.clientY, e.altKey); return; }
-            }
-            const key = hitAt(e.clientX, e.clientY)?.card;
-            if (key && (key.startsWith('id:') || key.startsWith('uid:'))) d.openText?.(key);
-        });
-        vp.addEventListener('contextmenu', e => {
-            if (e.target.closest('.canvas-tools, .panelBtn')) return;
-            e.preventDefault();
-            const c = e.target.closest?.('.card[data-id]');
-            if (c) { if (!picked.has(c.dataset.id)) setPicked(new Set([c.dataset.id]), true); d.cardMenu?.(c.dataset.id, { x: e.clientX, y: e.clientY }); return; }
-            const ln = lineUnder(e.target, e.clientX, e.clientY).closest?.('.lhit');
-            if (ln && CV.links[ln.dataset.link]) {
-                const l = CV.links[ln.dataset.link];
-                d.linkMenu?.(l, !!memory().cards[l.from]?.links?.[l.key], { x: e.clientX, y: e.clientY });
-                return;
-            }
-            d.emptyMenu?.(pointAt(e.clientX, e.clientY), { x: e.clientX, y: e.clientY });
-        });
-    }
-
     function flip(key, delta) {
         const e = CV.m.byId(key);
         const n = e.masks.length + 1;
@@ -1471,9 +1117,22 @@ export function mountCanvas(vp, d) {
         return { x: snap(x - CW / 2), y: snap(y - CH / 2) };
     }
 
+    // The input (canvas-input.js) reaches the canvas only through this.
+    wireInput({
+        vp, world, d, camera, saveCamera, applyView, viewLater, gesture, memory, toWorld, zoomAt, render, setPicked,
+        drawOverlay, dotTo, addDotAt, removeShapeDot, hideHandles, showHandles, applyFocus, clearFocus, lineUnder, hitAt,
+        markTarget, tapAt, pointAt, placeOffer, lassoPrompt,
+        cancelLive: () => { if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; } },
+        /** The part of the shaped line nearest a screen point. */
+        partAt: (cx, cy) => { const [x, y] = toWorld(cx, cy); return LINKS.nearest(SH.l.id, { x, y })?.segment; },
+        get CV() { return CV; }, get OV() { return OV; }, get SH() { return SH; }, get picked() { return picked; },
+        get drawn() { return drawn; }, get moving() { return moving; }, set moving(v) { moving = v; },
+        get hoverKey() { return hoverKey; }, set hoverKey(v) { hoverKey = v; }, get focusKey() { return focusKey; },
+    });
+
     return {
-        render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt,
-        shapeState, patchShape, removeShapeDot, resetShape, resetShapeOf, refreshShaping: () => drawShaping(),
+        render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
+        shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(),
         picked: () => [...picked], setPicked, phoneFocus,
         get view() { return CV; }, get camera() { return camera(); },
     };

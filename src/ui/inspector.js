@@ -205,8 +205,11 @@ export function renderInspector(box, x) {
 
     if (c.moment === true) momentHead(body, x);
     else {
-        const pre = el('button', 'ipre');
-        pre.type = 'button';
+        // Phones (5b): the common actions first. Edit text carries the text's first two lines and opens the entry
+        // (on a phone that is where the text is edited), beside Add note.
+        const phone = !x.desk;
+        const pre = el(phone ? 'span' : 'button', 'ipre');
+        if (!phone) pre.type = 'button';
         pre.textContent = (e.content ?? '').trim() || (x.desk ? 'No text yet. Click to write it.' : 'No text yet. Tap to write it.');
         // A tracker's main text is only its start value: say so, or a lone "2" reads as the value now.
         if (c.written && (e.content ?? '').trim()) {
@@ -214,8 +217,22 @@ export function renderInspector(box, x) {
             pre.title = 'The value in this chat is under Tracker.';
         }
         if (!(e.content ?? '').trim()) pre.classList.add('empty');
-        pre.addEventListener('click', () => (x.desk ? x.setTab('text') : x.openEntry()));
-        body.append(pre);
+        if (phone) {
+            const acts = el('div', 'iacts');
+            const edit = el('button', 'iedit');
+            edit.type = 'button';
+            const lab = el('span', 'ieditlab');
+            lab.innerHTML = ic('edit', 's');
+            lab.append('Edit text');
+            edit.append(lab, pre);
+            edit.addEventListener('click', () => x.openEntry());
+            acts.append(edit);
+            if (x.note) acts.append(btn('inote', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));
+            body.append(acts);
+        } else {
+            pre.addEventListener('click', () => x.setTab('text'));
+            body.append(pre);
+        }
     }
 
     if (x.closed) {
@@ -314,6 +331,10 @@ export function renderInspector(box, x) {
     if (c.moment === true) {
         if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
         foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
+    } else if (!x.desk) {
+        // Phones: the rare actions last, quieter (the common ones are at the top).
+        foot.classList.add('iquiet');
+        if (x.takeOff) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
     } else {
         foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
         if (x.note) foot.append(btn('linkish', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));

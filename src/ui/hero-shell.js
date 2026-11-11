@@ -272,6 +272,9 @@ export function createHeroShell(A) {
             lasso: lassoFor(book, data),
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
+            // A loose end let go on empty canvas: the entry picked there is placed and takes the loose end.
+            looseEmpty: at => placePicker(book, data, at, key => { const end = barApi(book).nodeOf(key); if (end) H.bar.loosePick?.(end); }),
+            undo: () => historyStep(false), // a two-finger tap
             tapTarget: (hit, at) => barTap(book, hit, at),
             shaping: () => barShaping(book),
             shapeSet: (pick, changed) => barShapeSet(pick, changed),
