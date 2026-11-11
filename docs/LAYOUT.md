@@ -241,7 +241,7 @@ Move (to a folder, No folder, + New folder) and Export. Import lives under +.
 | Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (⌄) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe (no icon), name with a teal dot when the entry has story logic, keywords, on/off switch, ⋯. The switch is quiet while the entry is on (a gray track) and stands out only when it is off (an accent outline) |
 | Tap a row | Opens the entry page in this tab (from Home's tab, in a new tab) |
-| Entry ⋯ | Open in new tab · Duplicate · Move to another book · Copy as text · Delete |
+| Entry ⋯ | Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
 
 - The strategy stripe and dot use the strategy colors (VISUAL.md). Off rows are
   dimmed and gray.
@@ -308,6 +308,7 @@ Cards move only by the grip (the six dots), so a drag anywhere else pans.
 | Button | What it does |
 |--------|--------------|
 | Panel button (top left) | Opens and closes the entry panel |
+| Undo and redo arrows (top left, beside it) | Step back and forward through the book's undo history (Sheets and toasts). Greyed out when there is nothing to step to, and while a piece is set up in the strip |
 | Checks chip (top right) | "2 dead · 1 clash": the book's dead branches and keyword clashes (CONCEPTS 5), read from the book alone. Its mark is red when anything is dead, yellow when there are only clashes. Tap: the Dead branches or Keyword clashes sheet, or a choice of the two when there are both. Gone when the book is clean; clashes aren't counted with Mark keyword clashes off |
 | "?" (top right) | Explain mode (below) |
 | Fit (right) | Zooms out until every card shows. On first open the canvas fits the width of the screen instead, never below 80% zoom, from the top: a tall book scrolls down rather than shrinking until it can't be read |
@@ -760,6 +761,7 @@ The shared entry page, as in Normal mode, with Story logic always open and
 | + − | Zoom |
 | / | Filter the entry list |
 | Delete | Take the selected card off the canvas (only without links) |
+| Ctrl Z, Ctrl Shift Z / Ctrl Y | Undo, redo |
 | Esc | Menu, armed piece, strip (Cancel), text box, selection, then closes WI Hero |
 
 Links are drawn by the link engine on desktop too (VISUAL 7.3,
@@ -781,7 +783,7 @@ Also reachable from ⌄ › Guide. The text is in `src/ui/guide.js`.
   example, the fine print (the rules that bite), common mistakes, and **Show
   me in the Sample book** (opens the Sample book on a matching card, when the
   Sample book is there).
-- Then "On the screen": Cards and lines, Fit, Tidy layout, Dead branches and
+- Then "On the screen": Cards and lines, Fit, Tidy layout, Undo and redo, Dead branches and
   clashes (the checks chip), Entry panel, the strip, the inspector, Preview
   highlights and Also active.
 - Back closes the Guide (phones); its × closes the tab.
@@ -798,7 +800,7 @@ also the ? key), turns explain mode on **for one tap**:
   element's own action, and ends the mode. Back or Escape cancels.
 - What can be explained: piece bar chips, ports, lines, and/or junctions, lock
   and wait pills, pack frames, mask stacks, Moment cards, other cards, the
-  strip, inspector rows, Fit, Tidy, the checks chip, the panel button, Preview
+  strip, inspector rows, Fit, Tidy, the undo arrows, the checks chip, the panel button, Preview
   highlights and Also active.
 
 ### Direct "?"
