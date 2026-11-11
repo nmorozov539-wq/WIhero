@@ -298,8 +298,9 @@ export function createHeroShell(A) {
         const box = el('div', 'histbtns');
         const u = btn('', ic('undo'), () => historyStep(false), 'Undo (Ctrl Z)');
         const r = btn('', ic('redo'), () => historyStep(true), 'Redo (Ctrl Shift Z)');
-        u.disabled = !undoHistory.canUndo(book);
-        r.disabled = !undoHistory.canRedo(book);
+        // While a piece is set up in the strip, its edits aren't steps yet: Done or Cancel first.
+        u.disabled = !!H.bar.edit || !undoHistory.canUndo(book);
+        r.disabled = !!H.bar.edit || !undoHistory.canRedo(book);
         u.title = 'Undo (Ctrl Z)';
         r.title = 'Redo (Ctrl Shift Z)';
         box.append(u, r);
