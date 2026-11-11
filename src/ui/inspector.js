@@ -535,7 +535,7 @@ const SETTINGS = ['by', 'once'];
 
 /**
  * Who triggers and Once (#14, #31): settings of the entry itself, not links, so they are a selector and a switch
- * at the top of its logic, the same selector Moments and locks use, rather than pieces to add.
+ * in the folded Settings row after its rules, the same selector Moments and locks use, rather than pieces to add.
  */
 function entrySettings(body, x, c, update) {
     const box = el('div', 'isets');
