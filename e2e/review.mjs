@@ -137,6 +137,25 @@ const inView = (page, sel, root) => page.evaluate(([s, r]) => {
     await page.close();
 }
 
+// 2b. The Tracker chip on a card: the entry becomes a tracker at once, with a toast that names it and an Undo.
+{
+    const page = await open(1366, 768);
+    await toHero(page);
+    const cfgOf = name => page.evaluate(n => { const e = Object.values(wihero.library.peek('WIHero-Sample').entries).find(x => x.comment?.startsWith(n)); return (e.extensions?.wihero ?? {}).written ?? null; }, name);
+    assert.equal(await cfgOf('Ferry'), null);
+    await $(page, '.pchip[data-piece="tracker"]').click();
+    await card(page, 'Ferry').click();
+    const t = $(page, '.toast.show, .toast.act').filter({ hasText: 'is now a tracker' });
+    await t.waitFor();
+    assert.match(await t.textContent(), /Ferry \(sticky 7\) is now a tracker/);
+    assert.notEqual(await cfgOf('Ferry'), null);
+    await t.locator('button', { hasText: 'Undo' }).click();
+    await page.waitForTimeout(200);
+    assert.equal(await cfgOf('Ferry'), null, 'Undo takes the tracker away');
+    ok('the Tracker chip on a card says the entry is now a tracker, and its Undo puts it back');
+    await page.close();
+}
+
 // 3. Light theme: the piece colors deepen, so glue, the pack frame and its ANY label read on a pale canvas.
 {
     const page = await open(1366, 768, '&theme=light');

@@ -660,7 +660,7 @@ export function createApp(deps) {
     const heroBar = () => (heroBarView ??= createHeroBar({
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
         render: () => render(), root, saveSettings, settings, sortBy: () => sortBy(), tidyNow,
-        canvas: () => heroCanvas(),
+        canvas: () => heroCanvas(), historyStep,
         entryTemplate: deps.entryTemplate,
     }));
     function barAct(...a) { return heroBar().barAct(...a); }
