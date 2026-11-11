@@ -16,14 +16,21 @@
 const LIMIT = 100;
 const MERGE_MS = 1000;
 
-/** The book's settings without the camera, and without empty parts (made on first use, not edits). */
+/**
+ * The parts of a book's settings that are edits: its canvas (without the camera: looking around is not an edit),
+ * its folders and its new-entry defaults. Bookkeeping (`edited`, `seen`, the Snapshots list) is left out, so a save
+ * is never a step and Undo never brings back an old timestamp or a deleted snapshot. Empty parts are left out too:
+ * they are made on first use, not by an edit.
+ */
+const TRACKED = ['canvas', 'folders', 'folderList', 'defaults'];
 function settingsOf(settings, book) {
     const s = settings.books?.[book];
     if (!s) return {};
     const out = {};
-    for (const [k, v] of Object.entries(s)) {
-        if (k === 'canvas' && v && typeof v === 'object') { const { camera, ...canvas } = v; out.canvas = canvas; continue; }
-        if (v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length) continue;
+    for (const k of TRACKED) {
+        let v = s[k];
+        if (k === 'canvas' && v && typeof v === 'object') { const { camera, ...canvas } = v; v = canvas; }
+        if (v === undefined || (v && typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length)) continue;
         out[k] = v;
     }
     return out;
@@ -98,12 +105,14 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
             if (st.original !== undefined) d.originalData = JSON.parse(st.original);
         }, { quiet: true });
         ourVersion = library.version;
-        const camera = settings.books?.[book]?.canvas?.camera;
+        // Only the tracked parts go back; the camera and the bookkeeping stay as they are now.
+        const now = (settings.books[book] ??= {});
+        const camera = now.canvas?.camera;
         const s = JSON.parse(st.settings);
-        if (camera) { s.canvas ??= {}; s.canvas.camera = camera; }
-        s.defaults ??= {}; // the parts left out when empty (bookSettings makes them)
-        s.folders ??= {};
-        settings.books[book] = s;
+        for (const k of TRACKED) { if (k in s) now[k] = s[k]; else delete now[k]; }
+        if (camera) { now.canvas ??= {}; now.canvas.camera = camera; }
+        now.defaults ??= {}; // the parts left out when empty (bookSettings makes them)
+        now.folders ??= {};
         saveSettings();
     }
 

@@ -102,3 +102,21 @@ test('a change from outside WI Hero starts the history over', async () => {
     assert.equal(history.canUndo('b'), false);
     assert.equal(books.b.entries[0].comment, 'ST');
 });
+
+test('bookkeeping in the book settings (a save time, snapshots) is never a step and survives an undo', async () => {
+    const { books, settings, history, library, tick } = setup();
+    history.touch('b');
+    library.change('b', d => { d.entries[0].comment = 'B'; });
+    await tick();
+    settings.books.b.edited = 1234; // the library's save, a moment later
+    settings.books.b.snapshots = [{ at: 1 }];
+    history.touch('b', { redraw: true });
+    assert.ok(history.undo('b'));
+    assert.equal(books.b.entries[0].comment, 'A', 'one undo reaches the edit');
+    assert.equal(settings.books.b.edited, 1234);
+    assert.deepEqual(settings.books.b.snapshots, [{ at: 1 }]);
+    settings.books.b.edited = 5678; // the undo's own save
+    history.touch('b', { redraw: true });
+    assert.equal(history.canUndo('b'), false);
+    assert.ok(history.canRedo('b'), 'a save after undo keeps redo');
+});
