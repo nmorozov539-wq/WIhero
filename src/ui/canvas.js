@@ -552,6 +552,8 @@ export function mountCanvas(vp, d) {
         drawOverlay();
         if (d.desk && hoverKey && CV.R.has(hoverKey)) showHandles(hoverKey);
         if (d.desk && focusKey) applyFocus(focusKey);
+        // Phones have no hover: the card whose inspector is open is the focused one, and the rest dims as on desktop.
+        if (!d.desk) phoneFocus();
         drawShaping();
     }
 
@@ -1296,6 +1298,13 @@ export function mountCanvas(vp, d) {
             n.classList.toggle('lit', on);
         }
     }
+    /** Phones have no hover: the card whose inspector is open is the focused one, and the rest dims as on desktop. */
+    function phoneFocus() {
+        if (d.desk) return;
+        const f = d.focused?.() ?? null;
+        if (f && CV?.R.has(f) && !OV) applyFocus(f);
+        else if (focusKey) clearFocus();
+    }
     function clearFocus() {
         focusKey = null;
         vp.classList.remove('focusdim');
@@ -1448,7 +1457,7 @@ export function mountCanvas(vp, d) {
     return {
         render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt,
         shapeState, patchShape, removeShapeDot, resetShape, resetShapeOf, refreshShaping: () => drawShaping(),
-        picked: () => [...picked], setPicked,
+        picked: () => [...picked], setPicked, phoneFocus,
         get view() { return CV; }, get camera() { return camera(); },
     };
 }

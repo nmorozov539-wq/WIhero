@@ -114,6 +114,7 @@ export function createHeroInspector(A) {
             }
             main.querySelector('.insp')?.remove();
             inspectorFor(book, data);
+            canvas().phoneFocus?.();
             canvas().reveal(key, 0.5);
             return;
         }

@@ -64,6 +64,12 @@ const inView = (page, sel, root) => page.evaluate(([s, r]) => {
     assert.equal(pieces.at(-1), 'settings', pieces.join());
     assert.equal(await $(page, '.insp .isetpc.open').count(), 0, 'settings start folded on a card with rules');
     await shot(page, 'phone-storm');
+    assert.equal(await $(page, '.vp.focusdim').count(), 1, 'the canvas dims around the tapped card');
+    assert.equal(await $(page, '.vp .card.lit').filter({ hasText: /^Storm/ }).count(), 1);
+    assert.equal(await $(page, '.vp .card.lit').filter({ hasText: 'Lantern' }).count(), 0);
+    const titleLines = await $(page, '.vp .card').filter({ hasText: 'Road: leaving' }).locator('.t').evaluate(n => Math.round(n.getBoundingClientRect().height / parseFloat(getComputedStyle(n).lineHeight)));
+    assert.equal(titleLines, 2, 'a long title wraps to two lines on a phone');
+    ok('phone: a tapped card lights its links and dims the rest; a long title wraps to two lines');
     ok('phone: Storm\'s first rule shows on the half sheet without scrolling, its settings folded below');
     await $(page, '.insp .isetpc .pct').click();
     await $(page, '.insp .isetpc.open .tgrid').waitFor();
@@ -85,9 +91,40 @@ const inView = (page, sel, root) => page.evaluate(([s, r]) => {
     const seg = await inView(page, '.hinsp .iseg', '.hinsp');
     assert.ok(seg && seg.right <= seg.boxRight + 0.5, `Anyone / You / Character fits: ${JSON.stringify(seg)}`);
     await shot(page, 'desk-320');
+    await $(page, '.pbar.more-r .pmore').waitFor();
+    const momentHidden = await $(page, '.pchip[data-piece="moment"]').evaluate(n => n.getBoundingClientRect().right > n.closest('.pchips').getBoundingClientRect().right);
+    assert.ok(momentHidden, 'with the inspector docked the bar is cut before Moment');
+    await $(page, '.pmore').click();
+    await page.waitForTimeout(600);
+    assert.ok(await $(page, '.pbar.more-l').count(), 'scrolled on, the left edge fades');
+    const momentShown = await $(page, '.pchip[data-piece="moment"]').evaluate(n => n.getBoundingClientRect().right <= n.closest('.pchips').getBoundingClientRect().right + 1);
+    assert.ok(momentShown, 'the arrow brings Moment into view');
+    await shot(page, 'desk-pbar');
+    ok('desktop: a piece bar wider than its room fades at the cut and its arrow scrolls Moment into view');
     const cells = await $(page, '.hinsp .tcell').evaluateAll(n => n.map(c => Math.round(c.getBoundingClientRect().top)));
     assert.equal(new Set(cells).size, 2, `ST timing in two rows at 320px: ${cells}`);
     ok('desktop, 320px inspector: a card with no rules opens on its settings; Anyone / You / Character and ST timing fit');
+    await page.close();
+}
+
+// 3. Light theme: the piece colors deepen, so glue, the pack frame and its ANY label read on a pale canvas.
+{
+    const page = await open(1366, 768, '&theme=light');
+    await toHero(page);
+    assert.equal(await page.evaluate(() => document.querySelector('#wihero-editor').shadowRoot.querySelector('.wih').dataset.tone), 'light');
+    const contrast = await page.evaluate(() => {
+        const wih = document.querySelector('#wihero-editor').shadowRoot.querySelector('.wih');
+        const rgb = v => { const c = document.createElement('canvas').getContext('2d'); c.fillStyle = v; c.fillRect(0, 0, 1, 1); return [...c.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        const lum = ([r, g, b]) => { const f = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+        const cs = getComputedStyle(wih);
+        const bg = lum(rgb(getComputedStyle(wih.querySelector('.vp')).backgroundColor));
+        const out = {};
+        for (const k of ['--p-glue', '--p-pack', '--p-open', '--p-close', '--p-mask', '--p-track']) { const l = lum(rgb(cs.getPropertyValue(k).trim())); out[k] = +((Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05)).toFixed(2); }
+        return out;
+    });
+    for (const [k, v] of Object.entries(contrast)) assert.ok(v >= 3, `${k} reads on the light canvas (${v}:1)`);
+    await shot(page, 'light');
+    ok(`light theme: every piece color is at least 3:1 against the canvas (${Object.values(contrast).join(', ')})`);
     await page.close();
 }
 

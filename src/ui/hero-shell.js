@@ -279,7 +279,7 @@ export function createHeroShell(A) {
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (S.desk) { H.insp = null; heroInspector(book, data); return; }
-                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); }
+                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); heroCanvas?.phoneFocus?.(); }
             },
             ...(S.desk ? deskCanvas(book, data) : {}),
         });

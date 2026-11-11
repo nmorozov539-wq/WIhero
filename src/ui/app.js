@@ -27,6 +27,14 @@ import { createHeroInspector } from './hero-inspector.js';
 import { SAMPLE, createExplain } from './explain.js';
 import { deskNormal } from './desk.js';
 
+/** "light" when the theme's text is dark (a light theme), so the piece colors can deepen (VISUAL 2). */
+function toneOf(root) {
+    const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/.exec(getComputedStyle(root).color);
+    if (!m) return 'dark';
+    const [r, g, b] = m.slice(1, 4).map(Number);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'light' : 'dark';
+}
+
 /**
  * @param {object} deps
  *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }
@@ -265,6 +273,7 @@ export function createApp(deps) {
         pendingRender = false;
         undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
+        root.dataset.tone = toneOf(root);
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
         shape();

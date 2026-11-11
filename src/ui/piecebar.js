@@ -98,6 +98,17 @@ export function mountPieceBar(x) {
         }
         // Desktop: a hint. Both layouts: while a chip is armed, a banner that says what to tap, with Cancel.
         if (x.desk) bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
+        // A bar wider than its room fades at the cut edge, with an arrow that scrolls it (review 2026-11-11).
+        const more = btn('pmore', ic('right', 's'), () => bar.scrollBy({ left: bar.clientWidth * 0.7, behavior: 'smooth' }), 'More pieces');
+        bottom.append(more);
+        const edges = () => {
+            const right = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
+            bottom.classList.toggle('more-r', right);
+            bottom.classList.toggle('more-l', bar.scrollLeft > 4);
+        };
+        bar.addEventListener('scroll', edges, { passive: true });
+        requestAnimationFrame(edges);
+        if (typeof ResizeObserver === 'function') new ResizeObserver(edges).observe(bar);
         if (B.armed) bottom.prepend(armBanner(B.armed));
         armOverlay();
         return;
