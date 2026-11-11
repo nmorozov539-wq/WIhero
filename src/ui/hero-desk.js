@@ -144,7 +144,7 @@ export function createHeroDesk(A) {
                 }
                 made.push([cardKey(src), copy.uid, entryFolder(book, src)]);
             }
-        });
+        }, { quiet: true }); // drawn once below, with the copies placed: one undo step
         const mem = canvasMemory(bookSettings(settings, book));
         const fresh = library.peek(book);
         const copies = [];

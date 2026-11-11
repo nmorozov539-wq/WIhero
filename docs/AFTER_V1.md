@@ -57,6 +57,18 @@ Asked for during the feature freeze. Both need a new system; undo got an excepti
 - **Granular undo: one history over text, params, logic and layout.** *Built in 0.42.0 as a freeze exception (user, 2026-11-11): Ctrl Z / Ctrl Shift Z and the canvas's arrows, see LAYOUT "Sheets and toasts".*
 - **Gating on a tracker value** ("open *Rich* when Gold is at least 100"). Needs comparisons, which CONCEPTS 9 keeps out for now. See [TRACKERS.md](TRACKERS.md) section 8.
 
+## From the canvas controls study, 2026-11-11
+
+Compared with node editors and design canvases (Blender, Unreal, ComfyUI, Figma, Miro, tldraw, Obsidian). The controls the user approved shipped in the canvas controls PR; these were agreed for after V1, since each is a new view or a new tool.
+
+- **Minimap.** A small overview of the whole book in a corner, the view's box on it, click or drag to jump.
+- **Select linked.** Pick a card and everything it links to (or the whole chain) in one go.
+- **Align and distribute.** Line up the selected cards, or space them evenly.
+- **Knife.** Drag across lines to cut every link it crosses.
+- **Copy between books.** Copy cards with their text into another book; links come along only between the copied cards.
+- **Bookmarks.** Saved views of a big canvas, to jump between its regions.
+- **Collapse.** Fold a pack (or a chain) into one card to tidy a big canvas.
+
 ## Brainstorm, 2026-11-09
 
 A no-commitment brainstorm. Nothing here is planned; each line is the idea plus any catch we spotted.
@@ -71,7 +83,7 @@ A no-commitment brainstorm. Nothing here is planned; each line is the idea plus 
 
 ### Canvas and editor
 
-- **Lasso to make a pack.** *Built: Shift-drag a box on desktop, or long press and drag on a phone, then type the name.* Drag a box, the cards inside light up, type a name. Can add to an existing pack; typing `town/` offers subpacks.
+- **Lasso to make a pack.** *Built: drag a box on desktop and press P, or long press and drag on a phone, then type the name.* Drag a box, the cards inside light up, type a name. Can add to an existing pack; typing `town/` offers subpacks.
 - **Drag in and out of packs.** Dropping a card on a frame joins the pack. Leaving is the hard part: a frame wraps its members, so dragging a card away just stretches it. Leaving needs a clear gesture (a "pop" past the edge, or a held key). Pulling a card out of `town/inn` shouldn't drop it from `town`.
 - **Folders in Hero mode, with motifs.** A folder side panel in Hero mode, the same folders as Normal mode. Each folder sets an abstract look for its cards: square corners, or portrait cards (taller instead of wider). Folders suit this better than packs because an entry has only one folder. Catches: portrait cards change where pieces sit and how links route, since card sides turn with the flow direction; and it's a scope change, since Hero mode leaves folders out today.
 - **Folder symbols and a far zoom.** Each folder gets a symbol. Zoomed far out, every card becomes a circle with its folder's symbol, and link colours show how the book is wired.

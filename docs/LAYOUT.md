@@ -3,7 +3,7 @@
 Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). It
-describes the build as of 0.43.0, and every decision is listed in
+describes the build as of 0.44.0, and every decision is listed in
 [BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop (where ST uses its desktop layout, wider than 1000px) has
@@ -65,7 +65,7 @@ pick shows its effect behind it.
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
 | View / Book | Home: Open books in (Normal mode, Hero mode); on desktop also Show books as (Tiles, List). Book page: Sort by (List order, Prompt order, A–Z, Largest first, Key words first, Permanent first, Vectorized first; inside each folder. List order is ST's list position, which drag changes; Prompt order is the Order parameter, shown on each row and editable there: a box on desktop, a button that asks on phones; Largest first sorts by the rough token count and shows it on each row) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. Then Guide › |
-| Canvas | | Tidy layout · Legend (switch) · Show chat state (switch, off by default) |
+| Canvas | | Tidy layout · Legend (switch) · Show chat state (switch, off by default) · on desktop, Mouse wheel (Zoom, Scroll) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) · Mark keyword clashes (switch, on by default) | The same |
 | Tabs | Close other tabs | Close other tabs |
 
@@ -292,8 +292,10 @@ theme's own background, solid, with a faint dot grid.
 
 | Gesture | Result |
 |---------|--------|
-| Drag empty canvas | Pan |
-| Pinch, or mouse wheel | Zoom around the fingers or pointer |
+| Drag empty canvas | Pan. One finger works the canvas; two fingers only move the view |
+| Two fingers | Pan and zoom at once, as in a map: the point under their middle stays under it while the spread sets the zoom. Lift one and the other pans on from where it is, without a jump (never a tap). A third finger is ignored |
+| Two-finger tap | Undo (the second finger lands within 250ms of the first, both are up within 300ms, neither moves 10px). The view goes back as it was, with a short buzz and the Undone toast |
+| Mouse wheel | Zooms around the pointer (any pointer on the phone layout follows these rules; a finger on the desktop layout follows them too) |
 | Tap a card | Opens the inspector for that entry (with a piece armed, the piece lands on it instead). While its inspector is open, its links and the cards they reach stay bright and the rest dims, as hover does on desktop |
 | Tap a line, or a lock or wait pill | Opens that piece's strip in the piece bar, with Remove. A line's strip also shapes it: the other links fade, and it shows its dots and a ghost dot halfway along each part |
 | Drag a ghost dot or a dot (of the picked line) | Makes a dot there, or moves it; the line bends through it. A dot level with a neighbour snaps level. Only these dots catch a drag: a line itself still pans |
@@ -303,9 +305,10 @@ theme's own background, solid, with a faint dot grid.
 | Tap a pack frame | The pack sheet. A tap on the pack's name on the frame renames it |
 | Drag a pack frame by its name | Moves the whole pack (with a mouse, the frame's empty area drags too) |
 | Tap ‹ or › under a card | Steps through its mask layers |
-| Drag a card's grip | Moves the card. Its links show as straight guide lines while it moves and are laid out again on the drop. Held within 32px of the view's edge, the view scrolls (faster nearer the edge); so does a dot |
+| Drag a card's grip | Moves the card (a second finger meanwhile does nothing: the drag owns its finger). Its links show as straight guide lines while it moves and are laid out again on the drop. Held within 32px of the view's edge, the view scrolls (faster nearer the edge); so does a dot |
 | Drag a port | Moves it to another free side of its card |
 | Tap empty canvas | With the panel open, closes the panel. With a line's strip open, it is Done. With cards picked, lets go of them |
+| A link's loose end let go on empty canvas | A "Place an entry here" button at that spot, as after a long press; the entry picked arrives already linked, in the strip. Within 32px of a card it snaps to that card (the magnet); let go on its own card, it goes back |
 | Long press empty canvas, then drag | Box select (lasso), once the finger has moved 18px from where it was held (a smaller slip is still a press): every card in the box is picked. A small box asks for a pack name (existing packs are offered as you type), with Unpack when some are in packs; the picked cards drag together by a grip |
 | Long press empty canvas, let go | A "Place an entry here" button at that spot (a tap elsewhere drops it). Tapping it opens "Place here": a search box, New entry here, and the entries not on the canvas yet; the one picked is placed at that spot. So a lasso cut short never opens the picker |
 
@@ -319,9 +322,9 @@ Cards move only by the grip (the six dots), so a drag anywhere else pans.
 | Undo and redo arrows (top left, beside it) | Step back and forward through the book's undo history (Sheets and toasts). Greyed out when there is nothing to step to, and while a piece is set up in the strip |
 | Checks chip (top right) | "2 dead · 1 clash": the book's dead branches and keyword clashes (CONCEPTS 5), read from the book alone. Its mark is red when anything is dead, yellow when there are only clashes. Tap: the Dead branches or Keyword clashes sheet, or a choice of the two when there are both. Gone when the book is clean; clashes aren't counted with Mark keyword clashes off |
 | "?" (top right) | Explain mode (below) |
-| Fit (right) | Zooms out until every card shows. On first open the canvas fits the width of the screen instead, never below 80% zoom, from the top: a tall book scrolls down rather than shrinking until it can't be read |
+| Fit (right) | Zooms out until every card shows (on desktop, only the selected cards when there are any). On first open the canvas fits the width of the screen instead, never below 80% zoom, from the top: a tall book scrolls down rather than shrinking until it can't be read |
 | + / − (right) | Zoom |
-| Zoom label (bottom left) | The current zoom |
+| Zoom label (bottom left) | The current zoom. Tap: back to 100% |
 | Legend (bottom) | The link colors: opens, closes, glue, mask, pack. Toggled from ☰ |
 
 **Tidy layout** (☰) lays everything out again from the links, top to bottom,
@@ -396,7 +399,7 @@ stays in view above it. Drag it up for full height.
 | Part | What it shows or does |
 |------|-----------------------|
 | Header | Strategy dot, the entry's name, its on/off switch, ×. Tap the name to rename it in place: Enter or leaving it saves, Escape puts the old name back |
-| Text preview | The first two lines of the entry's content, in the content font. Tap to open the entry. On a tracker it starts "Start value, until the model writes one:" |
+| Action row | Right under the header: **Edit text**, a button holding the first two lines of the content (in the content font; on a tracker it starts "Start value, until the model writes one:"), opens the entry. Beside it **Add note** (Edit note when it has one). Not on Moments |
 | Reopen line | Only for an entry closed in the open chat: "Closed in this chat by *Tunnel* · Reopen" (or "by a rule that no longer exists") |
 | Problems and warnings | The entry's own, one line each |
 | Path of *fork* | Only on a switch's path: "Path of *Fork*", tap to open the switch. A Waits for that is only the switch's "can't fire before the fork" rule shows here instead of as a Waits for row |
@@ -405,7 +408,7 @@ stays in view above it. Drag it up for full height.
 | To other entries | Rules other entries keep that wait for this one: "Opens *Mill*", "Closes *Tower*", "Turns on a mask of *Inn*". The rule lives on that entry; a tap inspects it with the rule's editor open |
 | + Add logic | A sheet of the pieces the entry doesn't have yet, each with its help line, then "How each piece works" (the Guide); a note says links are quicker from the piece bar |
 | Settings | Last, after the rules (review 2026-11-11: on a phone's half sheet the settings used to push the first rule off screen). One folded row, its line naming what is set ("Who triggers: You · Once · Sticky 3") or what it holds. Open, it shows **Who triggers** (Anyone · You · Character, wrapping under its label in a narrow column), **Once** (a switch, "Fires one time, then closes"; on a glued entry it says "Not with glue" instead), **Tracker** (a switch, "The AI can write to this entry"; turning it on opens its settings) and **ST timing**: SillyTavern's own Probability, Sticky, Cooldown and Delay as small number fields (two rows of two in a column under 330px). They apply on top of the story pieces; on an entry with pieces, each one set gets a warning line saying how. A card with any of them set shows a quiet badge at its bottom right: "50% · S5 · C3 · D2". The row starts open on a card with no rules. Not on Moments |
-| Footer | Open entry (in a tab) · Add note (Edit note when it has one) · Take off canvas (phones, only for placed, unlinked entries) · Data |
+| Bottom row | Quieter, last: Take off canvas (only for placed, unlinked entries) · Data. There is no footer (review 2026-11-11: the actions people use go first) |
 
 Tapping a port opens the inspector with that piece's row already expanded.
 
@@ -688,8 +691,8 @@ The canvas flows **left to right**: Tidy puts the cards in columns by link
 depth (a card sits one column right of everything it waits for), orders each
 column by where its sources are, and centers the columns. A pack's unlinked
 members join the column of a linked member, so the frame stays whole. Tidy is
-in ☰, the canvas's right-click menu, the tools on the right (above the
-inspector toggle) and the key T, with an Undo toast.
+in ☰, the tools on the right (above the inspector toggle) and the key T,
+with an Undo toast.
 
 Ports follow: a link between cards side by side leaves from the right edge
 and enters the left edge; between cards above one another it uses the bottom
@@ -698,21 +701,28 @@ lanes beside it. (The phone keeps top to bottom, which suits a tall screen.)
 
 ### Canvas: mouse
 
+The right button only moves the view, so the left one is free to work on
+things. A pen follows these rules; a finger follows the phone's, even on the
+desktop layout. The code is split the same way: `canvas-mouse.js`,
+`canvas-touch.js` and their shared core `canvas-input.js`.
+
 | Action | Result |
 |--------|--------|
-| Hover a card | Three handles appear under it at once: teal, red, yellow. After the pointer rests on the card for 350ms, its links and the cards they reach stay bright and the rest dims (the phone's focus, without a click). Moving across the canvas doesn't flicker |
+| Right-drag | Moves the view, from anywhere: over cards and lines too. A right-click without moving does nothing (there is no menu on the canvas) |
+| Middle-drag, or Space held with a left-drag | Moves the view too |
+| Hover a card | Three handles appear under it at once: teal, red, yellow, then ⋯ (the card's menu). After the pointer rests on the card for 350ms, its links and the cards they reach stay bright and the rest dims (the phone's focus, without a click). Moving across the canvas doesn't flicker |
+| Hover a line | After 350ms the line and its two cards stay bright and the rest dims |
 | Click a card | Selects it; the inspector shows it (and comes back if it was hidden; dragging a card leaves it hidden) |
 | Double-click a card | The inspector's Text tab, to edit its content in place |
 | Drag a card | Moves it (the whole card, not only the grip; there is no scrolling to fight with). Links follow |
-| Drag empty canvas | Pans |
-| Shift-drag empty canvas | Box select. A small box under it asks for a pack name (lasso to make a pack): existing packs are offered as you type, so `town/` lists the ones inside town; Enter packs the entries, Unpack (when some are packed) takes them out of their packs, Esc or a click elsewhere leaves just the selection. Several selected cards move together; the inspector offers Pack into…, Make these wait for… (each waits for the card picked), Make one wait for all of these… (the card picked waits for every one), Turn off, Take off canvas |
+| Drag empty canvas or a line | Box select; Shift or Ctrl adds to the selection. No pack prompt: P asks for a pack name (existing packs are offered as you type; Unpack when some are packed). Several selected cards move together; the inspector offers Pack into…, Make these wait for… (each waits for the card picked), Make one wait for all of these… (the card picked waits for every one), Turn off, Take off canvas |
 | Shift/Ctrl-click | Adds a card to the selection |
-| Wheel | Zooms around the pointer |
-| Drag from a knob or a hover handle onto another card | Makes a link from this card (the source): teal = this one opens it, red = this one closes it, yellow = it rides along with this one. The piece bar turns into the strip for it |
-| Click a line | Its strip, shaping it as on a phone; dots go on the 12px grid (Alt: anywhere). Double-click the line adds a dot, double-click a dot removes it. Keys 1–4: Curve, Arc, Straight, Step; X flips; Delete removes the picked dot |
-| Right-click a line | Shape link · Reset shape · Remove |
-| Right-click a card | Inspect · Open entry · Edit text · Add piece (all ten, with their keys) · Add note (Edit note) · Data · Take off canvas |
-| Right-click empty canvas | "Add to canvas here": a search box, New entry here, every unplaced entry, Fit, Tidy layout |
+| Wheel | Zooms around the pointer, by the size of the scroll (a mouse notch is about 10%, a trackpad's small events zoom smoothly). ☰ › Canvas › Mouse wheel › Scroll makes it pan instead (two fingers on a trackpad), as in Figma. Either way Ctrl+wheel (a trackpad pinch) zooms and Shift+wheel pans sideways |
+| Drag from a knob or a hover handle onto another card | Makes a link from this card (the source): teal = this one opens it, red = this one closes it, yellow = it rides along with this one. The piece bar turns into the strip for it. Within 24px of a card it snaps to it (the magnet); let go on the source, nothing happens |
+| Drag a link onto empty canvas | "Add to canvas here" at that spot; the entry picked (or a new one) arrives already linked, in the strip |
+| Click a line | Its strip, shaping it as on a phone (Reset shape and Remove are there); dots go on the 12px grid (Alt: anywhere). Double-click the line adds a dot, double-click a dot removes it. Keys 1–4: Curve, Arc, Straight, Step; X flips; Delete removes the picked dot |
+| ⋯ after a card's handles, the Menu key, Shift+F10 | The card's menu: Inspect · Open entry · Edit text · Add piece (all ten, with their keys) · Add note (Edit note) · Data · Take off canvas. The keys work on a single selected card |
+| Double-click empty canvas | "Add to canvas here": a search box, New entry here, every unplaced entry |
 | Click a lock or wait chip | Inspects its card with that rule open |
 | Click empty canvas | Clears the selection |
 
@@ -734,7 +744,7 @@ Four ways to add a piece, all ending in the same strip:
 2. Drag a chip onto a card.
 3. Drag from a card's port or hover handle onto another card (Opens, Closes,
    Glue).
-4. Right-click a card › Add piece, or the inspector's + Add logic. With a card
+4. The card's ⋯ › Add piece, or the inspector's + Add logic. With a card
    selected, the key alone does it (O, C, G, …).
 
 The strip is the phone's: Cancel on the left, Done on the right, the sentence
@@ -768,13 +778,18 @@ The shared entry page, as in Normal mode, with Story logic always open and
 |-----|--------------|
 | O C G S M P R L W E | Arm that piece (R is Tracker, E is Moment); with a card selected, put it on that card |
 | ? | Explain mode (one click) |
-| F | Fit |
+| F | Fit the selected cards, or everything when none is selected |
 | T | Tidy, left to right |
 | + − | Zoom |
+| Shift 0 | Zoom to 100% (so does a click on the zoom label) |
+| P (several cards selected) | Asks for a pack name |
+| Ctrl D | Duplicate the selected cards, without their links (the toast says so), next to them and selected. Ctrl Z takes it back |
+| Space (held) | A left-drag moves the view |
+| Menu key, Shift F10 | The selected card's menu |
 | / | Filter the entry list |
 | Delete | Take the selected card off the canvas (only without links) |
 | Ctrl Z, Ctrl Shift Z / Ctrl Y | Undo, redo |
-| Esc | Menu, armed piece, strip (Cancel), text box, selection, then closes WI Hero |
+| Esc | Menu, armed piece, strip (Cancel), text box, selection, then stops: it never closes WI Hero on desktop (the × does) |
 
 Links are drawn by the link engine on desktop too (VISUAL 7.3,
 [LINK_ENGINE.md](LINK_ENGINE.md)).
@@ -834,7 +849,7 @@ Android's Back (and Escape on desktop) steps back one layer at a time:
 | Mode | Order |
 |------|-------|
 | Normal | Sheet → search → selection → the tab's history. On a tab's first screen it closes the tab. On Home it closes the editor |
-| Hero | Sheet → panel → entry tab → Preview's report page → Preview to Canvas. On the Canvas tab it closes the editor |
+| Hero | Sheet → panel → entry tab → Preview's report page → Preview to Canvas. On the Canvas tab it closes the editor on phones; on desktop Escape stops there |
 
 Back never switches between the two modes.
 

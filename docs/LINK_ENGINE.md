@@ -66,7 +66,7 @@ Stored on the source card in the canvas settings, keyed `<port kind>><target key
 ## Shaping a link (the editor)
 
 A tap on a line opens its strip, as before; an Opens, Closes or Glue (ride along) strip now also shapes the line.
-Links into or out of one port run together near it, so where hit areas overlap a tap (or right-click) goes to the
+Links into or out of one port run together near it, so where hit areas overlap a tap (or click) goes to the
 line nearest the pointer, not the one drawn last: a short line under a longer one can still be picked.
 
 - The other links fade; the picked one gets a band, a ghost dot halfway along each part, and its dots. Only those
@@ -78,7 +78,7 @@ line nearest the pointer, not the one drawn last: a short line under a longer on
   pick that part. Desktop: double-click the line to add a dot there.
 - The strip's Shape row: Curve · Arc · Straight · Step, Flip and Bend (curve and arc), for the picked part or, with
   none picked, the whole line. Then Remove dot, Reset shape and the link's Remove on one row. Desktop keys: 1–4,
-  X (flip), Delete (picked dot). Right-click a line: Shape link · Reset shape · Remove.
+  X (flip), Delete (picked dot). The right button only moves the view, so a line has no menu: its strip has it all.
 - Cancel puts the shape back with the rest of the book; a tap on empty canvas is Done.
 - A card or a dot held within 32px of the view's edge scrolls the view, faster nearer the edge.
 - Phones: a line just picked has its ghost dots panned into view above the strip.

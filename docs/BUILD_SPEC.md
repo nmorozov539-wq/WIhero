@@ -13,7 +13,7 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: built. This page matches the code as of **0.43.0** (2026-11-11).
+- Status: built. This page matches the code as of **0.44.0** (2026-11-11).
   Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
   N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
   Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here
@@ -84,6 +84,7 @@ to be changed while building.
 | D31 | **One Guide, reached from everywhere.** The pieces are explained in one data file (`src/ui/guide.js`, kept in step with CONCEPTS) and shown in a Guide tab (`guide-page.js`). Explain mode is one capture-phase listener on WI Hero's root: while it is on, presses never reach the elements, and a click maps its target to a Guide anchor by selector (chips by `data-piece`, lines and pills by `data-kind`, ports through `PORT`). The inspector's "?", the strip's "?" and "+ Add logic" open the same anchors directly. |
 | D32 | **Delayed closing.** An entry may name itself in its own close gate (still not in its gate). The item is compiled as Once's `self` item: it counts from the entry's first firing and never in the turn it fires, so `[["fog", {"wait": 3}]]` closes Fog three messages after it first fires. The inspector's close gate picker offers "This entry"; the canvas draws no self link and shows a `+N` badge instead. CONCEPTS 3.3. |
 | D33 | **One name per relation, and the review polish** (2026-11-11, 0.43.0). User-facing text says Opens / Closes for the action and Waits for / Closes when for the reading; Gate, Gates for, Close gate and Closes for stay the stored fields' names, shown only in Data and the specs (CONCEPTS 3). The inspector puts a card's rules first and folds Who triggers, Once, Tracker and ST timing into one Settings row below them. The mode switch is one guarded door in ☰ on both sides (no desktop Normal mode button, no book menu row). Polish only: no new piece or stored field |
+| D34 | **Canvas controls** (2026-11-11, 0.44.0). With a mouse, the right button only moves the view (so do the middle button and Space-drag) and the left one works on things: a drag on empty canvas or a line box-selects, P packs the selection, the card menu is the ⋯ after the hover handles (or the Menu key, Shift F10), and the canvas has no right-click menu. The wheel zooms by the size of the scroll, or pans (☰ › Canvas › Mouse wheel); a link let go on empty canvas or a double-click there opens Add to canvas here; a 24px magnet (32px for a finger) snaps a drop to a card. On phones two fingers pan and zoom at once and a two-finger tap undoes; the inspector leads with Edit text and Add note. Esc never closes WI Hero on desktop. Polish only: no new piece or stored field (LAYOUT "Canvas tab", "Canvas: mouse") |
 
 ---
 
@@ -557,6 +558,7 @@ or using glue-v1, which is older. Keep `timers.js`, `chat-state.js`,
 | `desk.js` | Normal mode on desktop (LAYOUT "Desktop: normal mode") |
 | `entry-page.js` | The entry page, with every ST setting (D29) |
 | `canvas-graph.js`, `canvas.js` | The canvas as data (layout, placement, port sides, pack frames) and on screen |
+| `canvas-input.js`, `canvas-mouse.js`, `canvas-touch.js` | The canvas's input: the shared core, then a mouse's and a finger's rules |
 | `../link-engine/` | The link engine that draws every link (LINK_ENGINE.md) |
 | `tracker-ui.js` | The Tracker piece, a value with Edit and Clear, the syntax builder (TRACKERS.md) |
 | `piecebar.js`, `links.js` | The piece bar and the links it writes (D27) |
