@@ -404,10 +404,10 @@ Warnings, which don't block:
   words and not Permanent or held), and, with WI Hero teaching, a tracker with
   no description.
 
-Problems put a red "!" on the card and on the entry's row; ⌄ lists them all
+Problems put a red "!" on the card and on the entry's row; ☰ lists them all
 under "Problems".
 
-Two more lists in ⌄, read from the book alone, never from a chat:
+Two more lists in ☰, read from the book alone, never from a chat:
 
 - **Dead branches**: entries that can never fire, and gate rows and masks that
   can never open. Nothing sets the entry off (no key words, not Permanent or
@@ -420,8 +420,8 @@ Two more lists in ⌄, read from the book alone, never from a chat:
   in both ("mill" in Mill and Miller's Yard) or a word inside another entry's
   longer key ("mill" inside "old mill"). The entry page marks such a key word
   and says what else it fires. Plain World Info too, so Normal mode shows it.
-  The marking can be turned off (⌄ Display, Mark keyword clashes); the list
-  in ⌄ stays.
+  The marking can be turned off (☰ Display, Mark keyword clashes); the list
+  in ☰ stays.
 
 In Hero mode a chip at the top of the canvas counts both ("2 dead · 1 clash")
 and opens their lists; it is gone when the book is clean.
@@ -545,4 +545,4 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
   and close gates already cover them).
 
 Decided since the first version (see BUILD_SPEC): where Reopen and the problem
-list live (6, 5), and the canvas state view ("Show chat state" in ⌄).
+list live (6, 5), and the canvas state view ("Show chat state" in ☰).

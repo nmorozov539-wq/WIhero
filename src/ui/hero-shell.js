@@ -111,7 +111,7 @@ export function createHeroShell(A) {
     }
 
     /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search, Widen/Drawer size, ×. The mode switch is
-     * only in ⌄, one guarded door on each side (LAYOUT "Mode switch"). */
+     * only in ☰, one guarded door on each side (LAYOUT "Mode switch"). */
     function heroTabsRight() {
         const right = el('div', 'tright');
         const book = heroBook();
@@ -291,7 +291,7 @@ export function createHeroShell(A) {
     }
     /**
      * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
-     * (the ⌄ menu keeps its rows too). Nothing when the book is clean.
+     * (the ☰ menu keeps its rows too). Nothing when the book is clean.
      */
     /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */
     function historyButtons(book) {

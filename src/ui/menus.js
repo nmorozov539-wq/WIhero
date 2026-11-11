@@ -1,4 +1,4 @@
-// The sheets and menus (LAYOUT "Sheets and toasts", "⌄ menu"): the ⌄ menu, book and entry menus, snapshots,
+// The sheets and menus (LAYOUT "Sheets and toasts", "☰ menu"): the ☰ menu, book and entry menus, snapshots,
 // folders, links, problems, colors and World Info settings. Moved out of app.js; it reaches the app only through
 // the context given to it.
 import { el, issueText, swEl } from './dom.js';
@@ -136,7 +136,7 @@ export function createMenus(A) {
         }, { help: 'Problems (red) stop an entry from firing. Warnings (yellow) only point at something odd.' });
     }
 
-    /** The ⌄ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
+    /** The ☰ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
     function checkRows(sh, book, data) {
         const n = keywordClashes(data, hiddenIn(book)).groups.length;
         if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));

@@ -39,12 +39,12 @@ Contents: [Shared](#shared) · [Normal mode](#normal-mode) · [Hero mode](#hero-
 
 ### Top row
 
-Left to right: the ⌄ menu, the permanent tabs, then the other tabs, which
+Left to right: the ☰ menu, the permanent tabs, then the other tabs, which
 scroll sideways. There is no tab list.
 
 | Control       | What it does |
 |---------------|--------------|
-| ⌄             | Opens the menu sheet (contents per mode, below) |
+| ☰             | Opens the menu sheet (contents per mode, below) |
 | Permanent tabs | Icon only, first in the row, can't be closed. Normal mode: Home. Hero mode: Canvas and Preview |
 | Other tabs    | Tap to switch. The active tab has a thin accent underline; × shows only on it. Closing a tab shows the one to its right (the one to its left when it was the last) |
 
@@ -52,7 +52,7 @@ Anything opened from a permanent tab opens in a new tab. Long press opens it in
 a background tab. There is no "new tab" control: Home is always one tap away
 and opens everything in a tab of its own.
 
-### ⌄ menu
+### ☰ menu
 
 One style in both modes: a sheet of labelled sections with one row per item,
 each row showing its current value at the right. A row with choices unfolds
@@ -73,7 +73,7 @@ Problems and warnings are counted apart wherever they are counted: "Problems (2)
 
 Keyword clashes (n) opens a sheet with one group per clashing word (“mill”) and the entries it fires; Dead branches (n) one row per entry, red when it can never fire, yellow when only a gate row or mask can't (CONCEPTS 5). A tap opens the entry (Normal mode) or shows and inspects its card (Hero mode).
 
-**Mark keyword clashes** off takes away the yellow outline and the "also fires" line on the entry page, and the clash count on the canvas's checks chip. The Keyword clashes row stays in ⌄.
+**Mark keyword clashes** off takes away the yellow outline and the "also fires" line on the entry page, and the clash count on the canvas's checks chip. The Keyword clashes row stays in ☰.
 
 ### Problems sheet
 
@@ -90,7 +90,7 @@ at the bottom. Each row shows name, date and entry count; tap it for Restore
 
 ### Mode switch
 
-The first row in ⌄: "Switch to Hero mode" (or Normal mode) with the target
+The first row in ☰: "Switch to Hero mode" (or Normal mode) with the target
 mode's icon.
 
 - First tap: the row turns accent and reads "Tap again to switch to Hero mode".
@@ -128,7 +128,7 @@ The same page in both modes. Top to bottom:
 | Story chip | Only when the entry has story logic (or other entries' rules point at it): its first rule said plainly, then how many more, "Unlocks after *Road* · 2 more rules". Tap opens the Story logic section (normal mode) or shows the card on the canvas (Hero mode) |
 | Problems and warnings | The entry's own problems (red) and warnings (yellow), one line each, under the story chip |
 | Strategy line | A strategy-colored dot, "Strategy: Keywords ▾" (or Permanent, Vectorized), tap for the strategy sheet. The entry's on/off switch sits at its right end. An off entry dims |
-| Keywords | A bordered box with chips; tap to edit as a comma-separated line. Empty shows "Key words, separated by commas". Hidden for Permanent. A key word that also fires other entries (a keyword clash) has a yellow outline, and a line under the box says so: "**mill** also fires Old Mill". Both go away with Mark keyword clashes off (⌄) |
+| Keywords | A bordered box with chips; tap to edit as a comma-separated line. Empty shows "Key words, separated by commas". Hidden for Permanent. A key word that also fires other entries (a keyword clash) has a yellow outline, and a line under the box says so: "**mill** also fires Old Mill". Both go away with Mark keyword clashes off (☰) |
 | + Add condition | Adds ST's secondary keywords: a thin line ("And any of / And all of / But none of / But not all of ▾") over a second keyword box. One per entry |
 | Story logic | Hero mode: here, before Parameters. Only when the entry has pieces. Read-only in both modes (below) |
 | Parameters | Folded. The header sums up what isn't default, or "Defaults" |
@@ -238,7 +238,7 @@ Move (to a folder, No folder, + New folder) and Export. Import lives under +.
 | Global chip | Tap to make the book active globally or not |
 | Linked chip | First linked character or chat plus a count ("Seraphina +2"). Tap for the links sheet |
 | Off hint | Only while the book is neither global nor linked: "Off · No chat uses this book yet", then **Use it in this chat** (links it to the open chat; with no chat open, **Link it to a character…** opens the links sheet) and **Make it global** |
-| Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (⌄) orders the entries inside each one. Entries with no folder come first |
+| Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (☰) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe (no icon), name with a teal dot when the entry has story logic, keywords, on/off switch, ⋯. The switch is quiet while the entry is on (a gray track) and stands out only when it is off (an accent outline) |
 | Tap a row | Opens the entry page in this tab (from Home's tab, in a new tab) |
 | Entry ⋯ | Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
@@ -271,7 +271,7 @@ Move (to a folder, No folder, + New folder) and Export. Import lives under +.
 
 ### Top row
 
-⌄, then the **Canvas** tab and the **Preview** tab, both permanent and icon
+☰, then the **Canvas** tab and the **Preview** tab, both permanent and icon
 only, then entry tabs. There is no "New tab" in Hero mode: its tabs are always
 entries.
 
@@ -314,9 +314,9 @@ Cards move only by the grip (the six dots), so a drag anywhere else pans.
 | Fit (right) | Zooms out until every card shows. On first open the canvas fits the width of the screen instead, never below 80% zoom, from the top: a tall book scrolls down rather than shrinking until it can't be read |
 | + / − (right) | Zoom |
 | Zoom label (bottom left) | The current zoom |
-| Legend (bottom) | The link colors: opens, closes, glue, mask, pack. Toggled from ⌄ |
+| Legend (bottom) | The link colors: opens, closes, glue, mask, pack. Toggled from ☰ |
 
-**Tidy layout** (⌄) lays everything out again from the links, top to bottom,
+**Tidy layout** (☰) lays everything out again from the links, top to bottom,
 and puts every port back on its default side.
 
 ### Piece bar
@@ -507,7 +507,7 @@ The phone screens stay as they are below that.
   Middle-click (or Ctrl-click) opens in a background tab, which replaces long
   press.
 - **Menus instead of sheets.** Every choice that is a bottom sheet on phones
-  (strategy, folder, links, ⋮, ⌄) is a menu that opens at the control.
+  (strategy, folder, links, ⋮, ☰) is a menu that opens at the control.
 - **No bottom bar.** Its three buttons move: Search to the tab row, + New to
   the toolbar (Home) or next to the entry filter (book), Select becomes
   ordinary Ctrl/Shift-click selection.
@@ -516,7 +516,7 @@ The phone screens stay as they are below that.
 
 ### Tab row
 
-40px high (phones: 50). Left to right: ⌄, Home, book and entry tabs, empty space,
+40px high (phones: 50). Left to right: ☰, Home, book and entry tabs, empty space,
 Search (with "Ctrl K"), Widen (or Drawer size), ×.
 
 | Control | What it does |
@@ -555,7 +555,7 @@ for another), Ctrl Enter opens in a background tab, Esc closes.
 | Drag a book | Onto a folder header to move it there |
 | Selection bar | Replaces the header while books are selected: ✕, "N selected", Move to folder, Export, Import, Select all, Delete (Undo toast) |
 
-Tiles are the default; the List/Tiles switch in the header (and ⌄ › View)
+Tiles are the default; the List/Tiles switch in the header (and ☰ › View)
 changes it, and the choice is remembered.
 
 ### Book (two panes)
@@ -580,7 +580,7 @@ the edge to reset):
 | Middle-click | Opens the entry in its own background tab |
 | Double-click | Opens the entry in its own tab |
 | Right-click, ⋯ | Open in new tab · Turn off · New entry below (right under it, in its folder) · Duplicate · Move to folder · Move to another book · Copy as text · Delete. With several selected, the same for all of them |
-| Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the List order sort (⌄), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
+| Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the List order sort (☰), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
 | Keyboard | ↑ ↓ move, Shift ↑ ↓ extend, Space turns on/off, Enter goes to the title, Delete deletes (Undo toast) |
 | Footer | Book settings · "N problems" when there are any (click goes to the first) |
 
@@ -654,7 +654,7 @@ pane when it is wide.
 
 ### Tab row
 
-⌄, **Canvas** and **Preview** (permanent, icon only), entry tabs, empty space,
+☰, **Canvas** and **Preview** (permanent, icon only), entry tabs, empty space,
 then the book picker (the book's name ▾: the book list, + New book, Duplicate *book*), Search
 (Ctrl K), Normal mode, Widen/Drawer size, ×.
 
@@ -678,7 +678,7 @@ The canvas flows **left to right**: Tidy puts the cards in columns by link
 depth (a card sits one column right of everything it waits for), orders each
 column by where its sources are, and centers the columns. A pack's unlinked
 members join the column of a linked member, so the frame stays whole. Tidy is
-in ⌄, the canvas's right-click menu, the tools on the right (above the
+in ☰, the canvas's right-click menu, the tools on the right (above the
 inspector toggle) and the key T, with an Undo toast.
 
 Ports follow: a link between cards side by side leaves from the right edge
@@ -775,7 +775,7 @@ Links are drawn by the link engine on desktop too (VISUAL 7.3,
 
 A tab of its own in Hero mode, opened at an anchor; on phones it sits next to
 Canvas and Preview (a "?" tab with ×), on desktop it is a tab like an entry's.
-Also reachable from ⌄ › Guide. The text is in `src/ui/guide.js`.
+Also reachable from ☰ › Guide. The text is in `src/ui/guide.js`.
 
 - An index of chips, then one page per piece, in this order: Opens, Closes,
   Glue, Switch, Mask, Tracker, Pack, Lock, Wait, Moment, Once, Who triggers.

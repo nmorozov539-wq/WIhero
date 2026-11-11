@@ -530,7 +530,7 @@ export function deskNormal(A) {
                 }
                 for (const e of items) { order.push(e.uid); list.append(entryRow(p, book, e, model)); }
             }
-            if (!shown.length) list.append(el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (⌄ menu).') : 'No entries yet.'));
+            if (!shown.length) list.append(el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'));
             // Drop on the empty list: No folder.
             entryDrop(list, book, '', p, true);
         }

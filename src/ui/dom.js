@@ -1,5 +1,5 @@
 // Small DOM helpers and the shared overlays (LAYOUT "Sheets and toasts"): sheets from the bottom over a dimmed
-// backdrop, the ⌄ menu sheet, a one-line text form, and toasts, some with Undo.
+// backdrop, the ☰ menu sheet, a one-line text form, and toasts, some with Undo.
 import { ic } from './icons.js';
 import { Html } from './html.js';
 
@@ -112,7 +112,7 @@ export function createLayer(layer, toastBox) {
     }
 
     /**
-     * A sheet from the bottom (or, with `menu`, the ⌄ menu under the top row).
+     * A sheet from the bottom (or, with `menu`, the ☰ menu under the top row).
      * @param {string|null} title
      * @param {(sheet: HTMLElement) => void} build
      * @param {{ menu?: boolean, help?: string, cls?: string, onClose?: () => void }} [opts]
@@ -264,7 +264,7 @@ export function createLayer(layer, toastBox) {
 
 /**
  * Problems and warnings counted apart (a warning only points at something odd): "1 warning",
- * "2 problems · 1 warning". `menu` gives the ⌄ menu's label: "Problems (2)", "Warnings (1)", "Problems (2) · 1 warning".
+ * "2 problems · 1 warning". `menu` gives the ☰ menu's label: "Problems (2)", "Warnings (1)", "Problems (2) · 1 warning".
  */
 export function issueText(issues, { menu = false } = {}) {
     const w = issues.filter(i => i.warning).length;

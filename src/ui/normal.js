@@ -141,7 +141,7 @@ export function createNormal(A) {
             }
             for (const e of list) v.append(entryRow(book, e, model));
         }
-        if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (⌄ menu).' : 'No entries yet. Tap + to write the first one.'));
+        if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
     }
 
     function entryRow(book, e, model) {
@@ -426,7 +426,7 @@ export function createNormal(A) {
             ui: new Proxy(S.ui, { set: (t, k, v) => { t[k] = v; if (k === 'condition') p.condition = v; return true; } }),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
-            // Keyword clash marking can be turned off (⌄ menu, Display); the ⌄ menu's Keyword clashes row stays.
+            // Keyword clash marking can be turned off (☰ menu, Display); the ☰ menu's Keyword clashes row stays.
             clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
             lines,
             incoming: [...incoming],

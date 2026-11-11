@@ -63,7 +63,7 @@ export function createApp(deps) {
     link.href = deps.cssUrl;
     const root = el('div', 'wih');
     const tabbar = el('div', 'tabbar');
-    const menuBtn = btn('iconbtn', ic('down'), () => openMenu(), 'Menu');
+    const menuBtn = btn('iconbtn', ic('menu'), () => openMenu(), 'Menu');
     const strip = el('div', 'strip');
     tabbar.append(menuBtn, strip);
     const main = el('div', 'main');
@@ -783,7 +783,7 @@ export function createApp(deps) {
     function inspectorFor(...a) { return heroInsp().inspectorFor(...a); }
     function showOnCanvas(...a) { return heroInsp().showOnCanvas(...a); }
 
-    /** The mode switch at the top of ⌄: tap once to arm it, again to switch (LAYOUT "Modes"). */
+    /** The mode switch at the top of the ☰ menu: tap once to arm it, again to switch (LAYOUT "Modes"). */
     function modeButton(sh) {
         const target = S.mode === 'hero' ? 'Normal mode' : 'Hero mode';
         const b = btn('modebtn', html`${ic(S.mode === 'hero' ? 'entry' : 'canvas')}<span>Switch to ${target}</span>`, () => {

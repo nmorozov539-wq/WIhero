@@ -54,7 +54,7 @@ themes, and `e2e/desktop.mjs` makes a light-theme pass.
 
   Nothing uses a size outside the scale.
 - **Noto Sans** for everything, **Noto Serif** for entry content (the text that
-  gets injected). The content font is a Display setting in ⌄ (Serif or Sans),
+  gets injected). The content font is a Display setting in ☰ (Serif or Sans),
   so it is easy to go back.
 
 ## 4. Icons
@@ -137,7 +137,7 @@ gate), and their piece bar chips use `--muted`.
 
 ### 6.4 Color vision modes
 
-⌄ Display → Colors. Each mode swaps the piece colors (and, when built, the
+☰ Display → Colors. Each mode swaps the piece colors (and, when built, the
 strategy colors) for a set that stays apart under one kind of color blindness.
 The surfaces, the accent and the shapes don't change. There is no other color
 customizing. Drawn in sketch 7 (in the git history).
@@ -224,7 +224,7 @@ built.
 
 ### 7.5 Chat state, problems, Moments and greetings
 
-- **Show chat state** (⌄, off by default) marks each card with the open chat's
+- **Show chat state** (☰, off by default) marks each card with the open chat's
   state at its latest message: a small "2×" fired count top right; closed cards
   dimmed, the title struck through in red, "CLOSED" and "by *X*"; a holding
   card's glue bar glows; a card still waiting on its gate is hollow (dashed

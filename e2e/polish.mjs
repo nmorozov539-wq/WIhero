@@ -63,7 +63,7 @@ await $('.sheet').last().getByText('“shared word”').waitFor();
 ok(`the canvas chip counts the book's checks (${(await chip.textContent()).trim()}; ${chipBefore} before the clash) and opens the sheet`);
 await page.keyboard.press('Escape');
 
-// 2. Mark keyword clashes off: no chip count, no outline on the entry page; the ⌄ row stays.
+// 2. Mark keyword clashes off: no chip count, no outline on the entry page; the ☰ row stays.
 await menu();
 await $('.sheet').last().locator('.opt, .swrow, div').filter({ hasText: /^Mark keyword clashes/ }).last().locator('[role="switch"], input, button').first().click();
 await page.waitForFunction(() => wihero.settings.markClashes === false);
@@ -80,7 +80,7 @@ assert.ok(await $('.clashnote').first().isHidden());
 await menu();
 assert.ok(await $('.sheet').last().getByText(/Keyword clashes \(\d+\)/).isVisible());
 await page.keyboard.press('Escape');
-ok('Mark keyword clashes off: the chip and the entry page stop marking clashes, the ⌄ row stays');
+ok('Mark keyword clashes off: the chip and the entry page stop marking clashes, the ☰ row stays');
 
 // 3. A probability on an entry with story pieces gets a warning line; one without pieces doesn't.
 const gated = (await entries()).find(e => Array.isArray(cfg(e).gate) && cfg(e).gate.length && !cfg(e).moment);
