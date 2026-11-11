@@ -18,7 +18,7 @@ const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], 
  */
 export function createMenus(A) {
     const {
-        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     } = A;
 
     /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
@@ -337,6 +337,7 @@ export function createMenus(A) {
         layer.sheet(titleOf(e), sh => {
             if (ht) sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, cardKey(e)); }, { icon: 'canvas' }));
             else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab' }));
+            if (!ht) sh.append(layer.opt('New entry below', () => { layer.close(); newEntry(book, entryFolder(book, e), uid); }, { icon: 'plus' }));
             sh.append(layer.opt('Duplicate', () => {
                 layer.close();
                 const copy = library.change(book, d => duplicateEntry(d, uid));
@@ -389,6 +390,7 @@ export function createMenus(A) {
             if (d.openTab) sh.append(layer.opt('Open in new tab', () => { layer.close(); d.openTab(); }, { icon: 'tab', val: 'Double-click' }));
             if (d.inBook) sh.append(layer.opt('Show in its book', () => { layer.close(); d.inBook(); }, { icon: 'book' }));
             sh.append(layer.opt(e.disable ? 'Turn on' : 'Turn off', () => { layer.close(); library.change(book, x => { x.entries[uid].disable = !e.disable; }); }, { icon: e.disable ? 'on' : 'off', val: 'Space' }));
+            if (d.newBelow) sh.append(layer.opt('New entry below', () => { layer.close(); d.newBelow(); }, { icon: 'plus' }));
             sh.append(layer.opt('Duplicate', () => {
                 layer.close();
                 const copy = library.change(book, x => duplicateEntry(x, uid), { quiet: true });

@@ -166,6 +166,31 @@ await page.waitForTimeout(200);
 assert.deepEqual((await rows.evaluateAll(rs => rs.map(r => r.querySelector('.nm').textContent))).slice(0, 3), names.slice(0, 3));
 ok(`dragging a row onto the top of another moves it there by displayIndex only; Ctrl+Z puts it back (box ${Math.round(box.height)}px)`);
 
+// New entry below: from a row's menu, the new entry lands right under it, in its folder.
+const below = names[1];
+await rows.filter({ hasText: below }).first().click({ button: 'right' });
+await $('.sheet').last().getByText('New entry below').click();
+await page.waitForTimeout(300);
+const listNow = await rows.evaluateAll(rs => rs.map(r => r.querySelector('.nm').textContent));
+assert.equal(listNow[listNow.indexOf(below) + 1], 'Untitled', `the new entry sits right below "${below}" (${listNow.slice(0, 4).join(', ')})`);
+// Named, so leaving it doesn't remove it as an empty entry.
+await page.evaluate(b => wihero.library.change(b, d => { for (const e of Object.values(d.entries)) if (!e.comment && !(e.key ?? []).length) { e.comment = 'Below test'; e.content = 'x'; } }), BOOK);
+await page.keyboard.press('Escape'); // out of the new entry's title
+ok('New entry below puts the new entry right under the one picked');
+
+// Prompt order: the Order parameter on each row, edited in place; the list follows it.
+await page.evaluate(() => { wihero.settings.sortBy = 'prompt'; wihero.app.refresh(); });
+await $('.brow .ordin').first().waitFor();
+const lastName = (await rows.evaluateAll(rs => rs.map(r => r.querySelector('.nm').textContent))).at(-1);
+const lastIn = rows.filter({ hasText: lastName }).first().locator('.ordin');
+await lastIn.fill('-5');
+await lastIn.press('Enter');
+await page.waitForTimeout(300);
+assert.equal((await rows.evaluateAll(rs => rs.map(r => r.querySelector('.nm').textContent)))[0], lastName);
+assert.equal((await entries()).find(e => e.comment === lastName || (e.key ?? [])[0] === lastName)?.order, -5);
+await page.screenshot({ path: `${LOG}polish-prompt-order.png` });
+ok('the Prompt order sort shows Order on each row; setting it writes the entry and moves the row');
+
 // 6. A–Z sort: no reordering.
 await page.evaluate(() => { wihero.settings.sortBy = 'az'; wihero.app.refresh(); });
 await page.waitForTimeout(200);

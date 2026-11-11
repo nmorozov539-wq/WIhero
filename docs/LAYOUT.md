@@ -62,7 +62,7 @@ pick shows its effect behind it.
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
-| View / Book | Home: Open books in (Normal mode, Hero mode); on desktop also Show books as (Tiles, List). Book page: Sort by (Order, A–Z, Key words first, Permanent first, Vectorized first; inside each folder) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. Then Guide › |
+| View / Book | Home: Open books in (Normal mode, Hero mode); on desktop also Show books as (Tiles, List). Book page: Sort by (List order, Prompt order, A–Z, Key words first, Permanent first, Vectorized first; inside each folder. List order is ST's list position, which drag changes; Prompt order is the Order parameter, shown on each row and editable there: a box on desktop, a button that asks on phones) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. Then Guide › |
 | Canvas | | Tidy layout · Legend (switch) · Show chat state (switch, off by default) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) · Mark keyword clashes (switch, on by default) | The same |
 | Tabs | Close other tabs | Close other tabs |
@@ -122,7 +122,7 @@ The same page in both modes. Top to bottom:
 | Part | What it shows or does |
 |------|-----------------------|
 | ← (round bubble) | Up to the book (normal mode) or closes the entry tab (Hero mode) |
-| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · Duplicate · Move to another book · Copy as text · Delete |
+| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
 | Title | Big, edited in place. Not sticky; the tab already shows the name |
 | Book line | Book icon, the book's name and folder; tap goes up to the book |
 | Story chip | Only when the entry has story logic (or other entries' rules point at it): its first rule said plainly, then how many more, "Unlocks after *Road* · 2 more rules". Tap opens the Story logic section (normal mode) or shows the card on the canvas (Hero mode) |
@@ -578,8 +578,8 @@ the edge to reset):
 | Ctrl/Shift-click | Selects several; the right pane becomes the bulk pane |
 | Middle-click | Opens the entry in its own background tab |
 | Double-click | Opens the entry in its own tab |
-| Right-click, ⋯ | Open in new tab · Turn off · Duplicate · Move to folder · Move to another book · Copy as text · Delete. With several selected, the same for all of them |
-| Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the Order sort (⌄), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
+| Right-click, ⋯ | Open in new tab · Turn off · New entry below (right under it, in its folder) · Duplicate · Move to folder · Move to another book · Copy as text · Delete. With several selected, the same for all of them |
+| Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the List order sort (⌄), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
 | Keyboard | ↑ ↓ move, Shift ↑ ↓ extend, Space turns on/off, Enter goes to the title, Delete deletes (Undo toast) |
 | Footer | Book settings · "N problems" when there are any (click goes to the first) |
 

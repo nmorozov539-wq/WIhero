@@ -6,7 +6,7 @@ import { LR } from './canvas-graph.js';
 import { addLink } from './links.js';
 import { addToList, askNote, packsOf } from './pieces.js';
 import { isMoment } from '../engine/model.js';
-import { bookSettings, cardKey, configOf, isBlank, removeEntry, setFolder, sortEntries, titleOf } from './data.js';
+import { bookSettings, cardKey, configOf, isBlank, removeEntry, reorderEntries, setFolder, sortEntries, titleOf } from './data.js';
 import { btn, el } from './dom.js';
 import { ic } from './icons.js';
 import { canvasMemory } from './canvas.js';
@@ -310,10 +310,12 @@ export function createHeroDesk(A) {
         if (e && isBlank(e)) { library.change(p.book, d => { removeEntry(d, uid); }, { quiet: true }); layer.toast('Empty entry removed'); }
     }
     /** A new entry in a book (and folder), with the book's defaults, not opened anywhere yet. */
-    function createEntryIn(book, folder = '') {
+    /** A new entry in a folder; with `after`, placed right below that entry in the list (and in its folder). */
+    function createEntryIn(book, folder = '', after = null) {
         if (!library.peek(book)) return null;
         const x = createEntry(book, '');
         if (folder) { setFolder(settings, book, x, folder); saveSettings(); }
+        if (after != null) library.change(book, d => { reorderEntries(d, [x.uid], after, true); }, { quiet: true });
         return x;
     }
     function openHero(book) {

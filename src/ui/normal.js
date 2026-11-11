@@ -2,7 +2,7 @@
 // the entry page. Moved out of app.js; it reaches the app only through the context given to it.
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, configOf, groupEntries, idOf, paramSummary,
-    paramText, paramValue, rekeyEntry, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
+    paramText, paramValue, promptOrder, rekeyEntry, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
 } from './data.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
@@ -18,6 +18,9 @@ import { isObject } from '../engine/util.js';
  * @param {object} A The app's context (destructured below): its state, the library and hooks, and the app
  *   functions the views call (menus, sheets, deleting, opening pages).
  */
+/** ST's Order parameter: where an entry goes in the prompt. */
+const ORDER_PARAM = PARAM_LIST.find(p => p.field === 'order');
+
 export function createNormal(A) {
     const {
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
@@ -157,6 +160,15 @@ export function createNormal(A) {
         if (problemsOf(model, e.uid, book).length) { const b = el('span', 'bang', '!'); b.title = 'This entry has a problem'; t.append(b); }
         tx.append(t, el('div', 'm', e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`));
         it.append(i, tx);
+        // Prompt order sort: the Order parameter on the row, tap to change it.
+        if (!S.select && sortBy() === 'prompt') {
+            const ob = btn('ordb', String(promptOrder(e)), () => layer.askText({
+                title: `Order: ${titleOf(e)}`, value: String(promptOrder(e)), type: 'number',
+                check: v => (Number.isInteger(Number(v)) && v.trim() !== '' ? null : 'A whole number'),
+                done: v => library.change(book, d => setParam(d, e.uid, ORDER_PARAM, Number(v))),
+            }), `Order ${promptOrder(e)}: where ${titleOf(e)} goes in the prompt`);
+            it.append(ob);
+        }
         if (!S.select) {
             it.append(swEl(!e.disable, on => library.change(book, d => { d.entries[e.uid].disable = !on; }), `${titleOf(e)} on`));
             it.append(btn('more', ic('more'), () => entryMenu(book, e.uid), `${titleOf(e)} actions`));

@@ -125,7 +125,7 @@ await run(async () => {
     await page.keyboard.press('Escape');
     assert.deepEqual(await $('.view .section').allTextContents(), ['No folder', 'Places · 2'], 'folders stay, whatever the order');
     assert.deepEqual(await rowTitles(), ['Weather lore', 'Mill', 'Road'], 'sorted inside each folder');
-    await menu('Sort by', 'Order');
+    await menu('Sort by', 'List order');
     await $('.item.ent:has(.nm:text-is("Weather lore")) .switch').click();
     await wait(100);
     assert.equal((await book(BOOK)).entries[entryBy(data, 'Weather lore').uid].disable, true);

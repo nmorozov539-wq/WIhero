@@ -8,7 +8,7 @@ import { btn, html, createLayer, el, issueText } from './dom.js';
 import { ic } from './icons.js';
 import {
     PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
-    SORT_NAMES, isBlank, removeEntry, search, setFolder, setParam, titleOf,
+    SORT_NAMES, isBlank, removeEntry, reorderEntries, search, setFolder, setParam, titleOf,
 } from './data.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook } from './canvas-graph.js';
@@ -494,7 +494,8 @@ export function createApp(deps) {
     function defaultsSummary(...a) { return normal().defaultsSummary(...a); }
 
     // ---------------------------------------------------------------- creating
-    function newEntry(book, folder = '') {
+    /** A new entry, opened at once. `after`: placed right below that entry in the list. */
+    function newEntry(book, folder = '', after = null) {
         const data = library.peek(book);
         if (!data) return;
         const defaults = { ...(bookSettings(settings, book).defaults ?? {}) };
@@ -506,6 +507,7 @@ export function createApp(deps) {
             return x;
         }, { quiet: true });
         if (folder) { setFolder(settings, book, entry, folder); saveSettings(); }
+        if (after != null) library.change(book, d => { reorderEntries(d, [entry.uid], after, true); }, { quiet: true });
         openIn({ type: 'entry', book, uid: entry.uid, fresh: true });
     }
 
@@ -855,7 +857,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let menusView = null;
     const menus = () => (menusView ??= createMenus({
-        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     }));
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
     function checkCounts(...a) { return menus().checkCounts(...a); }

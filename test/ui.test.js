@@ -263,3 +263,14 @@ test('reorderEntries moves entries by displayIndex only, never the Order paramet
     assert.equal(reorderEntries(d, [1], 1), null); // onto itself
     assert.equal(reorderEntries(d, [9], 1), null); // nothing to move
 });
+
+test('sortEntries by prompt order: the Order parameter (100 when unset), then list order', () => {
+    const list = [
+        { uid: 0, comment: 'A', order: 200, displayIndex: 0 },
+        { uid: 1, comment: 'B', displayIndex: 1 },
+        { uid: 2, comment: 'C', order: 5, displayIndex: 2 },
+        { uid: 3, comment: 'D', order: 100, displayIndex: 3 },
+    ];
+    assert.deepEqual(sortEntries(list, 'prompt').map(e => e.comment), ['C', 'B', 'D', 'A']);
+    assert.deepEqual(sortEntries(list, 'order').map(e => e.comment), ['A', 'B', 'C', 'D']);
+});

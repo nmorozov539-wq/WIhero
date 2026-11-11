@@ -744,7 +744,10 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .more { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--muted); visibility: hidden; flex-shrink: 0; }
 .more:hover { background: var(--raised); color: var(--fg); }
 .tile:hover .more, .drow:hover .more, .brow:hover .more, .brow.on .more { visibility: visible; }
-/* Drag to reorder (Order sort): a line where the entries will land. */
+/* Prompt order sort: the Order parameter on each row. */
+.brow .ordin { width: 52px; height: 24px; flex-shrink: 0; padding: 0 4px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--t-xs); text-align: right; font-variant-numeric: tabular-nums; }
+.item .ordb { flex-shrink: 0; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: var(--t-s); font-variant-numeric: tabular-nums; }
+/* Drag to reorder (List order sort): a line where the entries will land. */
 .brow.dropbefore { box-shadow: 0 2px 0 var(--accent) inset; }
 .brow.dropafter { box-shadow: 0 -2px 0 var(--accent) inset; }
 /* The phone lists' ⋯ always shows: a phone has no hover to bring it out. */

@@ -334,13 +334,22 @@ export function copyBookSettings(s, from, to) {
  * @returns {[string, object[]][]}
  */
 /** The orders entries can be sorted in, inside each folder (LAYOUT "Book page"). */
-export const SORT_NAMES = { order: 'Order', az: 'A–Z', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
+// `order` is ST's list position (displayIndex, what drag changes); `prompt` is the Order parameter, which places
+// the entry in the prompt (higher goes in later, closer to the chat).
+export const SORT_NAMES = { order: 'List order', prompt: 'Prompt order', az: 'A–Z', keys: 'Key words first', perm: 'Permanent first', vec: 'Vectorized first' };
 
-/** Sorts entries: ST's order (displayIndex), A–Z, or one strategy first (then the rest in order, off entries last). */
+/**
+ * Sorts entries: ST's list order (displayIndex), prompt order (the Order parameter, then list order), A–Z, or one
+ * strategy first (then the rest in list order, off entries last).
+ */
+/** The Order parameter as ST reads it (100 when unset). */
+export const promptOrder = e => (Number.isFinite(Number(e.order)) && e.order !== null && e.order !== '' ? Number(e.order) : 100);
+
 export function sortEntries(entries, by = 'order') {
     const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
     const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
     const cmp = by === 'az' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || order(a, b)
+        : by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
         : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
         : order;
     return [...entries].sort(cmp);
