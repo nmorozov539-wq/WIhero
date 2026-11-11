@@ -77,6 +77,36 @@ const inView = (page, sel, root) => page.evaluate(([s, r]) => {
     await page.close();
 }
 
+// 1b. Phone, empty canvas: a long press let go offers "Place an entry here" instead of opening the picker; a slip
+// under 18px is still a press, not a box; a tap elsewhere drops the offer.
+{
+    const page = await open(390, 844);
+    await toHero(page);
+    const vp = await $(page, '.vp').boundingBox();
+    const spot = async () => {
+        for (let y = vp.y + 120; y < vp.y + vp.height - 120; y += 20) for (let x = vp.x + 30; x < vp.x + vp.width - 30; x += 20) {
+            const free = await page.evaluate(([px, py]) => { const sr = document.querySelector('#wihero-editor').shadowRoot; const n = sr.elementFromPoint(px, py); return !!n && !n.closest('.card, [data-port], [data-pack], [data-flip], [data-open], [data-row], .lbl, .plabel, .pbar, svg path'); }, [x, y]);
+            if (free) return [x, y];
+        }
+        throw new Error('no free spot');
+    };
+    const [hx, hy] = await spot();
+    await page.mouse.move(hx, hy);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.move(hx + 10, hy + 6, { steps: 3 });
+    await page.mouse.up();
+    await $(page, '.placeoffer').waitFor();
+    assert.equal(await $(page, '.sheet').count(), 0, 'no picker until the offer is tapped');
+    assert.equal(await $(page, '.selbox').count(), 0, 'a 12px slip draws no box');
+    await shot(page, 'phone-place');
+    await page.mouse.click(vp.x + vp.width / 2, vp.y + 60);
+    await page.waitForTimeout(200);
+    assert.equal(await $(page, '.placeoffer').count(), 0, 'a tap elsewhere drops the offer');
+    ok('phone: a long press let go offers Place an entry here; a slip is not a box; a tap elsewhere drops it');
+    await page.close();
+}
+
 // 2. Desktop with a 320px inspector: nothing runs off its right edge, and a card without rules opens on its settings.
 {
     const page = await open(1366, 768);

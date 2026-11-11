@@ -94,6 +94,7 @@ await run(async () => {
     await page.mouse.down();
     await wait(800);
     await page.mouse.up();
+    await $('.placeoffer').click(); // a long press let go offers Place an entry here (review 2026-11-11)
     await $('.sheet h2:text-is("Place here")').waitFor();
     await $('.sheet .pick-q').fill('inn');
     await $('.sheet .opt:has(.lab:text-is("Inn"))').click();

@@ -1017,7 +1017,8 @@ export function mountCanvas(vp, d) {
         if (!start) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 7) { moved = true; clearTimeout(holdTimer); }
         if (!moved) return;
-        if (mode === 'hold' && Math.hypot(e.clientX - drag.at.x, e.clientY - drag.at.y) > 7) {
+        // A slip of the finger isn't a box: it takes 18px from the held spot to start one (review 2026-11-11).
+        if (mode === 'hold' && Math.hypot(e.clientX - drag.at.x, e.clientY - drag.at.y) > 18) {
             const r = vp.getBoundingClientRect();
             drag = { x0: drag.at.x - r.left, y0: drag.at.y - r.top, box: el('div', 'selbox') };
             vp.append(drag.box);
@@ -1051,6 +1052,21 @@ export function mountCanvas(vp, d) {
      * Existing packs are offered as you type, so `town/` lists the packs inside town. Enter packs the cards;
      * Esc or a click elsewhere leaves the selection as it is.
      */
+    /** After a long press let go on empty canvas: a "Place an entry here" button at the spot; a tap elsewhere drops it. */
+    function placeOffer(at) {
+        vp.querySelector('.placeoffer')?.remove();
+        const r = vp.getBoundingClientRect();
+        const b = el('button', 'placeoffer');
+        b.type = 'button';
+        b.innerHTML = ic('plus', 's');
+        b.append('Place an entry here');
+        Object.assign(b.style, { left: `${Math.min(Math.max(at.x - r.left, 90), r.width - 90)}px`, top: `${at.y - r.top}px` });
+        const drop = () => { b.remove(); vp.removeEventListener('pointerdown', away, true); };
+        const away = ev => { if (!b.contains(ev.target)) drop(); };
+        b.addEventListener('click', () => { drop(); d.holdEmpty?.(pointAt(at.x, at.y)); });
+        vp.append(b);
+        setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
+    }
     function lassoPrompt(keys, x, y) {
         vp.querySelector('.lasso')?.remove();
         const uids = d.lasso?.entries(keys) ?? [];
@@ -1160,9 +1176,10 @@ export function mountCanvas(vp, d) {
             return;
         }
         if (mode === 'hold') {
+            // Let go without a box: offer Place here as a button to tap, so a lasso cut short never opens the picker.
             const at = drag.at;
             mode = null; start = null; drag = null;
-            d.holdEmpty?.(pointAt(at.x, at.y));
+            placeOffer(at);
             return;
         }
         if (mode === 'box') {

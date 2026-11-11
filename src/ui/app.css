@@ -973,6 +973,8 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .linkguide { overflow: visible; pointer-events: none; position: absolute; left: 0; top: 0; }
 .linkguide path { fill: none; stroke-width: 2.5; }
 .selbox { position: absolute; z-index: 7; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
+.placeoffer { position: absolute; z-index: 8; transform: translate(-50%, -130%); display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--fg) 10%, var(--tint)); box-shadow: 0 6px 18px var(--shadow); color: var(--fg); font-weight: 600; font-size: var(--t-s); white-space: nowrap; }
+.placeoffer svg { color: var(--accent); }
 [data-desk="1"] .vp { cursor: default; }
 [data-desk="1"] .vp .card { cursor: grab; }
 [data-desk="1"] .sheet.pop .plimit { max-height: 320px; overflow-y: auto; }
