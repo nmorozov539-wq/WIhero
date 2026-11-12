@@ -71,6 +71,11 @@ export function createApp(deps) {
     const toastBox = el('div', 'toast');
     toastBox.setAttribute('role', 'status');
     root.append(tabbar, main, layerBox, toastBox);
+    const operationStatus = el('div', 'operation-status');
+    operationStatus.hidden = true;
+    operationStatus.setAttribute('role', 'status');
+    operationStatus.setAttribute('aria-live', 'polite');
+    root.append(operationStatus);
     shadow.append(link, root);
     document.body.append(host);
     const layer = createLayer(layerBox, toastBox);
@@ -80,7 +85,7 @@ export function createApp(deps) {
     // Escape is Back while WI Hero is open, wherever the focus is (LAYOUT "Back").
     // Desktop keys (LAYOUT "Keys"): Ctrl K anywhere while WI Hero is open, the rest inside it.
     window.addEventListener('keydown', e => {
-        if (!S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
+        if (library.operationText?.() || !S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
         if (document.querySelector('.popup[open], dialog[open]')) return;
         // In Hero mode a click on the list or the canvas can leave the focus on the page itself.
         const inside = e.composedPath().includes(host) || (S.mode === 'hero' && document.activeElement === document.body);
@@ -97,7 +102,7 @@ export function createApp(deps) {
         if (took) { e.preventDefault(); e.stopPropagation(); }
     }, true);
     window.addEventListener('keydown', e => {
-        if (e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
+        if (library.operationText?.() || e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
         if (e.composedPath()[0]?.dataset?.ownEscape) return; // a field that cancels its own edit with Escape
         e.preventDefault();
@@ -241,7 +246,16 @@ export function createApp(deps) {
         return !!a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !layerBox.contains(a)) || a.isContentEditable);
     };
     /** Redraw, unless something is being typed into: then once the typing is done. */
+    function syncOperation() {
+        const text = library.operationText?.() ?? '';
+        operationStatus.textContent = text ? `${text}…` : '';
+        operationStatus.hidden = !text;
+        root.setAttribute('aria-busy', String(!!text));
+        for (const node of [tabbar, main, layerBox, toastBox]) node.inert = !!text;
+        return !!text;
+    }
     function refresh() {
+        if (syncOperation()) { pendingRender = true; return; }
         if (host.hidden) { pendingRender = true; return; }
         if (typing()) { pendingRender = true; renderTabs(); return; }
         render();
@@ -270,6 +284,7 @@ export function createApp(deps) {
     }
 
     function render() {
+        if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
         undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
@@ -614,10 +629,13 @@ export function createApp(deps) {
             onEnd: async () => {
                 for (const n of names) {
                     if (!S.hiddenBooks.has(n)) continue;
-                    await snapshots.removeAll(n);
-                    await library.remove(n);
-                    deleteBookSettings(settings, n);
-                    S.hiddenBooks.delete(n);
+                    try {
+                        await library.remove(n);
+                        await snapshots.removeAll(n);
+                        deleteBookSettings(settings, n);
+                    } catch (e) {
+                        layer.toast(e.message || `Could not delete ${n}.`);
+                    } finally { S.hiddenBooks.delete(n); }
                 }
                 saveSettings();
                 render();

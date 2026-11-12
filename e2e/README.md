@@ -53,3 +53,7 @@ browser harness). It checks that creation stays on the list and title space/blur
 delete, on/off and parameter edits keep the entry open without adding tabs after saves. The native-editor reload
 stub fires the same book-open callback as ST's dropdown unless the library suppresses it. Run
 `node e2e/mobile-edit.mjs`; it uses only made-up harness data.
+
+`lifecycle.mjs` uses the real library in the same browser harness to check the waiting state during rename and
+that a failed delayed book deletion returns the book to the list with an error, retaining its snapshots and
+settings. Run `node e2e/lifecycle.mjs`; no real SillyTavern data is used.

@@ -22,6 +22,10 @@ const REPO = 'SillyTavern/SillyTavern';
  */
 const PIECES = [
     { file: 'public/scripts/utils.js', start: 'export function getStringHash(', why: 'src/engine/util.js copies it; greeting fingerprints depend on it' },
+    { file: 'public/scripts/world-info.js', start: 'export const worldInfoCache =', line: true, why: 'confirmed saves synchronize the cache and the raw object captured by native debounce' },
+    { file: 'public/scripts/util/StructuredCloneMap.js', start: 'export class StructuredCloneMap', why: 'book-write.js relies on Map identity and the cache clone policy' },
+    { file: 'public/scripts/world-info.js', start: 'export async function saveWorldInfo(', why: 'native debounced saves share their data object with worldInfoCache' },
+    { file: 'public/scripts/world-info.js', start: 'async function _save(', why: 'native queued payloads must not overwrite confirmed extension writes' },
     { file: 'public/scripts/world-info.js', start: 'const KNOWN_DECORATORS =', line: true, why: 'src/timers.js copies it' },
     { file: 'public/scripts/world-info.js', start: 'function parseDecorators(', why: 'src/timers.js copies it' },
     { file: 'public/scripts/world-info.js', start: 'matchKeys(haystack, needle, entry) {', why: 'keywordOnSide (src/engine/turn.js) follows it' },
@@ -39,7 +43,7 @@ const WI_EXPORTS = [
     'onWorldInfoChange', 'selected_world_info', 'setWorldInfoButtonClass', 'world_info', 'world_names', 'world_info_budget',
     'world_info_budget_cap', 'world_info_character_strategy', 'world_info_include_names', 'world_info_max_recursion_steps',
     'world_info_min_activations', 'world_info_min_activations_depth_max', 'world_info_overflow_alert', 'world_info_recursive',
-    'world_info_use_group_scoring',
+    'world_info_use_group_scoring', 'worldInfoCache',
 ];
 const UTILS_EXPORTS = ['getStringHash'];
 const EVENTS = [

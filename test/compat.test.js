@@ -47,3 +47,14 @@ test('runtime probes of the scan\'s arguments', () => {
     assert.equal(probeScanDone({ activated: { entries: new Map() }, state: { next: 0 } }), null);
     assert.match(probeScanDone({ activated: { entries: {} } }), /activated entries/);
 });
+
+
+test('the save adapter requires ST cache Map semantics', () => {
+    const i = internals();
+    i['world-info.js worldInfoCache'] = {};
+    assert.ok(checkHealth(context(), i).includes('world-info.js worldInfoCache as a Map'));
+    i['world-info.js worldInfoCache'] = new Map();
+    assert.deepEqual(checkHealth(context(), i), []);
+    i['world-info.js worldInfoCache'] = undefined;
+    assert.ok(checkHealth(context(), i).includes('world-info.js worldInfoCache'));
+});

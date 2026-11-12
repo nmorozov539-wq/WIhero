@@ -83,15 +83,21 @@ const ctx = () => ({ chat: [], characters: [], getTokenCountAsync: null });
 await loadBooks();
 // Optional real save lifecycle, including ST's programmatic dropdown event on editor reload.
 if (params.has('saves')) {
+    const controls = globalThis.wiheroHarness = { writeDelay: 20, deleteDelay: 0, failDelete: false, snapshots };
     const host = {
+        getRequestHeaders: () => ({}), updateWorldInfoList: async () => {}, saveSettingsDebounced() {},
+        characters: [], chatMetadata: {},
         getWorldInfoNames: () => [...books.keys()],
         loadWorldInfo: async name => structuredClone(books.get(name)),
         reloadWorldInfoEditor: name => { if (!library.busy()) app.openBook(name); },
     };
     library = Object.setPrototypeOf(createLibrary({
-        ctx: () => host, WI: {}, settings, saveSettings,
+        ctx: () => host, WI: { world_info: {}, deleteWorldInfo: async name => {
+            await new Promise(resolve => setTimeout(resolve, controls.deleteDelay));
+            return controls.failDelete ? false : books.delete(name);
+        } }, settings, saveSettings,
         writeBook: async (name, data) => {
-            await new Promise(resolve => setTimeout(resolve, 20));
+            await new Promise(resolve => setTimeout(resolve, controls.writeDelay));
             books.set(name, structuredClone(data));
             library.onWorldInfoUpdated(name, data);
         },

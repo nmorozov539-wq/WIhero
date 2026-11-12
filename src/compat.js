@@ -63,6 +63,8 @@ export function checkHealth(context, internals) {
     for (const fn of ['world-info.js getSortedEntries', 'world-info.js parseRegexFromString', 'utils.js getStringHash']) {
         if (internals?.[fn] !== undefined && typeof internals[fn] !== 'function') missing.push(`${fn} as a function`);
     }
+    const cache = internals?.['world-info.js worldInfoCache'];
+    if (cache !== undefined && !(cache instanceof Map)) missing.push('world-info.js worldInfoCache as a Map');
     // The engine keeps a copy of getStringHash, and the editor writes greeting fingerprints with it that the
     // runtime checks with ST's own. A changed hash would silently mismatch them all.
     const stHash = internals?.['utils.js getStringHash'];

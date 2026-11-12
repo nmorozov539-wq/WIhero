@@ -1159,3 +1159,7 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 .card .k.wval { color: var(--p-track); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trkb .kin { width: 100%; box-sizing: border-box; }
 .trkb .trkdepth .kin { width: 5em; }
+
+/* Book transactions hold editing until persistence and host links have settled. */
+.operation-status { position: absolute; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--tint) 90%, transparent); color: var(--fg); font-size: var(--t-l); }

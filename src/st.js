@@ -30,6 +30,7 @@ export const internals = () => ({
     'world-info.js world_info_depth': WIModule.world_info_depth,
     'world-info.js newWorldInfoEntryTemplate': WIModule.newWorldInfoEntryTemplate,
     'world-info.js deleteWorldInfo': WIModule.deleteWorldInfo,
+    'world-info.js worldInfoCache': WIModule.worldInfoCache,
     'world-info.js METADATA_KEY': WIModule.METADATA_KEY,
     'utils.js getStringHash': Utils.getStringHash,
 });

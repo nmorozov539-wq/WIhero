@@ -282,3 +282,19 @@ shorter or older.
 - Tracker value resolution applies current book rename mappings to the historical message containing the value,
   including written masks and the restored swipe. It does not rewrite historical messages. Runtime model caching
   compares the full entry inputs, so ST fields such as disable, constant, keywords and content invalidate it.
+
+### Follow-up: book lifecycle and native saves
+
+Book edits now have a dirty revision and a confirmed revision independent of timers. A write acknowledges only
+its serialized revision; changes and outside merges received while it waits cause another serialized write.
+External revisions reset Undo even when a clean copy was dropped and reloaded. Rename and delete hold editing
+with a visible waiting status until they finish, reject overlapping operations, and require ST's delete result
+to succeed. A failed delete keeps settings and snapshot files; a rename whose source cannot be deleted reports
+that both copies remain.
+
+ST's exported cache is a Map that stores the same object captured by its native save debounce. After confirmed
+HTTP success, the adapter synchronizes that raw object so a queued native write cannot restore older content.
+It leaves a native edit made during the request intact; the library merges and confirms it as a later revision.
+Native events for an already-confirmed payload trigger a confirmation write too, because an older HTTP body may
+have been serialized before that shared object changed. Only currently active extension event objects are
+classified as our own. The cache Map semantics and the host save implementations are in the drift contract.

@@ -3,6 +3,10 @@
     "note": "Fingerprints of the SillyTavern code WI Hero mirrors (tools/st-drift.mjs). Take them again with --update only after checking the change by hand and updating WI Hero to match.",
     "pins": {
         "public/scripts/utils.js export function getStringHash(": "3024da93f7c57b8e",
+        "public/scripts/world-info.js export const worldInfoCache =": "c7be9cec3c236c8b",
+        "public/scripts/util/StructuredCloneMap.js export class StructuredCloneMap": "bb9ce6a85a71322d",
+        "public/scripts/world-info.js export async function saveWorldInfo(": "4e58955140a422a3",
+        "public/scripts/world-info.js async function _save(": "77f79a959ca28aeb",
         "public/scripts/world-info.js const KNOWN_DECORATORS =": "d16c65e021130e4f",
         "public/scripts/world-info.js function parseDecorators(": "90bea46d12e2b9f9",
         "public/scripts/world-info.js matchKeys(haystack, needle, entry) {": "6a8bf16ae988ce7a",
