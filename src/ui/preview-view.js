@@ -1,6 +1,6 @@
 // Hero mode's Preview tab (N5, LAYOUT "Preview tab", BUILD_SPEC 15.5): where it can start from, and running the
 // engine on a pretend exchange. Moved out of app.js; it reaches the app only through the context given to it.
-import { GREETINGS, buildModel } from '../engine/model.js';
+import { GREETINGS } from '../engine/model.js';
 import { el } from './dom.js';
 import { cardKey, titleOf } from './data.js';
 import { greetingsOf, openingGreeting } from '../chat-state.js';
@@ -11,10 +11,10 @@ import { strategyColor } from './entry-page.js';
 
 /**
  * @param {object} A The app's context: { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need,
- *   loadingNote, entriesShown, buildBookModel, openHeroTab, showOnCanvas, inspect }.
+ *   loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect }.
  */
 export function createPreview(A) {
-    const { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need, loadingNote, entriesShown, buildBookModel, openHeroTab, showOnCanvas, inspect } = A;
+    const { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need, loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect } = A;
 
     /** Where Preview can start from (BUILD_SPEC 15.5): the open chat, Fresh start, and each greeting of its character. */
     function previewSeeds() {
@@ -59,7 +59,8 @@ export function createPreview(A) {
         const seeds = previewSeeds();
         let seed = seeds.find(x => x.id === H.pv?.seed);
         if (!seed) { seed = seeds[0]; seedPreview(seed); }
-        const shown = entriesShown(book, data);
+        // Engine inputs include Moments; ordinary-list visibility must not remove story logic.
+        const shown = linkable(book, data);
         const entries = shown.map(e => ({ ...e, world: book }));
         const model = buildBookModel(entries);
         const g = scan?.globals?.() ?? {};

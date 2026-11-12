@@ -57,3 +57,5 @@ stub fires the same book-open callback as ST's dropdown unless the library suppr
 `lifecycle.mjs` uses the real library in the same browser harness to check the waiting state during rename and
 that a failed delayed book deletion returns the book to the list with an error, retaining its snapshots and
 settings. Run `node e2e/lifecycle.mjs`; no real SillyTavern data is used.
+The lifecycle check also opens the actual Preview UI on a book with a Moment and a gated entry, checks that the
+Moment opens it without being sent itself, inspects its highlight, and verifies that Preview saves nothing.

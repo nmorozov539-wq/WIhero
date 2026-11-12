@@ -85,9 +85,9 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         model = buildModel(entries, { greetingFp });
     }
 
-    const sticky = (chat, type) => {
+    const sticky = type => {
         const timed = ctx().chatMetadata?.timedWorldInfo;
-        return new Set(stickyHeld(loaded, timed, scanLength(chat, type), e => hashes.get(stKey(e))).keys());
+        return new Set(stickyHeld(loaded, timed, scanLength(ctx().chat ?? [], type), e => hashes.get(stKey(e))).keys());
     };
 
     // 6.1
@@ -174,7 +174,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         const chat = scanChat(ctx().chat ?? [], pending?.type);
         const working = stateForScan(chat, model, stateOptions(chat));
         // ST skips timed effects on dry runs, and a dry run never has a pending turn.
-        const held = pending ? sticky(chat, pending.type) : new Set();
+        const held = pending ? sticky(pending.type) : new Set();
         if (pending) Object.assign(pending, { working, chat, sticky: held });
         for (const list of Object.values(lore ?? {})) {
             if (!Array.isArray(list)) continue;

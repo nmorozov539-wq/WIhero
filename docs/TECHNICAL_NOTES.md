@@ -306,3 +306,13 @@ and book slug no longer determine file identity. Rename, forget and keep use the
 snapshots), so same-millisecond copies remain independent. Concurrent As imported requests share an upload,
 pending uploads retain the settings object through book rename, and cleanup waits for uploads before removing
 files. Existing snapshot files and index entries continue to work.
+
+### Follow-up: Reopen, sticky and Preview
+
+Reopen's close locks can replace a latch older than their new baseline when a fresh matching phrase arrives;
+pre-baseline text remains ignored. Tests cover lock-only and entry-plus-lock rows, plus swipe rewind. Sticky
+checks now receive ST's original chat and calculate its scan length once, independently of the engine's
+snapshot slice; swipe, continue and regenerate start/end boundaries are covered. Preview builds its model
+from all linkable entries, including Moments, and still keeps Moments out of ordinary sent-entry results.
+The lifecycle browser regression checks a real Preview view: a Moment opens a gated entry, its highlight can
+be inspected, and the book stays unchanged.

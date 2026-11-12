@@ -58,6 +58,34 @@ try {
     assert.deepEqual(await page.evaluate(() => removedBackups), []);
     assert.equal(await page.evaluate(() => wihero.settings.books['Renamed Keep'].snapshots[0].path), 'keep.json');
     assert.match(await host.locator('.toast').textContent(), /Could not delete/);
+    await page.evaluate(async () => {
+        await wihero.library.get('Renamed Keep');
+        wihero.library.change('Renamed Keep', d => {
+            d.entries = {
+                0: { uid: 0, comment: 'Moment: Arrival', key: ['arrived'], disable: true, content: '',
+                    extensions: { wihero: { id: 'arrival', moment: true } } },
+                1: { uid: 1, comment: 'Room', key: ['room'], content: 'An open room.',
+                    extensions: { wihero: { id: 'room', gate: [['arrival']] } } },
+            };
+        });
+        await wihero.library.flush();
+        window.previewBookBefore = JSON.stringify(wihero.library.peek('Renamed Keep'));
+        const S = wihero.app.state;
+        S.mode = 'hero'; S.hero.book = 'Renamed Keep'; S.hero.active = 'preview';
+        S.hero.pv = { seed: 'fresh', user: 'I arrived at the room.', reply: '', edit: null, page: null };
+        wihero.app.refresh();
+    });
+    await host.locator('.report').waitFor();
+    assert.match(await host.locator('.report').textContent(), /1 fire, 0 blocked/);
+    await host.locator('.hlx[data-key="Renamed Keep.0"]').click();
+    assert.match(await host.locator('.sheet').textContent(), /Arrival/);
+    await page.keyboard.press('Escape');
+    await host.locator('.report').click();
+    const report = await host.locator('.rbody').textContent();
+    assert.match(report, /Room/);
+    assert.match(report, /Arrival happened/);
+    assert.equal(await page.evaluate(() => JSON.stringify(wihero.library.peek('Renamed Keep')) === previewBookBefore), true);
+    console.log('PASS: actual Preview UI includes a Moment, opens its gated entry and does not save changes');
     assert.deepEqual(errors, []);
     console.log('PASS: failed delayed deletion restores the book to the list and keeps backups/settings, with an error');
 } finally {

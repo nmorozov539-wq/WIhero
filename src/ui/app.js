@@ -697,7 +697,7 @@ export function createApp(deps) {
     // Built lazily: some of what they use is defined further down this closure.
     let previewView = null;
     const preview = () => (previewView ??= createPreview({
-        ctx, S, H, main, layer, library, settings, scan: deps.scan, render: () => render(), heroBook, need, loadingNote, entriesShown,
+        ctx, S, H, main, layer, library, settings, scan: deps.scan, render: () => render(), heroBook, need, loadingNote, linkable,
         buildBookModel, openHeroTab, showOnCanvas, inspect,
     }));
     const renderPreviewTab = () => preview().renderPreviewTab();

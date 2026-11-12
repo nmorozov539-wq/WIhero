@@ -310,3 +310,25 @@ test('model cache follows tracker enable, keywords, Permanent and start text wit
     await st.hooks.loadModel();
     assert.equal(st.hooks.model.nodes.get('Book/gold').content, '20');
 });
+
+for (const type of ['swipe', 'continue', 'regenerate']) test(`${type}: sticky gating uses the host scan length, not the engine snapshot slice`, async () => {
+    const { initialState } = await import('../src/engine/state.js');
+    const { entryHash } = await import('../src/timers.js');
+    const entry = e(0, 'road', { id: 'road' }, { sticky: 5 });
+    const state = initialState(); state.at = 2; state.closed['Book/road'] = { at: 2, by: 'manual' };
+    const chat = [{ is_user: false, mes: 'Hello' }, { is_user: true, mes: 'road' },
+        { is_user: false, mes: 'Reply', extra: { wihero: state } }, { is_user: true, mes: 'again' },
+        { is_user: false, mes: 'replaced' }];
+    // ST pops a swipe's last reply for its scan; continue keeps it. Regenerate removes it from chat itself.
+    if (type === 'regenerate') chat.pop();
+    const length = type === 'continue' ? 5 : 4;
+    for (const [start, end, kept] of [[3, 8, true], [length, length + 5, false], [1, length, false]]) {
+        const hash = entryHash(entry, getStringHash);
+        const hooks = createHooks({ ctx: () => ({ chat, characters: [], chatMetadata: { timedWorldInfo: {
+            sticky: { 'Book.0': { hash, start, end, protected: false } },
+        } } }), settings: { enabled: true }, st: { getStringHash } });
+        hooks.onGenerationStarted(type);
+        const lore = { globalLore: [structuredClone(entry)] }; hooks.onEntriesLoaded(lore);
+        assert.equal(lore.globalLore.length, kept ? 1 : 0, `${start} < ${length} < ${end}`);
+    }
+});
