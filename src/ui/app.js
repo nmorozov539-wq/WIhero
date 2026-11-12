@@ -81,7 +81,13 @@ export function createApp(deps) {
     const layer = createLayer(layerBox, toastBox);
 
     // Keys typed in WI Hero are its own: ST's hotkeys (arrows swipe, Enter sends) never see them.
-    for (const type of ['keydown', 'keyup', 'keypress']) host.addEventListener(type, e => e.stopPropagation());
+    for (const type of ['keydown', 'keyup', 'keypress']) {
+        host.addEventListener(type, e => e.stopPropagation());
+        // An inert transaction view can leave focus on the page body; keep its keys out of ST too.
+        window.addEventListener(type, e => {
+            if (!host.hidden && library.operationText?.()) { e.preventDefault(); e.stopImmediatePropagation(); }
+        }, true);
+    }
     // Escape is Back while WI Hero is open, wherever the focus is (LAYOUT "Back").
     // Desktop keys (LAYOUT "Keys"): Ctrl K anywhere while WI Hero is open, the rest inside it.
     window.addEventListener('keydown', e => {

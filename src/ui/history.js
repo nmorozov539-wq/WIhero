@@ -153,7 +153,11 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
         canUndo: book => !!books.get(book)?.undo.length,
         canRedo: book => !!books.get(book)?.redo.length,
         /** A book renamed: its history goes with it. */
-        rename(from, to) { const h = books.get(from); books.delete(from); if (h) books.set(to, h); },
+        rename(from, to) {
+            const h = books.get(from);
+            books.delete(from);
+            if (h) { h.external = library.externalRevision?.(to) ?? 0; books.set(to, h); }
+        },
         forget(book) { books.delete(book); },
     };
 }

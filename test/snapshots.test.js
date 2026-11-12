@@ -80,16 +80,23 @@ test('an uploading seed follows renamed settings instead of recreating the old b
     let release;
     const held = new Promise(r => { release = r; });
     const settings = { books: {}, bookFolders: {}, renamed: {} };
-    t.mock.method(globalThis, 'fetch', async () => { await held; return { ok: true, json: async () => ({ path: 'seed.json' }) }; });
+    const deleted = [];
+    t.mock.method(globalThis, 'fetch', async (url, opts) => {
+        if (url.endsWith('/delete')) { deleted.push(JSON.parse(opts.body).path); return { ok: true }; }
+        await held; return { ok: true, json: async () => ({ path: 'seed.json' }) };
+    });
     const snapshots = createSnapshots({ ctx: () => ({ getRequestHeaders: () => ({}) }), settings, saveSettings() {}, library: {} });
     const first = snapshots.seed('Book', { entries: {} });
     const again = snapshots.seed('Book', { entries: {} });
     assert.equal(first, again, 'one As imported upload per book');
     renameBookSettings(settings, 'Book', 'New');
-    release(); await first;
+    assert.equal(snapshots.seed('New', { entries: {} }), first, 'a renamed pending seed is still shared');
+    const cleanup = snapshots.removeAll('New');
+    release(); await first; await cleanup;
     assert.equal(settings.books.Book, undefined);
     assert.equal(settings.books.New.seen, true);
     assert.equal(snapshots.list('New')[0].path, 'seed.json');
+    assert.deepEqual(deleted, ['seed.json'], 'cleanup under the new name waits for the old-name upload');
 });
 
 test('snapshot cleanup waits for a pending upload before deleting its file', async t => {

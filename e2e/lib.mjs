@@ -70,6 +70,11 @@ export async function start(bookName = 'WIHero-Sample') {
     }, MOCK_URL);
     await page.waitForFunction(() => SillyTavern.getContext().onlineStatus !== 'no_connection', null, { timeout: 20000 });
     await ev(() => { const box = document.getElementById('wihero_enabled'); if (!box.checked) box.click(); });
+    // Each scenario owns its global books; a failed previous scenario must not pollute its model or prompts.
+    await ev(async name => {
+        const WI = await import('/scripts/world-info.js');
+        for (const book of [...WI.selected_world_info]) if (book !== name) wihero.library.setGlobal(book, false);
+    }, bookName);
     await slash(`/world silent=true ${bookName}`);
     await slash('/go Seraphina');
     await page.waitForFunction(() => SillyTavern.getContext().getCurrentChatId()?.startsWith('Seraphina'), null, { timeout: 20000 });

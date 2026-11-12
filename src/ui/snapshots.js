@@ -38,27 +38,27 @@ export function toBase64(text) {
 export function createSnapshots({ ctx, settings, saveSettings, library, now = () => Date.now(), onSeedError = () => {} }) {
     const headers = () => ctx().getRequestHeaders();
 
-    const pending = new Map();
-    const seeding = new Map();
+    // Settings objects move with a book rename, so pending work follows that identity too.
+    const pending = new WeakMap();
+    const seeding = new WeakMap();
     const list = book => sortSnapshots(settings.books?.[book]?.snapshots);
 
     function write(book, name, data, extra = {}) {
-        const tasks = pending.get(book) ?? new Set();
-        pending.set(book, tasks);
-        const task = writeNow(book, name, data, extra).finally(() => {
+        const record = bookSettings(settings, book);
+        const tasks = pending.get(record) ?? new Set();
+        pending.set(record, tasks);
+        const task = writeNow(book, name, data, extra, record).finally(() => {
             tasks.delete(task);
-            if (!tasks.size) pending.delete(book);
+            if (!tasks.size) pending.delete(record);
         });
         tasks.add(task);
         return task;
     }
 
-    async function writeNow(book, name, data, extra) {
+    async function writeNow(book, name, data, extra, b) {
         const at = now();
         const id = snapshotId();
         const file = snapshotFileName(book, at, id);
-        // Keep the object identity: renameBookSettings can move it while an upload is pending.
-        const b = bookSettings(settings, book);
         const r = await fetch('/api/files/upload', { method: 'POST', headers: headers(), body: JSON.stringify({ name: file, data: toBase64(JSON.stringify(data)) }) });
         if (!r.ok) throw new Error(`The snapshot couldn't be saved (${r.status})`);
         const { path } = await r.json();
@@ -74,9 +74,10 @@ export function createSnapshots({ ctx, settings, saveSettings, library, now = ()
      * (review 2026-11-09, finding 6). `data` is serialized before the first await: a change right after can't reach it.
      */
     function seed(book, data, options) {
-        if (seeding.has(book)) return seeding.get(book);
-        const task = seedNow(book, data, options).finally(() => seeding.delete(book));
-        seeding.set(book, task);
+        const record = bookSettings(settings, book);
+        if (seeding.has(record)) return seeding.get(record);
+        const task = seedNow(book, data, options).finally(() => seeding.delete(record));
+        seeding.set(record, task);
         return task;
     }
 
@@ -134,7 +135,8 @@ export function createSnapshots({ ctx, settings, saveSettings, library, now = ()
 
     /** A deleted book takes its snapshots with it. */
     async function removeAll(book) {
-        await Promise.allSettled([...(pending.get(book) ?? [])]);
+        const record = settings.books?.[book];
+        await Promise.allSettled([...(record ? pending.get(record) ?? [] : [])]);
         for (const snap of settings.books?.[book]?.snapshots ?? []) await removeFile(snap);
     }
 

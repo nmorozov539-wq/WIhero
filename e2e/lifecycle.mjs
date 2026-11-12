@@ -29,7 +29,7 @@ try {
     await page.route('**/api/files/sanitize-filename', route => route.fulfill({ json: { fileName: route.request().postDataJSON().fileName } }));
     await page.goto(`${BASE}?reset&saves`);
     await page.waitForFunction(() => window.wihero);
-    await page.evaluate(() => { wihero.app.openBook('Moonlit Keep'); wiheroHarness.writeDelay = 300; });
+    await page.evaluate(() => { wihero.app.openBook('Moonlit Keep'); wiheroHarness.writeDelay = 500; });
     const host = page.locator('#wihero-editor');
     await host.locator('.bkname').click();
     await host.locator('.opt').filter({ hasText: /^Rename/ }).click();
@@ -38,6 +38,12 @@ try {
     await host.locator('.operation-status').waitFor();
     assert.equal(await host.locator('.main').evaluate(n => n.inert), true);
     assert.match(await host.locator('.operation-status').textContent(), /Renaming Moonlit Keep/);
+    await page.evaluate(() => {
+        window.transactionKeys = 0;
+        document.addEventListener('keydown', () => { transactionKeys++; });
+    });
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => transactionKeys), 0, 'waiting keys cannot send the underlying ST chat');
     await host.locator('.bkname h1').filter({ hasText: 'Renamed Keep' }).waitFor();
     assert.equal(await host.locator('.main').evaluate(n => n.inert), false);
     console.log('PASS: rename holds editing with a waiting status and unlocks on completion');

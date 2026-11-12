@@ -325,3 +325,12 @@ debounces the next offer, and makes old answers inert, even after switching back
 checks the originating chat before applying a catch-up action after loading the model. Unit checks cover stale
 loads, popup answers and chat switching; N6 exercises a real open catch-up popup followed by /newchat. The
 Popup constructor and enums used by the controller are included in startup compatibility checks.
+
+### Final lifecycle boundary checks
+
+New create/duplicate/rename destinations explicitly invalidate stale working copies left by an outside delete,
+and start a fresh history generation. Reusing a destination with unconfirmed edits is refused. Internal write
+events remain distinguishable from outside changes, while a source's Undo history follows the sanitized rename
+without being mistaken for an outside replacement. Pending snapshot tasks are keyed by the settings object,
+which follows renames, so deduplication and cleanup work through a name change too. Transaction waiting consumes
+keyboard events even when browser focus moves to the page body.

@@ -59,3 +59,15 @@ that a failed delayed book deletion returns the book to the list with an error, 
 settings. Run `node e2e/lifecycle.mjs`; no real SillyTavern data is used.
 The lifecycle check also opens the actual Preview UI on a book with a Moment and a gated entry, checks that the
 Moment opens it without being sent itself, inspects its highlight, and verifies that Preview saves nothing.
+
+`host-saves.mjs` checks the persistence contract in a throwaway SillyTavern with independent server reads. It
+uses ST's real native debounce to check that native and extension edits survive together, injects HTTP 500 to
+check failed flush and retry, injects a failed rename destination, and checks ST's false delete result. It makes
+and removes only "Health Save Contract" and "Health Save Target" and uses no model. Run it with the same `ST_URL`
+and browser settings as the other in-ST scripts.
+N6 also leaves a catch-up offer open and starts a new chat, checking that the old popup closes and the new
+chat receives no state from that decision.
+
+The shared in-ST setup now isolates global lorebooks for each scenario. N7–N9 explicitly select Home before
+choosing their test book; N7's own-card drop follows the canvas-controls rule (go back without writing). For
+long runs, restart the mock with `MOCK_KEEP_LOG=1 node e2e/mock.mjs` to retain prompts and continue numbering.

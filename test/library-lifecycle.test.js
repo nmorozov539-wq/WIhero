@@ -124,3 +124,44 @@ test('a late native event confirms the latest copy again without invalidating it
     assert.deepEqual(books.get('Book'), confirmed);
     assert.equal(history.canUndo('Book'), true);
 });
+
+test('rename preserves Undo across different external revisions and internal host events', async t => {
+    const { library, books, settings } = setup(t, async (name, data) => library.onWorldInfoUpdated(name, data));
+    await library.get('Book');
+    const outside = structuredClone(books.get('Book')); outside.entries[1].content = 'external';
+    books.set('Book', outside); library.onWorldInfoUpdated('Book', outside);
+    await library.get('Book');
+    const history = createHistory({ library, settings, saveSettings() {} });
+    const editor = withHistory(library, history);
+    editor.change('Book', d => { d.entries[0].content = 'local'; }, { quiet: true });
+    await editor.flush();
+    assert.equal(await editor.rename('Book', 'New?'), 'New', 'use the sanitized name for history');
+    await editor.get('New');
+    assert.equal(history.undo('New'), true, 'a rename does not erase the source history');
+    await editor.flush();
+    assert.equal(books.get('New').entries[0].content, 'A');
+    assert.equal(books.get('New').entries[1].content, 'external', 'Undo still preserves prior outside edits');
+});
+
+for (const action of ['create', 'duplicate', 'rename']) test(`${action} replaces a stale destination copy after an outside delete`, async t => {
+    const { library, books } = setup(t);
+    books.set('New', { entries: { 99: { uid: 99, content: 'stale destination' } } });
+    await library.get('New');
+    books.delete('New'); // native deleteWorldInfo does not emit WORLDINFO_UPDATED.
+    if (action === 'create') await library.create('New');
+    else await library[action]('Book', 'New');
+    const current = await library.get('New');
+    assert.equal(current.entries[99], undefined);
+    assert.deepEqual(current, books.get('New'));
+    assert.equal(current.entries[0]?.content, action === 'create' ? undefined : 'A');
+});
+
+test('a destination name with unconfirmed edits cannot be reused', async t => {
+    const { library, books } = setup(t);
+    books.set('New', { entries: {} }); await library.get('New');
+    library.change('New', d => { d.value = 'unsaved'; });
+    books.delete('New');
+    await assert.rejects(library.create('New'), /Finish saving New/);
+    assert.equal(library.peek('New').value, 'unsaved');
+    await library.flush();
+});

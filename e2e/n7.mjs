@@ -62,6 +62,8 @@ await run(async () => {
     ok('setup: a plain book "N7 Test" with six cards on the canvas, at 390 × 844');
 
     await page.click('#WI-SP-button .drawer-toggle');
+    // ST may have selected the character's native lorebook while the hidden drawer initialized.
+    await $('.tab[aria-label="Home"]').click();
     await $(`.item[data-book="${BOOK}"]`).click();
     await card('Mill').waitFor();
     assert.deepEqual(await $('.pchip').allTextContents(), ['Opens', 'Closes', 'Glue', 'Switch', 'Mask', 'Pack', 'Tracker', 'Lock', 'Wait', 'Moment']);
@@ -139,7 +141,7 @@ await run(async () => {
     assert.equal((await cfg('Tunnel'))?.gate, undefined);
     ok('a new link\'s strip: "Road closes when Tunnel fires" writes a close gate, ⇄ turns it around, Cancel puts the book back');
 
-    // ── A loop is refused; closing itself points to Once ──
+    // ── A loop is refused; dropping a loose end on its own card goes back (canvas controls) ──
     await chip('Opens').click();
     await card('Mill').locator('.t').click();
     await pick('Road');
@@ -148,10 +150,12 @@ await run(async () => {
     await $('.pstrip .pbtn:text-is("Cancel")').click();
     await drag(await chipAt('Closes'), await center(card('Storm')));
     await drag(await center($('.loosend')), await center(card('Storm')));
-    assert.match(await $('.pstrip .pnote.bad').textContent(), /Once/);
+    assert.equal(await $('.pstrip .pnote.bad').count(), 0, 'an own-card drop goes back without an error');
+    assert.equal(await $('.loosend').count(), 1, 'the tool still waits for a different card');
+    assert.equal((await cfg('Storm'))?.closeGate, undefined, 'no self-close is written');
     await $('.pstrip .pbtn:text-is("Cancel")').click();
     await wait(200);
-    ok('a link that would make a loop is refused with the reason; a card closing itself points to Once');
+    ok('a link that would make a loop is refused; a loose end dropped on its own card goes back without writing');
 
     // ── Lock on a line: it joins that row; who says it ──
     await drag(await chipAt('Lock'), await linePoint('id:road>id:mill'));

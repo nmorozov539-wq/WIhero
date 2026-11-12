@@ -89,7 +89,7 @@ export function createLibrary({
     const unsavedSet = new Set();
     /** name → failed saves in a row. */
     const failures = new Map();
-    /** Objects WI Hero handed to saveWorldInfo, to tell its own saves from other ones. */
+    /** Objects currently being published by our confirmed write path, to distinguish their host events. */
     const ours = new WeakSet();
     const loading = new Map();
     /** Books whose As imported copy was asked for this session (onFirstSeen itself remembers it across sessions). */
@@ -293,8 +293,28 @@ export function createLibrary({
     }
 
     function checkDestination(name, current = null) {
+        editable(name);
+        if (isDirty(name) || inFlight.has(name)) throw new Error(`Finish saving ${name} before reusing its name.`);
         const problem = nameProblem(name, current, false);
         if (problem) throw new Error(problem);
+    }
+
+    // A destination can still have a stale working copy after an outside delete. Its new content is a new
+    // history generation, even though our own host event is deliberately ignored.
+    function newCopy(name) {
+        copies.delete(name);
+        bases.delete(name);
+        cacheSeen.delete(name);
+        revisions.delete(name);
+        failures.delete(name);
+        unsavedSet.delete(name);
+        external.set(name, (external.get(name) ?? 0) + 1);
+        version++;
+    }
+
+    async function writeOwn(name, data) {
+        ours.add(data);
+        try { return await writeBook(name, data); } finally { ours.delete(data); }
     }
 
     async function createNow(name) {
@@ -304,7 +324,8 @@ export function createLibrary({
             seeded.add(clean);
             await onFirstSeen(clean, data, { fresh: true });
             checkDestination(clean);
-            await writeBook(clean, data);
+            await writeOwn(clean, data);
+            newCopy(clean);
             await ctx().updateWorldInfoList();
             reused(clean);
             return clean;
@@ -335,7 +356,8 @@ export function createLibrary({
         const clean = await destination(n);
         try {
             checkDestination(clean);
-            await writeBook(clean, data);
+            await writeOwn(clean, data);
+            newCopy(clean);
             await ctx().updateWorldInfoList();
             reused(clean);
             return clean;
@@ -390,7 +412,8 @@ export function createLibrary({
             const data = structuredClone(await get(from));
             const wasGlobal = isGlobal(from);
             checkDestination(target, from);
-            await writeBook(target, data);
+            await writeOwn(target, data);
+            newCopy(target);
             // Primary links first, so ST's delete doesn't unlink the open character.
             const $ = globalThis.jQuery;
             if ($ && $('#character_world').val() === from) $('#character_world').val(target);
