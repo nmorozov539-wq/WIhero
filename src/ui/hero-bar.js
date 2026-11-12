@@ -220,7 +220,7 @@ export function createHeroBar(A) {
             title: 'New Moment', placeholder: 'What happens, in a few words', ok: 'Make',
             help: 'Something that can happen in the story, said in the chat. You add the phrases next.',
             done: name => {
-                const made = library.change(book, d => addMoment(d, entryTemplate, name.trim() || 'Moment'));
+                const made = library.change(book, d => addMoment(d, entryTemplate, name.trim() || 'Moment'), { quiet: true });
                 if (!made) return;
                 const key = cardKey(made);
                 const mem = canvasMemory(bookSettings(settings, book));

@@ -140,7 +140,9 @@ export function createLayer(layer, toastBox) {
         const a = pop.at;
         if (!a || performance.now() - a.t > 1500) return { center: true };
         if (a.menu) return { x: a.x, y: a.y, above: a.y };
-        const c = a.el?.closest?.('button, [role="button"], .opt, .tile, .lrow, input, select') ?? a.el;
+        // Canvas backgrounds/worlds can be much larger than the viewport (and transformed by pan/zoom).
+        // Only controls have meaningful menu edges; elsewhere use the actual pointer position.
+        const c = a.el?.closest?.('button, [role="button"], .opt, .tile, .lrow, input, select');
         if (!c?.isConnected || !c.getBoundingClientRect) return { x: a.x, y: a.y, above: a.y };
         const r = c.getBoundingClientRect();
         // A row inside another menu: the new menu opens beside it.

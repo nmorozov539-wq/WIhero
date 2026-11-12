@@ -176,13 +176,14 @@ export function mountCanvas(vp, d) {
         }
         LINKS.setObstacles(obstacles);
 
-        for (const r of R.values()) {
-            if (!r.pack) continue;
+        // Larger frames first: an inner frame must not cover another pack's higher header band.
+        const frames = [...R.values()].filter(r => r.pack).sort((a, b) => b.w * b.h - a.w * a.h);
+        for (const r of frames) {
             owner = r.key;
             const f = el('div', 'packframe');
             Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
             const pn = el('span', 'pn', `#${r.pack}`);
-            pn.title = 'Rename the pack (drag to move it)';
+            pn.title = `#${r.pack} — Rename the pack (drag to move it)`;
             f.append(pn);
             f.dataset.pack = r.pack;
             put(world, f);

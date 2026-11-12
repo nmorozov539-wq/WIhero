@@ -4,14 +4,14 @@
 // clash; ST's theme variables still come through.
 import { createHistory, withHistory } from './history.js';
 import { buildModel, isMoment } from '../engine/model.js';
-import { btn, html, createLayer, el, issueText } from './dom.js';
+import { btn, html, createLayer, el, issueText, longPress } from './dom.js';
 import { ic } from './icons.js';
 import {
     PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
     SORT_NAMES, isBlank, removeEntry, reorderEntries, search, setFolder, setParam, titleOf,
 } from './data.js';
 import { strategyColor } from './entry-page.js';
-import { canvasBook } from './canvas-graph.js';
+import { canvasBook, offCanvasMoments } from './canvas-graph.js';
 import { canvasMemory } from './canvas.js';
 import { bookEditor, packsOf, renamePack } from './pieces.js';
 import { getStringHash } from '../engine/util.js';
@@ -192,7 +192,24 @@ export function createApp(deps) {
     const loadFailed = new Map();
     function need(book, { open = true } = {}) {
         const data = library.peek(book);
-        if (data) { if (open) library.seen(book); return data; }
+        if (data) {
+            if (open) library.seen(book);
+            const record = bookSettings(settings, book);
+            const mem = canvasMemory(record);
+            const orphaned = offCanvasMoments(data, mem);
+            if (orphaned.length) {
+                library.change(book, d => {
+                    for (const e of orphaned) {
+                        const key = cardKey(e);
+                        removeEntry(d, e.uid);
+                        delete mem.cards[key];
+                        if (record.folders) delete record.folders[key];
+                    }
+                }, { quiet: true });
+                saveSettings();
+            }
+            return data;
+        }
         if (!waiting.has(book) && !loadFailed.has(book)) {
             waiting.add(book);
             const fail = why => {
@@ -657,7 +674,7 @@ export function createApp(deps) {
     const heroShell = () => (heroShellView ??= createHeroShell({
         H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
-        loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
+        loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
         startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, checkCounts, checksSheet, undoHistory, historyStep,
     }));
@@ -711,7 +728,7 @@ export function createApp(deps) {
     const panelView = () => (heroPanelView ??= createHeroPanel({
         S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
-        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker,
+        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries,
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
     const panelState = () => panelView().panelState();
@@ -733,23 +750,27 @@ export function createApp(deps) {
                     try { open(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
                 },
             }));
-            if (H.book) {
-                act('copy', `Duplicate ${H.book}`, async () => {
-                    layer.close();
-                    const from = H.book;
-                    let to;
-                    try { to = await library.duplicate(from); } catch (e) { layer.toast(`Could not duplicate ${from}: ${e.message}`); return; }
-                    copyBookSettings(settings, from, to);
-                    saveSettings();
-                    open(to);
-                    layer.toast(`Made ${to}`);
-                });
-            }
             sh.append(acts);
             for (const n of visibleNames()) {
-                sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
+                const row = layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined });
+                const actions = () => layer.sheet(n, menu => {
+                    menu.append(layer.opt('Rename', () => renameBook(n), { icon: 'edit' }));
+                    menu.append(layer.opt('Duplicate', async () => {
+                        layer.close();
+                        let to;
+                        try { to = await library.duplicate(n); } catch (e) { layer.toast(`Could not duplicate ${n}: ${e.message}`); return; }
+                        copyBookSettings(settings, n, to);
+                        saveSettings();
+                        open(to);
+                        layer.toast(`Made ${to}`);
+                    }, { icon: 'copy' }));
+                    menu.append(layer.opt('Delete', () => { layer.close(); deleteBooks([n]); }, { icon: 'trash', danger: true }));
+                });
+                row.addEventListener('contextmenu', e => { e.preventDefault(); actions(); });
+                longPress(row, actions);
+                sh.append(row);
             }
-        });
+        }, { help: S.desk ? 'Right-click a book for Rename, Duplicate or Delete.' : 'Long press a book for Rename, Duplicate or Delete.' });
     }
 
     /** Asks a pack's new name and renames it everywhere the book names it, and on the canvas (#21). */

@@ -385,3 +385,28 @@ test('delayed closing: a close row naming the card itself is a badge, not a link
     assert.ok(!g.edges.some(x => x.from === x.to), 'no self link');
     assert.ok(g.edges.some(x => x.from === 'id:bell' && x.to === 'id:fog'));
 });
+
+test('packs with coincident bounds get stable separate header rows without moving their cards', () => {
+    const data = { entries: { 0: { uid: 0, comment: 'Power', key: ['power'], content: '',
+        extensions: { wihero: { id: 'power', packs: ['gog', 'asdasd', 'gog/child'] } } } } };
+    const m = canvasBook(data), ids = new Set(['id:power']);
+    const g = withFrames(m, buildGraph(m), ids);
+    const pos = { 'id:power': { x: 120, y: 120 } };
+    const R = nodeRects(m, g, ids, pos);
+    const frames = [...R.values()].filter(r => r.pack).sort((a, b) => a.y - b.y);
+    assert.deepEqual(frames.map(r => r.pack), ['asdasd', 'gog', 'gog/child']);
+    for (let i = 1; i < frames.length; i++) assert.equal(frames[i].y - frames[i - 1].y, 24);
+    assert.ok(frames.every(r => r.y + r.h === 120 + CH + 24));
+    assert.deepEqual(pos, { 'id:power': { x: 120, y: 120 } });
+    const reversed = nodeRects(m, { ...g, packs: [...g.packs].reverse() }, ids, pos);
+    for (const r of frames) assert.deepEqual(reversed.get(r.key), r, 'pack order does not reshuffle headers');
+});
+
+test('off-canvas Moments are removed, while placed or graph-visible Moments and ordinary entries are kept', async () => {
+    const { offCanvasMoments } = await import('../src/ui/canvas-graph.js');
+    const moment = (uid, id) => ({ uid, key: [], content: '', disable: true, extensions: { wihero: { id, moment: true } } });
+    const data = { entries: { 0: moment(0, 'orphan'), 1: moment(1, 'placed'), 2: moment(2, 'linked'),
+        3: { uid: 3, content: 'Ordinary entry', extensions: { wihero: { id: 'target', gate: [['linked']] } } } } };
+    assert.deepEqual(offCanvasMoments(data, { cards: { 'id:placed': { placed: true } } }).map(e => e.uid), [0]);
+    assert.deepEqual(offCanvasMoments(data, { cards: {} }).map(e => e.uid), [0, 1]);
+});

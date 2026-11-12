@@ -11,13 +11,13 @@ import { resizer } from './desk.js';
 /**
  * @param {object} A The app's context: { S, H, main, root, layer, library, settings, saveSettings, render, canvas()
  *   (the mounted canvas or null), listShown, deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy,
- *   entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker }.
+ *   entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries }.
  * @returns {{ heroPanel(book, data), panelState() }} panelState shows the panel open or closed as H.panel says.
  */
 export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
-        createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker,
+        createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries,
     } = A;
     let panelState = () => {};
 
@@ -223,6 +223,11 @@ export function createHeroPanel(A) {
                         sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: desk ? 'Double-click' : undefined }));
                         sh.append(layer.opt(placed ? 'Show on canvas' : 'Place on canvas', () => { layer.close(); place(); }, { icon: 'canvas' }));
                         if (placed || desk) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: desk ? 'Click' : undefined }));
+                        sh.append(layer.opt('Delete', () => {
+                            layer.close();
+                            if (H.insp?.key === key) H.insp = null;
+                            deleteEntries(book, [e.uid]);
+                        }, { icon: 'trash', danger: true }));
                     }, { help: desk ? null : 'Or drag its dot onto the canvas to place it where you drop it.' });
                     if (desk) {
                         // Desktop: click inspects, double-click opens its tab, right-click is the menu, drag the row to place it.
@@ -242,6 +247,10 @@ export function createHeroPanel(A) {
         };
         if (desk) {
             // The footer: the book's links and how many of its entries are on the canvas.
+            const picker = btn('panelbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
+            picker.querySelector('span').textContent = book;
+            picker.title = book;
+            p.append(picker);
             const ft = el('div', 'pfoot');
             const lt = linkText(book);
             const g = library.isGlobal(book);

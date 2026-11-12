@@ -54,7 +54,7 @@ export function createHeroDesk(A) {
         if (off.length) { saveSettings(); H.insp = null; canvas().setPicked(new Set(), true); render(); }
         const nm = k => view.m.byId(k)?.title ?? 'It';
         if (stay.length) layer.toast(stay.length === 1 ? `${nm(stay[0])} stays: it has links. Remove them first` : `${stay.length} cards stay: they have links`);
-        else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} taken off the canvas` : `${off.length} cards taken off the canvas`);
+        else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} ${view.m.byId(off[0])?.moment ? 'deleted' : 'taken off the canvas'}` : `${off.length} cards taken off the canvas`);
     }
 
     /** Shows or hides the inspector column; on a wide window the choice is kept. */
@@ -86,7 +86,7 @@ export function createHeroDesk(A) {
             dir: LR,
             tools: box => {
                 box.append(btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)'));
-                const t = btn('itoggle', ic('drawer'), () => { setInsp(!inspShown()); render(); }, 'Show or hide the inspector');
+                const t = btn('itoggle', ic('panelRight'), () => { setInsp(!inspShown()); render(); }, 'Show or hide the inspector');
                 t.title = 'Show or hide the inspector';
                 box.append(t);
                 for (const b of box.querySelectorAll('button')) b.title ||= b.getAttribute('aria-label') ?? '';
@@ -343,7 +343,7 @@ export function createHeroDesk(A) {
 
     /**
      * Esc on desktop: menu, search, armed piece, strip (Cancel), text box, selection, Preview's report page, and there
-     * it stops. It never closes WI Hero (people press Esc twice by habit); × does.
+     * it stops. It never closes WI Hero (people press Esc twice by habit); the ST World Info button toggles it.
      */
     function heroBackDesk() {
         if (S.search) { S.search = null; render(); return true; }

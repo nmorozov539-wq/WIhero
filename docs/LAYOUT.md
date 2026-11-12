@@ -312,6 +312,9 @@ theme's own background, solid, with a faint dot grid.
 | Long press empty canvas, then drag | Box select (lasso), once the finger has moved 18px from where it was held (a smaller slip is still a press): every card in the box is picked. A small box asks for a pack name (existing packs are offered as you type), with Unpack when some are in packs; the picked cards drag together by a grip |
 | Long press empty canvas, let go | A "Place an entry here" button at that spot (a tap elsewhere drops it). Tapping it opens "Place here": a search box, New entry here, and the entries not on the canvas yet; the one picked is placed at that spot. So a lasso cut short never opens the picker |
 
+Packs with identical visible bounds have vertically stacked header bands. Each name remains clickable and
+draggable; card positions stay unchanged. Long names truncate within the frame and show their full name on hover.
+
 Cards move only by the grip (the six dots), so a drag anywhere else pans.
 
 **Buttons on the canvas**
@@ -433,7 +436,9 @@ switch; tap the name to rename it), "Happens when someone says (any one)" with
 a "?" to the Guide, its phrases as chips with × and a box to add one, Who says
 it (Anyone, You, The character), "Happened in the open chat" or "Not yet in the
 open chat" with chat state on, then its Waits for, Opens, Closes and Packs
-rows and + Add logic for those. Footer: Take off canvas · Delete (it refuses
+rows and + Add logic for those. Taking an unlinked Moment off the canvas deletes it, including its panel row.
+Off-canvas Moments left by older versions are cleaned up when opening the book; connected Moments remain
+on the canvas through their links. Footer: Take off canvas · Delete (it refuses
 while other cards use the Moment) · Data.
 
 **Pack sheet** (tap a frame): Rename (the new name reaches every member,
@@ -457,7 +462,7 @@ style: a list first, the book at the bottom.
 | Dot, filled | The entry is on the canvas; tap to jump to it |
 | Dot, hollow | Tap to place it in the middle of the view |
 | Drag a dot | The panel slides away and the card follows the finger; it is placed (or moved) where it is dropped. A red × in the lower middle of the screen cancels: drop on it and nothing changes |
-| Book picker (bottom) | The book's name ▾ with its status badges. Tap for the book list, with two icon buttons at its top: New book (asks for a name, opens it here) and Duplicate *book* (opens the copy). A long press or hover names each |
+| Book picker (bottom) | The book's name ▾ with its status badges. Tap for the book list, with New book at its top (asks for a name, opens it here). Long press a book for Rename, Duplicate (opens the copy), or Delete (with Undo) |
 
 ### Entry tabs
 
@@ -505,7 +510,7 @@ The phone screens stay as they are below that.
   and stops above the send form. ST's side panels, top bar and send form stay
   visible around it.
 - It opens with ST's drop-down animation and closes the same way (the World
-  Info button, another top bar drawer, the × in the tab row, or Esc).
+  Info button, another top bar drawer, or Esc).
 - Everything inside is laid out for the drawer's width, not the window's. At
   1920px wide and 50% that is 960px; at 1366px it is 683px.
 - **Widen** (a button in the tab row, remembered) makes it as wide as the
@@ -530,7 +535,7 @@ The phone screens stay as they are below that.
 ### Tab row
 
 40px high (phones: 50). Left to right: ☰, Home, book and entry tabs, empty space,
-Search (with "Ctrl K"), Widen (or Drawer size), ×.
+Search (with "Ctrl K"), Widen (or Drawer size).
 
 | Control | What it does |
 |---------|--------------|
@@ -539,7 +544,6 @@ Search (with "Ctrl K"), Widen (or Drawer size), ×.
 | Tab right-click | Close tab · Close other tabs · Close tabs to the right · Duplicate tab |
 | Search | The search overlay (below). Ctrl K anywhere |
 | Widen / Drawer size | The window's width beside any open side panel, or back to the drawer box (Size and place). Remembered |
-| × | Closes WI Hero (like Esc with nothing else open) |
 
 A book tab switches entries inside itself (the list is beside the entry). An
 entry opens in **its own tab** from: middle-click or double-click on a row, Open
@@ -660,7 +664,7 @@ pane when it is wide.
 
 - Hero mode opens **widened**: the whole window under ST's top bar, side to
   side and down to the bottom (over ST's send form). A canvas needs the room.
-- A button in the tab row (next to ×) shrinks it to the drawer size Normal
+- A button in the tab row shrinks it to the drawer size Normal
   mode uses, and back. It is remembered.
 - At drawer size the entry list starts hidden; the canvas toggle (top left)
   shows it.
@@ -668,17 +672,18 @@ pane when it is wide.
 ### Tab row
 
 ☰, **Canvas** and **Preview** (permanent, icon only), entry tabs, empty space,
-then the book picker (the book's name ▾: the book list, + New book, Duplicate *book*), Search
-(Ctrl K), ?, Widen/Drawer size, ×. No Normal mode button: the mode switch is in ☰ only.
+then Search (Ctrl K), ?, Widen/Drawer size. No Normal mode button: the mode switch is in ☰ only.
 
-The book picker moves here from the bottom of the entry panel: on desktop the
-book is chosen once per canvas, and the tab row has the room.
+The book picker sits inside the left panel, immediately above its links/placed status footer.
+It stays within the panel width; long names truncate. When the panel is hidden, or another tab is open,
+a compact picker returns to the top row so switching books remains available. Right-click a book in
+its list for Rename, Duplicate or Delete; + New book stays at the top of the list.
 
 ### Canvas tab: three columns
 
 | Column | What it is |
 |--------|------------|
-| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Moments first, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect. Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
+| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Moments first, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect · Delete (with Undo). Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
 | Middle: canvas | The canvas, with the piece bar under it |
 | Right: inspector (320px, drag its edge: 260 to 560px) | Docked, always there; the ▯ button bottom right hides it |
 
@@ -714,7 +719,7 @@ desktop layout. The code is split the same way: `canvas-mouse.js`,
 | Hover a line | After 350ms the line and its two cards stay bright and the rest dims |
 | Click a card | Selects it; the inspector shows it (and comes back if it was hidden; dragging a card leaves it hidden) |
 | Double-click a card | The inspector's Text tab, to edit its content in place |
-| Drag a card | Moves it (the whole card, not only the grip; there is no scrolling to fight with). Links follow |
+| Drag a card | Moves it (the whole card; there is no scrolling to fight with). Desktop entry cards show a slim strategy-colored stripe instead of the phone's six-dot grip. Links follow |
 | Drag empty canvas or a line | Box select; Shift or Ctrl adds to the selection. No pack prompt: P asks for a pack name (existing packs are offered as you type; Unpack when some are packed). Several selected cards move together; the inspector offers Pack into…, Make these wait for… (each waits for the card picked), Make one wait for all of these… (the card picked waits for every one), Turn off, Take off canvas |
 | Shift/Ctrl-click | Adds a card to the selection |
 | Wheel | Zooms around the pointer, by the size of the scroll (a mouse notch is about 10%, a trackpad's small events zoom smoothly). ☰ › Canvas › Mouse wheel › Scroll makes it pan instead (two fingers on a trackpad), as in Figma. Either way Ctrl+wheel (a trackpad pinch) zooms and Shift+wheel pans sideways |
@@ -789,7 +794,7 @@ The shared entry page, as in Normal mode, with Story logic always open and
 | / | Filter the entry list |
 | Delete | Take the selected card off the canvas (only without links) |
 | Ctrl Z, Ctrl Shift Z / Ctrl Y | Undo, redo |
-| Esc | Menu, armed piece, strip (Cancel), text box, selection, then stops: it never closes WI Hero on desktop (the × does) |
+| Esc | Menu, armed piece, strip (Cancel), text box, selection, then stops: it never closes WI Hero on desktop (use ST’s World Info button) |
 
 Links are drawn by the link engine on desktop too (VISUAL 7.3,
 [LINK_ENGINE.md](LINK_ENGINE.md)).

@@ -143,9 +143,9 @@ export function deskNormal(A) {
         const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
         // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
         const wide = desk().normalWide === true;
-        const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => { desk().normalWide = !wide; save(); A.render(); }, wide ? 'Drawer size' : 'Widen');
+        const wb = btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => { desk().normalWide = !wide; save(); A.render(); }, wide ? 'Drawer size' : 'Widen');
         wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(sb, wb, btn('iconbtn', ic('x'), () => A.hide(), 'Close WI Hero'));
+        right.append(sb, wb);
         tabbar.append(right);
     }
     function tabMenu(t) {

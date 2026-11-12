@@ -21,7 +21,7 @@ export function createHeroShell(A) {
     const {
         H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
-        loadingNote, lassoFor, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
+        loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
         stopExplain, strip, tabbar, visibleNames, desk, checkCounts, checksSheet, undoHistory, historyStep,
     } = A;
@@ -110,7 +110,7 @@ export function createHeroShell(A) {
         revealActiveTab();
     }
 
-    /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search, Widen/Drawer size, ×. The mode switch is
+    /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search and Widen/Drawer size. The mode switch is
      * only in ☰, one guarded door on each side (LAYOUT "Mode switch"). */
     function heroTabsRight() {
         const right = el('div', 'tright');
@@ -122,7 +122,7 @@ export function createHeroShell(A) {
         const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
         eq.title = 'Explain (?)';
         const wide = deskSettings().heroWide !== false;
-        const wb = btn('iconbtn', ic(wide ? 'drawer' : 'fit'), () => {
+        const wb = btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => {
             deskSettings().heroWide = !wide;
             saveSettings();
             H.dlist = null; // the list and the inspector start as the new size has them
@@ -131,7 +131,10 @@ export function createHeroShell(A) {
             requestAnimationFrame(() => heroCanvas?.fit());
         }, wide ? 'Drawer size' : 'Widen');
         wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(bp, sb, eq, wb, btn('iconbtn', ic('x'), () => hide(), 'Close WI Hero'));
+        // The canvas picker lives above the left panel's status footer. Keep switching available in other views
+        // and when the entry list is hidden.
+        if (H.active !== 'canvas' || !listShown() || !book) right.append(bp);
+        right.append(sb, eq, wb);
         tabbar.append(right);
     }
 
@@ -210,6 +213,7 @@ export function createHeroShell(A) {
         const kept = heroMount && heroCanvas && keepBook && heroMount.book === keepBook && library.peek(keepBook) === heroMount.data
             && main.dataset.page === 'hero:canvas' && heroMount.vp.parentNode === main ? heroMount : null;
         if (kept) {
+            need(keepBook); // Also prune Moments just taken off this retained canvas.
             // Same canvas: everything around it is drawn again (cheap), the cards and links only if they changed.
             for (const n of [...main.children]) if (n !== kept.vp) n.remove();
             kept.vp.querySelector('.legend')?.remove();

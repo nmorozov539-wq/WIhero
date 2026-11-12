@@ -2,7 +2,7 @@
 // packs as frames; the layered layout, placement of new cards and port sides. The links themselves are routed by the
 // link engine (src/link-engine, D12). Lifted from the demo (demo/wihero-demo.html, in the git history) with its numbers
 // kept. Pure: no DOM, so it is tested with node --test.
-import { rawConfig } from '../engine/model.js';
+import { rawConfig, isMoment } from '../engine/model.js';
 import { isObject } from '../engine/util.js';
 import { cardKey, configOf, strategyOf, titleOf } from './data.js';
 
@@ -174,6 +174,15 @@ export function canvasSet(m, g, placed) {
     for (const x of g.edges) for (const k of [x.from, x.to]) if (!k.startsWith('pack:')) s.add(k);
     for (const p of g.packs) m.packMembers(p).forEach(e => s.add(e.id));
     return new Set([...s].filter(id => m.byId(id)));
+}
+
+/** Moments only exist on the canvas: retain explicit placements and cards pulled in by story links/packs. */
+export function offCanvasMoments(data, memory) {
+    const candidates = Object.values(data.entries ?? {}).filter(e => isMoment(e) && !memory.cards?.[cardKey(e)]?.placed);
+    if (!candidates.length) return [];
+    const model = canvasBook(data);
+    const visible = canvasSet(model, buildGraph(model), Object.entries(memory.cards ?? {}).filter(([, p]) => p.placed).map(([key]) => key));
+    return candidates.filter(e => !visible.has(cardKey(e)));
 }
 
 /**
@@ -367,6 +376,24 @@ export function nodeRects(m, g, ids, pos) {
         const x1 = Math.max(...mem.map(r => r.x + r.w)) + 24;
         const y1 = Math.max(...mem.map(r => r.y + r.h)) + 24;
         R.set(`pack:${p}`, { key: `pack:${p}`, pack: p, x: x0, y: y0, w: x1 - x0, h: y1 - y0, members: mem.map(r => r.key) });
+    }
+    // Shared card bounds produce coincident frames. Give each pack its own header band, without moving cards
+    // or inventing a parent/child relationship between memberships. Their side and bottom edges stay shared.
+    const coincident = new Map();
+    for (const r of R.values()) {
+        if (!r.pack) continue;
+        const bounds = `${r.x},${r.y},${r.w},${r.h}`;
+        const group = coincident.get(bounds) ?? [];
+        group.push(r);
+        coincident.set(bounds, group);
+    }
+    for (const group of coincident.values()) {
+        group.sort((a, b) => a.pack.localeCompare(b.pack));
+        group.forEach((r, i) => {
+            const extra = (group.length - i - 1) * 24;
+            r.y -= extra;
+            r.h += extra;
+        });
     }
     return R;
 }

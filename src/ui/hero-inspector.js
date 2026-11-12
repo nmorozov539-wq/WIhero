@@ -36,7 +36,11 @@ export function createHeroInspector(A) {
         const view = canvas()?.view;
         const mem = canvasMemory(bookSettings(settings, book));
         const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
-        if (!linked) return mem.cards[key]?.placed ? () => { delete mem.cards[key]; saveSettings(); H.insp = null; render(); layer.toast(`${title} taken off the canvas`); } : null;
+        if (!linked) return mem.cards[key]?.placed ? () => {
+            const moment = !!view?.m.byId(key)?.moment;
+            delete mem.cards[key]; saveSettings(); H.insp = null; render();
+            layer.toast(moment ? `${title} deleted` : `${title} taken off the canvas`);
+        } : null;
         return () => layer.sheet('It stays while it has links', sh => {
             for (const w of why) sh.append(el('p', 'help', w));
         }, { help: 'A card with story links is always on the canvas, so the links can be seen. Once it has none, it can be taken off.' });

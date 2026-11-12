@@ -340,7 +340,8 @@ svg.lk path.head { stroke-width: 0; }
 .mnav.v span { min-width: 0; padding: 2px 3px; writing-mode: vertical-rl; }
 .mnav.v button svg { transform: rotate(90deg); }
 .packframe { position: absolute; border: 1.5px dashed color-mix(in srgb, var(--p-pack) 60%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--p-pack) 4%, transparent); z-index: 0; cursor: pointer; }
-.packframe .pn { position: absolute; left: 12px; top: 5px; font-size: 12px; font-weight: 700; color: var(--p-pack); }
+.packframe .pn { position: absolute; left: 12px; top: 5px; max-width: calc(100% - 24px); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; line-height: 18px; font-size: 12px; font-weight: 700; color: var(--p-pack); }
 .junc { position: absolute; z-index: 3; transform: translate(-50%, -50%); height: 18px; padding: 0 6px; border-radius: 9px; font-size: 10px; font-weight: 700; letter-spacing: .04em; display: flex; align-items: center; background: var(--canvas); border: 1.5px solid currentColor; pointer-events: none; text-transform: uppercase; }
 .lockp { position: absolute; z-index: 1; transform: translate(-50%, -50%); height: 22px; padding: 0 8px 0 6px; border-radius: 11px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; background: var(--canvas); border: 1.5px solid currentColor; white-space: nowrap; max-width: 140px; cursor: pointer; }
 .lockp svg { width: 12px; height: 12px; stroke-width: 2.4; }
@@ -929,6 +930,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .panel.dock .prow.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 [data-desk="1"] .panel.dock .prow .dotc { width: 28px; height: 28px; }
 [data-desk="1"] .panel.dock .phdr { min-height: 28px; font-size: var(--t-xs); }
+[data-desk="1"] .panelbook { flex-shrink: 0; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 42px; padding: 8px 12px; border-top: 1px solid var(--line); color: var(--fg); background: var(--surface); text-align: left; }
+[data-desk="1"] .panelbook:hover { background: var(--hover); }
+[data-desk="1"] .panelbook span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-desk="1"] .pfoot { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: var(--t-xs); color: var(--muted); }
 [data-desk="1"] .pfoot .plinks { display: inline-flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-desk="1"] .pfoot .pcount { white-space: nowrap; }
@@ -990,6 +994,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .placeoffer svg { color: var(--accent); }
 [data-desk="1"] .vp { cursor: default; }
 [data-desk="1"] .vp .card { cursor: grab; }
+[data-desk="1"] .vp .card:not(.moment):not(.greet) { padding-left: 16px; }
+[data-desk="1"] .vp .card .grip:not(.gicon) { left: 7px; top: 10px; bottom: 10px; width: 3px; height: auto; transform: none; display: block; border-radius: 2px; background: var(--c); pointer-events: none; }
+[data-desk="1"] .vp .card .grip:not(.gicon) i { display: none; }
 /* Right, middle or Space+drag moves the view (LAYOUT "Canvas: mouse"). */
 [data-desk="1"] .vp.spacepan, [data-desk="1"] .vp.spacepan .card { cursor: grab; }
 [data-desk="1"] .vp.panning, [data-desk="1"] .vp.panning * { cursor: grabbing !important; }
