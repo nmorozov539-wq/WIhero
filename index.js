@@ -8,6 +8,7 @@ import { createSnapshots } from './src/ui/snapshots.js';
 import { createApp } from './src/ui/app.js';
 import { mountPanel, render, renderNotice } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
+import { createCatchUpDialog } from './src/catch-up-dialog.js';
 import { createBubble } from './src/bubble.js';
 import { createChatHider } from './src/show-in-chat.js';
 import { checkHealth, createHealth, EVENTS, standDownText, stVersion } from './src/compat.js';
@@ -171,37 +172,14 @@ for (const type of ['CHAT_CHANGED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAG
 
 // ---- Catch-up (BUILD_SPEC 17.1): replies that ran with WI Hero off leave the story state behind.
 const FIXED = { catchUp: n => `Caught up on ${n} ${n === 1 ? 'reply' : 'replies'}, oldest first.`, keep: () => 'Kept the old story state.', fresh: () => 'The story state starts again from the newest reply.' };
-async function fixGap(how) {
-    const n = await hooks.fixGap(how);
+async function fixGap(how, current) {
+    const n = await hooks.fixGap(how, current);
     if (n) globalThis.toastr?.success(FIXED[how](n), 'WI Hero');
     refresh();
 }
-const asked = new Set();
-/** Asks once per chat and gap what to do about replies that ran without WI Hero. */
-async function offerCatchUp() {
-    if (!hooks.active()) return;
-    try { await hooks.loadModel(); } catch { return; }
-    const g = hooks.gap();
-    refresh();
-    if (!g) return;
-    const c = ctx();
-    const sig = `${c.getCurrentChatId?.() ?? c.chatId}|${g.skipped.join(',')}`;
-    if (asked.has(sig)) return;
-    asked.add(sig);
-    const n = g.skipped.length;
-    const text = `<h3>WI Hero was off for ${n} ${n === 1 ? 'reply' : 'replies'}</h3>`
-        + `<p>Its story state is from ${g.from < 0 ? 'the start of this chat' : `message #${g.from}`}, so gates the story has passed may still be shut.</p>`
-        + '<p><b>Catch up</b> replays the skipped replies one by one, oldest first, matching key words as Preview does. '
-        + '<b>Keep as is</b> carries the old state on. <b>Start from here</b> starts the story state again.</p>';
-    const { POPUP_TYPE, POPUP_RESULT } = c;
-    const result = await c.callGenericPopup(text, POPUP_TYPE.TEXT, '', {
-        okButton: 'Catch up', cancelButton: 'Not now',
-        customButtons: [{ text: 'Keep as is', result: POPUP_RESULT.CUSTOM1 }, { text: 'Start from here', result: POPUP_RESULT.CUSTOM2 }],
-    });
-    const how = { [POPUP_RESULT.AFFIRMATIVE]: 'catchUp', [POPUP_RESULT.CUSTOM1]: 'keep', [POPUP_RESULT.CUSTOM2]: 'fresh' }[result];
-    if (how) await fixGap(how);
-}
-on('CHAT_CHANGED', () => setTimeout(offerCatchUp, 300));
+const catchUpDialog = createCatchUpDialog({ ctx, hooks, refresh, fixGap });
+const offerCatchUp = () => catchUpDialog.offer();
+on('CHAT_CHANGED', catchUpDialog.chatChanged);
 
 // ---- The editor (N2)
 let snapshots = null;

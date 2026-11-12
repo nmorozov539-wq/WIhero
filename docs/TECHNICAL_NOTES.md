@@ -316,3 +316,12 @@ snapshot slice; swipe, continue and regenerate start/end boundaries are covered.
 from all linkable entries, including Moments, and still keeps Moments out of ordinary sent-entry results.
 The lifecycle browser regression checks a real Preview view: a Moment opens a gated entry, its highlight can
 be inspected, and the book stays unchanged.
+
+### Live-suite follow-up: catch-up offers belong to one chat
+
+Sequential in-ST checks exposed a catch-up popup that could survive switching to a new chat. Catch-up offers
+now have a chat owner and an epoch across model-loading and popup awaits. CHAT_CHANGED cancels the old popup,
+debounces the next offer, and makes old answers inert, even after switching back. The state-writing hook also
+checks the originating chat before applying a catch-up action after loading the model. Unit checks cover stale
+loads, popup answers and chat switching; N6 exercises a real open catch-up popup followed by /newchat. The
+Popup constructor and enums used by the controller are included in startup compatibility checks.

@@ -345,9 +345,17 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
      * Resolves the open chat's gap (BUILD_SPEC 17.1) and saves the chat.
      * @param {'catchUp' | 'keep' | 'fresh'} how
      */
-    async function fixGap(how) {
+    async function fixGap(how, current = () => true) {
+        const before = ctx();
+        const chat = before.chat ?? [];
+        const id = before.getCurrentChatId?.() ?? before.chatId;
+        const last = chat.at(-1);
+        const characterId = before.characterId, groupId = before.groupId;
         const entries = await loadModel();
-        const chat = ctx().chat ?? [];
+        const after = ctx();
+        if (!current() || after.chat !== chat || chat.at(-1) !== last
+            || (after.getCurrentChatId?.() ?? after.chatId) !== id
+            || after.characterId !== characterId || after.groupId !== groupId) return 0;
         const n = resolveGap(how, { chat, entries, model, options: stateOptions, globals: { ...st.globals(), parseRegexFromString: st.parseRegexFromString } });
         if (n) await ctx().saveChat();
         onChange();

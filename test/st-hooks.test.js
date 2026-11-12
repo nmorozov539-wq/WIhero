@@ -332,3 +332,20 @@ for (const type of ['swipe', 'continue', 'regenerate']) test(`${type}: sticky ga
         assert.equal(lore.globalLore.length, kept ? 1 : 0, `${start} < ${length} < ${end}`);
     }
 });
+
+test('a catch-up action does not write into a chat switched during model loading', async () => {
+    let release;
+    const gate = new Promise(r => { release = r; });
+    const original = [{ is_user: true, mes: 'road' }, { is_user: false, mes: 'Reply' }];
+    const other = [{ is_user: false, mes: 'New greeting' }];
+    const context = { chat: original, characters: [], chatMetadata: {}, saveChat: async () => { throw new Error('must not save'); } };
+    const hooks = createHooks({ ctx: () => context, settings: { enabled: true }, st: {
+        getSortedEntries: async () => { await gate; return []; }, getStringHash,
+    } });
+    const fixing = hooks.fixGap('fresh');
+    context.chat = other;
+    release();
+    assert.equal(await fixing, 0);
+    assert.equal(other[0].extra, undefined);
+    assert.equal(original[1].extra, undefined);
+});

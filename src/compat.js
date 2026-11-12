@@ -17,7 +17,7 @@ export const EVENTS = Object.freeze([
 ]);
 
 /** getContext() members the engine needs. */
-const CONTEXT = Object.freeze(['eventSource', 'eventTypes', 'chat', 'saveChat', 'substituteParams', 'characters', 'chatMetadata']);
+const CONTEXT = Object.freeze(['eventSource', 'eventTypes', 'chat', 'saveChat', 'substituteParams', 'characters', 'chatMetadata', 'Popup', 'POPUP_TYPE', 'POPUP_RESULT']);
 
 /** ST's version, from its /version endpoint, or null. */
 export async function stVersion(fetcher = globalThis.fetch) {

@@ -6,7 +6,7 @@ import { getStringHash } from '../src/engine/util.js';
 
 const context = () => ({
     eventSource: { on() {} }, eventTypes: Object.fromEntries(EVENTS.map(e => [e, e.toLowerCase()])),
-    chat: [], saveChat() {}, substituteParams() {}, characters: [], chatMetadata: {},
+    chat: [], saveChat() {}, substituteParams() {}, characters: [], chatMetadata: {}, Popup: class {}, POPUP_TYPE: {}, POPUP_RESULT: {},
 });
 const internals = () => ({ 'world-info.js getSortedEntries': () => [], 'world-info.js scan_state': { NONE: 0, MIN_ACTIVATIONS: 3 }, 'utils.js getStringHash': getStringHash });
 
