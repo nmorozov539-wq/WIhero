@@ -1,7 +1,7 @@
 // The ST side of one turn (BUILD_SPEC 6): reads ST's events, calls the engine, applies its decisions to ST's
 // entry lists and activated Map. SillyTavern is reached only through `ctx()` and the `st` functions passed in,
 // so this can be tested with a stand-in.
-import { buildModel, FIELD, isMoment, rawConfig, stKey } from './engine/model.js';
+import { buildModel, FIELD, stKey } from './engine/model.js';
 import { advance, baseState, rereadReply, slotOpen, slotValues, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
 import { pickMask, reopen, setSlot } from './engine/manual.js';
 import { readState } from './engine/state.js';
@@ -78,16 +78,16 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
             if (settings.renamed && Object.hasOwn(settings.renamed, book)) { delete settings.renamed[book]; dropped = true; }
         }
         if (dropped) saveSettings();
-        const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}${isMoment(e) ? `|${JSON.stringify(e.key)}` : ''}${rawConfig(e)?.written ? `|${e.content}` : ''}`).join('\n')
-            + `\n${greetingSignature(character(), st.getStringHash)}`;
+        // Compare the same complete inputs buildModel receives, including ordinary ST fields.
+        const sig = JSON.stringify(entries) + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;
         model = buildModel(entries, { greetingFp });
     }
 
-    const sticky = (chat, type) => {
+    const sticky = type => {
         const timed = ctx().chatMetadata?.timedWorldInfo;
-        return new Set(stickyHeld(loaded, timed, scanLength(chat, type), e => hashes.get(stKey(e))).keys());
+        return new Set(stickyHeld(loaded, timed, scanLength(ctx().chat ?? [], type), e => hashes.get(stKey(e))).keys());
     };
 
     // 6.1
@@ -174,7 +174,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         const chat = scanChat(ctx().chat ?? [], pending?.type);
         const working = stateForScan(chat, model, stateOptions(chat));
         // ST skips timed effects on dry runs, and a dry run never has a pending turn.
-        const held = pending ? sticky(chat, pending.type) : new Set();
+        const held = pending ? sticky(pending.type) : new Set();
         if (pending) Object.assign(pending, { working, chat, sticky: held });
         for (const list of Object.values(lore ?? {})) {
             if (!Array.isArray(list)) continue;
@@ -345,9 +345,17 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
      * Resolves the open chat's gap (BUILD_SPEC 17.1) and saves the chat.
      * @param {'catchUp' | 'keep' | 'fresh'} how
      */
-    async function fixGap(how) {
+    async function fixGap(how, current = () => true) {
+        const before = ctx();
+        const chat = before.chat ?? [];
+        const id = before.getCurrentChatId?.() ?? before.chatId;
+        const last = chat.at(-1);
+        const characterId = before.characterId, groupId = before.groupId;
         const entries = await loadModel();
-        const chat = ctx().chat ?? [];
+        const after = ctx();
+        if (!current() || after.chat !== chat || chat.at(-1) !== last
+            || (after.getCurrentChatId?.() ?? after.chatId) !== id
+            || after.characterId !== characterId || after.groupId !== groupId) return 0;
         const n = resolveGap(how, { chat, entries, model, options: stateOptions, globals: { ...st.globals(), parseRegexFromString: st.parseRegexFromString } });
         if (n) await ctx().saveChat();
         onChange();

@@ -5,10 +5,11 @@ import fs from 'node:fs';
 
 const LOG = new URL('./log/', import.meta.url).pathname;
 const PORT = Number(process.env.MOCK_PORT || 5001);
-fs.rmSync(LOG, { recursive: true, force: true });
+const keepLog = process.env.MOCK_KEEP_LOG === '1';
+if (!keepLog) fs.rmSync(LOG, { recursive: true, force: true });
 fs.mkdirSync(LOG, { recursive: true });
 
-let n = 0;
+let n = keepLog ? Math.max(0, ...fs.readdirSync(LOG).filter(f => /^\d+\.json$/.test(f)).map(f => Number(f.slice(0, -5)))) : 0;
 const queue = [];
 http.createServer((req, res) => {
     let body = '';

@@ -2,7 +2,7 @@
 // replies written with WI Hero off are caught up oldest first (or kept, from the bubble); a version WI Hero isn't
 // tested on is named plainly; and a missing thread stands the engine down to plain World Info. Setup: e2e/README.md.
 import assert from 'node:assert/strict';
-import { LOG, ev, lastPrompt, ok, page, run, send, start, state, wait } from './lib.mjs';
+import { LOG, ev, lastPrompt, ok, page, run, send, slash, start, state, wait } from './lib.mjs';
 
 const BOOK = 'WIHero-Sample';
 const shot = name => page.screenshot({ path: `${LOG}n6-${name}.png` });
@@ -94,6 +94,18 @@ await run(async () => {
     await wait(400);
     assert.ok(await page.locator('#wihero_bubble_root:not([hidden])').count());
     ok('the Chat bubble switch in the extension settings hides and shows it');
+
+    // A catch-up popup cannot outlive the chat whose gap it describes.
+    await setEnabled(false);
+    await send('Another skipped reply.');
+    await setEnabled(true);
+    await offPopup.waitFor({ timeout: 10000 });
+    await slash('/newchat');
+    await page.waitForFunction(() => SillyTavern.getContext().chat.length === 1);
+    await offPopup.waitFor({ state: 'hidden', timeout: 5000 });
+    assert.equal((await state()).at, -1);
+    assert.equal((await snapshots())[0], false);
+    ok('switching chats closes the old catch-up offer without changing the new chat');
 
     // ── Compatibility ──
     assert.equal(await ev(() => wihero.health.version), '1.19.0');

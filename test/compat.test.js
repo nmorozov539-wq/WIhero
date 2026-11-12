@@ -6,7 +6,7 @@ import { getStringHash } from '../src/engine/util.js';
 
 const context = () => ({
     eventSource: { on() {} }, eventTypes: Object.fromEntries(EVENTS.map(e => [e, e.toLowerCase()])),
-    chat: [], saveChat() {}, substituteParams() {}, characters: [], chatMetadata: {},
+    chat: [], saveChat() {}, substituteParams() {}, characters: [], chatMetadata: {}, Popup: class {}, POPUP_TYPE: {}, POPUP_RESULT: {},
 });
 const internals = () => ({ 'world-info.js getSortedEntries': () => [], 'world-info.js scan_state': { NONE: 0, MIN_ACTIVATIONS: 3 }, 'utils.js getStringHash': getStringHash });
 
@@ -46,4 +46,15 @@ test('runtime probes of the scan\'s arguments', () => {
     assert.match(probeEntriesLoaded({ globalLore: {} }), /new shape/);
     assert.equal(probeScanDone({ activated: { entries: new Map() }, state: { next: 0 } }), null);
     assert.match(probeScanDone({ activated: { entries: {} } }), /activated entries/);
+});
+
+
+test('the save adapter requires ST cache Map semantics', () => {
+    const i = internals();
+    i['world-info.js worldInfoCache'] = {};
+    assert.ok(checkHealth(context(), i).includes('world-info.js worldInfoCache as a Map'));
+    i['world-info.js worldInfoCache'] = new Map();
+    assert.deepEqual(checkHealth(context(), i), []);
+    i['world-info.js worldInfoCache'] = undefined;
+    assert.ok(checkHealth(context(), i).includes('world-info.js worldInfoCache'));
 });

@@ -1,5 +1,6 @@
 // The stand-in for SillyTavern behind harness.html: an in-memory library of books (the examples, and a few made up
 // here), WI Hero's settings in localStorage, and no chat. Exposes `wihero.app` like the extension does.
+import { createLibrary } from '../../src/ui/st-books.js';
 import { createApp } from '../../src/ui/app.js';
 import { ensureSettings } from '../../src/ui/data.js';
 
@@ -30,7 +31,7 @@ async function loadBooks() {
 let app = null;
 const copies = new Map();
 let version = 0;
-const library = {
+let library = {
     names: () => [...books.keys()].sort((a, b) => a.localeCompare(b)),
     get: async name => library.peek(name),
     peek: name => {
@@ -80,6 +81,29 @@ const hooks = { model: { nodes: new Map() }, state: () => ({ closed: {}, fired: 
 const ctx = () => ({ chat: [], characters: [], getTokenCountAsync: null });
 
 await loadBooks();
+// Optional real save lifecycle, including ST's programmatic dropdown event on editor reload.
+if (params.has('saves')) {
+    const controls = globalThis.wiheroHarness = { writeDelay: 20, deleteDelay: 0, failDelete: false, snapshots };
+    const host = {
+        getRequestHeaders: () => ({}), updateWorldInfoList: async () => {}, saveSettingsDebounced() {},
+        characters: [], chatMetadata: {},
+        getWorldInfoNames: () => [...books.keys()],
+        loadWorldInfo: async name => structuredClone(books.get(name)),
+        reloadWorldInfoEditor: name => { if (!library.busy()) app.openBook(name); },
+    };
+    library = Object.setPrototypeOf(createLibrary({
+        ctx: () => host, WI: { world_info: {}, deleteWorldInfo: async name => {
+            await new Promise(resolve => setTimeout(resolve, controls.deleteDelay));
+            return controls.failDelete ? false : books.delete(name);
+        } }, settings, saveSettings,
+        writeBook: async (name, data) => {
+            await new Promise(resolve => setTimeout(resolve, controls.writeDelay));
+            books.set(name, structuredClone(data));
+            library.onWorldInfoUpdated(name, data);
+        },
+        onChange: () => app?.refresh(),
+    }), library);
+}
 app = createApp({
     ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate: TEMPLATE,
     cssUrl: new URL('../../src/ui/app.css', import.meta.url).href,

@@ -70,7 +70,11 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
         const d = book ? library.peek(book) : null;
         if (!d) return;
         let h = books.get(book);
-        if (!h) { books.set(book, { cur: take(book, d), ver: library.version, undo: [], redo: [], at: 0, quiet: false }); return; }
+        const ext = library.externalRevision?.(book) ?? 0;
+        if (!h || h.external !== ext) {
+            books.set(book, { cur: take(book, d), ver: library.version, external: ext, undo: [], redo: [], at: 0, quiet: false });
+            return;
+        }
         if (held()) return;
         // Same library version: the entries can't have changed, so only the settings are compared.
         const next = library.version === h.ver
@@ -80,7 +84,7 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
         const entriesMoved = next.entries !== h.cur.entries || next.original !== h.cur.original;
         if (entriesMoved && !ours && library.version !== ourVersion) {
             // Changed outside WI Hero: what was undoable no longer applies to this book.
-            books.set(book, { cur: next, ver: library.version, undo: [], redo: [], at: 0, quiet: false });
+            books.set(book, { cur: next, ver: library.version, external: ext, undo: [], redo: [], at: 0, quiet: false });
             return;
         }
         const t = now();
@@ -149,7 +153,11 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
         canUndo: book => !!books.get(book)?.undo.length,
         canRedo: book => !!books.get(book)?.redo.length,
         /** A book renamed: its history goes with it. */
-        rename(from, to) { const h = books.get(from); books.delete(from); if (h) books.set(to, h); },
+        rename(from, to) {
+            const h = books.get(from);
+            books.delete(from);
+            if (h) { h.external = library.externalRevision?.(to) ?? 0; books.set(to, h); }
+        },
         forget(book) { books.delete(book); },
     };
 }
@@ -169,7 +177,7 @@ export function withHistory(library, history) {
                     return out;
                 };
             }
-            if (k === 'rename') return async (from, to, ...rest) => { const out = await t.rename(from, to, ...rest); history.rename(from, to); return out; };
+            if (k === 'rename') return async (from, to, ...rest) => { const out = await t.rename(from, to, ...rest); history.rename(from, out); return out; };
             if (k === 'remove') return async (name, ...rest) => { const out = await t.remove(name, ...rest); history.forget(name); return out; };
             const v = Reflect.get(t, k);
             return typeof v === 'function' ? v.bind(t) : v;

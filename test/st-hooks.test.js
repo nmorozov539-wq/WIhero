@@ -291,3 +291,61 @@ test('trackers: the written value replaces the scan copy, the instruction is set
     await st.hooks.onAfterCommands('normal', {}, false);
     assert.match(st.extensionText, /Story trackers\./, 'back for the next reply');
 });
+
+test('model cache follows tracker enable, keywords, Permanent and start text without reload', async () => {
+    const entry = e(0, 'gold', { id: 'gold', written: {} }, { disable: true, content: '10' });
+    const st = new FakeST([entry]);
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').disabled, true);
+    entry.disable = false;
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').disabled, false);
+    entry.key = [];
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').hasTrigger, false);
+    entry.constant = true;
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').hasTrigger, true);
+    entry.content = '20';
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').content, '20');
+});
+
+for (const type of ['swipe', 'continue', 'regenerate']) test(`${type}: sticky gating uses the host scan length, not the engine snapshot slice`, async () => {
+    const { initialState } = await import('../src/engine/state.js');
+    const { entryHash } = await import('../src/timers.js');
+    const entry = e(0, 'road', { id: 'road' }, { sticky: 5 });
+    const state = initialState(); state.at = 2; state.closed['Book/road'] = { at: 2, by: 'manual' };
+    const chat = [{ is_user: false, mes: 'Hello' }, { is_user: true, mes: 'road' },
+        { is_user: false, mes: 'Reply', extra: { wihero: state } }, { is_user: true, mes: 'again' },
+        { is_user: false, mes: 'replaced' }];
+    // ST pops a swipe's last reply for its scan; continue keeps it. Regenerate removes it from chat itself.
+    if (type === 'regenerate') chat.pop();
+    const length = type === 'continue' ? 5 : 4;
+    for (const [start, end, kept] of [[3, 8, true], [length, length + 5, false], [1, length, false]]) {
+        const hash = entryHash(entry, getStringHash);
+        const hooks = createHooks({ ctx: () => ({ chat, characters: [], chatMetadata: { timedWorldInfo: {
+            sticky: { 'Book.0': { hash, start, end, protected: false } },
+        } } }), settings: { enabled: true }, st: { getStringHash } });
+        hooks.onGenerationStarted(type);
+        const lore = { globalLore: [structuredClone(entry)] }; hooks.onEntriesLoaded(lore);
+        assert.equal(lore.globalLore.length, kept ? 1 : 0, `${start} < ${length} < ${end}`);
+    }
+});
+
+test('a catch-up action does not write into a chat switched during model loading', async () => {
+    let release;
+    const gate = new Promise(r => { release = r; });
+    const original = [{ is_user: true, mes: 'road' }, { is_user: false, mes: 'Reply' }];
+    const other = [{ is_user: false, mes: 'New greeting' }];
+    const context = { chat: original, characters: [], chatMetadata: {}, saveChat: async () => { throw new Error('must not save'); } };
+    const hooks = createHooks({ ctx: () => context, settings: { enabled: true }, st: {
+        getSortedEntries: async () => { await gate; return []; }, getStringHash,
+    } });
+    const fixing = hooks.fixGap('fresh');
+    context.chat = other;
+    release();
+    assert.equal(await fixing, 0);
+    assert.equal(other[0].extra, undefined);
+    assert.equal(original[1].extra, undefined);
+});

@@ -263,3 +263,74 @@ shorter or older.
   nothing shows a toast, and the mode stays on.
 - Back and Escape cancel; one successful tap ends it (AFTER_V1 has making it
   stay on as a setting).
+
+## Persistence and mobile editing fixes (2026-11-12)
+
+- WI Hero checks the sanitized filename, including empty names and case-insensitive collisions, before create,
+  duplicate and rename. Concurrent destinations are reserved until the operation finishes; a failed sanitization
+  request stops the operation.
+- `src/ui/book-write.js` posts to `/api/worldinfo/edit` and requires an OK HTTP response before updating ST's
+  exported `worldInfoCache` and emitting `WORLDINFO_UPDATED`. It does not use 1.19.0's unchecked `saveWorldInfo`.
+  WI Hero's per-book writes run in order; flush waits for active requests and changes made during them, as well
+  as debounced edits and failed saves. Duplicate, rename, delete and export wait for flush. A rename's destination
+  must be confirmed before links change or the source is deleted. Native editor refresh still happens after a
+  save, with its synthetic dropdown event suppressed by `library.busy()` so it cannot navigate WI Hero.
+- Normal mode on phones creates entries in the list without opening an entry page. Editing an existing entry
+  stays on that page through saves, with no extra tabs. `e2e/mobile-edit.mjs` exercises title space/blur, keyword
+  blur, pasted content, newline, delete, toggling and parameters using the actual library save lifecycle in the
+  browser harness; its native-editor reload stub reproduces ST's dropdown callback.
+- Tracker value resolution applies current book rename mappings to the historical message containing the value,
+  including written masks and the restored swipe. It does not rewrite historical messages. Runtime model caching
+  compares the full entry inputs, so ST fields such as disable, constant, keywords and content invalidate it.
+
+### Follow-up: book lifecycle and native saves
+
+Book edits now have a dirty revision and a confirmed revision independent of timers. A write acknowledges only
+its serialized revision; changes and outside merges received while it waits cause another serialized write.
+External revisions reset Undo even when a clean copy was dropped and reloaded. Rename and delete hold editing
+with a visible waiting status until they finish, reject overlapping operations, and require ST's delete result
+to succeed. A failed delete keeps settings and snapshot files; a rename whose source cannot be deleted reports
+that both copies remain.
+
+ST's exported cache is a Map that stores the same object captured by its native save debounce. After confirmed
+HTTP success, the adapter synchronizes that raw object so a queued native write cannot restore older content.
+It leaves a native edit made during the request intact; the library merges and confirms it as a later revision.
+Native events for an already-confirmed payload trigger a confirmation write too, because an older HTTP body may
+have been serialized before that shared object changed. Only currently active extension event objects are
+classified as our own. The cache Map semantics and the host save implementations are in the drift contract.
+
+### Follow-up: snapshot identity
+
+New snapshots use a random 128-bit identity in both their index and upload filename; the displayed timestamp
+and book slug no longer determine file identity. Rename, forget and keep use the identity (or the path for old
+snapshots), so same-millisecond copies remain independent. Concurrent As imported requests share an upload,
+pending uploads retain the settings object through book rename, and cleanup waits for uploads before removing
+files. Existing snapshot files and index entries continue to work.
+
+### Follow-up: Reopen, sticky and Preview
+
+Reopen's close locks can replace a latch older than their new baseline when a fresh matching phrase arrives;
+pre-baseline text remains ignored. Tests cover lock-only and entry-plus-lock rows, plus swipe rewind. Sticky
+checks now receive ST's original chat and calculate its scan length once, independently of the engine's
+snapshot slice; swipe, continue and regenerate start/end boundaries are covered. Preview builds its model
+from all linkable entries, including Moments, and still keeps Moments out of ordinary sent-entry results.
+The lifecycle browser regression checks a real Preview view: a Moment opens a gated entry, its highlight can
+be inspected, and the book stays unchanged.
+
+### Live-suite follow-up: catch-up offers belong to one chat
+
+Sequential in-ST checks exposed a catch-up popup that could survive switching to a new chat. Catch-up offers
+now have a chat owner and an epoch across model-loading and popup awaits. CHAT_CHANGED cancels the old popup,
+debounces the next offer, and makes old answers inert, even after switching back. The state-writing hook also
+checks the originating chat before applying a catch-up action after loading the model. Unit checks cover stale
+loads, popup answers and chat switching; N6 exercises a real open catch-up popup followed by /newchat. The
+Popup constructor and enums used by the controller are included in startup compatibility checks.
+
+### Final lifecycle boundary checks
+
+New create/duplicate/rename destinations explicitly invalidate stale working copies left by an outside delete,
+and start a fresh history generation. Reusing a destination with unconfirmed edits is refused. Internal write
+events remain distinguishable from outside changes, while a source's Undo history follows the sanitized rename
+without being mistaken for an outside replacement. Pending snapshot tasks are keyed by the settings object,
+which follows renames, so deduplication and cleanup work through a name change too. Transaction waiting consumes
+keyboard events even when browser focus moves to the page body.

@@ -207,8 +207,8 @@ test('closed in this chat by …', () => {
 });
 
 test('snapshot helpers', () => {
-    assert.equal(snapshotFileName('Eldoria Tales', 1700000000000), 'wihero-snap-eldoria-tales-1700000000000.json');
-    assert.match(snapshotFileName('Сказки', 5), /^wihero-snap-book-[a-z0-9]+-5\.json$/, 'a name with no ASCII letters still makes a valid file name');
+    assert.equal(snapshotFileName('Eldoria Tales', 1700000000000, 'unique'), 'wihero-snap-eldoria-tales-1700000000000-unique.json');
+    assert.match(snapshotFileName('Сказки', 5), /^wihero-snap-book-[a-z0-9]+-5-[a-f0-9]{32}\.json$/, 'a name with no ASCII letters still makes a valid file name');
     assert.equal(defaultSnapshotName(new Date(2026, 10, 2, 9, 5)), '2026-11-02 09:05');
     assert.deepEqual(sortSnapshots([{ at: 1, imported: true }, { at: 2 }, { at: 3 }]).map(s => s.at), [3, 2, 1]);
     assert.equal(Buffer.from(toBase64('Ünïcode ✓'), 'base64').toString('utf8'), 'Ünïcode ✓');

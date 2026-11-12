@@ -124,6 +124,8 @@ await run(async () => {
     if (await page.locator('#extensions-settings-button .drawer-content.openDrawer').count()) await page.click('#extensions-settings-button .drawer-toggle');
     await ev(() => { wihero.settings.openInHero = true; });
     await page.click('#WI-SP-button .drawer-toggle');
+    // ST may have selected the character's native lorebook while the hidden drawer initialized.
+    await $('.tab[aria-label="Home"]').click();
     await $(`.item[data-book="${BOOK}"]`).click();
     await $('.card:has(.t:text-is("Gold"))').waitFor();
     await $('button[aria-label="Fit to screen"]').click().catch(() => {});

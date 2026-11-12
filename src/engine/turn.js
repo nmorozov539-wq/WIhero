@@ -52,12 +52,18 @@ function close(state, key, at, by) {
 /** Writes the latches of every armed lock whose phrase is in `texts`. */
 function latchLocks(state, model, chat, texts) {
     const ctx = { state, chat, texts, greetingOk: greetingOk(model) };
-    const write = r => { for (const l of r.latches) if (state.latches[l.key] === undefined) state.latches[l.key] = l.at; };
+    const write = (r, baseline) => {
+        for (const l of r.latches) {
+            const old = state.latches[l.key];
+            if (baseline != null && l.at < baseline) continue;
+            if (old === undefined || (baseline != null && old < baseline)) state.latches[l.key] = l.at;
+        }
+    };
     for (const node of model.nodes.values()) {
         if (node.blocked || state.closed[node.key]) continue;
         for (const row of node.opens.rows) if (row.locks.length) write(rowMet(row, ctx));
         const baseline = state.baseline[node.key];
-        for (const cl of node.closes) if (cl.row.locks.length) write(rowMet(cl.row, { ...ctx, baseline }));
+        for (const cl of node.closes) if (cl.row.locks.length) write(rowMet(cl.row, { ...ctx, baseline }), baseline);
         for (const mask of node.masks) {
             if (state.masks.closed[mask.key] !== undefined) continue;
             for (const row of [...mask.opens, ...mask.closes]) if (row.locks.length) write(rowMet(row, ctx));

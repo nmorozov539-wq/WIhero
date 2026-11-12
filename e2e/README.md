@@ -47,3 +47,27 @@ Run them against a throwaway SillyTavern, never your own: it changes the connect
 The older scripts (gating, editor, labels, folders, visuals, workspace, phone, branches) test the old UI and are in the git history; their checks now live in n1–n8.
 
 `tools/st-drift.mjs` is not a browser check: it compares the SillyTavern code WI Hero copies or leans on (getStringHash, the decorators, matchKeys, sticky timing, the generate interceptor, and the exports and events it uses) in ST's latest release and staging with the fingerprints taken on the tested version (`tools/st-drift.json`). GitHub runs it weekly (`.github/workflows/st-drift.yml`); `node tools/st-drift.mjs --dir <SillyTavern>` checks a local copy, and `--update` takes the fingerprints again once a change has been checked and WI Hero follows it.
+
+`mobile-edit.mjs` checks Normal mode at 390 × 844 with the actual library save lifecycle (`?saves` in the
+browser harness). It checks that creation stays on the list and title space/blur, keyword blur, paste, Enter,
+delete, on/off and parameter edits keep the entry open without adding tabs after saves. The native-editor reload
+stub fires the same book-open callback as ST's dropdown unless the library suppresses it. Run
+`node e2e/mobile-edit.mjs`; it uses only made-up harness data.
+
+`lifecycle.mjs` uses the real library in the same browser harness to check the waiting state during rename and
+that a failed delayed book deletion returns the book to the list with an error, retaining its snapshots and
+settings. Run `node e2e/lifecycle.mjs`; no real SillyTavern data is used.
+The lifecycle check also opens the actual Preview UI on a book with a Moment and a gated entry, checks that the
+Moment opens it without being sent itself, inspects its highlight, and verifies that Preview saves nothing.
+
+`host-saves.mjs` checks the persistence contract in a throwaway SillyTavern with independent server reads. It
+uses ST's real native debounce to check that native and extension edits survive together, injects HTTP 500 to
+check failed flush and retry, injects a failed rename destination, and checks ST's false delete result. It makes
+and removes only "Health Save Contract" and "Health Save Target" and uses no model. Run it with the same `ST_URL`
+and browser settings as the other in-ST scripts.
+N6 also leaves a catch-up offer open and starts a new chat, checking that the old popup closes and the new
+chat receives no state from that decision.
+
+The shared in-ST setup now isolates global lorebooks for each scenario. N7–N9 explicitly select Home before
+choosing their test book; N7's own-card drop follows the canvas-controls rule (go back without writing). For
+long runs, restart the mock with `MOCK_KEEP_LOG=1 node e2e/mock.mjs` to retain prompts and continue numbering.

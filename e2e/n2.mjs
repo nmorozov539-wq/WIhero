@@ -38,6 +38,13 @@ async function fillEntry(title, keys, content) {
 }
 const rowTitles = () => $('.view .item.ent .t .nm').allTextContents();
 
+async function newEntryPage() {
+    await $('.bottombar button[aria-label="New entry"]').click();
+    assert.equal(await $('.en h1').count(), 0, 'creation stays on the book list');
+    await $('.view .item.ent').last().click();
+    await $('.en h1').waitFor();
+}
+
 await run(async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(process.env.ST_URL || 'http://127.0.0.1:8000');
@@ -73,11 +80,10 @@ await run(async () => {
     ok('+ New on Home makes a book and opens it in a new tab');
 
     // ── Fill it ──
-    await $('.bottombar button[aria-label="New entry"]').click();
-    await $('.en h1').waitFor();
+    await newEntryPage();
     await fillEntry('Road', 'road, path', 'A muddy road winds north.');
     await $('.en-top button[aria-label="Up to the book"]').click();
-    await $('.bottombar button[aria-label="New entry"]').click();
+    await newEntryPage();
     await fillEntry('Mill', 'mill', 'An old water mill.');
     await $('.en .linkish:has-text("Add condition")').click();
     await page.keyboard.type('river');
@@ -89,24 +95,21 @@ await run(async () => {
     await ask('40');
     assert.equal(await $('.disc:has(h2:text-is("Parameters")) .sum').textContent(), 'Probability 40%');
     await $('.en-top button[aria-label="Up to the book"]').click();
-    await $('.bottombar button[aria-label="New entry"]').click();
+    await newEntryPage();
     await fillEntry('Weather lore', 'weather', 'Storms come from the west.');
     await $('.srow .thin').click();
     await opt('Permanent').click();
     assert.equal(await $('.en .kbox').count(), 0, 'Permanent hides the key words');
     await $('.en-top button[aria-label="Up to the book"]').click();
-    await $('.bottombar button[aria-label="New entry"]').click();
-    await $('.en h1').waitFor();
-    await $('.en-top button[aria-label="Up to the book"]').click();
     let data = await book(BOOK);
-    assert.equal(Object.keys(data.entries).length, 3, 'an entry left empty is discarded');
+    assert.equal(Object.keys(data.entries).length, 3);
     const road = entryBy(data, 'Road');
     assert.deepEqual([road.key, road.content], [['road', 'path'], 'A muddy road winds north.']);
     const mill = entryBy(data, 'Mill');
     assert.deepEqual([mill.keysecondary, mill.selectiveLogic, mill.probability, mill.useProbability], [['river'], 2, 40, true]);
     assert.equal(entryBy(data, 'Weather lore').constant, true);
     assert.deepEqual(await rowTitles(), ['Road', 'Mill', 'Weather lore']);
-    ok('entries are written on their page: name, key words, condition, strategy, a parameter, content; an empty one is discarded');
+    ok('entries are written on their page: name, key words, condition, strategy, a parameter, content; creation stays on the list');
 
     // ── Organize ──
     await $('.bottombar button[aria-label="Select"]').click();

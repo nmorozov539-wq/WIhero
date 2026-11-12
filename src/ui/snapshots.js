@@ -5,11 +5,15 @@ import { bookSettings } from './data.js';
 
 export const IMPORTED = 'As imported';
 
-/** `wihero-snap-<book slug>-<timestamp>.json`; ST's upload only takes letters, digits, `_`, `-` and `.`. */
-export function snapshotFileName(book, at) {
+const snapshotId = () => [...crypto.getRandomValues(new Uint32Array(4))].map(n => n.toString(16).padStart(8, '0')).join('');
+const identity = snap => snap.id ?? snap.path ?? snap.at; // old indexed snapshots remain readable and editable
+const sameSnapshot = (a, b) => identity(a) === identity(b);
+
+/** Unique identity is independent of the displayed timestamp and the non-unique book slug. */
+export function snapshotFileName(book, at, id = snapshotId()) {
     let slug = slugify(book);
     if (!slug) slug = `book-${[...String(book)].reduce((h, ch) => (h * 31 + ch.codePointAt(0)) >>> 0, 7).toString(36)}`;
-    return `wihero-snap-${slug}-${at}.json`;
+    return `wihero-snap-${slug}-${at}-${id}.json`;
 }
 
 /** The name a new snapshot is offered: the date and time. */
@@ -34,18 +38,31 @@ export function toBase64(text) {
 export function createSnapshots({ ctx, settings, saveSettings, library, now = () => Date.now(), onSeedError = () => {} }) {
     const headers = () => ctx().getRequestHeaders();
 
+    // Settings objects move with a book rename, so pending work follows that identity too.
+    const pending = new WeakMap();
+    const seeding = new WeakMap();
     const list = book => sortSnapshots(settings.books?.[book]?.snapshots);
 
-    async function write(book, name, data, extra = {}) {
-        let at = now();
-        const taken = new Set((settings.books?.[book]?.snapshots ?? []).map(s => s.at));
-        while (taken.has(at)) at++;
-        const file = snapshotFileName(book, at);
+    function write(book, name, data, extra = {}) {
+        const record = bookSettings(settings, book);
+        const tasks = pending.get(record) ?? new Set();
+        pending.set(record, tasks);
+        const task = writeNow(book, name, data, extra, record).finally(() => {
+            tasks.delete(task);
+            if (!tasks.size) pending.delete(record);
+        });
+        tasks.add(task);
+        return task;
+    }
+
+    async function writeNow(book, name, data, extra, b) {
+        const at = now();
+        const id = snapshotId();
+        const file = snapshotFileName(book, at, id);
         const r = await fetch('/api/files/upload', { method: 'POST', headers: headers(), body: JSON.stringify({ name: file, data: toBase64(JSON.stringify(data)) }) });
         if (!r.ok) throw new Error(`The snapshot couldn't be saved (${r.status})`);
         const { path } = await r.json();
-        const snap = { name, at, entries: Object.keys(data.entries ?? {}).length, path, ...extra };
-        const b = bookSettings(settings, book);
+        const snap = { id, name, at, entries: Object.keys(data.entries ?? {}).length, path, ...extra };
         (b.snapshots ??= []).push(snap);
         saveSettings();
         return snap;
@@ -56,11 +73,19 @@ export function createSnapshots({ ctx, settings, saveSettings, library, now = ()
      * as seen only once its copy is uploaded, so a failed upload is tried again the next time the book is opened
      * (review 2026-11-09, finding 6). `data` is serialized before the first await: a change right after can't reach it.
      */
-    async function seed(book, data, { fresh = false } = {}) {
-        const b = settings.books?.[book];
+    function seed(book, data, options) {
+        const record = bookSettings(settings, book);
+        if (seeding.has(record)) return seeding.get(record);
+        const task = seedNow(book, data, options).finally(() => seeding.delete(record));
+        seeding.set(record, task);
+        return task;
+    }
+
+    async function seedNow(book, data, { fresh = false } = {}) {
+        const b = bookSettings(settings, book);
         if (b?.seen) return true;
         if (fresh) {
-            bookSettings(settings, book).seen = true;
+            b.seen = true;
             saveSettings();
             return true;
         }
@@ -71,7 +96,7 @@ export function createSnapshots({ ctx, settings, saveSettings, library, now = ()
             onSeedError(book, e);
             return false;
         }
-        bookSettings(settings, book).seen = true;
+        b.seen = true;
         saveSettings();
         return true;
     }
@@ -91,25 +116,27 @@ export function createSnapshots({ ctx, settings, saveSettings, library, now = ()
     }
 
     function rename(book, snap, name) {
-        const s = settings.books?.[book]?.snapshots?.find(x => x.at === snap.at);
+        const s = settings.books?.[book]?.snapshots?.find(x => sameSnapshot(x, snap));
         if (s && !s.imported) { s.name = name; saveSettings(); }
     }
 
     /** Takes a snapshot off the list (its file stays until removeFile, so Delete can be undone). */
     function forget(book, snap) {
         const b = settings.books?.[book];
-        if (b?.snapshots) b.snapshots = b.snapshots.filter(x => x.at !== snap.at);
+        if (b?.snapshots) b.snapshots = b.snapshots.filter(x => !sameSnapshot(x, snap));
         saveSettings();
     }
     function keep(book, snap) {
         const b = bookSettings(settings, book);
-        if (!(b.snapshots ??= []).some(x => x.at === snap.at)) b.snapshots.push(snap);
+        if (!(b.snapshots ??= []).some(x => sameSnapshot(x, snap))) b.snapshots.push(snap);
         saveSettings();
     }
     const removeFile = snap => fetch('/api/files/delete', { method: 'POST', headers: headers(), body: JSON.stringify({ path: snap.path }) }).catch(() => {});
 
     /** A deleted book takes its snapshots with it. */
     async function removeAll(book) {
+        const record = settings.books?.[book];
+        await Promise.allSettled([...(record ? pending.get(record) ?? [] : [])]);
         for (const snap of settings.books?.[book]?.snapshots ?? []) await removeFile(snap);
     }
 

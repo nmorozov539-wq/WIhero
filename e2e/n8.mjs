@@ -58,6 +58,8 @@ await run(async () => {
         wihero.library.setGlobal(b, true);
     }, BOOK);
     await page.click('#WI-SP-button .drawer-toggle');
+    // ST may have selected the character's native lorebook while the hidden drawer initialized.
+    await $('.tab[aria-label="Home"]').click();
     await $(`.item[data-book="${BOOK}"]`).click();
     await card('Dentist').waitFor();
     ok('setup: a global book "N8 Test" (Road, Dentist, Tower with a lock), at 390 × 844');

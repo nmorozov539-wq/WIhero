@@ -17,7 +17,7 @@ export const EVENTS = Object.freeze([
 ]);
 
 /** getContext() members the engine needs. */
-const CONTEXT = Object.freeze(['eventSource', 'eventTypes', 'chat', 'saveChat', 'substituteParams', 'characters', 'chatMetadata']);
+const CONTEXT = Object.freeze(['eventSource', 'eventTypes', 'chat', 'saveChat', 'substituteParams', 'characters', 'chatMetadata', 'Popup', 'POPUP_TYPE', 'POPUP_RESULT']);
 
 /** ST's version, from its /version endpoint, or null. */
 export async function stVersion(fetcher = globalThis.fetch) {
@@ -63,6 +63,8 @@ export function checkHealth(context, internals) {
     for (const fn of ['world-info.js getSortedEntries', 'world-info.js parseRegexFromString', 'utils.js getStringHash']) {
         if (internals?.[fn] !== undefined && typeof internals[fn] !== 'function') missing.push(`${fn} as a function`);
     }
+    const cache = internals?.['world-info.js worldInfoCache'];
+    if (cache !== undefined && !(cache instanceof Map)) missing.push('world-info.js worldInfoCache as a Map');
     // The engine keeps a copy of getStringHash, and the editor writes greeting fingerprints with it that the
     // runtime checks with ST's own. A changed hash would silently mismatch them all.
     const stHash = internals?.['utils.js getStringHash'];

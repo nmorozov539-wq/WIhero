@@ -2,6 +2,7 @@
 // and the book-level actions (create, rename, duplicate, delete, export, global, links, World Info settings).
 // SillyTavern is reached through `ctx()` and the `WI` module namespace passed in (live bindings of world-info.js).
 import { upgradeBook } from '../book.js';
+import { writeBook as persistBook } from './book-write.js';
 import { adoptUiFields, forgetReusedNames } from './data.js';
 
 const SAVE_DELAY = 350;
@@ -51,7 +52,7 @@ export function mergeOutside(mine, base, outside) {
 }
 
 export function createLibrary({
-    ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {},
+    ctx, WI, powerUser, settings, saveSettings, writeBook = (name, data) => persistBook(ctx(), WI, name, data), onFirstSeen = async () => {}, onChange = () => {},
     onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e),
     onMerged = () => {},
 }) {
@@ -59,12 +60,36 @@ export function createLibrary({
     const copies = new Map();
     /** name → the book as ST last had it from WI Hero's side (loaded, or saved): what an outside save is merged against. */
     const bases = new Map();
+    const cacheSeen = new Map();
     const timers = new Map();
+    const inFlight = new Map();
+    const reserved = new Set();
+    // A timer requests a write; only a confirmed revision makes a book clean.
+    const revisions = new Map();
+    const external = new Map();
+    const operations = new Map();
+    const revision = name => revisions.get(name) ?? { dirty: 0, saved: 0 };
+    const isDirty = name => revision(name).dirty !== revision(name).saved;
+    function dirty(name) {
+        const r = revision(name);
+        revisions.set(name, { ...r, dirty: r.dirty + 1 });
+        version++;
+    }
+    function editable(name) {
+        if (operations.has(name)) throw new Error(`${operations.get(name)}. Please wait.`);
+    }
+    async function operation(name, label, fn) {
+        editable(name);
+        operations.set(name, label);
+        onChange();
+        try { return await fn(); } finally { operations.delete(name); onChange(); }
+    }
+    const operationText = () => [...operations.values()].join(' · ');
     /** Books whose last save failed for good: their edits live only in the working copy until a save works. */
     const unsavedSet = new Set();
     /** name → failed saves in a row. */
     const failures = new Map();
-    /** Objects WI Hero handed to saveWorldInfo, to tell its own saves from other ones. */
+    /** Objects currently being published by our confirmed write path, to distinguish their host events. */
     const ours = new WeakSet();
     const loading = new Map();
     /** Books whose As imported copy was asked for this session (onFirstSeen itself remembers it across sessions). */
@@ -109,11 +134,12 @@ export function createLibrary({
 
     /** Changes the working copy and saves it a moment later. `quiet`: the screen already shows it (typing). */
     function change(name, fn, { quiet = false } = {}) {
+        editable(name);
         const data = copies.get(name);
         if (!data) return undefined;
         seen(name, data);
         let out;
-        try { out = fn(data); } finally { version++; }
+        try { out = fn(data); } finally { dirty(name); }
         schedule(name);
         if (!quiet) onChange();
         return out;
@@ -124,21 +150,45 @@ export function createLibrary({
         timers.set(name, setTimeout(() => save(name), delay));
     }
 
-    async function save(name) {
+    function save(name) {
+        if (inFlight.has(name)) return inFlight.get(name);
+        const task = (async () => {
+            while (isDirty(name) && copies.has(name)) {
+                if (await saveNow(name) === false) return false;
+            }
+            return true;
+        })().finally(() => inFlight.delete(name));
+        inFlight.set(name, task);
+        return task;
+    }
+
+    async function saveNow(name) {
         clearTimeout(timers.get(name));
         timers.delete(name);
         const data = copies.get(name);
         if (!data) return;
+        // Native debounced saves update ST's cache before they emit their event. Merge that pending edit too.
+        const cached = WI.worldInfoCache?.get(name);
+        const base = bases.get(name);
+        if (cached && base && !same(cached, cacheSeen.get(name) ?? base)) {
+            const conflicts = mergeOutside(data, base, structuredClone(cached));
+            bases.set(name, structuredClone(cached));
+            cacheSeen.set(name, structuredClone(cached));
+            external.set(name, (external.get(name) ?? 0) + 1);
+            dirty(name);
+            onMerged(name, conflicts);
+        }
         const { ui } = upgradeBook(data);
         if (Object.keys(ui).length) { adoptUiFields(settings, name, data, ui); saveSettings(); }
         // When it was last edited here, for Home's tiles and list (ST keeps no date of its own).
         (settings.books[name] ??= { defaults: {}, folders: {} }).edited = Date.now();
         saveSettings();
+        const sentRevision = revision(name).dirty;
         const copy = structuredClone(data);
         const sent = structuredClone(copy); // ST may keep and change `copy` after the save
         ours.add(copy);
         try {
-            await ctx().saveWorldInfo(name, copy, true);
+            await writeBook(name, copy);
         } catch (e) {
             // Never rejects: callers (the debounce, flush on close) don't wait for it. The working copy keeps the edit.
             const n = (failures.get(name) ?? 0) + 1;
@@ -148,19 +198,29 @@ export function createLibrary({
             if (final && !unsavedSet.has(name)) { unsavedSet.add(name); onChange(); }
             onSaveError(name, e, final);
             return false;
-        }
+        } finally { ours.delete(copy); }
+        // A native edit can update the cache while the HTTP request is pending, before its debounced event.
+        const after = WI.worldInfoCache?.get(name);
+        if (after && !same(after, sent) && !same(after, cacheSeen.get(name) ?? base)) onWorldInfoUpdated(name, after);
+        if (after) cacheSeen.set(name, structuredClone(after));
         failures.delete(name);
         bases.set(name, sent);
+        revisions.set(name, { ...revision(name), saved: sentRevision });
         if (unsavedSet.delete(name)) onChange();
-        ctx().reloadWorldInfoEditor?.(name);
+        await quietly(() => ctx().reloadWorldInfoEditor?.(name));
         return true;
     }
 
     /** Saves every pending book now. Rejects when one fails (already reported), so a book action waiting on it stops. */
-    async function flush() {
-        // Books whose save failed for good are tried again too: a flush is a good moment (the editor closing, the page going away).
-        const done = await Promise.all([...new Set([...timers.keys(), ...unsavedSet])].map(save));
-        if (done.includes(false)) throw Object.assign(new Error('a book could not be saved'), { reported: true });
+    async function flush(only = null) {
+        const pendingNames = () => [...new Set([...timers.keys(), ...revisions.keys(), ...inFlight.keys()])]
+            .filter(name => (!only || name === only) && (isDirty(name) || inFlight.has(name)));
+        let pending = pendingNames();
+        while (pending.length) {
+            const done = await Promise.all(pending.map(save));
+            if (done.includes(false)) throw Object.assign(new Error('a book could not be saved'), { reported: true });
+            pending = pendingNames();
+        }
     }
 
     /**
@@ -171,33 +231,45 @@ export function createLibrary({
      */
     function onWorldInfoUpdated(name, data) {
         if (ours.has(data)) return;
+        if (data && typeof data === 'object') cacheSeen.set(name, structuredClone(data));
         const mine = copies.get(name);
         const base = bases.get(name);
-        if (!timers.has(name) || !mine || !base || !data || typeof data !== 'object') {
-            if (timers.has(name)) return; // nothing to merge against: WI Hero's pending save stands, as before
+        if (mine && base && same(base, data)) {
+            // Native requests serialize before awaiting fetch, but emit their mutable cached object afterwards.
+            // Even equal event content can describe an older in-flight write: confirm our latest copy again.
+            dirty(name);
+            schedule(name);
+            return;
+        }
+        external.set(name, (external.get(name) ?? 0) + 1);
+        version++;
+        if (!isDirty(name) && !inFlight.has(name)) {
             copies.delete(name);
             bases.delete(name);
             onChange();
             return;
         }
+        if (!mine || !base || !data || typeof data !== 'object') return;
         const conflicts = mergeOutside(mine, base, structuredClone(data));
         bases.set(name, structuredClone(data));
-        version++;
+        dirty(name);
+        schedule(name);
         onChange();
         onMerged(name, conflicts);
     }
 
     async function sanitize(name) {
         const r = await fetch('/api/files/sanitize-filename', { method: 'POST', headers: ctx().getRequestHeaders(), body: JSON.stringify({ fileName: name }) });
-        return r.ok ? (await r.json()).fileName : name;
+        if (!r.ok) throw new Error(`Could not check book name (HTTP ${r.status})`);
+        return String((await r.json()).fileName ?? '').trim();
     }
 
     /** Why a new book name can't be used, or null. */
-    function nameProblem(name, current = null) {
+    function nameProblem(name, current = null, checkReservations = true) {
         const n = String(name ?? '').trim();
         if (!n) return 'Type a name';
         if (n === current) return null;
-        if (names().some(x => x.toLowerCase() === n.toLowerCase() && x !== current)) return 'A book with that name exists';
+        if ([...names(), ...(checkReservations ? reserved : [])].some(x => x.toLowerCase() === n.toLowerCase() && x !== current)) return 'A book with that name exists';
         return null;
     }
 
@@ -212,48 +284,100 @@ export function createLibrary({
     }
     const busy = () => busyN > 0 || Date.now() < busyTill;
 
-    async function createNow(name) {
-        const clean = await sanitize(name.trim());
-        const data = { entries: {} };
-        seeded.add(clean);
-        await onFirstSeen(clean, data, { fresh: true });
-        await ctx().saveWorldInfo(clean, data, true);
-        await ctx().updateWorldInfoList();
-        reused(clean);
+    async function destination(name, current = null) {
+        const clean = await sanitize(String(name ?? '').trim());
+        const problem = nameProblem(clean, current);
+        if (problem) throw new Error(problem);
+        reserved.add(clean);
         return clean;
+    }
+
+    function checkDestination(name, current = null) {
+        editable(name);
+        if (isDirty(name) || inFlight.has(name)) throw new Error(`Finish saving ${name} before reusing its name.`);
+        const problem = nameProblem(name, current, false);
+        if (problem) throw new Error(problem);
+    }
+
+    // A destination can still have a stale working copy after an outside delete. Its new content is a new
+    // history generation, even though our own host event is deliberately ignored.
+    function newCopy(name) {
+        copies.delete(name);
+        bases.delete(name);
+        cacheSeen.delete(name);
+        revisions.delete(name);
+        failures.delete(name);
+        unsavedSet.delete(name);
+        external.set(name, (external.get(name) ?? 0) + 1);
+        version++;
+    }
+
+    async function writeOwn(name, data) {
+        ours.add(data);
+        try { return await writeBook(name, data); } finally { ours.delete(data); }
+    }
+
+    async function createNow(name) {
+        const clean = await destination(name);
+        try {
+            const data = { entries: {} };
+            seeded.add(clean);
+            await onFirstSeen(clean, data, { fresh: true });
+            checkDestination(clean);
+            await writeOwn(clean, data);
+            newCopy(clean);
+            await ctx().updateWorldInfoList();
+            reused(clean);
+            return clean;
+        } finally { reserved.delete(clean); }
     }
 
     /** Writes a whole new content over a book (Restore), keeping the old one for Undo. */
     async function replace(name, data) {
+        editable(name);
         const old = copies.get(name) ?? await ctx().loadWorldInfo(name);
+        editable(name);
         seen(name, old);
         copies.set(name, structuredClone(data));
         if (!bases.has(name)) bases.set(name, structuredClone(old));
-        await save(name);
+        dirty(name);
+        schedule(name);
+        if (await save(name) === false) throw Object.assign(new Error('a book could not be saved'), { reported: true });
         onChange();
         return old;
     }
 
     const duplicate = (...a) => quietly(() => duplicateNow(...a));
     async function duplicateNow(name) {
+        await flush();
         const data = structuredClone(await get(name));
         let n = `${name} copy`;
-        for (let i = 2; names().includes(n); i++) n = `${name} copy ${i}`;
-        const clean = await sanitize(n);
-        await ctx().saveWorldInfo(clean, data, true);
-        await ctx().updateWorldInfoList();
-        reused(clean);
-        return clean;
+        for (let i = 2; nameProblem(n); i++) n = `${name} copy ${i}`;
+        const clean = await destination(n);
+        try {
+            checkDestination(clean);
+            await writeOwn(clean, data);
+            newCopy(clean);
+            await ctx().updateWorldInfoList();
+            reused(clean);
+            return clean;
+        } finally { reserved.delete(clean); }
     }
 
-    const remove = (...a) => quietly(() => removeNow(...a));
+    const remove = name => quietly(() => operation(name, `Deleting ${name}`, () => removeNow(name)));
     async function removeNow(name) {
+        await flush();
         clearTimeout(timers.get(name));
         timers.delete(name);
+        const result = await WI.deleteWorldInfo(name);
+        if (result === false) throw new Error(`Could not delete ${name}. The book and its backups were kept.`);
         copies.delete(name);
         bases.delete(name);
+        cacheSeen.delete(name);
         unsavedSet.delete(name);
-        return await WI.deleteWorldInfo(name);
+        revisions.delete(name);
+        failures.delete(name);
+        return result;
     }
 
     /**
@@ -266,6 +390,7 @@ export function createLibrary({
      * name, or null when nothing was imported.
      */
     const importFile = file => quietly(async () => {
+        await flush();
         if (typeof WI.importWorldInfo !== 'function') throw new Error('This SillyTavern has no lorebook import');
         const before = new Set(names());
         await WI.importWorldInfo(file);
@@ -278,37 +403,46 @@ export function createLibrary({
         reused(base);
         return base;
     });
-    const rename = (...a) => quietly(() => renameNow(...a));
+    const rename = (from, to) => quietly(() => operation(from, `Renaming ${from}`, () => renameNow(from, to)));
     async function renameNow(from, to) {
-        const target = await sanitize(to.trim());
-        if (target === from) return from;
-        await flush();
-        const data = structuredClone(await get(from));
-        const wasGlobal = isGlobal(from);
-        await ctx().saveWorldInfo(target, data, true);
-        // Primary links first, so ST's delete doesn't unlink the open character.
-        const $ = globalThis.jQuery;
-        if ($ && $('#character_world').val() === from) $('#character_world').val(target);
-        for (const c of ctx().characters ?? []) {
-            if (c?.data?.extensions?.world !== from) continue;
-            await mergeCharacter(c, { extensions: { world: target } });
-        }
-        await WI.deleteWorldInfo(from);
-        copies.delete(from);
-        bases.delete(from);
-        for (const lore of WI.world_info.charLore ?? []) {
-            if (lore.extraBooks?.includes(from)) lore.extraBooks = lore.extraBooks.map(b => (b === from ? target : b));
-        }
-        if (powerUser) {
-            if (powerUser.persona_description_lorebook === from) powerUser.persona_description_lorebook = target;
-            for (const d of Object.values(powerUser.persona_descriptions ?? {})) if (d?.lorebook === from) d.lorebook = target;
-        }
-        const meta = ctx().chatMetadata;
-        if (meta?.[WI.METADATA_KEY] === from) { meta[WI.METADATA_KEY] = target; await ctx().saveMetadata(); }
-        await ctx().updateWorldInfoList();
-        if (wasGlobal) setGlobal(target, true);
-        ctx().saveSettingsDebounced();
-        return target;
+        const target = await destination(to, from);
+        try {
+            if (target === from) return from;
+            await flush();
+            const data = structuredClone(await get(from));
+            const wasGlobal = isGlobal(from);
+            checkDestination(target, from);
+            await writeOwn(target, data);
+            newCopy(target);
+            // Primary links first, so ST's delete doesn't unlink the open character.
+            const $ = globalThis.jQuery;
+            if ($ && $('#character_world').val() === from) $('#character_world').val(target);
+            for (const c of ctx().characters ?? []) {
+                if (c?.data?.extensions?.world !== from) continue;
+                await mergeCharacter(c, { extensions: { world: target } });
+            }
+            const deleted = await WI.deleteWorldInfo(from);
+            if (deleted === false) throw new Error(`Saved a copy as ${target}, but could not delete ${from}. Both books were kept; the rename is incomplete.`);
+            copies.delete(from);
+            bases.delete(from);
+            cacheSeen.delete(from);
+            revisions.delete(from);
+            failures.delete(from);
+            unsavedSet.delete(from);
+            for (const lore of WI.world_info.charLore ?? []) {
+                if (lore.extraBooks?.includes(from)) lore.extraBooks = lore.extraBooks.map(b => (b === from ? target : b));
+            }
+            if (powerUser) {
+                if (powerUser.persona_description_lorebook === from) powerUser.persona_description_lorebook = target;
+                for (const d of Object.values(powerUser.persona_descriptions ?? {})) if (d?.lorebook === from) d.lorebook = target;
+            }
+            const meta = ctx().chatMetadata;
+            if (meta?.[WI.METADATA_KEY] === from) { meta[WI.METADATA_KEY] = target; await ctx().saveMetadata(); }
+            await ctx().updateWorldInfoList();
+            if (wasGlobal) setGlobal(target, true);
+            ctx().saveSettingsDebounced();
+            return target;
+        } finally { reserved.delete(target); }
     }
 
     async function mergeCharacter(c, data) {
@@ -440,6 +574,7 @@ export function createLibrary({
 
     return {
         unsaved: name => unsavedSet.has(name),
+        operationText, externalRevision: name => external.get(name) ?? 0,
         edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
         exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };

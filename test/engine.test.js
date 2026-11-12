@@ -572,3 +572,38 @@ test('a top-level wihero (the old build) is read like extensions.wihero', () => 
     assert.deepEqual(problems(model), []);
     assert.equal(model.nodes.get(K('a')).closes[0].kind, 'closesFor', 'the old "story moves on" default');
 });
+
+for (const withEntry of [false, true]) test(`Reopen relatches a fresh close phrase${withEntry ? ' after a new entry fire' : ''}`, () => {
+    const entries = [e(0, 'road', { id: 'road', closeGate: [[...(withEntry ? ['sun'] : []), { lock: ['done'] }]] }),
+        e(1, 'sun', { id: 'sun' })];
+    const s = new Sim(entries);
+    if (withEntry) s.send('sun');
+    s.send('done');
+    assert.ok(s.state.closed[K('road')]);
+    const last = s.chat.at(-1);
+    const closed = structuredClone(last.extra.wihero);
+    last.extra.wihero = reopen(s.state, K('road'), s.chat.length);
+    assert.equal(s.state.closed[K('road')], undefined, 'the old phrase cannot close the reopened entry');
+    s.send('road');
+    if (withEntry) {
+        s.send('done');
+        assert.equal(s.state.closed[K('road')], undefined, 'the prerequisite must fire again after Reopen');
+        s.send('sun');
+    }
+    s.send('done');
+    assert.ok(s.state.closed[K('road')], 'the fresh phrase closes it again');
+    const lock = s.model.nodes.get(K('road')).closes[0].row.locks[0].key;
+    assert.ok(s.state.latches[lock] > closed.latches[lock]);
+});
+
+
+test('a freshly relatched close lock rewinds when its reply is swiped', () => {
+    const s = new Sim([e(0, 'road', { id: 'road', closeGate: [[{ lock: ['done'], by: 'char' }]] })]);
+    s.send('road', 'done');
+    assert.ok(s.state.closed[K('road')]);
+    s.chat.at(-1).extra.wihero = reopen(s.state, K('road'), s.chat.length);
+    s.send('road', 'done');
+    assert.ok(s.state.closed[K('road')]);
+    s.swipe('Nothing happened.');
+    assert.equal(s.state.closed[K('road')], undefined);
+});
