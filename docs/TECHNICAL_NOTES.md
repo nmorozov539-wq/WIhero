@@ -298,3 +298,11 @@ It leaves a native edit made during the request intact; the library merges and c
 Native events for an already-confirmed payload trigger a confirmation write too, because an older HTTP body may
 have been serialized before that shared object changed. Only currently active extension event objects are
 classified as our own. The cache Map semantics and the host save implementations are in the drift contract.
+
+### Follow-up: snapshot identity
+
+New snapshots use a random 128-bit identity in both their index and upload filename; the displayed timestamp
+and book slug no longer determine file identity. Rename, forget and keep use the identity (or the path for old
+snapshots), so same-millisecond copies remain independent. Concurrent As imported requests share an upload,
+pending uploads retain the settings object through book rename, and cleanup waits for uploads before removing
+files. Existing snapshot files and index entries continue to work.
