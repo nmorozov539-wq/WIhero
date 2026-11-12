@@ -47,3 +47,9 @@ Run them against a throwaway SillyTavern, never your own: it changes the connect
 The older scripts (gating, editor, labels, folders, visuals, workspace, phone, branches) test the old UI and are in the git history; their checks now live in n1–n8.
 
 `tools/st-drift.mjs` is not a browser check: it compares the SillyTavern code WI Hero copies or leans on (getStringHash, the decorators, matchKeys, sticky timing, the generate interceptor, and the exports and events it uses) in ST's latest release and staging with the fingerprints taken on the tested version (`tools/st-drift.json`). GitHub runs it weekly (`.github/workflows/st-drift.yml`); `node tools/st-drift.mjs --dir <SillyTavern>` checks a local copy, and `--update` takes the fingerprints again once a change has been checked and WI Hero follows it.
+
+`mobile-edit.mjs` checks Normal mode at 390 × 844 with the actual library save lifecycle (`?saves` in the
+browser harness). It checks that creation stays on the list and title space/blur, keyword blur, paste, Enter,
+delete, on/off and parameter edits keep the entry open without adding tabs after saves. The native-editor reload
+stub fires the same book-open callback as ST's dropdown unless the library suppresses it. Run
+`node e2e/mobile-edit.mjs`; it uses only made-up harness data.

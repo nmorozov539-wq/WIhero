@@ -222,3 +222,28 @@ test('Send with its label off: the bare value, and the book text untouched until
     s.send('next');
     assert.equal(s.lastSettle.text.get('Book.0'), '7');
 });
+
+test('renamed trackers resolve old values, written masks and a rewound swipe', async () => {
+    const { readState } = await import('../src/engine/state.js');
+    const { baseState } = await import('../src/engine/turn.js');
+    const renamed = { Book: 'New' };
+    const sim = new Sim([e(0, 'gold', { id: 'gold', written: {}, masks: [{ name: 'bag', written: {}, content: '' }] }, { comment: 'Gold' })]);
+    sim.send('gold', '[Gold: 42]\n<Gold · bag>\nsword\n</Gold · bag>');
+    sim.send('nothing', 'No change.');
+    sim.send('nothing', 'Still no change.');
+    const model = buildModel(sim.entries.map(entry => ({ ...entry, world: 'New' })));
+    const state = baseState(sim.chat, model, { renamed }).state;
+    assert.equal(slotValues(model, state, sim.chat).get('New/gold'), '42');
+    // Set a historical mask value explicitly, just as the reply reader stores it.
+    const first = sim.chat[2].extra.wihero;
+    first.wrote['Book/gold|m:bag'] = 'sword';
+    const latest = sim.chat.at(-1).extra.wihero;
+    latest.written['Book/gold|m:bag'] = 2;
+    assert.equal(slotValues(model, readState(latest, { renamed }), sim.chat).get('New/gold|m:bag'), 'sword');
+    const original = structuredClone(first);
+    first.wrote['Book/gold'] = '99';
+    assert.equal(slotValues(model, readState(latest, { renamed }), sim.chat).get('New/gold'), '99');
+    sim.chat[2].extra.wihero = original; // ST restores the selected swipe's extra.
+    assert.equal(slotValues(model, readState(latest, { renamed }), sim.chat).get('New/gold'), '42');
+    assert.equal(original.wrote['Book/gold'], '42', 'historical data is left intact');
+});

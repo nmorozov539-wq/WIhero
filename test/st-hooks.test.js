@@ -291,3 +291,22 @@ test('trackers: the written value replaces the scan copy, the instruction is set
     await st.hooks.onAfterCommands('normal', {}, false);
     assert.match(st.extensionText, /Story trackers\./, 'back for the next reply');
 });
+
+test('model cache follows tracker enable, keywords, Permanent and start text without reload', async () => {
+    const entry = e(0, 'gold', { id: 'gold', written: {} }, { disable: true, content: '10' });
+    const st = new FakeST([entry]);
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').disabled, true);
+    entry.disable = false;
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').disabled, false);
+    entry.key = [];
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').hasTrigger, false);
+    entry.constant = true;
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').hasTrigger, true);
+    entry.content = '20';
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.nodes.get('Book/gold').content, '20');
+});

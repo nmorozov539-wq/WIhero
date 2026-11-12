@@ -517,6 +517,7 @@ export function createApp(deps) {
         }, { quiet: true });
         if (folder) { setFolder(settings, book, entry, folder); saveSettings(); }
         if (after != null) library.change(book, d => { reorderEntries(d, [entry.uid], after, true); }, { quiet: true });
+        if (!S.desk && S.mode === 'normal') { render(); return; }
         openIn({ type: 'entry', book, uid: entry.uid, fresh: true });
     }
 

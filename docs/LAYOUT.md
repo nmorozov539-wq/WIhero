@@ -193,7 +193,7 @@ Left to right: a search field, + in the middle, then New folder and Select.
 | Button | What it does |
 |--------|--------------|
 | Search field | Opens the search overlay with the cursor in it |
-| + | Home: a small sheet, New book or Import a file…. Book page: new entry |
+| + | Home: a small sheet, New book or Import a file…. Book page on phones: creates an entry in the list, without opening it |
 | New folder | Home: a new, empty book folder (it shows until books are moved in). Book page: a new entry folder |
 | Select | Starts selection mode |
 
@@ -256,8 +256,8 @@ Move (to a folder, No folder, + New folder) and Export. Import lives under +.
 - **Links sheet**: every linked character and chat with Unlink, and "Link to
   this chat". There is no master switch: unlinking is how a linked book is
   turned off.
-- + New creates an entry and opens its page with the name ready to type. An
-  entry left completely empty is discarded.
+- + New on phones creates an entry in the list without opening it. Tap the entry to edit it.
+  Desktop creation opens the entry with the name ready to type; leaving it completely empty discards it.
 
 ### Selection mode (book page)
 

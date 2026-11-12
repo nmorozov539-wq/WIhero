@@ -13,7 +13,7 @@ function setup(fail) {
         saveWorldInfo: async (name, data) => { if (fail()) throw new Error('disk full'); saved.push(name); books[name] = data; },
     };
     const library = createLibrary({
-        ctx: () => ctx, WI: {}, powerUser: null, settings: { books: {} }, saveSettings: () => {},
+        ctx: () => ctx, writeBook: (name, data) => ctx.saveWorldInfo(name, data), WI: {}, powerUser: null, settings: { books: {} }, saveSettings: () => {},
         onSaveError: (name, e, final, what) => errors.push({ name, message: e.message, final, what }),
     });
     return { library, saved, errors, books };
@@ -64,7 +64,7 @@ function setupOutside() {
         saveWorldInfo: async (name, data) => { books[name] = data; onUpdated?.(name, data); },
     };
     const library = createLibrary({
-        ctx: () => ctx, WI: {}, powerUser: null, settings: { books: {} }, saveSettings: () => {},
+        ctx: () => ctx, writeBook: (name, data) => ctx.saveWorldInfo(name, data), WI: {}, powerUser: null, settings: { books: {} }, saveSettings: () => {},
         onMerged: (name, n) => merged.push([name, n]),
     });
     onUpdated = library.onWorldInfoUpdated;
@@ -138,8 +138,84 @@ test('making a book under a name a rename left behind drops that rename', async 
         saveWorldInfo: async (name, data) => { books[name] = data; },
         updateWorldInfoList: async () => {},
     };
-    globalThis.fetch = async () => ({ ok: false });
-    const library = createLibrary({ ctx: () => ctx, WI: {}, powerUser: null, settings, saveSettings: () => {} });
+    globalThis.fetch = async (_url, options) => ({ ok: true, json: async () => ({ fileName: JSON.parse(options.body).fileName }) });
+    const library = createLibrary({ ctx: () => ctx, writeBook: (name, data) => ctx.saveWorldInfo(name, data), WI: {}, powerUser: null, settings, saveSettings: () => {} });
     assert.equal(await library.create('Kingdom'), 'Kingdom');
     assert.deepEqual(settings.renamed, { Other: 'Elsewhere' });
+});
+
+test('flush waits for active saves and serializes edits made during a request', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let release;
+    let active = 0;
+    let peak = 0;
+    const writes = [];
+    // Hold the host save, including its native editor reload.
+    const held = new Promise(r => { release = r; });
+    const ctx = {
+        getWorldInfoNames: () => ['Book'], loadWorldInfo: async () => ({ entries: {} }),
+        reloadWorldInfoEditor: () => { assert.equal(lib.busy(), true, 'native dropdown changes are suppressed'); },
+    };
+    const lib = createLibrary({ ctx: () => ctx, WI: {}, settings: { books: {} }, saveSettings() {},
+        writeBook: async (_name, data) => {
+            peak = Math.max(peak, ++active);
+            writes.push(data.value);
+            if (writes.length === 1) await held;
+            active--;
+        },
+    });
+    await lib.get('Book');
+    lib.change('Book', d => { d.value = 1; });
+    t.mock.timers.tick(350);
+    let finished = false;
+    const flushed = lib.flush().then(() => { finished = true; });
+    await Promise.resolve();
+    assert.equal(finished, false);
+    lib.change('Book', d => { d.value = 2; });
+    t.mock.timers.tick(350);
+    release();
+    await flushed;
+    assert.deepEqual(writes, [1, 2]);
+    assert.equal(peak, 1);
+});
+
+test('create, rename and duplicate reject sanitized collisions and empty names before writing', async t => {
+    const books = { Book: { entries: { 0: { content: 'precious' } } }, Other: { entries: {} } };
+    let writes = 0, deletes = 0;
+    const ctx = { getWorldInfoNames: () => Object.keys(books), getRequestHeaders: () => ({}),
+        loadWorldInfo: async n => structuredClone(books[n]) };
+    let sanitized = 'Book';
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => ({ fileName: sanitized }) }));
+    const library = createLibrary({ ctx: () => ctx, WI: { deleteWorldInfo: async () => { deletes++; } },
+        settings: { books: {} }, saveSettings() {}, writeBook: async () => { writes++; } });
+    await assert.rejects(library.create('Book?'), /exists/);
+    await assert.rejects(library.rename('Other', 'Book?'), /exists/);
+    await assert.rejects(library.duplicate('Other'), /exists/);
+    sanitized = '';
+    await assert.rejects(library.create('???'), /Type a name/);
+    await assert.rejects(library.rename('Other', '???'), /Type a name/);
+    await assert.rejects(library.duplicate('Other'), /Type a name/);
+    assert.equal(writes, 0);
+    assert.equal(deletes, 0);
+    assert.equal(books.Book.entries[0].content, 'precious');
+});
+
+test('delete waits for an active write before removing the book', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    const order = [];
+    const ctx = { getWorldInfoNames: () => ['Book'], loadWorldInfo: async () => ({ entries: {} }) };
+    const library = createLibrary({ ctx: () => ctx, WI: { deleteWorldInfo: async () => { order.push('delete'); } },
+        settings: { books: {} }, saveSettings() {}, writeBook: async () => { await held; order.push('write'); } });
+    await library.get('Book');
+    library.change('Book', d => { d.value = 1; });
+    t.mock.timers.tick(350);
+    const removing = library.remove('Book');
+    await Promise.resolve();
+    assert.deepEqual(order, []);
+    release();
+    await removing;
+    assert.deepEqual(order, ['write', 'delete']);
+    assert.equal(library.peek('Book'), null);
 });

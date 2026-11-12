@@ -82,6 +82,7 @@ function renameBooks(state, renamed) {
     };
     return {
         ...state,
+        renamed: { ...renamed },
         fired: keys(state.fired), firstAt: keys(state.firstAt), lastAt: keys(state.lastAt),
         closed: keys(state.closed), holding: keys(state.holding), latches: latch(state.latches), baseline: keys(state.baseline),
         masks: { closed: keys(state.masks.closed), pick: keys(state.masks.pick) },

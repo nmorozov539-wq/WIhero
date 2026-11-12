@@ -1,7 +1,7 @@
 // The ST side of one turn (BUILD_SPEC 6): reads ST's events, calls the engine, applies its decisions to ST's
 // entry lists and activated Map. SillyTavern is reached only through `ctx()` and the `st` functions passed in,
 // so this can be tested with a stand-in.
-import { buildModel, FIELD, isMoment, rawConfig, stKey } from './engine/model.js';
+import { buildModel, FIELD, stKey } from './engine/model.js';
 import { advance, baseState, rereadReply, slotOpen, slotValues, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
 import { pickMask, reopen, setSlot } from './engine/manual.js';
 import { readState } from './engine/state.js';
@@ -78,8 +78,8 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
             if (settings.renamed && Object.hasOwn(settings.renamed, book)) { delete settings.renamed[book]; dropped = true; }
         }
         if (dropped) saveSettings();
-        const sig = entries.map(e => `${stKey(e)}|${e.comment}|${e.probability}|${e.useProbability}|${e.cooldown}|${JSON.stringify(rawConfig(e) ?? null)}${isMoment(e) ? `|${JSON.stringify(e.key)}` : ''}${rawConfig(e)?.written ? `|${e.content}` : ''}`).join('\n')
-            + `\n${greetingSignature(character(), st.getStringHash)}`;
+        // Compare the same complete inputs buildModel receives, including ordinary ST fields.
+        const sig = JSON.stringify(entries) + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;
         model = buildModel(entries, { greetingFp });

@@ -2,6 +2,7 @@
 // its text comes from the chat. This file reads the stored settings, compiles a book's syntax and reads messages.
 // Pure, no SillyTavern imports.
 import { isObject } from './util.js';
+import { readState } from './state.js';
 
 /** The starting syntax of a book (TRACKERS 5): a line and a block template. */
 export const DEFAULT_SYNTAX = Object.freeze({ line: '[{label}: {value}]', open: '<{label}>', close: '</{label}>' });
@@ -251,7 +252,7 @@ export function slotValue(state, chat, key, readGreeting) {
     if (Object.hasOwn(state.wrote ?? {}, key)) return state.wrote[key];
     const at = state.written?.[key];
     if (Number.isInteger(at)) {
-        const stored = chat?.[at]?.extra?.wihero?.wrote;
+        const stored = readState(chat?.[at]?.extra?.wihero, { renamed: state.renamed })?.wrote;
         if (isObject(stored) && Object.hasOwn(stored, key)) return String(stored[key]);
         return undefined;
     }

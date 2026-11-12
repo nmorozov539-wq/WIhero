@@ -2,6 +2,7 @@
 // and the book-level actions (create, rename, duplicate, delete, export, global, links, World Info settings).
 // SillyTavern is reached through `ctx()` and the `WI` module namespace passed in (live bindings of world-info.js).
 import { upgradeBook } from '../book.js';
+import { writeBook as persistBook } from './book-write.js';
 import { adoptUiFields, forgetReusedNames } from './data.js';
 
 const SAVE_DELAY = 350;
@@ -51,7 +52,7 @@ export function mergeOutside(mine, base, outside) {
 }
 
 export function createLibrary({
-    ctx, WI, powerUser, settings, saveSettings, onFirstSeen = async () => {}, onChange = () => {},
+    ctx, WI, powerUser, settings, saveSettings, writeBook = (name, data) => persistBook(ctx(), WI, name, data), onFirstSeen = async () => {}, onChange = () => {},
     onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e),
     onMerged = () => {},
 }) {
@@ -60,6 +61,8 @@ export function createLibrary({
     /** name → the book as ST last had it from WI Hero's side (loaded, or saved): what an outside save is merged against. */
     const bases = new Map();
     const timers = new Map();
+    const inFlight = new Map();
+    const reserved = new Set();
     /** Books whose last save failed for good: their edits live only in the working copy until a save works. */
     const unsavedSet = new Set();
     /** name → failed saves in a row. */
@@ -124,7 +127,15 @@ export function createLibrary({
         timers.set(name, setTimeout(() => save(name), delay));
     }
 
-    async function save(name) {
+    function save(name) {
+        if (inFlight.has(name)) return inFlight.get(name).then(ok =>
+            ok !== false && timers.has(name) ? save(name) : ok);
+        const task = saveNow(name).finally(() => inFlight.delete(name));
+        inFlight.set(name, task);
+        return task;
+    }
+
+    async function saveNow(name) {
         clearTimeout(timers.get(name));
         timers.delete(name);
         const data = copies.get(name);
@@ -138,7 +149,7 @@ export function createLibrary({
         const sent = structuredClone(copy); // ST may keep and change `copy` after the save
         ours.add(copy);
         try {
-            await ctx().saveWorldInfo(name, copy, true);
+            await writeBook(name, copy);
         } catch (e) {
             // Never rejects: callers (the debounce, flush on close) don't wait for it. The working copy keeps the edit.
             const n = (failures.get(name) ?? 0) + 1;
@@ -152,15 +163,19 @@ export function createLibrary({
         failures.delete(name);
         bases.set(name, sent);
         if (unsavedSet.delete(name)) onChange();
-        ctx().reloadWorldInfoEditor?.(name);
+        await quietly(() => ctx().reloadWorldInfoEditor?.(name));
         return true;
     }
 
     /** Saves every pending book now. Rejects when one fails (already reported), so a book action waiting on it stops. */
     async function flush() {
         // Books whose save failed for good are tried again too: a flush is a good moment (the editor closing, the page going away).
-        const done = await Promise.all([...new Set([...timers.keys(), ...unsavedSet])].map(save));
-        if (done.includes(false)) throw Object.assign(new Error('a book could not be saved'), { reported: true });
+        let pending = new Set([...timers.keys(), ...unsavedSet, ...inFlight.keys()]);
+        while (pending.size) {
+            const done = await Promise.all([...pending].map(save));
+            if (done.includes(false)) throw Object.assign(new Error('a book could not be saved'), { reported: true });
+            pending = new Set([...timers.keys(), ...inFlight.keys()]);
+        }
     }
 
     /**
@@ -173,8 +188,8 @@ export function createLibrary({
         if (ours.has(data)) return;
         const mine = copies.get(name);
         const base = bases.get(name);
-        if (!timers.has(name) || !mine || !base || !data || typeof data !== 'object') {
-            if (timers.has(name)) return; // nothing to merge against: WI Hero's pending save stands, as before
+        if ((!timers.has(name) && !inFlight.has(name) && !unsavedSet.has(name)) || !mine || !base || !data || typeof data !== 'object') {
+            if (timers.has(name) || inFlight.has(name) || unsavedSet.has(name)) return; // nothing to merge against: WI Hero's pending save stands, as before
             copies.delete(name);
             bases.delete(name);
             onChange();
@@ -189,15 +204,16 @@ export function createLibrary({
 
     async function sanitize(name) {
         const r = await fetch('/api/files/sanitize-filename', { method: 'POST', headers: ctx().getRequestHeaders(), body: JSON.stringify({ fileName: name }) });
-        return r.ok ? (await r.json()).fileName : name;
+        if (!r.ok) throw new Error(`Could not check book name (HTTP ${r.status})`);
+        return String((await r.json()).fileName ?? '').trim();
     }
 
     /** Why a new book name can't be used, or null. */
-    function nameProblem(name, current = null) {
+    function nameProblem(name, current = null, checkReservations = true) {
         const n = String(name ?? '').trim();
         if (!n) return 'Type a name';
         if (n === current) return null;
-        if (names().some(x => x.toLowerCase() === n.toLowerCase() && x !== current)) return 'A book with that name exists';
+        if ([...names(), ...(checkReservations ? reserved : [])].some(x => x.toLowerCase() === n.toLowerCase() && x !== current)) return 'A book with that name exists';
         return null;
     }
 
@@ -212,15 +228,31 @@ export function createLibrary({
     }
     const busy = () => busyN > 0 || Date.now() < busyTill;
 
-    async function createNow(name) {
-        const clean = await sanitize(name.trim());
-        const data = { entries: {} };
-        seeded.add(clean);
-        await onFirstSeen(clean, data, { fresh: true });
-        await ctx().saveWorldInfo(clean, data, true);
-        await ctx().updateWorldInfoList();
-        reused(clean);
+    async function destination(name, current = null) {
+        const clean = await sanitize(String(name ?? '').trim());
+        const problem = nameProblem(clean, current);
+        if (problem) throw new Error(problem);
+        reserved.add(clean);
         return clean;
+    }
+
+    function checkDestination(name, current = null) {
+        const problem = nameProblem(name, current, false);
+        if (problem) throw new Error(problem);
+    }
+
+    async function createNow(name) {
+        const clean = await destination(name);
+        try {
+            const data = { entries: {} };
+            seeded.add(clean);
+            await onFirstSeen(clean, data, { fresh: true });
+            checkDestination(clean);
+            await writeBook(clean, data);
+            await ctx().updateWorldInfoList();
+            reused(clean);
+            return clean;
+        } finally { reserved.delete(clean); }
     }
 
     /** Writes a whole new content over a book (Restore), keeping the old one for Undo. */
@@ -229,31 +261,38 @@ export function createLibrary({
         seen(name, old);
         copies.set(name, structuredClone(data));
         if (!bases.has(name)) bases.set(name, structuredClone(old));
-        await save(name);
+        schedule(name);
+        if (await save(name) === false) throw Object.assign(new Error('a book could not be saved'), { reported: true });
         onChange();
         return old;
     }
 
     const duplicate = (...a) => quietly(() => duplicateNow(...a));
     async function duplicateNow(name) {
+        await flush();
         const data = structuredClone(await get(name));
         let n = `${name} copy`;
-        for (let i = 2; names().includes(n); i++) n = `${name} copy ${i}`;
-        const clean = await sanitize(n);
-        await ctx().saveWorldInfo(clean, data, true);
-        await ctx().updateWorldInfoList();
-        reused(clean);
-        return clean;
+        for (let i = 2; nameProblem(n); i++) n = `${name} copy ${i}`;
+        const clean = await destination(n);
+        try {
+            checkDestination(clean);
+            await writeBook(clean, data);
+            await ctx().updateWorldInfoList();
+            reused(clean);
+            return clean;
+        } finally { reserved.delete(clean); }
     }
 
     const remove = (...a) => quietly(() => removeNow(...a));
     async function removeNow(name) {
+        await flush();
         clearTimeout(timers.get(name));
         timers.delete(name);
+        const result = await WI.deleteWorldInfo(name);
         copies.delete(name);
         bases.delete(name);
         unsavedSet.delete(name);
-        return await WI.deleteWorldInfo(name);
+        return result;
     }
 
     /**
@@ -280,35 +319,38 @@ export function createLibrary({
     });
     const rename = (...a) => quietly(() => renameNow(...a));
     async function renameNow(from, to) {
-        const target = await sanitize(to.trim());
-        if (target === from) return from;
-        await flush();
-        const data = structuredClone(await get(from));
-        const wasGlobal = isGlobal(from);
-        await ctx().saveWorldInfo(target, data, true);
-        // Primary links first, so ST's delete doesn't unlink the open character.
-        const $ = globalThis.jQuery;
-        if ($ && $('#character_world').val() === from) $('#character_world').val(target);
-        for (const c of ctx().characters ?? []) {
-            if (c?.data?.extensions?.world !== from) continue;
-            await mergeCharacter(c, { extensions: { world: target } });
-        }
-        await WI.deleteWorldInfo(from);
-        copies.delete(from);
-        bases.delete(from);
-        for (const lore of WI.world_info.charLore ?? []) {
-            if (lore.extraBooks?.includes(from)) lore.extraBooks = lore.extraBooks.map(b => (b === from ? target : b));
-        }
-        if (powerUser) {
-            if (powerUser.persona_description_lorebook === from) powerUser.persona_description_lorebook = target;
-            for (const d of Object.values(powerUser.persona_descriptions ?? {})) if (d?.lorebook === from) d.lorebook = target;
-        }
-        const meta = ctx().chatMetadata;
-        if (meta?.[WI.METADATA_KEY] === from) { meta[WI.METADATA_KEY] = target; await ctx().saveMetadata(); }
-        await ctx().updateWorldInfoList();
-        if (wasGlobal) setGlobal(target, true);
-        ctx().saveSettingsDebounced();
-        return target;
+        const target = await destination(to, from);
+        try {
+            if (target === from) return from;
+            await flush();
+            const data = structuredClone(await get(from));
+            const wasGlobal = isGlobal(from);
+            checkDestination(target, from);
+            await writeBook(target, data);
+            // Primary links first, so ST's delete doesn't unlink the open character.
+            const $ = globalThis.jQuery;
+            if ($ && $('#character_world').val() === from) $('#character_world').val(target);
+            for (const c of ctx().characters ?? []) {
+                if (c?.data?.extensions?.world !== from) continue;
+                await mergeCharacter(c, { extensions: { world: target } });
+            }
+            await WI.deleteWorldInfo(from);
+            copies.delete(from);
+            bases.delete(from);
+            for (const lore of WI.world_info.charLore ?? []) {
+                if (lore.extraBooks?.includes(from)) lore.extraBooks = lore.extraBooks.map(b => (b === from ? target : b));
+            }
+            if (powerUser) {
+                if (powerUser.persona_description_lorebook === from) powerUser.persona_description_lorebook = target;
+                for (const d of Object.values(powerUser.persona_descriptions ?? {})) if (d?.lorebook === from) d.lorebook = target;
+            }
+            const meta = ctx().chatMetadata;
+            if (meta?.[WI.METADATA_KEY] === from) { meta[WI.METADATA_KEY] = target; await ctx().saveMetadata(); }
+            await ctx().updateWorldInfoList();
+            if (wasGlobal) setGlobal(target, true);
+            ctx().saveSettingsDebounced();
+            return target;
+        } finally { reserved.delete(target); }
     }
 
     async function mergeCharacter(c, data) {

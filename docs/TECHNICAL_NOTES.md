@@ -263,3 +263,22 @@ shorter or older.
   nothing shows a toast, and the mode stays on.
 - Back and Escape cancel; one successful tap ends it (AFTER_V1 has making it
   stay on as a setting).
+
+## Persistence and mobile editing fixes (2026-11-12)
+
+- WI Hero checks the sanitized filename, including empty names and case-insensitive collisions, before create,
+  duplicate and rename. Concurrent destinations are reserved until the operation finishes; a failed sanitization
+  request stops the operation.
+- `src/ui/book-write.js` posts to `/api/worldinfo/edit` and requires an OK HTTP response before updating ST's
+  exported `worldInfoCache` and emitting `WORLDINFO_UPDATED`. It does not use 1.19.0's unchecked `saveWorldInfo`.
+  WI Hero's per-book writes run in order; flush waits for active requests and changes made during them, as well
+  as debounced edits and failed saves. Duplicate, rename, delete and export wait for flush. A rename's destination
+  must be confirmed before links change or the source is deleted. Native editor refresh still happens after a
+  save, with its synthetic dropdown event suppressed by `library.busy()` so it cannot navigate WI Hero.
+- Normal mode on phones creates entries in the list without opening an entry page. Editing an existing entry
+  stays on that page through saves, with no extra tabs. `e2e/mobile-edit.mjs` exercises title space/blur, keyword
+  blur, pasted content, newline, delete, toggling and parameters using the actual library save lifecycle in the
+  browser harness; its native-editor reload stub reproduces ST's dropdown callback.
+- Tracker value resolution applies current book rename mappings to the historical message containing the value,
+  including written masks and the restored swipe. It does not rewrite historical messages. Runtime model caching
+  compares the full entry inputs, so ST fields such as disable, constant, keywords and content invalidate it.
