@@ -1,7 +1,7 @@
 // The Guide tab (LAYOUT "Guide"): every page of guide.js, one after another, with an index on top, scrolled to the
 // anchor it was opened at. Each piece page: one line, a small picture in the canvas's colors, an example, the fine
 // print, common mistakes, and Show me (the Sample book on a matching card).
-import { btn, html, el } from './dom.js';
+import { btn, html, el, scrollToTop } from './dom.js';
 import { ic } from './icons.js';
 import { BASICS, PAGES, TOPICS } from './guide.js';
 
@@ -48,7 +48,7 @@ export function renderGuide(main, x) {
     head.append(el('h1', '', 'Guide'), el('p', 'help', 'How each piece works. In explain mode (the "?" on the canvas), tap anything to come here.'));
     const idx = el('div', 'gidx');
     for (const p of [...BASICS, ...PAGES, ...TOPICS]) {
-        const b = btn('gchip', '', () => v.querySelector(`[data-anchor="${p.id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+        const b = btn('gchip', '', () => scrollToTop(v.querySelector(`[data-anchor="${p.id}"]`), true));
         b.textContent = p.title;
         if (p.family) b.style.setProperty('--c', COLOR[p.family]);
         idx.append(b);
@@ -83,7 +83,7 @@ export function renderGuide(main, x) {
     for (const t of TOPICS) topic(t);
     if (x.anchor) requestAnimationFrame(() => {
         const n = v.querySelector(`[data-anchor="${x.anchor}"]`);
-        if (n) { n.scrollIntoView({ block: 'start' }); n.classList.add('flash'); }
+        if (n) { scrollToTop(n); n.classList.add('flash'); }
     });
     return v;
 }
