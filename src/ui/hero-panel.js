@@ -304,7 +304,7 @@ export function createHeroPanel(A) {
                         r.setAttribute('role', 'checkbox');
                         r.setAttribute('aria-checked', String(on));
                         const ck = el('span', 'pck');
-                        ck.innerHTML = on ? ic('select', 's') : '';
+                        ck.innerHTML = on ? ic('check', 's') : '';
                         r.append(ck);
                     }
                     r.append(el('span', 'nm', titleOf(e)));

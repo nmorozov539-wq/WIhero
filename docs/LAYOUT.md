@@ -3,7 +3,7 @@
 Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). It
-describes the build as of 0.45.0, and every decision is listed in
+describes the build as of 0.47.0, and every decision is listed in
 [BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop (where ST uses its desktop layout, wider than 1000px) has
@@ -64,7 +64,7 @@ pick shows its effect behind it.
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
-| View / Book | Home: Open books in (Normal mode, Hero mode); on desktop also Show books as (Tiles, List). Book page: Sort by (List order, Prompt order, A–Z, Largest first, Key words first, Permanent first, Vectorized first; inside each folder. List order is ST's list position, which drag changes; Prompt order is the Order parameter, shown on each row and editable there: a box on desktop, a button that asks on phones; Largest first sorts by the rough token count and shows it on each row) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. Then Guide › |
+| View / Book | Home: Open books in (Normal mode, Hero mode) · Show books as (List, Tiles). Phones and desktop keep their own choice: phones start on List, desktop on Tiles. Book page: Sort by (List order, Prompt order, A–Z, Largest first, Key words first, Permanent first, Vectorized first; inside each folder. List order is ST's list position, which drag changes; Prompt order is the Order parameter, shown on each row and editable there: a box on desktop, a button that asks on phones; Largest first sorts by the rough token count and shows it on each row) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. Then Guide › |
 | Canvas | | Tidy layout · Legend (switch) · Show chat state (switch, off by default) · on desktop, Mouse wheel (Zoom, Scroll) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) · Mark keyword clashes (switch, on by default) | The same |
 | Tabs | Close other tabs | Close other tabs |
@@ -210,9 +210,10 @@ Left to right: a search field, + in the middle, then New folder and Select.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "World Info", and a gear for ST's World Info settings |
+| Header | "World Info", a List/Tiles button (shows the view it switches to), and a gear for ST's World Info settings |
 | Book folders | Collapsible groups of books (WI Hero's own, not ST's) |
 | Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯. Off leads to the book's page, which says how to use it |
+| Book tile | With Tiles on: two to a row, each folder with its own grid. Book icon and ⋯ on top, the name on up to two lines, then the entry count and the same badges. Taps, long press and select mode work as on a row |
 | Tap a book | Opens it in a new tab |
 | Long press | Opens it in a background tab |
 | Book ⋯ | Open in new tab · Rename · Move to folder · Export · Snapshots · Delete |

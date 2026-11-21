@@ -34,37 +34,40 @@ export function createNormal(A) {
         const v = el('div', 'view');
         main.append(v);
         const names = visibleNames();
+        const tiles = settings.homeView === 'tiles';
+        const books = list => {
+            if (!tiles) { for (const n of list) v.append(bookRow(n)); return; }
+            const g = el('div', 'ptiles');
+            for (const n of list) g.append(bookTile(n));
+            if (list.length) v.append(g);
+        };
         if (S.select) v.append(selHead(names, 'books'));
         else {
             const h = el('div', 'head');
-            h.append(el('h1', '', 'World Info'), btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
+            // List or tiles, the phone's own choice (desktop keeps its own under settings.desk).
+            const toTiles = !tiles;
+            h.append(el('h1', '', 'World Info'),
+                btn('round flat', ic(toTiles ? 'grid' : 'rows'), () => { settings.homeView = toTiles ? 'tiles' : 'list'; saveSettings(); render(); }, toTiles ? 'Show books as tiles' : 'Show books as a list'),
+                btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
             v.append(h);
         }
         // A folder shows while it holds a book shown here, or nothing at all (a new folder, #40).
         const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
         const loose = names.filter(n => !bookFolderOf(settings, n));
         v.append(el('div', 'section', 'Books'));
-        for (const n of loose) v.append(bookRow(n));
+        books(loose);
         for (const f of folders) {
             const list = settings.bookFolders[f].filter(n => names.includes(n)).sort((a, b) => a.localeCompare(b));
             const key = `home:${f}`;
             const open = !S.collapsed.has(key);
             v.append(sectionHead(`${f} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list : null));
-            if (open) for (const n of list) v.append(bookRow(n));
+            if (open) books(list);
         }
         if (!names.length) v.append(el('div', 'empty-note', 'No books yet. Tap + to make the first one.'));
     }
 
-    function bookRow(name) {
-        // In select mode a tap selects the row: it lights up and its book icon becomes a check mark (#42).
-        const picked = !!S.select?.has(name);
-        const it = el('div', `item${picked ? ' sel' : ''}`);
-        it.dataset.book = name;
-        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
-        const i = el('div', 'ic');
-        i.innerHTML = ic(picked ? 'check' : 'book');
-        const tx = el('div', 'txt');
-        tx.append(el('div', 't', name));
+    /** Entry count and status badges, shared by a book's row and its tile. */
+    function bookMeta(name) {
         const m = el('div', 'm');
         const data = library.peek(name);
         const count = el('span', '', data ? `${entriesShown(name, data).length} entries` : '…');
@@ -76,15 +79,46 @@ export function createNormal(A) {
         if (global) m.append(el('span', 'badge g', 'Global'));
         if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); m.append(l); }
         if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; m.append(o); }
-        tx.append(m);
-        it.append(i, tx);
-        if (!S.select) it.append(btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`));
-        pressable(it, () => {
+        return m;
+    }
+
+    /** Tap, long press and select mode, the same on a row and a tile. */
+    function bookPress(node, name) {
+        node.dataset.book = name;
+        if (S.select) { node.setAttribute('role', 'checkbox'); node.setAttribute('aria-checked', String(!!S.select.has(name))); }
+        pressable(node, () => {
             if (S.select) { toggleSel(name); return; }
             if (settings.openInHero) { S.hero.book = name; switchMode(); return; }
             openIn({ type: 'book', book: name });
         }, S.select ? null : () => openIn({ type: 'book', book: name }, { newTab: true, background: true }));
+    }
+
+    function bookRow(name) {
+        // In select mode a tap selects the row: it lights up and its book icon becomes a check mark (#42).
+        const picked = !!S.select?.has(name);
+        const it = el('div', `item${picked ? ' sel' : ''}`);
+        const i = el('div', 'ic');
+        i.innerHTML = ic(picked ? 'check' : 'book');
+        const tx = el('div', 'txt');
+        tx.append(el('div', 't', name), bookMeta(name));
+        it.append(i, tx);
+        if (!S.select) it.append(btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`));
+        bookPress(it, name);
         return it;
+    }
+
+    /** Home's tile view on phones: two to a row, the name on up to two lines, then the count and badges. */
+    function bookTile(name) {
+        const picked = !!S.select?.has(name);
+        const t = el('div', `ptile${picked ? ' sel' : ''}`);
+        const top = el('div', 'pt');
+        const i = el('div', 'ic');
+        i.innerHTML = ic(picked ? 'check' : 'book');
+        top.append(i);
+        if (!S.select) top.append(btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`));
+        t.append(top, el('div', 't', name), bookMeta(name));
+        bookPress(t, name);
+        return t;
     }
 
     // ---------------------------------------------------------------- book page

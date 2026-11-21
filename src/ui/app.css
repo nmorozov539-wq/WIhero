@@ -159,6 +159,18 @@ svg.i.s { width: 16px; height: 16px; }
 .bottombar .bplus { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); width: 50px; border-radius: 25px; }
 .bottombar .bright { flex: 1; max-width: 150px; display: flex; justify-content: flex-end; }
 .item.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+/* Home's tile view on phones: two to a row. */
+.ptiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 4px 12px 8px; }
+.ptile { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 6px 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; min-height: 120px; }
+.ptile.pressing { background: var(--raised); }
+.ptile.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.ptile .pt { display: flex; align-items: flex-start; justify-content: space-between; min-height: 36px; }
+.ptile .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--raised); display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.ptile.sel .ic { color: var(--accent); }
+.ptile .more { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--muted); border-radius: 10px; margin-top: -4px; }
+.ptile .t { font-size: var(--t-m); line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; padding-right: 6px; }
+.ptile .m { font-size: var(--t-s); color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin-top: auto; }
+.ptile .badge { max-width: 100%; }
 .item.sel .ic { color: var(--accent); }
 .item.ent.sel .ic { width: 28px; justify-content: flex-end; }
 .item.ent.sel .ic svg { width: 18px; height: 18px; }
@@ -796,7 +808,7 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .brow.dropbefore { box-shadow: 0 2px 0 var(--accent) inset; }
 .brow.dropafter { box-shadow: 0 -2px 0 var(--accent) inset; }
 /* The phone lists' ⋯ always shows: a phone has no hover to bring it out. */
-.item .more { visibility: visible; }
+.item .more, .ptile .more { visibility: visible; }
 .dempty { color: var(--muted); font-size: var(--t-xs); padding: 10px 2px; }
 .dtable { padding: 0 8px; }
 .drow { display: grid; grid-template-columns: 30px minmax(120px, 2fr) minmax(90px, 1.3fr) 70px 110px 36px; align-items: center; min-height: 38px; border-radius: 6px; padding: 0 4px; font-size: var(--t-s); cursor: pointer; }

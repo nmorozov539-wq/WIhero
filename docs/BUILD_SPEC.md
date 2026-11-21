@@ -13,7 +13,7 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: built. This page matches the code as of **0.45.0** (2026-11-21).
+- Status: built. This page matches the code as of **0.47.0** (2026-11-21).
   Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
   N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
   Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here

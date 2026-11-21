@@ -36,6 +36,8 @@
 
 `drawer.mjs` checks the owner's Features note (2026-11-21) in the same harness. On a phone with real touch: no ST timing badge on cards, keyword clashes as a row in the entry panel (not on the canvas), nested folders (Places › Town) with counts, Select picking two entries (the panel button not redrawn) and Place putting both on the canvas picked and ending Select, one of them dragged moving both, Off / On / Edit… / Move on the selection (Move ending Select), a picked dot dragged showing a ghost for each picked entry where it lands, a dot dragged onto the canvas showing the card as it lands (its size at the zoom, on the grid) and the panel reopening at its scroll place, and a lasso picking cards without focusing the pack box (no keyboard) and dragging them together. On desktop: Select in the docked list with Edit…, and Edit parameters… for a box selection on the canvas. Run `node e2e/drawer.mjs`; screenshots go to `e2e/log/drawer-*.png`.
 
+`tiles.mjs` checks Home's tile view on phones in the same harness: the header button switching to two-to-a-row tiles (saved apart from desktop's choice), a book folder with its own grid, select mode marking a tile, a tap opening the book, the menu's Show books as going back to the List, and desktop still starting on its own tiles. Run `node e2e/tiles.mjs`; screenshots go to `e2e/log/tiles-*.png`.
+
 `perf.mjs` is a profile, not a check: at 6x CPU throttle and 390 × 844 it times Home settling, opening a book and an entry, scrolling, Hero mode, a card tap and a pan, and prints the long tasks. It makes 40 "Stress" books of 150 entries if they aren't there.
 
 Run them against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebooks, and creates (then deletes) a character.

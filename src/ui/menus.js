@@ -64,7 +64,9 @@ export function createMenus(A) {
             else if (p.type === 'home') {
                 sh.append(el('div', 'lbl', 'View'));
                 choiceRow(sh, 'Open books in', [['normal', 'Normal mode'], ['hero', 'Hero mode']], settings.openInHero ? 'hero' : 'normal', k => { settings.openInHero = k === 'hero'; saveSettings(); });
+                // Desktop and phones each keep their own choice; desktop starts on tiles, phones on the list.
                 if (S.desk) choiceRow(sh, 'Show books as', [['tiles', 'Tiles'], ['list', 'List']], deskSettings().homeView === 'list' ? 'list' : 'tiles', k => { deskSettings().homeView = k; saveSettings(); render(); });
+                else choiceRow(sh, 'Show books as', [['list', 'List'], ['tiles', 'Tiles']], settings.homeView === 'tiles' ? 'tiles' : 'list', k => { settings.homeView = k; saveSettings(); render(); });
             } else if (p.type === 'book') {
                 const data = library.peek(p.book);
                 sh.append(el('div', 'lbl', 'View'));
