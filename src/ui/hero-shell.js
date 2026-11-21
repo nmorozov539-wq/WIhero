@@ -23,7 +23,7 @@ export function createHeroShell(A) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
-        stopExplain, strip, tabbar, visibleNames, desk, checkCounts, checksSheet, undoHistory, historyStep,
+        stopExplain, strip, tabbar, visibleNames, desk, deadCount, deadSheet, undoHistory, historyStep,
     } = A;
 
     let heroCanvas = null;
@@ -296,10 +296,6 @@ export function createHeroShell(A) {
         mount.sig = canvasSig(book); // after the draw, which can place cards
         heroAround(book, data);
     }
-    /**
-     * The book's checks on the canvas (#42): "2 dead · 1 clash", opening the Dead branches or Keyword clashes sheet
-     * (the ☰ menu keeps its rows too). Nothing when the book is clean.
-     */
     /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */
     function historyButtons(book) {
         const box = el('div', 'histbtns');
@@ -316,16 +312,19 @@ export function createHeroShell(A) {
     }
 
     let checksMemo = null;
+    /**
+     * Dead branches on the canvas (#42): the story logic's own check. Keyword clashes are counted in the entry panel
+     * instead (Features 8); the ☰ menu keeps both rows. Nothing when no branch is dead.
+     */
     function checksChip(book, data) {
-        // Counted again only when a book changed (library.version), or its pending deletes or the setting did.
-        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
-        if (checksMemo?.data !== data || checksMemo.sig !== sig) checksMemo = { data, sig, n: checkCounts(book, data) };
-        const { dead, clashes } = checksMemo.n;
-        if (!dead && !clashes) return [];
-        const parts = [dead ? `${dead} dead` : '', clashes ? `${clashes} clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean);
-        const label = [dead ? `${dead} dead branch${dead === 1 ? '' : 'es'}` : '', clashes ? `${clashes} keyword clash${clashes === 1 ? '' : 'es'}` : ''].filter(Boolean).join(', ');
-        const b = btn(`checkchip${dead ? ' dead' : ''}`, html`${ic('alert', 's')}<span></span>`, () => checksSheet(book), label);
-        b.querySelector('span').textContent = parts.join(' · ');
+        // Counted again only when a book changed (library.version), or its pending deletes did.
+        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}`;
+        if (checksMemo?.data !== data || checksMemo.sig !== sig) checksMemo = { data, sig, n: deadCount(book, data) };
+        const dead = checksMemo.n;
+        if (!dead) return [];
+        const label = `${dead} dead branch${dead === 1 ? '' : 'es'}`;
+        const b = btn('checkchip dead', html`${ic('alert', 's')}<span></span>`, () => deadSheet(book), label);
+        b.querySelector('span').textContent = `${dead} dead`;
         b.title = label;
         b.addEventListener('pointerdown', e => e.stopPropagation()); // not a canvas pan
         return [b];

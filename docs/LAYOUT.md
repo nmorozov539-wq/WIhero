@@ -75,7 +75,7 @@ Problems and warnings are counted apart wherever they are counted: "Problems (2)
 
 Keyword clashes (n) opens a sheet with one group per clashing word (“mill”) and the entries it fires; Dead branches (n) one row per entry, red when it can never fire, yellow when only a Waits for row or mask can't (CONCEPTS 5). A tap opens the entry (Normal mode) or shows and inspects its card (Hero mode).
 
-**Mark keyword clashes** off takes away the yellow outline and the "also fires" line on the entry page, and the clash count on the canvas's checks chip. The Keyword clashes row stays in ☰.
+**Mark keyword clashes** off takes away the yellow outline and the "also fires" line on the entry page, and the keyword clashes row in the entry panel. The Keyword clashes row stays in ☰.
 
 ### Problems sheet
 
@@ -323,7 +323,7 @@ Cards move only by the grip (the six dots), so a drag anywhere else pans.
 |--------|--------------|
 | Panel button (top left) | Opens and closes the entry panel |
 | Undo and redo arrows (top left, beside it) | Step back and forward through the book's undo history (Sheets and toasts). Greyed out when there is nothing to step to, and while a piece is set up in the strip |
-| Checks chip (top right) | "2 dead · 1 clash": the book's dead branches and keyword clashes (CONCEPTS 5), read from the book alone. Its mark is red when anything is dead, yellow when there are only clashes. Tap: the Dead branches or Keyword clashes sheet, or a choice of the two when there are both. Gone when the book is clean; clashes aren't counted with Mark keyword clashes off |
+| Checks chip (top right) | "2 dead": the book's dead branches (CONCEPTS 5), read from the book alone. Tap: the Dead branches sheet. Gone when nothing is dead. Keyword clashes are counted in the entry panel instead (Features 8) |
 | "?" (top right) | Explain mode (below) |
 | Fit (right) | Zooms out until every card shows (on desktop, only the selected cards when there are any). On first open the canvas fits the width of the screen instead, never below 80% zoom, from the top: a tall book scrolls down rather than shrinking until it can't be read |
 | + / − (right) | Zoom |
@@ -410,7 +410,7 @@ stays in view above it. Drag it up for full height.
 | From other entries | Rules other entries aim at this one: "Opens this", "Closes this", "Another path of its fork", "Rides along with this". Tap one to inspect that entry |
 | To other entries | Rules other entries keep that wait for this one: "Opens *Mill*", "Closes *Tower*", "Turns on a mask of *Inn*". The rule lives on that entry; a tap inspects it with the rule's editor open |
 | + Add logic | A sheet of the pieces the entry doesn't have yet, each with its help line, then "How each piece works" (the Guide); a note says links are quicker from the piece bar |
-| Settings | Last, after the rules (review 2026-11-11: on a phone's half sheet the settings used to push the first rule off screen). One folded row, its line naming what is set ("Who triggers: You · Once · Sticky 3") or what it holds. Open, it shows **Who triggers** (Anyone · You · Character, wrapping under its label in a narrow column), **Once** (a switch, "Fires one time, then closes"; on a glued entry it says "Not with glue" instead), **Tracker** (a switch, "The AI can write to this entry"; turning it on opens its settings) and **ST timing**: SillyTavern's own Probability, Sticky, Cooldown and Delay as small number fields (two rows of two in a column under 330px). They apply on top of the story pieces; on an entry with pieces, each one set gets a warning line saying how. A card with any of them set shows a quiet badge at its bottom right: "50% · S5 · C3 · D2". The row starts open on a card with no rules. Not on Moments |
+| Settings | Last, after the rules (review 2026-11-11: on a phone's half sheet the settings used to push the first rule off screen). One folded row, its line naming what is set ("Who triggers: You · Once · Sticky 3") or what it holds. Open, it shows **Who triggers** (Anyone · You · Character, wrapping under its label in a narrow column), **Once** (a switch, "Fires one time, then closes"; on a glued entry it says "Not with glue" instead), **Tracker** (a switch, "The AI can write to this entry"; turning it on opens its settings) and **ST timing**: SillyTavern's own Probability, Sticky, Cooldown and Delay as small number fields (two rows of two in a column under 330px). They apply on top of the story pieces; on an entry with pieces, each one set gets a warning line saying how. The card itself shows none of them: the canvas is for story logic (Features 7). The row starts open on a card with no rules. Not on Moments |
 | Bottom row | Quieter, last: Take off canvas (only for placed, unlinked entries) · Data. There is no footer (review 2026-11-11: the actions people use go first) |
 
 Tapping a port opens the inspector with that piece's row already expanded.
@@ -455,14 +455,17 @@ style: a list first, the book at the bottom.
 |------|-----------------------|
 | Search box | "Search entries", matching names |
 | + | New entry: asks for a name and makes it, without placing it: it waits in the panel with a hollow dot |
-| Folder header | Name, count, collapse arrow |
+| Select (check box icon) | Select mode (Features 1): a tap on a row picks it (a check box on the left); a bar at the foot of the list says "n selected" with All / None, then Place · Move · On · Off · Edit…. Place puts every picked entry on the canvas (each beside its partner, or in the middle of the view), picks them there and fits them in view; Move, On, Off and Edit… are Normal mode's selection actions. Picked entries on the canvas light up. Dragging a picked row's dot carries all of them, dropped one under another. The icon again leaves Select |
+| Keyword clashes row | Under the search box when the book has any: "18 keyword clashes ›", opening the Keyword clashes sheet. They are about key words, so they sit with the entries rather than on the canvas (Features 8). Gone with Mark keyword clashes off |
+| Folder header | Name, count, collapse arrow. Folders nest: Places/Town is a Town header inside Places, and each count includes the folders inside it. A search opens every folder |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
 | Moments group | First in the list: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
 | Dot, filled | The entry is on the canvas; tap to jump to it |
 | Dot, hollow | Tap to place it in the middle of the view |
-| Drag a dot | The panel slides away and the card follows the finger; it is placed (or moved) where it is dropped. A red × in the lower middle of the screen cancels: drop on it and nothing changes |
+| Drag a dot | The panel slides away and the card follows the finger; it is placed (or moved) where it is dropped. Over the canvas the ghost is the card as it will land: its size at the current zoom, on the grid. A red × in the lower middle of the screen cancels: drop on it and nothing changes |
+| Scroll place | The list keeps where it was scrolled to while the book stays open, so placing entries one by one doesn't send it back to the top |
 | Book picker (bottom) | The book's name ▾ with its status badges. Tap for the book list, with New book at its top (asks for a name, opens it here). Long press a book for Rename, Duplicate (opens the copy), or Delete (with Undo) |
 
 ### Entry tabs

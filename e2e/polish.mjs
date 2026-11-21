@@ -1,5 +1,5 @@
 // The freeze polish on desktop, in the browser harness (e2e/desktop/harness.html), no SillyTavern needed: the
-// checks chip on the canvas, turning keyword clash marking off, warnings on ST parameters that work against story
+// keyword clashes row in the entry list, turning keyword clash marking off, warnings on ST parameters that work against story
 // pieces, undo history (the canvas arrows, Ctrl+Z and Ctrl+Shift+Z), and drag to reorder in the book list.
 // Screenshots: e2e/log/polish-*.png.
 //   node e2e/polish.mjs
@@ -45,7 +45,8 @@ const menu = async () => { await $('button[aria-label="Menu"]').filter({ visible
 const cfg = e => e.extensions?.wihero ?? e.wihero ?? {};
 const toNormal = async (book = BOOK) => { await page.evaluate(b => { wihero.app.state.mode = 'normal'; wihero.app.openBook(b); wihero.app.refresh(); }, book); await $('.brow').first().waitFor(); };
 
-// 1. The checks chip: none on a clean book; a shared key word shows "1 clash", and a tap opens Keyword clashes.
+// 1. Keyword clashes: a shared key word is counted in the entry list (not on the canvas, Features 8),
+// and a tap opens Keyword clashes.
 await toHero();
 const chipBefore = await $('.vp .checkchip').count();
 await page.evaluate(b => wihero.library.change(b, d => {
@@ -54,13 +55,14 @@ await page.evaluate(b => wihero.library.change(b, d => {
     c.key = [...c.key, 'Shared Word'];
 }), BOOK);
 await toHero();
-const chip = $('.vp .checkchip');
+for (const t of await $('.vp .checkchip').allTextContents()) assert.doesNotMatch(t, /clash/, 'the canvas chip counts dead branches only');
+const chip = $('.panel .pclash');
 await chip.waitFor();
-assert.match(await chip.textContent(), /clash/);
+assert.match(await chip.textContent(), /\d+ keyword clash/);
 await page.screenshot({ path: `${LOG}polish-chip.png` });
 await chip.click();
 await $('.sheet').last().getByText('“shared word”').waitFor();
-ok(`the canvas chip counts the book's checks (${(await chip.textContent()).trim()}; ${chipBefore} before the clash) and opens the sheet`);
+ok(`the entry list counts keyword clashes (${(await chip.textContent()).trim()}; ${chipBefore} canvas chips before), the canvas doesn't, and a tap opens the sheet`);
 await page.keyboard.press('Escape');
 
 // 2. Mark keyword clashes off: no chip count, no outline on the entry page; the ☰ row stays.
@@ -69,8 +71,7 @@ await $('.sheet').last().locator('.opt, .swrow, div').filter({ hasText: /^Mark k
 await page.waitForFunction(() => wihero.settings.markClashes === false);
 await page.keyboard.press('Escape');
 await toHero();
-const chipText = await $('.vp .checkchip').count() ? await $('.vp .checkchip').textContent() : '';
-assert.doesNotMatch(chipText, /clash/);
+assert.equal(await $('.panel .pclash').count(), 0, 'no clash row in the entry list');
 const clashed = (await entries()).find(e => (e.key ?? []).includes('shared word'));
 await toNormal();
 await $('.brow').filter({ hasText: clashed.comment }).first().click();
@@ -143,10 +144,10 @@ await sticky.fill('4');
 await sticky.press('Enter');
 await sticky.blur();
 await page.waitForFunction(([b, u]) => Number(wihero.library.peek(b).entries[u].sticky) === 4, [BOOK, gated.uid]);
-await card(gated.comment).locator('.timing').filter({ hasText: 'S4' }).waitFor();
+assert.equal(await card(gated.comment).locator('.timing').count(), 0, 'no timing badge on the card (Features 7)');
 assert.ok(await $('.itiming .pnote').filter({ hasText: 'sticky' }).count());
 await page.screenshot({ path: `${LOG}polish-timing.png` });
-ok('the inspector\'s ST timing writes Sticky to the entry, the card shows "S4", and the story pieces warning shows');
+ok('the inspector\'s ST timing writes Sticky to the entry, the card shows no badge, and the story pieces warning shows');
 
 // 5. Drag to reorder in the book list (Order sort): displayIndex changes, the Order parameter doesn't.
 await toNormal();

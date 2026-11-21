@@ -509,5 +509,6 @@ export function createMenus(A) {
         draw();
     }
 
-    return { bookFolderSheet, bookMenu, choiceRow, checkCounts, checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+    return { bookFolderSheet, bookMenu, choiceRow, checkCounts, deadCount: (book, data) => deadOf(book, data).length,
+        clashCount: (book, data) => (settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book)).groups.length), checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }

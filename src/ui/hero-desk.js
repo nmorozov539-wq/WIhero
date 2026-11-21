@@ -24,7 +24,7 @@ export function createHeroDesk(A) {
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render, saveSettings, settings, shadow, showOnCanvas, sortBy, startExplain, stopExplain, typing,
-        canvas, deleteEntries,
+        canvas, deleteEntries, bulkEdit,
     } = A;
 
     /** The entry list shows when asked; else as the size has it (widened: shown, drawer size: hidden). */
@@ -286,6 +286,8 @@ export function createHeroDesk(A) {
                 }, { dot: strategyColor(x) }));
             }
         }, { help: 'It opens once every selected entry has fired.' }));
+        // The same parameter rows as Normal mode's Edit… on a selection (Features 1).
+        if (uids.length) act('Edit parameters…', 'edit', () => bulkEdit(book, uids));
         act('Turn off', 'on', () => {
             library.change(book, d => { for (const u of uids) if (d.entries[u]) d.entries[u].disable = true; });
             layer.toast(`${uids.length} entries turned off`);

@@ -432,8 +432,9 @@ Two more lists in ☰, read from the book alone, never from a chat:
   The marking can be turned off (☰ Display, Mark keyword clashes); the list
   in ☰ stays.
 
-In Hero mode a chip at the top of the canvas counts both ("2 dead · 1 clash")
-and opens their lists; it is gone when the book is clean.
+In Hero mode a chip at the top of the canvas counts dead branches ("2 dead"),
+and a row in the entry panel counts keyword clashes; each opens its list and
+is gone when there is nothing to show.
 
 ## 6. Manual overrides and safety
 
