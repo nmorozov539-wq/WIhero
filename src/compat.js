@@ -8,7 +8,7 @@ import { getStringHash as engineHash } from './engine/util.js';
 const HASH_PROBE = 'WI Hero hash probe: Ünïcödé ✓ {{char}}\n0123456789';
 
 /** SillyTavern versions WI Hero is tested on (the e2e checks run against these). */
-export const TESTED_ST = Object.freeze(['1.19.0']);
+export const TESTED_ST = Object.freeze(['1.19.0', '1.19.1']);
 
 /** The events WI Hero listens to or emits. */
 export const EVENTS = Object.freeze([
@@ -18,6 +18,9 @@ export const EVENTS = Object.freeze([
 
 /** getContext() members the engine needs. */
 const CONTEXT = Object.freeze(['eventSource', 'eventTypes', 'chat', 'saveChat', 'substituteParams', 'characters', 'chatMetadata', 'Popup', 'POPUP_TYPE', 'POPUP_RESULT']);
+
+/** 'a', 'a and b', 'a, b and c'. */
+const listed = items => items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
 /** ST's version, from its /version endpoint, or null. */
 export async function stVersion(fetcher = globalThis.fetch) {
@@ -40,7 +43,7 @@ export function versionStatus(version, tested = TESTED_ST) {
     if (tested.includes(version)) return { tested: true, text: null };
     return {
         tested: false,
-        text: `Versions drifted: WI Hero is tested on SillyTavern ${tested.join(', ')}, and this is ${version}. WI Hero is not recommended on it.`,
+        text: `Versions drifted: WI Hero is tested on SillyTavern ${listed(tested)}, and this is ${version}. WI Hero is not recommended on it.`,
     };
 }
 

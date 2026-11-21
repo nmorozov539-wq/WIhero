@@ -894,7 +894,7 @@ Group chats (several characters' greetings mixed in one chat).
 ### 17.2 Compatibility and health (D25)
 
 - `TESTED_ST` in `src/compat.js` lists the versions the e2e checks pass on
-  (now 1.19.0). Add a version only after running them on it.
+  (now 1.19.0 and 1.19.1). Add a version only after running them on it.
 - At load, `checkHealth` looks for the events (GENERATION_STARTED,
   GENERATION_AFTER_COMMANDS, WORLDINFO_ENTRIES_LOADED, WORLDINFO_SCAN_DONE,
   WORLD_INFO_ACTIVATED, MESSAGE_RECEIVED, GENERATION_STOPPED, CHAT_CHANGED,

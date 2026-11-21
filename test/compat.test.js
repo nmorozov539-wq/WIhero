@@ -12,7 +12,9 @@ const internals = () => ({ 'world-info.js getSortedEntries': () => [], 'world-in
 
 test('a tested version passes quietly; any other says plainly that versions drifted', () => {
     assert.deepEqual(versionStatus('1.19.0'), { tested: true, text: null });
-    assert.equal(versionStatus('1.20.0').text, 'Versions drifted: WI Hero is tested on SillyTavern 1.19.0, and this is 1.20.0. WI Hero is not recommended on it.');
+    assert.deepEqual(versionStatus('1.19.1'), { tested: true, text: null });
+    assert.equal(versionStatus('1.20.0').text, 'Versions drifted: WI Hero is tested on SillyTavern 1.19.0 and 1.19.1, and this is 1.20.0. WI Hero is not recommended on it.');
+    assert.equal(versionStatus('1.20.0', ['1.19.0']).text, 'Versions drifted: WI Hero is tested on SillyTavern 1.19.0, and this is 1.20.0. WI Hero is not recommended on it.');
     assert.match(versionStatus(null).text, /couldn't read the SillyTavern version/);
 });
 

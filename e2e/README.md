@@ -1,6 +1,6 @@
 # End-to-end tests
 
-`n1.mjs` plays a chat in a real SillyTavern 1.19.0 with a mock model and checks what reaches the prompt and the saved snapshots (BUILD_SPEC 13, N1): a chain advancing, a swipe and a delete rewinding it, a rider riding with its host, a lock in the user message opening in the same reply, a hold, a mask with a macro, the off switch, an old-build book, and a card round trip.
+`n1.mjs` plays a chat in a real SillyTavern 1.19.0 or 1.19.1 with a mock model and checks what reaches the prompt and the saved snapshots (BUILD_SPEC 13, N1): a chain advancing, a swipe and a delete rewinding it, a rider riding with its host, a lock in the user message opening in the same reply, a hold, a mask with a macro, the off switch, an old-build book, and a card round trip.
 
 `n2.mjs` checks the editor at 390px wide (BUILD_SPEC 13, N2): the World Info button opening WI Hero, a book made, filled and organized without ST's editor (entries, condition, strategy, parameters, folders through selection, grouping, the on/off switch, Duplicate, Delete with Undo), search, a snapshot taken and restored with Undo and the "As imported" copy, problem badges, the color modes and content font, Global and Rename, Back and Escape, hiding and showing, deleting a book with Undo, four themes (screenshots in `e2e/log/`), "More settings" and a reload starting on Home. It makes and deletes the books "N2 Test" and "N2 Shelf".
 
@@ -40,7 +40,7 @@
 
 Run them against a throwaway SillyTavern, never your own: it changes the connection settings and the global lorebooks, and creates (then deletes) a character.
 
-1. A SillyTavern 1.19.0 with fresh data (default Seraphina character), with this repo linked as `data/default-user/extensions/st-wihero`.
+1. A SillyTavern 1.19.0 or 1.19.1 with fresh data (default Seraphina character), with this repo linked as `data/default-user/extensions/st-wihero`.
 2. Copy `examples/WIHero-N1.json` and `examples/WIHero-Sample.json` to that SillyTavern's `data/default-user/worlds/`.
 3. Start it (`node server.js --port 8000`, or set `ST_URL`).
 4. `node e2e/mock.mjs &` (OpenAI-compatible mock on port 5001, logs prompts to `e2e/log/`).
