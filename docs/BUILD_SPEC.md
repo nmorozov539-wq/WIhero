@@ -13,7 +13,7 @@ that building needs as few decisions as possible.
 - The new visuals (greeting cards, chat state, the half-height inspector, mask
   chips, color vision modes) are drawn in
   sketch 7 (in the git history).
-- Status: built. This page matches the code as of **0.44.0** (2026-11-11).
+- Status: built. This page matches the code as of **0.45.0** (2026-11-21).
   Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
   N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
   Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here
@@ -85,6 +85,7 @@ to be changed while building.
 | D32 | **Delayed closing.** An entry may name itself in its own close gate (still not in its gate). The item is compiled as Once's `self` item: it counts from the entry's first firing and never in the turn it fires, so `[["fog", {"wait": 3}]]` closes Fog three messages after it first fires. The inspector's close gate picker offers "This entry"; the canvas draws no self link and shows a `+N` badge instead. CONCEPTS 3.3. |
 | D33 | **One name per relation, and the review polish** (2026-11-11, 0.43.0). User-facing text says Opens / Closes for the action and Waits for / Closes when for the reading; Gate, Gates for, Close gate and Closes for stay the stored fields' names, shown only in Data and the specs (CONCEPTS 3). The inspector puts a card's rules first and folds Who triggers, Once, Tracker and ST timing into one Settings row below them. The mode switch is one guarded door in ☰ on both sides (no desktop Normal mode button, no book menu row). Polish only: no new piece or stored field |
 | D34 | **Canvas controls** (2026-11-11, 0.44.0). With a mouse, the right button only moves the view (so do the middle button and Space-drag) and the left one works on things: a drag on empty canvas or a line box-selects, P packs the selection, the card menu is the ⋯ after the hover handles (or the Menu key, Shift F10), and the canvas has no right-click menu. The wheel zooms by the size of the scroll, or pans (☰ › Canvas › Mouse wheel); a link let go on empty canvas or a double-click there opens Add to canvas here; a 24px magnet (32px for a finger) snaps a drop to a card. On phones two fingers pan and zoom at once and a two-finger tap undoes; the inspector leads with Edit text and Add note. Esc never closes WI Hero on desktop. Polish only: no new piece or stored field (LAYOUT "Canvas tab", "Canvas: mouse") |
+| D35 | **Book and card housekeeping** (2026-11-13, 0.45.0). The tab row has no ×: WI Hero closes by ST's World Info button (or Esc in Normal mode). On desktop Hero the book picker sits in the entry list above its footer, and comes back to the tab row when the list is hidden or another tab is open. A book in the picker's list takes Rename, Duplicate and Delete by right-click (desktop) or long press (phone); + New book stays at its top. An entry row's menu has Delete (with Undo). Packs with the same bounds stack their name bands. Desktop cards show a slim strategy stripe instead of the six-dot grip. A Moment exists only on the canvas, so taking an unlinked one off deletes it, with Undo, and a book opened with Moments left off the canvas by older versions drops them. Polish only: no new piece or stored field (LAYOUT "Tab row", "Canvas tab", "Moment inspector") |
 
 ---
 

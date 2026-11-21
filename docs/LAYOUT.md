@@ -3,7 +3,7 @@
 Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). It
-describes the build as of 0.44.0, and every decision is listed in
+describes the build as of 0.45.0, and every decision is listed in
 [BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop (where ST uses its desktop layout, wider than 1000px) has
@@ -436,10 +436,11 @@ switch; tap the name to rename it), "Happens when someone says (any one)" with
 a "?" to the Guide, its phrases as chips with × and a box to add one, Who says
 it (Anyone, You, The character), "Happened in the open chat" or "Not yet in the
 open chat" with chat state on, then its Waits for, Opens, Closes and Packs
-rows and + Add logic for those. Taking an unlinked Moment off the canvas deletes it, including its panel row.
+rows and + Add logic for those. A Moment exists only on the canvas, so taking an unlinked one off (Delete
+on desktop, or Take off canvas in its menu) deletes it, panel row too, with Undo on the toast.
 Off-canvas Moments left by older versions are cleaned up when opening the book; connected Moments remain
-on the canvas through their links. Footer: Take off canvas · Delete (it refuses
-while other cards use the Moment) · Data.
+on the canvas through their links. Footer: Delete (with Undo; it refuses
+while other cards use the Moment) · Data. There is no Take off canvas here: for a Moment it is the same as Delete.
 
 **Pack sheet** (tap a frame): Rename (the new name reaches every member,
 nested pack and rule that uses it), "In this pack" and "Used by" (the entries

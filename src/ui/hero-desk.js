@@ -24,7 +24,7 @@ export function createHeroDesk(A) {
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render, saveSettings, settings, shadow, showOnCanvas, sortBy, startExplain, stopExplain, typing,
-        canvas,
+        canvas, deleteEntries,
     } = A;
 
     /** The entry list shows when asked; else as the size has it (widened: shown, drawer size: hidden). */
@@ -48,13 +48,17 @@ export function createHeroDesk(A) {
         if (!book || !view || !keys.length) return;
         const mem = canvasMemory(bookSettings(settings, book));
         const linked = k => view.g.edges.some(x => x.from === k || x.to === k) || (view.m.byId(k)?.packs.length ?? 0) > 0;
-        const off = keys.filter(k => !linked(k) && mem.cards[k]?.placed);
+        const free = keys.filter(k => !linked(k) && mem.cards[k]?.placed);
         const stay = keys.filter(k => linked(k));
+        // A Moment exists only on the canvas, so taking it off deletes it (with Undo, like any delete).
+        const moments = free.filter(k => view.m.byId(k)?.moment);
+        const off = free.filter(k => !view.m.byId(k)?.moment);
         for (const k of off) delete mem.cards[k];
-        if (off.length) { saveSettings(); H.insp = null; canvas().setPicked(new Set(), true); render(); }
+        if (free.length) { saveSettings(); H.insp = null; canvas().setPicked(new Set(), true); render(); }
         const nm = k => view.m.byId(k)?.title ?? 'It';
+        if (moments.length) deleteEntries(book, moments.map(k => view.m.byId(k).uid));
         if (stay.length) layer.toast(stay.length === 1 ? `${nm(stay[0])} stays: it has links. Remove them first` : `${stay.length} cards stay: they have links`);
-        else if (off.length) layer.toast(off.length === 1 ? `${nm(off[0])} ${view.m.byId(off[0])?.moment ? 'deleted' : 'taken off the canvas'}` : `${off.length} cards taken off the canvas`);
+        else if (off.length && !moments.length) layer.toast(off.length === 1 ? `${nm(off[0])} taken off the canvas` : `${off.length} cards taken off the canvas`);
     }
 
     /** Shows or hides the inspector column; on a wide window the choice is kept. */

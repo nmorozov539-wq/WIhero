@@ -358,7 +358,7 @@ holds a value. Values are story state, so they rewind. The full rules are in
 - **Anything with a link is on the canvas.** Linking to an entry that isn't
   there puts it there.
 - An entry with links can't be taken off the canvas; remove its links first. Taking an unlinked Moment off
-  the canvas deletes it; ordinary entries remain in the book.
+  the canvas deletes it (with Undo); ordinary entries remain in the book.
   One that loses its last link stays where it was.
 - An entry without links can be placed by hand and taken off again.
 - A pack shows as a frame round its members on the canvas as soon as one of

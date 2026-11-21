@@ -629,10 +629,12 @@ export function createApp(deps) {
                 const s = hiddenIn(book);
                 const gone = uids.filter(u => s.has(u));
                 for (const u of gone) s.delete(u);
-                const folders = bookSettings(settings, book).folders;
+                const record = bookSettings(settings, book);
+                const folders = record.folders;
+                const mem = canvasMemory(record);
                 library.change(book, d => {
                     for (const u of gone) {
-                        if (d.entries[u]) delete folders[cardKey(d.entries[u])];
+                        if (d.entries[u]) { delete folders[cardKey(d.entries[u])]; delete mem.cards[cardKey(d.entries[u])]; }
                         removeEntry(d, u);
                     }
                 });
@@ -943,7 +945,7 @@ export function createApp(deps) {
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder, hide,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
-        startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),
+        startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(), deleteEntries,
     }));
     function createEntryIn(...a) { return heroDesk().createEntryIn(...a); }
     function lassoFor(...a) { return heroDesk().lassoFor(...a); }

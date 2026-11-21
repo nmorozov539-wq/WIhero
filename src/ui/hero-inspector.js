@@ -37,9 +37,11 @@ export function createHeroInspector(A) {
         const mem = canvasMemory(bookSettings(settings, book));
         const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
         if (!linked) return mem.cards[key]?.placed ? () => {
-            const moment = !!view?.m.byId(key)?.moment;
+            const node = view?.m.byId(key);
+            // A Moment exists only on the canvas: taking it off deletes it, with Undo.
+            if (node?.moment) { H.insp = null; deleteEntries(book, [node.uid]); return; }
             delete mem.cards[key]; saveSettings(); H.insp = null; render();
-            layer.toast(moment ? `${title} deleted` : `${title} taken off the canvas`);
+            layer.toast(`${title} taken off the canvas`);
         } : null;
         return () => layer.sheet('It stays while it has links', sh => {
             for (const w of why) sh.append(el('p', 'help', w));

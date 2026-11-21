@@ -329,7 +329,7 @@ export function renderInspector(box, x) {
 
     const foot = el('div', 'ifoot');
     if (c.moment === true) {
-        if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
+        // A Moment exists only on the canvas, so taking it off would delete it: Delete says so (with Undo).
         foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
     } else if (!x.desk) {
         // Phones: the rare actions last, quieter (the common ones are at the top).
