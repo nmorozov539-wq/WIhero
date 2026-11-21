@@ -1,6 +1,6 @@
 // The cheap AFTER_V1 additions on desktop, in the browser harness (e2e/desktop/harness.html), no SillyTavern
 // needed: Hero's + New book and Duplicate, the keyword clash finder (chips and ☰), the dead branch report (☰),
-// lasso to make a pack, sticky notes, and the switch's dice. Screenshots go to e2e/log/cheap-*.png.
+// lasso to make a pack, sticky notes, the switch's dice, and a Moment's delete with Undo. Screenshots go to e2e/log/cheap-*.png.
 //   node e2e/cheap.mjs
 import { createRequire } from 'node:module';
 import http from 'node:http';
@@ -44,19 +44,22 @@ const toHero = async (book = BOOK) => {
 };
 const menu = async () => { await $('button[aria-label="Menu"]').filter({ visible: true }).first().click(); await $('.sheet').filter({ hasText: 'Snapshots' }).last().waitFor(); };
 
-// 1. + New book and Duplicate in Hero's book picker.
+// 1. + New book and Duplicate in Hero's book picker: it sits in the entry list above its footer (LAYOUT "Tab row"),
+// + New book at the top of its list, and a right-click on a book offers Rename, Duplicate and Delete.
 await toHero();
-await $('.tbook').click();
+await $('.panelbook').click();
 const picker = $('.sheet').last();
-// The actions are icon buttons at the top of the picker (#34).
 await picker.locator('.pkacts button[aria-label="New book"]').waitFor();
-assert.ok(await picker.locator(`.pkacts button[aria-label="Duplicate ${BOOK}"]`).isVisible());
-await picker.locator(`.pkacts button[aria-label="Duplicate ${BOOK}"]`).click();
+await picker.locator('.opt').filter({ hasText: BOOK }).first().click({ button: 'right' });
+const bookActs = $('.sheet').filter({ hasText: 'Duplicate' }).last();
+await bookActs.waitFor();
+for (const name of ['Rename', 'Duplicate', 'Delete']) assert.ok(await bookActs.locator('.opt').filter({ hasText: name }).first().isVisible(), name);
+await bookActs.locator('.opt').filter({ hasText: 'Duplicate' }).first().click();
 await page.waitForFunction(b => wihero.app.state.hero.book !== b && wihero.library.names().includes(wihero.app.state.hero.book), BOOK);
 const copy = await page.evaluate(() => wihero.app.state.hero.book);
 assert.equal((await entries(copy)).length, (await entries()).length, 'the copy has every entry');
-ok(`Hero's book picker duplicates the book and opens the copy (${copy})`);
-await $('.tbook').click();
+ok(`Hero's book picker sits in the entry list; a right-click on a book duplicates it and opens the copy (${copy})`);
+await $('.panelbook').click();
 await $('.sheet').last().locator('.pkacts button[aria-label="New book"]').click();
 await $('.dlg input').fill('Cheap New');
 await $('.dlg .pri').click();
@@ -146,6 +149,40 @@ await page.waitForFunction(b => Object.values(wihero.library.peek(b).entries).so
 await $('.pstrip').getByText(/picked at random/).waitFor();
 await page.screenshot({ path: `${LOG}cheap-dice.png` });
 ok('the switch strip\'s Roll the dice writes dice: true on the fork');
+
+// 7. A Moment exists only on the canvas: taking an unlinked one off (Delete key) deletes it, with Undo.
+await page.keyboard.press('Escape');
+await page.keyboard.press('Escape');
+const bare = await page.evaluate(() => {
+    const root = document.querySelector('#wihero-editor').shadowRoot;
+    const b = root.querySelector('.vp').getBoundingClientRect();
+    const free = (x, y) => { for (let dx = -40; dx <= 40; dx += 10) for (let dy = -40; dy <= 40; dy += 10) { const n = root.elementFromPoint(x + dx, y + dy); if (!(n?.classList.contains('vp') || n?.classList.contains('world'))) return false; } return true; };
+    for (let y = b.y + b.height * 0.15; y < b.y + b.height * 0.85; y += 13) for (let x = b.x + b.width * 0.15; x < b.x + b.width * 0.85; x += 17) if (free(x, y)) return { x, y };
+    return null;
+});
+assert.ok(bare, 'some bare canvas');
+await $('.pchip[data-piece="moment"]').evaluate(n => n.scrollIntoView({ inline: 'nearest' }));
+await $('.pchip[data-piece="moment"]').click();
+await page.mouse.click(bare.x, bare.y);
+await $('.dlg input').fill('Cheap moment');
+await $('.dlg .pri').click();
+await card('Cheap moment').waitFor();
+const momentUid = await page.evaluate(b => Object.values(wihero.library.peek(b).entries).find(e => e.comment === 'Moment: Cheap moment')?.uid, BOOK);
+assert.ok(momentUid != null, 'the Moment is in the book');
+await page.keyboard.press('Escape');
+await card('Cheap moment').click();
+await page.keyboard.press('Delete');
+await $('.toast').getByText('Deleted Moment: Cheap moment').waitFor();
+assert.equal(await card('Cheap moment').count(), 0, 'the card is gone at once');
+await $('.toast button').getByText('Undo').click();
+await card('Cheap moment').waitFor();
+ok('Delete on an unlinked Moment deletes it with Undo (the toast says Deleted Moment: …), and Undo puts the card back');
+await card('Cheap moment').click();
+await page.keyboard.press('Delete');
+await $('.toast').getByText('Deleted Moment: Cheap moment').waitFor();
+await page.waitForFunction(([b, u]) => !wihero.library.peek(b).entries[u], [BOOK, momentUid], { timeout: 9000 });
+assert.equal(await page.evaluate(([b, u]) => Object.keys(wihero.settings.books[b]?.canvas?.cards ?? {}).some(k => k.includes('cheap-moment')), [BOOK, momentUid]), false, 'its canvas memory is gone too');
+ok('when the toast runs out the Moment leaves the book and its canvas memory');
 
 assert.deepEqual(errors, []);
 ok('no errors in the page');

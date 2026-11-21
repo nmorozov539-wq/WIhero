@@ -358,7 +358,7 @@ holds a value. Values are story state, so they rewind. The full rules are in
 - **Anything with a link is on the canvas.** Linking to an entry that isn't
   there puts it there.
 - An entry with links can't be taken off the canvas; remove its links first. Taking an unlinked Moment off
-  the canvas deletes it; ordinary entries remain in the book.
+  the canvas deletes it (with Undo); ordinary entries remain in the book.
   One that loses its last link stays where it was.
 - An entry without links can be placed by hand and taken off again.
 - A pack shows as a frame round its members on the canvas as soon as one of
@@ -432,8 +432,9 @@ Two more lists in ☰, read from the book alone, never from a chat:
   The marking can be turned off (☰ Display, Mark keyword clashes); the list
   in ☰ stays.
 
-In Hero mode a chip at the top of the canvas counts both ("2 dead · 1 clash")
-and opens their lists; it is gone when the book is clean.
+In Hero mode a chip at the top of the canvas counts dead branches ("2 dead"),
+and a row in the entry panel counts keyword clashes; each opens its list and
+is gone when there is nothing to show.
 
 ## 6. Manual overrides and safety
 

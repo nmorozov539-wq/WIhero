@@ -262,7 +262,6 @@ export function mountCanvas(vp, d) {
                 b.title = e.closesAfter ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires` : 'Closes after it first fires';
                 c.append(b);
             }
-            if (e.timing) { const b = el('span', 'timing', e.timing.text); b.title = `ST: ${e.timing.title}`; c.append(b); }
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
             if (e.note) {
                 // A sticky note (AFTER_V1): the author's own, pinned over the card; never sent to the model.
@@ -958,7 +957,13 @@ export function mountCanvas(vp, d) {
         });
         input.addEventListener('input', () => box.classList.remove('bad'));
         for (const t of ['pointerdown', 'wheel']) box.addEventListener(t, ev => ev.stopPropagation());
-        setTimeout(() => { document.addEventListener('pointerdown', away, true); input.focus(); }, 0);
+        // A phone's keyboard would cover the cards just picked: the name box waits for a tap, and says the picked
+        // cards move together (Features 5).
+        if (!d.desk) {
+            input.placeholder = `Pack these ${uids.length}, or drag one to move them all`;
+            box.classList.add('phone');
+        }
+        setTimeout(() => { document.addEventListener('pointerdown', away, true); if (d.desk) input.focus(); }, 0);
     }
 
     /** Desktop selection; `quiet` leaves telling the app to the tap that follows. */
@@ -1110,6 +1115,14 @@ export function mountCanvas(vp, d) {
         saveCamera();
     }
 
+    /** Where a card at canvas point `p` is on the screen: { left, top, width, height } in client pixels. */
+    function screenRect(p) {
+        const r = vp.getBoundingClientRect();
+        const v = camera();
+        if (!v) return null;
+        return { left: r.left + v.tx + p.x * v.scale, top: r.top + v.ty + p.y * v.scale, width: CW * v.scale, height: CH * v.scale, scale: v.scale };
+    }
+
     /** The canvas point under a screen point, or null when the point is outside the view. */
     function pointAt(cx, cy) {
         const r = vp.getBoundingClientRect();
@@ -1132,7 +1145,7 @@ export function mountCanvas(vp, d) {
     });
 
     return {
-        render, fit, centerOn, reveal, tidy, flip, pointAt, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
+        render, fit, centerOn, reveal, tidy, flip, pointAt, screenRect, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
         shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(),
         picked: () => [...picked], setPicked, phoneFocus,
         get view() { return CV; }, get camera() { return camera(); },

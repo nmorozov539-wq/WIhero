@@ -27,6 +27,18 @@ export function btn(cls, content, fn, label) {
 }
 
 /** An on/off switch. `fn(next)` is called with the new value; the caller redraws. */
+/**
+ * Scrolls `node` to the top of the nearest scrolling box that holds it, and only that box. scrollIntoView also
+ * scrolls every box around it, ST's own included, which shifts the whole panel up and leaves it stuck there.
+ */
+export function scrollToTop(node, smooth = false) {
+    let box = node?.parentElement;
+    while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+    if (!box) return;
+    const top = box.scrollTop + node.getBoundingClientRect().top - box.getBoundingClientRect().top;
+    box.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+}
+
 export function swEl(on, fn, label = 'On') {
     const s = el('button', `switch${on ? ' on' : ''}`);
     s.type = 'button';

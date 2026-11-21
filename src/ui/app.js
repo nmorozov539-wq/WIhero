@@ -130,7 +130,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [] },
+        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null },
         // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
         desk: false,
     };
@@ -629,10 +629,12 @@ export function createApp(deps) {
                 const s = hiddenIn(book);
                 const gone = uids.filter(u => s.has(u));
                 for (const u of gone) s.delete(u);
-                const folders = bookSettings(settings, book).folders;
+                const record = bookSettings(settings, book);
+                const folders = record.folders;
+                const mem = canvasMemory(record);
                 library.change(book, d => {
                     for (const u of gone) {
-                        if (d.entries[u]) delete folders[cardKey(d.entries[u])];
+                        if (d.entries[u]) { delete folders[cardKey(d.entries[u])]; delete mem.cards[cardKey(d.entries[u])]; }
                         removeEntry(d, u);
                     }
                 });
@@ -676,7 +678,7 @@ export function createApp(deps) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
-        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, checkCounts, checksSheet, undoHistory, historyStep,
+        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, deadCount: (book, data) => menus().deadCount(book, data), deadSheet, undoHistory, historyStep,
     }));
     function chatStatus(...a) { return heroShell().chatStatus(...a); }
     function heroBack(...a) { return heroShell().heroBack(...a); }
@@ -728,7 +730,8 @@ export function createApp(deps) {
     const panelView = () => (heroPanelView ??= createHeroPanel({
         S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
-        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries,
+        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries, folderSheet,
+        bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
     const panelState = () => panelView().panelState();
@@ -921,6 +924,15 @@ export function createApp(deps) {
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
     function checkCounts(...a) { return menus().checkCounts(...a); }
     function checksSheet(...a) { return menus().checksSheet(...a); }
+    function deadSheet(...a) { return menus().deadSheet(...a); }
+    function clashesSheet(...a) { return menus().clashesSheet(...a); }
+    let clashMemo = null;
+    /** The book's keyword clashes for the entry panel, counted again only when a book or the setting changed. */
+    function clashCount(book, data) {
+        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
+        if (clashMemo?.data !== data || clashMemo.sig !== sig) clashMemo = { data, sig, n: menus().clashCount(book, data) };
+        return clashMemo.n;
+    }
     function bookMenu(...a) { return menus().bookMenu(...a); }
     function duplicateBook(...a) { return menus().duplicateBook(...a); }
     function entryMenu(...a) { return menus().entryMenu(...a); }
@@ -943,7 +955,8 @@ export function createApp(deps) {
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder, hide,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
-        startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(),
+        startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(), deleteEntries,
+        bulkEdit: (book, uids) => normal().bulkEdit(book, uids),
     }));
     function createEntryIn(...a) { return heroDesk().createEntryIn(...a); }
     function lassoFor(...a) { return heroDesk().lassoFor(...a); }

@@ -57,8 +57,9 @@ share it.
 Run the tests with `node --test` (GitHub Actions runs them on every PR). The
 in-ST checks are in [e2e/](e2e/README.md),
 and the spec is in [docs/](docs/), starting at [BUILD_SPEC.md](docs/BUILD_SPEC.md).
-Every PR that changes the extension sets `version` in `manifest.json` to
-`0.<PR number>.0`.
+Every change goes through a PR to `main`. A PR with real updates (anything a
+person can see or use differently) sets `version` in `manifest.json` to
+`0.<PR number>.0`; a PR with only bug fixes keeps the current version.
 
 ## License
 

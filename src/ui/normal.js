@@ -474,5 +474,5 @@ export function createNormal(A) {
         });
     }
 
-    return { applyParam, bottomBar, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };
+    return { applyParam, bottomBar, bulkEdit, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };
 }

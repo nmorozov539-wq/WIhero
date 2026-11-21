@@ -1,6 +1,6 @@
 // The entry page (LAYOUT "Entry page"), as normal mode shows it: title, book line, strategy and on/off, key words
 // and the secondary condition, the read-only Story logic, Parameters, and Content. Saving is automatic.
-import { btn, html, el, swEl } from './dom.js';
+import { btn, html, el, scrollToTop, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
     LOGIC, PARAMS, STRATEGY_HELP, filterChoices, paramChanged, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
@@ -212,7 +212,7 @@ export function renderEntryPage(main, o) {
         if (D && n) {
             // Desktop: the chip opens the Story logic section and scrolls to it.
             if (!ui.logic && !o.hero) { ui.logic = true; o.redraw(); }
-            requestAnimationFrame(() => main.querySelector('.disc.logich')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+            requestAnimationFrame(() => scrollToTop(main.querySelector('.disc.logich'), true));
             return;
         }
         if (n && !o.hero && !ui.logic) { ui.logic = true; o.redraw(); }
