@@ -119,7 +119,10 @@ async function phone() {
     // Select, then Place (Features 1): pick two entries that aren't on the canvas.
     const off = await $(page, '.panel .prow:has(.dotc:not(.in))').evaluateAll(ns => ns.map(n => n.dataset.key));
     assert.ok(off.length >= 2, `at least two entries off the canvas (${off.length})`);
+    // The toggle redraws only the list: the panel button stays the same element, so it doesn't jump.
+    await $(page, '.panelBtn').evaluate(n => { n.dataset.mark = '1'; });
     await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    assert.equal(await $(page, '.panelBtn[data-mark="1"]').count(), 1, 'the panel button wasn\'t rebuilt');
     for (const k of off.slice(0, 2)) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
     assert.match(await $(page, '.pselhead .cnt').innerText(), /2 selected/);
     assert.equal(await $(page, '.panel .prow.sel').count(), 2);
@@ -129,7 +132,8 @@ async function phone() {
     await $(page, `.vp .card[data-id="${off[1]}"]`).waitFor();
     assert.equal(await $(page, '.panel.closed').count(), 1, 'the panel steps aside');
     assert.equal(await $(page, '.vp .card.picked').count(), 2, 'the placed pair is picked on the canvas');
-    ok('phone: Select picks two entries in the panel; Place puts both on the canvas, picked');
+    assert.equal(await page.evaluate(() => wihero.app.state.hero.psel), null, 'Place ends Select');
+    ok('phone: Select picks two entries in the panel (the panel button stays put); Place puts both on the canvas, picked, and ends Select');
 
     // The picked pair moves together by either grip (Features 5).
     const a0 = await mem(page, off[0]);
@@ -147,6 +151,8 @@ async function phone() {
     // On, Off and Edit… act on the selection; the selection lights the canvas.
     await $(page, '.panelBtn').click();
     await page.waitForTimeout(300);
+    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    for (const k of off.slice(0, 2)) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
     await $(page, '.pselacts button:has-text("Off")').click();
     await page.waitForTimeout(300);
     const sel = await page.evaluate(() => [...wihero.app.state.hero.psel]);
@@ -167,12 +173,10 @@ async function phone() {
     await page.waitForTimeout(400);
     const fs2 = await page.evaluate(b => wihero.settings.books[b].folders, BOOK);
     assert.ok(off.slice(0, 2).every(k => fs2[k] === 'Places'), 'Move put both in Places');
-    ok('phone: Off, On, Edit… (2 entries) and Move act on the selection');
+    assert.equal(await page.evaluate(() => wihero.app.state.hero.psel), null, 'Move ends Select');
+    ok('phone: Off, On, Edit… (2 entries) and Move act on the selection; Move ends Select');
 
-    // Leave Select; then the list keeps its scroll place after a placement (Features 4).
-    if (await $(page, '.panel.closed').count()) await $(page, '.panelBtn').click();
-    await $(page, '.panel .phead button[aria-label="Leave selection"]').click();
-    await page.waitForTimeout(200);
+    // The list keeps its scroll place after a placement (Features 4).
     if (await $(page, '.panel.closed').count()) await $(page, '.panelBtn').click();
     await page.waitForTimeout(300);
     const list = $(page, '.panel .plist');
@@ -210,6 +214,31 @@ async function phone() {
     assert.ok(Math.abs(top1 - top0) < 2, `the list kept its place (${top0} → ${top1})`);
     await $(page, '.panelBtn').click();
     ok('phone: a dot dragged onto the canvas shows the card as it lands (size, grid), and the panel reopens where it was');
+
+    // A picked row's dot drags every picked entry: one ghost per card, in the column they land in.
+    await $(page, '.panelBtn').click();
+    await page.waitForTimeout(300);
+    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    const two2 = await $(page, '.panel .prow:has(.dotc:not(.in))').evaluateAll(ns => ns.slice(0, 2).map(n => n.dataset.key));
+    assert.equal(two2.length, 2, 'two more entries off the canvas');
+    for (const k of two2) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
+    const gd = await centre($(page, `.panel .prow[data-key="${two2[1]}"] .dotc`));
+    const to2 = { x: vp.x + vp.width * 0.4, y: vp.y + vp.height * 0.3 };
+    await swipe(T, gd, to2);
+    await page.waitForTimeout(100);
+    const gs = await page.evaluate(() => [...document.querySelector('#wihero-editor').shadowRoot.querySelectorAll('.dragghost')].map(g => { const r = g.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, real: g.classList.contains('real'), t: g.textContent }; }));
+    await shot(page, 'groupghost');
+    await T([]);
+    await page.waitForTimeout(400);
+    assert.equal(gs.length, 2, `a ghost per picked entry (${JSON.stringify(gs)})`);
+    const c0 = await $(page, `.vp .card[data-id="${two2[1]}"]`).boundingBox();
+    const c1 = await $(page, `.vp .card[data-id="${two2[0]}"]`).boundingBox();
+    const near = (g, c) => Math.abs(g.x - c.x) < 2 && Math.abs(g.y - c.y) < 2 && Math.abs(g.w - c.width) < 2;
+    const lead = gs[gs.length - 1]; // the dragged entry's ghost is added last, over the others
+    assert.ok(near(lead, c0), `the dragged entry's ghost was where it landed (${JSON.stringify(lead)} vs ${JSON.stringify(c0)})`);
+    assert.ok(near(gs[0], c1), `the other ghost was where it landed under it (${JSON.stringify(gs[0])} vs ${JSON.stringify(c1)})`);
+    assert.equal(await page.evaluate(() => wihero.app.state.hero.psel), null, 'the drop ends Select');
+    ok('phone: dragging a picked dot shows a ghost for each picked entry where it lands, and ends Select');
 
     // A lasso on a phone picks cards without opening the keyboard; dragging one moves them all.
     await page.evaluate(b => { wihero.settings.books[b].canvas.camera = { x: 20, y: 20, zoom: 0.6 }; wihero.app.refresh(); }, BOOK);

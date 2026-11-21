@@ -60,11 +60,16 @@ export function createHeroPanel(A) {
             done: name => { createEntry(book, name); H.panel = true; H.q = ''; render(); layer.toast(`${name} made. Drag or tap its dot to place it`); },
         }), 'New entry'));
         // Select (Features 1): pick entries in the list to place, move, turn on or off, or edit together.
-        const sb = btn(`round flat${H.psel ? ' on' : ''}`, ic('select'), () => {
-            if (H.psel) canvas()?.setPicked(new Set(), true);
-            H.psel = H.psel ? null : new Set();
-            render();
-        }, H.psel ? 'Leave selection' : 'Select entries');
+        // Toggled in place: a full draw would rebuild the panel button too, which then jumps.
+        const sb = btn(`round flat${H.psel ? ' on' : ''}`, ic('select'), () => setSelecting(!H.psel), H.psel ? 'Leave selection' : 'Select entries');
+        const setSelecting = on => {
+            if (!on && H.psel) canvas()?.setPicked(new Set(), true);
+            H.psel = on ? new Set() : null;
+            sb.classList.toggle('on', on);
+            sb.setAttribute('aria-label', on ? 'Leave selection' : 'Select entries');
+            sb.title = on ? 'Leave selection' : 'Select entries';
+            if (filled) fill();
+        };
         ph.append(sb);
         p.append(ph);
         // Keyword clashes are about key words, so they live here with the entries, not on the canvas (Features 8).
@@ -93,6 +98,7 @@ export function createHeroPanel(A) {
             });
             saveSettings();
             H.panel = false;
+            H.psel = null; // done: the next tap on a row opens it again (Features 1, owner's test)
             render();
             const cv = canvas();
             if (cv && uids.length > 1) { cv.setPicked(new Set(keysOf(uids)), true); if (!at) cv.fit(); }
@@ -106,7 +112,9 @@ export function createHeroPanel(A) {
         const dragged = ev => { if (!dropped.has(ev.currentTarget)) return false; dropped.delete(ev.currentTarget); return true; };
         const dotDrag = (dot, key, title, uid = null) => {
             // A selected row drags every selected entry with it.
-            const many = () => (uid != null && H.psel?.has(uid) && H.psel.size > 1 ? picked() : null);
+            // The dragged entry lands where it is dropped, the others under it in list order.
+            const many = () => (uid != null && H.psel?.has(uid) && H.psel.size > 1 ? [uid, ...picked().filter(u => u !== uid)] : null);
+            let tail = []; // the other picked entries' ghosts, under the first
             let start = null;
             let ghost = null;
             let cancel = null;
@@ -129,12 +137,13 @@ export function createHeroPanel(A) {
                     // Captured only once it is a drag, so a plain click still reaches what was clicked (the row's dot
                     // on desktop places the entry, the row itself inspects it).
                     if (desk) dot.setPointerCapture?.(ev.pointerId);
-                    const n = many()?.length;
-                    ghost = el('div', 'dragghost', n ? `${title} +${n - 1}` : title);
+                    const all = many();
+                    ghost = el('div', 'dragghost', all ? `${title} +${all.length - 1}` : title);
+                    tail = (all ?? []).slice(1).map(u => el('div', 'dragghost real tail', titleOf(data.entries[u])));
                     cancel = el('div', 'dropcancel');
                     cancel.innerHTML = ic('x');
                     cancel.setAttribute('aria-label', 'Drop here to cancel');
-                    root.append(cancel, ghost);
+                    root.append(cancel, ...tail, ghost);
                     p.classList.add('closed', 'dragging');
                 }
                 const r = root.getBoundingClientRect();
@@ -143,13 +152,19 @@ export function createHeroPanel(A) {
                 const box = at && canvas().screenRect(at);
                 ghost.classList.toggle('real', !!box);
                 if (box) {
-                    Object.assign(ghost.style, { transform: `translate(${box.left - r.left}px, ${box.top - r.top}px)`, width: `${box.width}px`, height: `${box.height}px`, fontSize: `${Math.max(8, 13 * box.scale)}px` });
+                    const size = { width: `${box.width}px`, height: `${box.height}px`, fontSize: `${Math.max(8, 13 * box.scale)}px` };
+                    Object.assign(ghost.style, { transform: `translate(${box.left - r.left}px, ${box.top - r.top}px)`, ...size });
+                    if (tail.length) ghost.textContent = title;
+                    // A group shows every card, one under another, as they will land (placeMany's column).
+                    tail.forEach((t, i) => Object.assign(t.style, { display: '', transform: `translate(${box.left - r.left}px, ${box.top - r.top + (i + 1) * (CH + 24) * box.scale}px)`, ...size }));
                 } else {
                     Object.assign(ghost.style, { transform: `translate(${ev.clientX - r.left}px, ${ev.clientY - r.top}px)`, width: '', height: '', fontSize: '' });
+                    if (tail.length) ghost.textContent = `${title} +${tail.length}`;
+                    for (const t of tail) t.style.display = 'none';
                 }
                 const off = overCancel(ev);
                 cancel.classList.toggle('over', off);
-                ghost.classList.toggle('off', off);
+                for (const g of [ghost, ...tail]) g.classList.toggle('off', off);
             });
             const finish = (ev, drop) => {
                 const g = ghost;
@@ -158,6 +173,8 @@ export function createHeroPanel(A) {
                 ghost = null;
                 if (!g) return;
                 g.remove();
+                for (const t of tail) t.remove();
+                tail = [];
                 cancel.remove();
                 cancel = null;
                 dropped.add(dot);
@@ -354,6 +371,7 @@ export function createHeroPanel(A) {
             act('move', 'Move', () => folderSheet(book, null, f => {
                 for (const u of uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], f);
                 saveSettings();
+                H.psel = null;
                 render();
             }));
             act('on', 'On', () => library.change(book, d => { for (const u of uids) if (d.entries[u]) d.entries[u].disable = false; }));
