@@ -238,13 +238,28 @@ export function createHeroInspector(A) {
         });
     }
 
+    /**
+     * Whether `key` is already on the visible canvas. Show on canvas only navigates when this is true: otherwise its
+     * normal action places the card and saves the canvas layout, which Explain mode must not do.
+     */
+    function onCanvas(book, key) {
+        const data = library.peek(book);
+        if (!data || !key) return false;
+        const { m } = heroData(book, data);
+        const mem = canvasMemory(bookSettings(settings, book));
+        const placedByHand = Object.entries(mem.cards).filter(([, c]) => c.placed).map(([k]) => k);
+        return canvasSet(m, buildGraph(m), placedByHand).has(key);
+    }
+
     /** Switches to the canvas of `book` and finds the card, placing it first when it isn't on the canvas. */
     function showOnCanvas(book, key) {
+        const data = library.peek(book);
+        // Explain mode is navigation only: an absent card would be placed (and its layout saved), so it stays put.
+        if (H.explain && !onCanvas(book, key)) return;
         if (S.mode !== 'hero') { leave(); S.mode = 'hero'; S.select = null; S.search = null; }
         H.book = book;
         H.active = 'canvas';
         H.panel = false;
-        const data = library.peek(book);
         if (data) {
             const { m } = heroData(book, data);
             const mem = canvasMemory(bookSettings(settings, book));
@@ -255,5 +270,5 @@ export function createHeroInspector(A) {
         canvas()?.centerOn(key);
     }
 
-    return { chatGreetings, inspect, inspectorFor, showOnCanvas };
+    return { chatGreetings, inspect, inspectorFor, onCanvas, showOnCanvas };
 }

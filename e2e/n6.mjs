@@ -108,12 +108,12 @@ await run(async () => {
     ok('switching chats closes the old catch-up offer without changing the new chat');
 
     // ── Compatibility ──
-    assert.equal(await ev(() => wihero.health.version), '1.19.0');
+    assert.ok(['1.19.0', '1.19.1'].includes(await ev(() => wihero.health.version)));
     assert.equal(await ev(() => wihero.health.ok), true);
     assert.equal(await page.locator('#wihero_notice div').count(), 0, 'a tested version says nothing');
     await ev(() => wihero.health.setVersion('1.99.0'));
     await page.locator('.toast-warning:has-text("Versions drifted")').waitFor();
-    assert.equal(await page.locator('#wihero_notice div').first().textContent(), 'Versions drifted: WI Hero is tested on SillyTavern 1.19.0, and this is 1.99.0. WI Hero is not recommended on it.');
+    assert.equal(await page.locator('#wihero_notice div').first().textContent(), 'Versions drifted: WI Hero is tested on SillyTavern 1.19.0 and 1.19.1, and this is 1.99.0. WI Hero is not recommended on it.');
     await ev(() => wihero.health.fail('the WORLDINFO_SCAN_DONE event'));
     await page.locator('.toast-warning:has-text("WI Hero stood down")').waitFor();
     await shot('stood-down');

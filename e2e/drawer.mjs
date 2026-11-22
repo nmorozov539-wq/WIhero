@@ -95,6 +95,10 @@ async function phone() {
     assert.match(await $(page, '.pclash').innerText(), /\d+ keyword clash/);
     await $(page, '.pclash').click();
     await $(page, '.sheet:has-text("zzclash")').waitFor();
+    // One card per clash word, and the key that fires on it is marked in each entry's key line.
+    assert.ok(await $(page, '.sheet .clashg').count() >= 1, 'clash groups are cards');
+    assert.ok(await $(page, '.sheet .clashg:has(.clashw:text-is("zzclash")) mark').count() >= 2, 'the clashing key is marked');
+    await shot(page, 'clashes');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     ok('phone: no timing badge on cards; keyword clashes are a row in the entry panel, not a chip on the canvas');
@@ -114,14 +118,22 @@ async function phone() {
     assert.equal(await town.locator('small').innerText(), '2');
     assert.equal(await $(page, '.panel .pgrp .pgrp .prow').count(), 2, 'Town\'s two entries sit inside Places');
     await shot(page, 'folders');
-    ok('phone: folders nest in the entry panel (Places › Town), each counting what is inside it');
+    // The tool row: Select, New entry, and Fold all (there are folders now); Fold all closes both, Unfold all opens them.
+    assert.deepEqual(await $(page, '.panel .ptools button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label'))), ['Select entries', 'New entry', 'Fold all folders']);
+    await $(page, '.panel .ptools button[aria-label="Fold all folders"]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await $(page, '.panel .phdr.open').count(), 0, 'every folder folded');
+    await $(page, '.panel .ptools button[aria-label="Unfold all folders"]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await $(page, '.panel .pgrp .pgrp .prow').count(), 2, 'unfolded again');
+    ok('phone: folders nest in the entry panel (Places › Town), each counting what is inside it; the tool row folds and unfolds them all');
 
     // Select, then Place (Features 1): pick two entries that aren't on the canvas.
     const off = await $(page, '.panel .prow:has(.dotc:not(.in))').evaluateAll(ns => ns.map(n => n.dataset.key));
     assert.ok(off.length >= 2, `at least two entries off the canvas (${off.length})`);
     // The toggle redraws only the list: the panel button stays the same element, so it doesn't jump.
     await $(page, '.panelBtn').evaluate(n => { n.dataset.mark = '1'; });
-    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    await $(page, '.panel .ptools button[aria-label="Select entries"]').click();
     assert.equal(await $(page, '.panelBtn[data-mark="1"]').count(), 1, 'the panel button wasn\'t rebuilt');
     for (const k of off.slice(0, 2)) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
     assert.match(await $(page, '.pselhead .cnt').innerText(), /2 selected/);
@@ -151,7 +163,7 @@ async function phone() {
     // On, Off and Edit… act on the selection; the selection lights the canvas.
     await $(page, '.panelBtn').click();
     await page.waitForTimeout(300);
-    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    await $(page, '.panel .ptools button[aria-label="Select entries"]').click();
     for (const k of off.slice(0, 2)) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
     await $(page, '.pselacts button:has-text("Off")').click();
     await page.waitForTimeout(300);
@@ -218,7 +230,7 @@ async function phone() {
     // A picked row's dot drags every picked entry: one ghost per card, in the column they land in.
     await $(page, '.panelBtn').click();
     await page.waitForTimeout(300);
-    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    await $(page, '.panel .ptools button[aria-label="Select entries"]').click();
     const two2 = await $(page, '.panel .prow:has(.dotc:not(.in))').evaluateAll(ns => ns.slice(0, 2).map(n => n.dataset.key));
     assert.equal(two2.length, 2, 'two more entries off the canvas');
     for (const k of two2) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();

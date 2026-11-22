@@ -153,12 +153,26 @@ svg.i.s { width: 16px; height: 16px; }
 .bottombar { flex-shrink: 0; height: 58px; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--line); background: var(--bar); }
 .bottombar button { width: 56px; height: 46px; color: var(--muted); display: flex; align-items: center; justify-content: center; border-radius: 10px; }
 .bottombar button:hover { color: var(--fg); }
-.bottombar { justify-content: space-between; gap: 6px; padding: 0 8px; }
-.bottombar .bsearch { flex: 1; width: auto; height: 38px; max-width: 150px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); justify-content: flex-start; gap: 8px; padding: 0 12px; font-size: var(--t-s); }
+.bottombar { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; padding: 0 12px; }
+.bottombar .bsearch { min-width: 0; width: calc(100% - 16px); margin-right: 16px; height: 40px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); justify-content: flex-start; gap: 8px; padding: 0 12px; font-size: var(--t-s); }
 .bottombar .bsearch svg { width: 16px; height: 16px; flex-shrink: 0; }
-.bottombar .bplus { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); width: 50px; border-radius: 25px; }
-.bottombar .bright { flex: 1; max-width: 150px; display: flex; justify-content: flex-end; }
+.bottombar .bsearch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bottombar .bplus { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); width: 48px; height: 48px; border-radius: 24px; }
+.bottombar .bright { display: flex; align-items: center; justify-content: space-around; }
+.bottombar .bright button { width: 46px; }
 .item.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+/* Home's tile view on phones: two to a row. */
+.ptiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 4px 12px 8px; }
+.ptile { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 6px 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; min-height: 120px; }
+.ptile.pressing { background: var(--raised); }
+.ptile.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.ptile .pt { display: flex; align-items: flex-start; justify-content: space-between; min-height: 36px; }
+.ptile .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--raised); display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.ptile.sel .ic { color: var(--accent); }
+.ptile .more { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--muted); border-radius: 10px; margin-top: -4px; }
+.ptile .t { font-size: var(--t-m); line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; padding-right: 6px; }
+.ptile .m { font-size: var(--t-s); color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin-top: auto; }
+.ptile .badge { max-width: 100%; }
 .item.sel .ic { color: var(--accent); }
 .item.ent.sel .ic { width: 28px; justify-content: flex-end; }
 .item.ent.sel .ic svg { width: 18px; height: 18px; }
@@ -351,10 +365,14 @@ svg.lk path.head { stroke-width: 0; }
 .canvas-tools button, .panelBtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
 .panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: left .22s ease; }
 /* Undo and redo on the canvas: beside the entries button, top left. */
-.histbtns { position: absolute; left: 62px; top: 10px; z-index: 6; display: flex; gap: 4px; }
+/* Phone: undo and redo in a row at the bottom right, in thumb reach, under the zoom column; the top left keeps
+   only the panel button and the legend. Desktop keeps them top left. */
+.histbtns { position: absolute; right: 10px; bottom: 10px; z-index: 6; display: flex; gap: 6px; }
+.vp:has(> .histbtns) .canvas-tools { bottom: 60px; }
 .histbtns button { width: 40px; height: 40px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
 .histbtns button:disabled { color: var(--muted); opacity: .45; }
-[data-desk="1"] .main[data-page="hero:canvas"] .histbtns { left: 52px; }
+[data-desk="1"] .main[data-page="hero:canvas"] .histbtns { left: 52px; top: 10px; right: auto; bottom: auto; }
+[data-desk="1"] .vp:has(> .histbtns) .canvas-tools { bottom: 10px; }
 [data-desk="1"] .histbtns button { width: 32px; height: 32px; border-radius: 8px; }
 /* The book's checks (#42): dead branches and keyword clashes, top right of the canvas, left of the phone's "?". */
 .checkchip { position: absolute; right: 58px; top: 14px; z-index: 6; display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px 0 9px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: var(--t-xs); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent) inset; }
@@ -365,7 +383,7 @@ svg.lk path.head { stroke-width: 0; }
 .zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font: inherit; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; border: 0; cursor: pointer; }
 .zlabel:hover { color: var(--fg); }
 .cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
-.legend { position: absolute; left: 154px; top: 14px; right: 10px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: var(--t-xs); color: var(--muted); pointer-events: none; }
+.legend { position: absolute; left: 66px; top: 14px; right: 58px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: var(--t-xs); color: var(--muted); pointer-events: none; }
 .legend span { display: inline-flex; align-items: center; gap: 4px; }
 .legend i { width: 14px; height: 3px; border-radius: 2px; background: currentColor; }
 .legend i.d { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px); }
@@ -378,6 +396,7 @@ svg.lk path.head { stroke-width: 0; }
 .panel .phead { display: flex; align-items: center; gap: 6px; padding: 10px 8px 4px 16px; min-height: 64px; }
 .panel .phead input { flex: 1; min-width: 0; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
 .panel .phead input:focus { border-color: var(--accent); }
+[data-desk=""] .panel .phead { min-height: 56px; padding-right: 16px; }
 .plist { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
 .pnone { color: var(--muted); font-size: var(--t-s); padding: 16px 10px; }
 .phdr { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 36px; padding: 0 8px; font-size: var(--t-s); color: var(--muted); }
@@ -418,11 +437,20 @@ svg.lk path.head { stroke-width: 0; }
 .pselacts button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: var(--t-xs); height: 48px; padding: 0 6px; border-radius: 8px; flex: 1; }
 .pselacts button svg { width: 18px; height: 18px; }
 .pselacts button:disabled { opacity: .4; }
-.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 4px; margin: 6px 8px 10px 12px; }
-.bookpick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 12px; border-radius: 14px; background: var(--surface); text-align: left; }
-.bookpick b { font-size: var(--t-m); display: flex; align-items: center; gap: 4px; max-width: 100%; }
+/* The phone panel's footer: the book's name (the books menu) with a quiet status line, and ⋮ (this book's menu). */
+.ptools { flex-shrink: 0; display: flex; justify-content: space-around; align-items: center; padding: 6px 8px 2px; border-top: 1px solid var(--line); }
+.ptools button { width: 44px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.ptools button:active { background: var(--surface); }
+.ptools button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ptools button svg { width: 22px; height: 22px; }
+.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 6px; margin: 4px 8px 10px; padding: 2px 4px 2px 2px; border-radius: 16px; background: var(--surface); }
+.bookrow .round { background: none; }
+.bookpick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; border-radius: 10px; text-align: left; color: var(--fg); }
+.bookpick:active { background: var(--surface); }
+.bookpick b { font-size: var(--t-m); font-weight: 600; display: flex; align-items: center; gap: 4px; max-width: 100%; }
 .bookpick b span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bookpick .bchips { display: flex; gap: 6px; }
+.bookpick b svg { color: var(--muted); flex-shrink: 0; }
+.bookpick small { color: var(--muted); font-size: var(--t-xs); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Entry page bits that belong to Hero mode */
 .disc.fixed { cursor: default; }
@@ -796,7 +824,7 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .brow.dropbefore { box-shadow: 0 2px 0 var(--accent) inset; }
 .brow.dropafter { box-shadow: 0 -2px 0 var(--accent) inset; }
 /* The phone lists' ⋯ always shows: a phone has no hover to bring it out. */
-.item .more { visibility: visible; }
+.item .more, .ptile .more { visibility: visible; }
 .dempty { color: var(--muted); font-size: var(--t-xs); padding: 10px 2px; }
 .dtable { padding: 0 8px; }
 .drow { display: grid; grid-template-columns: 30px minmax(120px, 2fr) minmax(90px, 1.3fr) 70px 110px 36px; align-items: center; min-height: 38px; border-radius: 6px; padding: 0 4px; font-size: var(--t-s); cursor: pointer; }
@@ -959,7 +987,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pfoot .plinks { display: inline-flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-desk="1"] .pfoot .pcount { white-space: nowrap; }
 [data-desk="1"] .main[data-page="hero:canvas"] > .panelBtn { left: calc(var(--lw, 0px) + 10px); top: 10px; width: 32px; height: 32px; border-radius: 8px; z-index: 6; transition: none; }
-[data-desk="1"] .main[data-page="hero:canvas"] .legend { left: calc(var(--lw, 0px) + 130px); }
+[data-desk="1"] .main[data-page="hero:canvas"] .legend { left: calc(var(--lw, 0px) + 130px); right: 10px; }
+/* Phone: with the checks chip at the top right, the legend drops under the top row. */
+[data-desk=""] .vp:has(> .checkchip) > .legend { top: 64px; left: 14px; right: 14px; }
 [data-desk="1"] .canvas-tools button { width: 32px; height: 32px; border-radius: 8px; }
 [data-desk="1"] .canvas-tools .itoggle { margin-top: 6px; }
 [data-desk="1"] .hinsp { grid-column: 3; grid-row: 1 / 3; position: relative; min-width: 0; border-left: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; }
@@ -1135,9 +1165,20 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .explainq { position: static; width: 46px; height: auto; border: none; border-radius: 0; background: none; }
 .explaining .explainq { color: var(--accent); }
 .explaining .main { cursor: help; }
-.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .pfold, .plist .phdr) { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .zlabel, .pfold, .plist .phdr, .tab).xok { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+/* Every marked control, and every control inside an editor region, gets the same outline; a scrim shows it as a frame. */
+.explaining :is([data-xkey], .opt, button, [role="button"], [role="switch"], input, select, textarea).xok { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+.explaining .scrim.xok { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.explaining .prow.xok { outline: 1.5px dashed var(--accent); outline-offset: -1px; }
+/* Nothing to say about it: it sits out explain mode, faded and deaf to the pointer's look. */
+.explaining .xno { opacity: .38; cursor: default; }
+.explaintip { position: absolute; z-index: 61; max-width: min(300px, calc(100% - 16px)); padding: 10px 12px; border-radius: 12px; background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); line-height: 1.4; pointer-events: auto; }
+.explaintip b { color: var(--fg); margin-right: 2px; }
+.explaintip p { margin: 0; color: var(--muted); }
+.explaintip .linkish { margin-top: 4px; padding: 0; }
 .explaining .vp .world, .explaining .pchips { filter: saturate(.7) brightness(.92); }
-.explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; }
+.explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; pointer-events: none; }
+.explainban button { pointer-events: auto; }
 .pstrip .pq { width: 32px; padding: 0; justify-content: center; color: var(--muted); }
 /* Shaping a link (the strip of a drawn line): the others fade, the picked one gets a band, its dots and ghost dots. */
 .vp.shaping svg.lk .ln:not(.shsel) { opacity: .28; transition: opacity .15s; }
@@ -1192,3 +1233,23 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 /* Book transactions hold editing until persistence and host links have settled. */
 .operation-status { position: absolute; inset: 0; z-index: 100; display: grid; place-items: center;
   background: color-mix(in srgb, var(--tint) 90%, transparent); color: var(--fg); font-size: var(--t-l); }
+/* The Keyword clashes sheet: one card per clash word; the keys that fire on it are marked in each entry's key line. */
+.clashg { margin: 8px 12px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.clashh { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; }
+.clashw { padding: 2px 10px; border-radius: 999px; background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--fg); font-weight: 600; font-size: var(--t-s); }
+.clashn { color: var(--muted); font-size: var(--t-xs); margin-left: auto; }
+.clashg .opt { min-height: 46px; padding: 6px 14px; }
+.clashg .opt + .opt { border-top: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
+.clashk mark { background: none; color: var(--fg); text-decoration: underline; text-decoration-color: var(--warn); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+/* The Content heading's copy button (it replaced the ⋮ menu's Copy as text on the entry page). */
+.content-h { align-items: center; }
+.content-h .ccopy { width: 32px; height: 32px; margin: -6px -6px -6px 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
+.content-h .ccopy:hover { color: var(--fg); background: var(--raised); }
+.content-h .ccopy svg { width: 18px; height: 18px; }
+[data-desk="1"] .panelbookrow { flex-shrink: 0; display: flex; align-items: stretch; border-top: 1px solid var(--line); background: var(--surface); }
+[data-desk="1"] .panelbookrow .panelbook { flex: 1; min-width: 0; width: auto; border-top: 0; background: none; }
+[data-desk="1"] .panelmore { width: 36px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+[data-desk="1"] .panelmore:hover { color: var(--fg); background: var(--hover); }
+.hempty-acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 16px; }
+.hempty-acts button { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 21px; border: 1px solid var(--line); color: var(--fg); font-size: var(--t-s); }
+.hempty-acts button.pri { background: var(--accent); border-color: var(--accent); color: var(--tint); font-weight: 600; }

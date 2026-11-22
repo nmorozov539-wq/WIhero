@@ -4,6 +4,7 @@
 // picker, and the greeting inspector (BUILD_SPEC 15.4). Every change goes through `x.edit`, which wraps
 // pieces.js's bookEditor in the library's change.
 import { btn, html, el, swEl } from './dom.js';
+import { blockRegion, explainNode } from './explain-meta.js';
 import { ic } from './icons.js';
 import { FAMILY_COLOR } from './logic-text.js';
 import { storyParamNote, strategyColor } from './entry-page.js';
@@ -36,6 +37,7 @@ function frame(box, x, cls) {
     grab.append(el('i'));
     grab.setAttribute('role', 'button');
     grab.setAttribute('aria-label', x.full ? 'Half height' : 'Full height');
+    explainNode(grab, 'nav.disclosure', { title: x.full ? 'Half height' : 'Full height', text: 'Shows the inspector at half height or full height. Nothing is changed.' });
     let y0 = null;
     let moved = false;
     grab.addEventListener('pointerdown', e => { y0 = e.clientY; moved = false; grab.setPointerCapture(e.pointerId); });
@@ -94,10 +96,12 @@ export function pickTarget(layer, o) {
         const q = el('input', 'kin');
         q.placeholder = 'Search';
         q.setAttribute('aria-label', 'Search');
+        explainNode(q, 'blocked.search', { title: 'Search' });
         sh.append(el('div', 'pickq'));
         sh.lastChild.append(q);
         const list = el('div', 'picklist');
         sh.append(list);
+        const choose = (title, text) => ({ key: 'blocked.command', title, text });
         const fill = () => {
             list.innerHTML = '';
             const needle = q.value.trim().toLowerCase();
@@ -105,40 +109,40 @@ export function pickTarget(layer, o) {
             const ents = o.entries.filter(e => hit(e.title));
             if (o.self && hit(`${o.self.title} this entry`)) {
                 list.append(el('div', 'lbl', 'This entry'));
-                list.append(layer.opt(o.self.title, () => { layer.close(); o.done(ed => ed.idOf(o.self.uid)); }, { icon: 'clock', sub: 'After it first fires. Add a wait to close it that many messages later.' }));
+                list.append(layer.opt(o.self.title, () => { layer.close(); o.done(ed => ed.idOf(o.self.uid)); }, { icon: 'clock', sub: 'After it first fires. Add a wait to close it that many messages later.', explain: choose(o.self.title, 'Picks this entry for the rule. Explain mode will not change the book.') }));
             }
             if (ents.length) list.append(el('div', 'lbl', 'Entries'));
-            for (const e of ents) list.append(layer.opt(e.title, () => { layer.close(); o.done(ed => ed.idOf(e.uid)); }, { dot: e.dot }));
+            for (const e of ents) list.append(layer.opt(e.title, () => { layer.close(); o.done(ed => ed.idOf(e.uid)); }, { dot: e.dot, explain: choose(e.title, `Picks ${e.title} for this rule. Explain mode will not change the book.`) }));
             const packs = (o.packs ?? []).filter(p => hit(`#${p}`));
             if (packs.length) list.append(el('div', 'lbl', 'Packs'));
             for (const p of packs) {
                 list.append(layer.opt(`#${p}`, () => {
                     if (!o.readings) { layer.close(); o.done(() => `#${p}`); return; }
                     layer.sheet(`#${p}`, s2 => {
-                        s2.append(layer.opt('Any of them', () => { layer.close(); o.done(() => reading(p)); }, { sub: 'Any member has fired' }));
-                        s2.append(layer.opt('All of them', () => { layer.close(); o.done(() => reading(p, 'all')); }, { sub: 'Every member has fired' }));
+                        s2.append(layer.opt('Any of them', () => { layer.close(); o.done(() => reading(p)); }, { sub: 'Any member has fired', explain: choose('Any of them', 'Makes the rule need any member. Explain mode will not change the book.') }));
+                        s2.append(layer.opt('All of them', () => { layer.close(); o.done(() => reading(p, 'all')); }, { sub: 'Every member has fired', explain: choose('All of them', 'Makes the rule need every member. Explain mode will not change the book.') }));
                         s2.append(layer.opt('A number of them…', () => layer.askText({
                             title: `How many of #${p}?`, type: 'number', value: '2', ok: 'Add',
                             check: v => (Number.isInteger(Number(v)) && Number(v) >= 1 ? null : 'A whole number, 1 or more'),
                             done: v => o.done(() => reading(p, Number(v))),
-                        }), { sub: 'At least that many members have fired' }));
+                        }), { sub: 'At least that many members have fired', explain: choose('A number of them…', 'Makes the rule need a set number of members. Explain mode will not change the book.') }));
                     }, { help: 'How this rule reads the pack.' });
-                }, { icon: 'tag' }));
+                }, { icon: 'tag', explain: { key: 'nav.open', title: `#${p}`, text: 'Opens how this pack can be read. Nothing is chosen.' } }));
             }
             const greets = (o.greetings ?? []).filter(g => hit(g.title) || hit(g.text ?? ''));
             if (greets.length) list.append(el('div', 'lbl', 'Greetings'));
-            for (const g of greets) list.append(layer.opt(g.title, () => { layer.close(); o.done(() => ({ ...g.ref })); }, { icon: 'chat', sub: g.text }));
+            for (const g of greets) list.append(layer.opt(g.title, () => { layer.close(); o.done(() => ({ ...g.ref })); }, { icon: 'chat', sub: g.text, explain: choose(g.title, 'Picks this greeting for the rule. Explain mode will not change the book.') }));
             if (o.lock) {
                 list.append(el('div', 'lbl', 'Other'));
                 list.append(layer.opt('Lock phrase…', () => layer.askText({
                     title: 'Lock phrase', placeholder: 'Phrases, separated by commas', ok: 'Add',
                     done: v => { const lock = v.split(',').map(s => s.trim()).filter(Boolean); if (lock.length) o.done(() => ({ lock })); },
-                }), { icon: 'lock', sub: 'Waits until someone says it' }));
+                }), { icon: 'lock', sub: 'Waits until someone says it', explain: choose('Lock phrase…', 'Adds a phrase to wait for. Explain mode will not change the book.') }));
                 list.append(layer.opt('Wait…', () => layer.askText({
                     title: 'Wait how many messages?', type: 'number', value: '3', ok: 'Add',
                     check: v => (Number.isInteger(Number(v)) && Number(v) >= 1 ? null : 'A whole number, 1 or more'),
                     done: v => o.done(() => ({ wait: Number(v) })),
-                }), { icon: 'clock', sub: 'Runs out that many messages after the rest of the row' }));
+                }), { icon: 'clock', sub: 'Runs out that many messages after the rest of the row', explain: choose('Wait…', 'Adds a wait to this row. Explain mode will not change the book.') }));
             }
             if (!list.children.length) list.append(el('p', 'help', 'Nothing matches.'));
         };
@@ -161,12 +165,14 @@ export function renderInspector(box, x) {
     d.style.background = strategyColor(e);
     const h = el('h2', '', x.title);
     if (x.rename) renamable(h, x.title, x.rename);
+    const close = btn('round flat', ic('x'), x.close, 'Close the inspector');
+    explainNode(close, 'inspector.close');
     if (c.moment === true) {
         // A Moment sends nothing: no strategy and no on/off switch (it is stored off).
         const sp = el('span', 'mspark');
         sp.innerHTML = ic('spark', 's');
-        head.append(sp, h, btn('round flat', ic('x'), x.close, 'Close the inspector'));
-    } else head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on'), btn('round flat', ic('x'), x.close, 'Close the inspector'));
+        head.append(sp, h, close);
+    } else head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on', { key: 'inspector.switch', title: 'Entry on', text: 'Turns this entry on or off. Explain mode leaves it as it is.' }), close);
     body.append(head);
 
     if (x.desk && c.moment !== true) {
@@ -178,6 +184,7 @@ export function renderInspector(box, x) {
             t.textContent = label;
             t.setAttribute('role', 'tab');
             t.setAttribute('aria-selected', String(x.tab === k));
+            explainNode(t, 'menu.inspectorTab', { title: label });
             tabs.append(t);
         }
         body.append(tabs);
@@ -195,9 +202,13 @@ export function renderInspector(box, x) {
             body.append(el('div', 'ihint', 'Saved as you type. Key words and parameters are in the entry tab.'));
             if (x.focusText) setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
             const foot = el('div', 'ifoot');
-            foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
+            const open = btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry());
+            explainNode(open, 'inspector.readEntry', { title: 'Open entry' });
+            foot.append(open);
         if (x.note) foot.append(btn('linkish', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));
-            foot.append(btn('linkish', html`${ic('code', 's')} Data`, x.data));
+            const data = btn('linkish', html`${ic('code', 's')} Data`, x.data);
+            explainNode(data, 'inspector.data', { title: 'Data' });
+            foot.append(data);
             body.append(foot);
             return;
         }
@@ -226,11 +237,17 @@ export function renderInspector(box, x) {
             lab.append('Edit text');
             edit.append(lab, pre);
             edit.addEventListener('click', () => x.openEntry());
+            explainNode(edit, 'inspector.readEntry', { title: 'Edit text', text: 'Opens this entry in a tab of its own. Explain mode does not type there.' });
             acts.append(edit);
-            if (x.note) acts.append(btn('inote', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));
+            if (x.note) {
+                const nb = btn('inote', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note);
+                explainNode(nb, 'inspector.note', { title: typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note' });
+                acts.append(nb);
+            }
             body.append(acts);
         } else {
             pre.addEventListener('click', () => x.setTab('text'));
+            explainNode(pre, 'menu.inspectorTab', { title: 'Text', text: 'Shows this entry\'s text. Explain mode does not type.' });
             body.append(pre);
         }
     }
@@ -238,7 +255,9 @@ export function renderInspector(box, x) {
     if (x.closed) {
         const r = el('div', 'closedline ireopen');
         r.append(el('span', '', 'Closed in this chat by '), el('em', '', x.closed.by));
-        r.append(btn('linkish acc', 'Reopen', x.closed.reopen));
+        const reopen = btn('linkish acc', 'Reopen', x.closed.reopen);
+        explainNode(reopen, 'inspector.reopen', { title: 'Reopen' });
+        r.append(reopen);
         body.append(r);
     }
     if (x.problems.length) {
@@ -268,7 +287,10 @@ export function renderInspector(box, x) {
         tap.type = 'button';
         tap.append(el('b', '', `Path of ${x.pathOf.name}`), el('span', 'pcs', forkGateOnly ? `Can't fire before ${x.pathOf.name} does. Tap to edit the switch.` : 'Tap to edit the switch.'));
         tap.addEventListener('click', () => x.pathOf.open());
-        ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide('switch') : null), 'What is a switch?'));
+        explainNode(tap, 'inspector.row', { title: `Path of ${x.pathOf.name}`, text: 'Opens the switch this path belongs to. Explain mode does not change it.' });
+        const guide = btn('pq', ic('help'), () => (x.guide ? x.guide('switch') : null), 'What is a switch?');
+        explainNode(guide, 'inspector.guide', { title: 'What is a switch?' });
+        ph.append(tap, guide);
         pc.append(ph);
         body.append(pc);
     }
@@ -289,27 +311,35 @@ export function renderInspector(box, x) {
         lab.append(p.label);
         tap.append(lab, el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
-        ph.append(tap, btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`));
-        if (open && hasPiece(c, p.key)) ph.append(btn('pq', ic('trash'), () => removeAndSay(x, `${p.label} removed`, () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); }), `Remove ${p.label}`));
+        explainNode(tap, 'inspector.row', { title: p.label, text: `${open ? 'Closes' : 'Opens'} this piece's editor. Explain mode does not change anything.` });
+        const guide = btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`);
+        explainNode(guide, 'inspector.guide', { title: `What is ${p.label}?` });
+        ph.append(tap, guide);
+        if (open && hasPiece(c, p.key)) {
+            const rm = btn('pq', ic('trash'), () => removeAndSay(x, `${p.label} removed`, () => { update(cc => removePiece(cc, p.key)); x.setOpen(null); }), `Remove ${p.label}`);
+            explainNode(rm, 'inspector.remove', { title: `Remove ${p.label}` });
+            ph.append(rm);
+        }
         pc.append(ph);
         if (open) pc.append(editorOf(p.key, x, update));
+        if (open) blockRegion(pc);
         body.append(pc);
     }
 
     if (x.sources.length) {
         body.append(el('div', 'lbl', 'From other entries'));
-        for (const s of x.sources) body.append(layer.opt(s.name, () => x.inspect(s.key), { sub: s.what, dot: FAMILY_COLOR[s.family] }));
+        for (const s of x.sources) body.append(layer.opt(s.name, () => x.inspect(s.key), { sub: s.what, dot: FAMILY_COLOR[s.family], explain: { key: 'inspector.sources', title: s.name } }));
     }
     // Rules other entries keep that wait for this one (#1): the jump opens their editor.
     if (x.outgoing?.length) {
         body.append(el('div', 'lbl', 'To other entries'));
-        for (const o of x.outgoing) body.append(layer.opt(o.name, () => x.inspectAt(o.key, o.piece), { sub: o.what, dot: FAMILY_COLOR[o.family], val: '›' }));
+        for (const o of x.outgoing) body.append(layer.opt(o.name, () => x.inspectAt(o.key, o.piece), { sub: o.what, dot: FAMILY_COLOR[o.family], val: '›', explain: { key: 'inspector.target', title: o.name } }));
     }
 
     const missing = missingPieces(c);
     if (missing.length) {
         // The piece bar under the canvas is the main way to add pieces; this list adds them to this entry directly.
-        body.append(btn('addpiece', html`${ic('plus', 's')} Add logic`, () => layer.sheet('Add logic', sh => {
+        const addLogic = btn('addpiece', html`${ic('plus', 's')} Add logic`, () => layer.sheet('Add logic', sh => {
             for (const p of missing) {
                 sh.append(layer.opt(p.label, () => {
                     layer.close();
@@ -317,10 +347,12 @@ export function renderInspector(box, x) {
                     if (['once', 'by', 'glue'].includes(p.key)) update(cc => addPiece(cc, p.key));
                     if (p.key === 'written') update(cc => { addPiece(cc, 'written'); Object.assign(cc.written, x.tracker?.shared ?? {}); });
                     x.setOpen(p.key);
-                }, { sub: p.help, dot: FAMILY_COLOR[p.family] }));
+                }, { sub: p.help, dot: FAMILY_COLOR[p.family], explain: { key: 'blocked.command', title: p.label, text: `Adds ${p.label} to this entry. Explain mode will not change the book.` } }));
             }
-            if (x.guide) sh.append(layer.opt('How each piece works', () => { layer.close(); x.guide(null); }, { icon: 'help', val: 'Guide ›' }));
-        }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' })));
+            if (x.guide) sh.append(layer.opt('How each piece works', () => { layer.close(); x.guide(null); }, { icon: 'help', val: 'Guide ›', explain: { key: 'menu.guideRow', title: 'How each piece works' } }));
+        }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' }));
+        explainNode(addLogic, 'inspector.addLogic');
+        body.append(addLogic);
     }
 
     // The entry's settings come after its rules (review 2026-11-11): folded into one row that names what is set,
@@ -330,17 +362,35 @@ export function renderInspector(box, x) {
     const foot = el('div', 'ifoot');
     if (c.moment === true) {
         // A Moment exists only on the canvas, so taking it off would delete it: Delete says so (with Undo).
-        foot.append(btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.()));
+        const del = btn('linkish', html`${ic('trash', 's')} Delete`, () => x.deleteMoment?.());
+        explainNode(del, 'inspector.deleteMoment', { title: 'Delete' });
+        foot.append(del);
     } else if (!x.desk) {
         // Phones: the rare actions last, quieter (the common ones are at the top).
         foot.classList.add('iquiet');
-        if (x.takeOff) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
+        if (x.takeOff) {
+            const off = btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff);
+            explainNode(off, 'inspector.takeOff', { title: 'Take off canvas' });
+            foot.append(off);
+        }
     } else {
-        foot.append(btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry()));
-        if (x.note) foot.append(btn('linkish', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note));
-        if (x.takeOff && !x.desk) foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
+        const open = btn('linkish', html`${ic('entry', 's')} Open entry`, () => x.openEntry());
+        explainNode(open, 'inspector.readEntry', { title: 'Open entry' });
+        foot.append(open);
+        if (x.note) {
+            const nb = btn('linkish', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note);
+            explainNode(nb, 'inspector.note', { title: typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note' });
+            foot.append(nb);
+        }
+        if (x.takeOff && !x.desk) {
+            const off = btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff);
+            explainNode(off, 'inspector.takeOff', { title: 'Take off canvas' });
+            foot.append(off);
+        }
     }
-    foot.append(btn('linkish', html`${ic('code', 's')} Data`, x.data));
+    const data = btn('linkish', html`${ic('code', 's')} Data`, x.data);
+    explainNode(data, 'inspector.data', { title: 'Data' });
+    foot.append(data);
     body.append(foot);
 }
 
@@ -366,14 +416,20 @@ function momentHead(body, x) {
     input.addEventListener('blur', () => { if (input.value.trim()) add(); });
     const wrap = el('div', 'imphr');
     wrap.append(box, input);
+    blockRegion(wrap);
     // What a Moment is lives in the Guide (#10): the inspector stays as plain as any other entry's.
     const lb = el('div', 'lbl lblq', 'Happens when someone says (any one)');
-    if (x.guide) lb.append(btn('pq', ic('help'), () => x.guide('moment'), 'What is a Moment?'));
+    if (x.guide) {
+        const q = btn('pq', ic('help'), () => x.guide('moment'), 'What is a Moment?');
+        explainNode(q, 'inspector.guide', { title: 'What is a Moment?' });
+        lb.append(q);
+    }
     body.append(lb, wrap);
     const by = x.config.by ?? null;
     const seg = el('div', 'pseg iseg');
     seg.setAttribute('role', 'radiogroup');
     seg.setAttribute('aria-label', 'Who says it');
+    blockRegion(seg);
     for (const [v, label] of [[null, 'Anyone'], ['user', 'You'], ['char', 'The character']]) {
         const b = btn(by === v ? 'on' : '', '', () => x.edit(ed => ed.update(e.uid, cc => { if (v) cc.by = v; else delete cc.by; })));
         b.textContent = label;
@@ -406,11 +462,13 @@ function editorOf(key, x, update) {
         const list = Array.isArray(c[key]) ? c[key] : [];
         const wrap = el('div', 'rowbox');
         list.forEach((t, i) => wrap.append(chip(t, x, () => update(cc => { cc[key].splice(i, 1); }), true)));
-        wrap.append(btn('addb', '+ add', () => pickTarget(layer, {
+        const add = btn('addb', '+ add', () => pickTarget(layer, {
             title: key === 'switch' ? 'Add a path' : 'Add a target',
             entries: x.others, packs: key === 'switch' ? [] : x.packs, readings: false,
             done: make => update((cc, id, ed) => { cc[key] = addToList(Array.isArray(cc[key]) ? cc[key] : [], make(ed)); }),
-        })));
+        }));
+        explainNode(add, 'menu.pieceTargets', { title: key === 'switch' ? 'Add a path' : 'Add a target' });
+        wrap.append(add);
         box.append(wrap);
         if (key === 'switch' && list.length < 2) box.append(el('p', 'phelp', 'A fork needs two paths or more.'));
     } else if (key === 'glue') {
@@ -428,14 +486,18 @@ function editorOf(key, x, update) {
         if (g.mode === 'ride') {
             const wrap = el('div', 'rowbox');
             if (g.host) wrap.append(chip(g.host, x));
-            wrap.append(btn('addb', g.host ? 'Change' : '+ host', pickHost));
+            const change = btn('addb', g.host ? 'Change' : '+ host', pickHost);
+            explainNode(change, 'menu.pieceTargets', { title: g.host ? 'Change' : '+ host' });
+            wrap.append(change);
             box.append(wrap);
             box.append(el('p', 'phelp', 'Fires whenever its host fires, and stops when the host closes.'));
         } else if (hasPiece(c, 'closeGate')) {
             box.append(el('p', 'phelp', `Ends through Closes when: ${x.lines.find(l => l.label === 'Closes when')?.text ?? ''}`));
         } else {
             box.append(el('p', 'phelp', 'Nothing ends it yet: once fired it stays on for the rest of the chat.'));
-            box.append(btn('addb', '+ Closes when', () => x.setOpen('closeGate')));
+            const closes = btn('addb', '+ Closes when', () => x.setOpen('closeGate'));
+            explainNode(closes, 'nav.disclosure', { title: '+ Closes when' });
+            box.append(closes);
         }
     } else if (key === 'masks') {
         const masks = Array.isArray(c.masks) ? c.masks : [];
@@ -449,18 +511,20 @@ function editorOf(key, x, update) {
                 title: 'Rename mask', value: m.name,
                 done: v => { const to = maskName(v, masks, m.name); update(cc => { cc.masks[i].name = to; }); x.renamedMask(m.name, to); },
             });
-            mh.append(
-                btn('', ic('eye'), () => x.showMask(m.name), `Show ${m.name} on the canvas`),
-                btn('', ic('more'), () => layer.sheet(`Mask ${m.name}`, sh => {
-                    sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit' }));
-                    sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry' }));
-                    if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins' }));
-                    sh.append(layer.opt('Delete', () => { layer.close(); removeAndSay(x, `Mask ${m.name} removed`, () => update(cc => { cc.masks.splice(i, 1); })); }, { icon: 'trash', danger: true }));
-                }), `${m.name} actions`),
-            );
+            const eye = btn('', ic('eye'), () => x.showMask(m.name), `Show ${m.name} on the canvas`);
+            explainNode(eye, 'blocked.setting', { title: `Show ${m.name} on the canvas`, text: 'Shows this version on the canvas. Explain mode leaves the display as it is.' });
+            const moreBtn = btn('', ic('more'), () => layer.sheet(`Mask ${m.name}`, sh => {
+                    sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this mask. Explain mode will not change the book.' } }));
+                    sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry', explain: { key: 'inspector.maskText', title: 'Edit text' } }));
+                    if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins', explain: { key: 'blocked.command', title: 'Move up', text: 'Changes which mask wins when several are on. Explain mode will not change the book.' } }));
+                    sh.append(layer.opt('Delete', () => { layer.close(); removeAndSay(x, `Mask ${m.name} removed`, () => update(cc => { cc.masks.splice(i, 1); })); }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this mask. Explain mode will not change the book.' } }));
+                }), `${m.name} actions`);
+            explainNode(moreBtn, 'inspector.maskActions', { title: `${m.name} actions` });
+            mh.append(eye, moreBtn);
             ml.append(mh);
             const first = String(m.content ?? '').trim().split('\n')[0];
             const tx = btn('mtext', '', () => x.openEntry(m.name), `Edit the text of ${m.name}`);
+            explainNode(tx, 'inspector.maskText', { title: m.name });
             tx.textContent = first || 'No text yet. Tap to write it.';
             if (!first) tx.classList.add('empty');
             ml.append(tx);
@@ -471,7 +535,11 @@ function editorOf(key, x, update) {
             if (m.closeGate?.length || OFF_OPEN.has(offKey)) {
                 ml.append(el('div', 'sub', 'Off when'));
                 rowsEditor(ml, x, cc => cc.masks[i].closeGate ?? [], (cc, r) => { cc.masks[i].closeGate = r; }, update, false);
-            } else ml.append(btn('linkish moff', '+ Off when…', () => { OFF_OPEN.add(offKey); x.setOpen('masks'); }));
+            } else {
+                const off = btn('linkish moff', '+ Off when…', () => { OFF_OPEN.add(offKey); x.setOpen('masks'); });
+                explainNode(off, 'nav.disclosure', { title: '+ Off when…' });
+                ml.append(off);
+            }
             box.append(ml);
         });
         box.append(btn('addb', '+ Mask', () => layer.askText({
@@ -491,14 +559,16 @@ function editorOf(key, x, update) {
             wrap.append(ch);
         });
         const addPack = name => update(cc => { cc.packs = addToList(Array.isArray(cc.packs) ? cc.packs : [], name); });
-        wrap.append(btn('addb', '+ add', () => layer.sheet('Add to pack', sh => {
-            for (const p of x.packs.filter(p => !list.includes(p))) sh.append(layer.opt(`#${p}`, () => { layer.close(); addPack(p); }, { icon: 'tag' }));
+        const addPackBtn = btn('addb', '+ add', () => layer.sheet('Add to pack', sh => {
+            for (const p of x.packs.filter(p => !list.includes(p))) sh.append(layer.opt(`#${p}`, () => { layer.close(); addPack(p); }, { icon: 'tag', explain: { key: 'blocked.command', title: `#${p}`, text: 'Adds this entry to the pack. Explain mode will not change the book.' } }));
             sh.append(layer.opt('New pack…', () => layer.askText({
                 title: 'New pack', placeholder: 'Pack name (town/inn for one inside another)', ok: 'Add',
                 check: v => (/^[A-Za-z0-9][A-Za-z0-9_.\-/]*$/.test(v.replace(/^#/, '')) ? null : 'Letters, numbers, - _ . and / only'),
                 done: v => addPack(v.replace(/^#/, '')),
-            }), { icon: 'plus' }));
-        })));
+            }), { icon: 'plus', explain: { key: 'blocked.command', title: 'New pack…', text: 'Makes a pack and adds this entry to it. Explain mode will not change the book.' } }));
+        }));
+        explainNode(addPackBtn, 'menu.addToPack', { title: 'Add to pack' });
+        wrap.append(addPackBtn);
         box.append(wrap);
     } else if (key === 'once') {
         box.append(el('p', 'phelp', `On. ${x.title} closes right after it fires.`));
@@ -542,7 +612,9 @@ function settingsRow(body, x, c, e, update, hasRules) {
     lab.append('Settings');
     tap.append(lab, el('span', 'pcs', settingsSummary(c, e)));
     tap.addEventListener('click', () => x.setOpen(open ? (hasRules ? null : 'settings-shut') : 'settings'));
+    explainNode(tap, 'inspector.settings', { title: 'Settings', text: `${open ? 'Closes' : 'Opens'} this entry's settings. Nothing is changed.` });
     ph.append(tap);
+    blockRegion(pc);
     pc.append(ph);
     if (open) { entrySettings(pc, x, c, update); stTiming(pc, x, e); }
     body.append(pc);
@@ -650,6 +722,7 @@ function renamable(h, value, save) {
     h.title = 'Click to rename';
     h.tabIndex = 0;
     h.setAttribute('role', 'button');
+    explainNode(h, 'inspector.rename', { title: value });
     const start = () => {
         if (h.isContentEditable) return;
         h.contentEditable = 'plaintext-only';
@@ -716,10 +789,14 @@ function rowsEditor(box, x, get, set, update, isGate, self = false) {
             firstShown = false;
             wrap.append(chip(ref, x, () => update(cc => { set(cc, removeFromRow(get(cc) ?? [], i, j)); })));
         });
-        wrap.append(btn('addb', '+ add', () => pick(i, 'Add to this row (AND)')));
+        const addIn = btn('addb', '+ add', () => pick(i, 'Add to this row (AND)'));
+        explainNode(addIn, 'menu.pieceTargets', { title: 'Add to this row' });
+        wrap.append(addIn);
         box.append(wrap);
     });
-    box.append(btn('addb', rows.length ? '+ Another row (OR)' : '+ add', () => pick(null, rows.length ? 'A new row (OR)' : 'Add')));
+    const addRow = btn('addb', rows.length ? '+ Another row (OR)' : '+ add', () => pick(null, rows.length ? 'A new row (OR)' : 'Add'));
+    explainNode(addRow, 'menu.pieceTargets', { title: rows.length ? 'Another row' : 'Add' });
+    box.append(addRow);
     if (isGate && shown > 1) box.append(el('p', 'phelp', 'Opens as soon as any row is complete.'));
     if (box.querySelector('.jw, .jand')) box.append(el('p', 'phelp', 'Tap AND or OR to switch it.'));
 }
@@ -740,12 +817,15 @@ export function renderGreetingInspector(box, x) {
     pre.type = 'button';
     pre.textContent = g.text || '(empty)';
     pre.addEventListener('click', () => layer.sheet(g.title, sh => { const p = el('div', 'gfull', g.full || '(empty)'); sh.append(p); }, { help: 'Read only. Greetings are edited on the character card.' }));
+    explainNode(pre, 'nav.open', { title: g.title, text: 'Shows this greeting in full, read-only. Nothing is changed.' });
     body.append(pre);
     if (g.changed) {
         const pr = el('div', 'prob iprob');
         pr.innerHTML = ic('alert', 's');
         pr.append(el('span', '', 'This greeting changed since it was linked, so its rules are paused.'));
-        pr.append(btn('linkish acc', 'Re-pick', () => { x.edit((ed, data) => repickGreeting(ed, data, g.ref, g.fp)); layer.toast(`${g.title} re-picked`); }));
+        const repick = btn('linkish acc', 'Re-pick', () => { x.edit((ed, data) => repickGreeting(ed, data, g.ref, g.fp)); layer.toast(`${g.title} re-picked`); });
+        explainNode(repick, 'inspector.repick', { title: 'Re-pick' });
+        pr.append(repick);
         body.append(pr);
     }
     for (const kind of ['gatesFor', 'closesFor']) {
@@ -754,27 +834,34 @@ export function renderGreetingInspector(box, x) {
         pc.dataset.piece = kind;
         pc.style.setProperty('--c', FAMILY_COLOR[p.family]);
         const ph = el('div', 'pch');
-        ph.append(el('b', '', p.label), btn('pq', ic('help'), () => layer.sheet(p.label, sh => sh.append(el('p', 'help', kind === 'gatesFor'
+        const q = btn('pq', ic('help'), () => layer.sheet(p.label, sh => sh.append(el('p', 'help', kind === 'gatesFor'
             ? 'These entries or packs open only in a chat that started with this greeting.'
-            : 'These entries or packs are closed in a chat that started with this greeting.'))), `What is ${p.label}?`));
+            : 'These entries or packs are closed in a chat that started with this greeting.'))), `What is ${p.label}?`);
+        explainNode(q, 'nav.open', { title: `What is ${p.label}?`, text: 'Opens a short explanation. Nothing is changed.' });
+        ph.append(el('b', '', p.label), q);
         pc.append(ph);
         const wrap = el('div', 'rowbox');
+        blockRegion(wrap);
         for (const t of rules[kind]) wrap.append(chip(t, x, () => x.edit(ed => setGreetingRule(ed, g.ref, kind, t, false)), true));
-        wrap.append(btn('addb', '+ add', () => pickTarget(layer, {
+        const add = btn('addb', '+ add', () => pickTarget(layer, {
             title: 'Add a target', entries: x.others, packs: x.packs, readings: false,
             done: make => x.edit(ed => { const t = make(ed); setGreetingRule(ed, g.ref, kind, t, true); }),
-        })));
+        }));
+        explainNode(add, 'menu.pieceTargets', { title: 'Add a target' });
+        wrap.append(add);
         pc.append(wrap);
         body.append(pc);
     }
     if (rules.usedBy.length) {
         body.append(el('div', 'lbl', 'Used by'));
-        for (const u of rules.usedBy) body.append(layer.opt(u.title, () => x.inspect(u.key), { dot: u.dot }));
+        for (const u of rules.usedBy) body.append(layer.opt(u.title, () => x.inspect(u.key), { dot: u.dot, explain: { key: 'nav.open', title: u.title, text: 'Opens this entry in the inspector. Nothing is changed.' } }));
     }
     body.append(el('p', 'phelp gnote', `${greetingName(g.ref.greeting)} of ${g.ref.name || g.ref.char}. A greeting counts as fired when the chat opened with it.`));
     if (x.takeOff) {
         const foot = el('div', 'ifoot');
-        foot.append(btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff));
+        const off = btn('linkish', html`${ic('x', 's')} Take off canvas`, x.takeOff);
+        explainNode(off, 'inspector.takeOff', { title: 'Take off canvas' });
+        foot.append(off);
         body.append(foot);
     }
 }

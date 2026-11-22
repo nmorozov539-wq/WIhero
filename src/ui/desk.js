@@ -790,11 +790,11 @@ export function deskNormal(A) {
     }
 
     /** Right-click or ⋯ on an entry row; with several selected, for all of them. */
-    function entryMenu(p, book, uid, at) {
+    function entryMenu(p, book, uid, at, onPage = false) {
         const many = p.select?.size > 1 && p.select.has(uid) ? [...p.select] : null;
         if (!many) {
             const below = () => { const e = library.peek(book)?.entries[uid]; if (e) newEntry(p, book, A.entryFolder(book, e), uid); };
-            A.entryMenu(book, uid, { desk: { at, openTab: () => openEntryTab(book, uid), afterDelete: () => deleteSome(p, book, [uid]), newBelow: below } });
+            A.entryMenu(book, uid, { onPage, desk: { at, openTab: () => openEntryTab(book, uid), afterDelete: () => deleteSome(p, book, [uid]), newBelow: below } });
             return;
         }
         layer.sheet(null, sh => bulkActions(sh, p, book, many, true), { at });
@@ -848,7 +848,7 @@ export function deskNormal(A) {
                 next: i >= 0 && i < order.length - 1 ? go(order[i + 1]) : null,
                 panel: narrow() ? () => { p.listOpen = true; A.render(); } : null,
             },
-            menu: () => entryMenu(p, book, p.sel),
+            menu: () => entryMenu(p, book, p.sel, undefined, true),
         });
     }
 

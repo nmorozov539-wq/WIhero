@@ -2,6 +2,7 @@
 // and the secondary condition, the read-only Story logic, Parameters, and Content. Saving is automatic.
 import { btn, html, el, scrollToTop, swEl } from './dom.js';
 import { ic } from './icons.js';
+import { blockRegion, explainNode } from './explain-meta.js';
 import {
     LOGIC, PARAMS, STRATEGY_HELP, filterChoices, paramChanged, STRATEGY_NAME, logicName, paramSummary, paramText, paramValue, setStrategy, strategyOf, tokenGuess,
 } from './data.js';
@@ -147,36 +148,54 @@ export function paramRow(p, text, changed, onTap) {
 export function renderEntryPage(main, o) {
     const { entry: e, layer, ui } = o;
     const D = o.desk ?? null;
+    // "Show on canvas" is only navigation when the card is already there; placing it is a saved layout change.
+    const onCanvasNow = o.onCanvas ?? D?.onCanvas ?? false;
+    const canvasExplain = { key: 'inspector.showOnCanvas', title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' };
     const v = el('div', 'view');
     main.append(v);
     if (D) {
         // Desktop: a thin line with the book and folder as a breadcrumb, then ∧ ∨ and ⋮ (LAYOUT "Book (two panes)").
         const top = el('div', 'en-line');
-        if (D.panel) { const b = btn('lbtn', ic('back', 's'), D.panel, 'Back to the entries'); b.title = 'Entries'; top.append(b); }
+        if (D.panel) { const b = btn('lbtn', ic('back', 's'), D.panel, 'Back to the entries'); b.title = 'Entries'; explainNode(b, 'shell.back', { title: 'Back to the entries' }); top.append(b); }
         const crumbs = el('div', 'crumbs');
         crumbs.insertAdjacentHTML('beforeend', ic('book', 's'));
         D.crumbs.forEach((c, i) => {
             if (i) crumbs.append(el('span', 'sl', '/'));
             const b = c.go ? btn('crumb', '', c.go) : el('span', 'crumb');
             b.textContent = c.label;
+            if (c.go) explainNode(b, 'nav.open', { title: c.label, text: `Goes to ${c.label}. Nothing is changed.` });
             crumbs.append(b);
         });
         top.append(crumbs);
         if (D.prev !== undefined) {
             const up = btn('lbtn', ic('up', 's'), D.prev, 'Previous entry (Alt ↑)');
             const dn = btn('lbtn', ic('down', 's'), D.next, 'Next entry (Alt ↓)');
+            explainNode(up, 'nav.open', { title: 'Previous entry', text: 'Opens the entry before this one. Nothing is changed.' });
+            explainNode(dn, 'nav.open', { title: 'Next entry', text: 'Opens the entry after this one. Nothing is changed.' });
             up.disabled = !D.prev;
             dn.disabled = !D.next;
             top.append(up, dn);
         }
-        if (D.showOnCanvas) top.append(btn('linkish', 'Show on canvas ›', D.showOnCanvas));
-        top.append(btn('lbtn', ic('more', 's'), o.menu, 'Entry actions'));
+        if (D.showOnCanvas) {
+            const show = btn('linkish', 'Show on canvas ›', D.showOnCanvas);
+            explainNode(show, 'inspector.showOnCanvas', { title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' });
+            top.append(show);
+        }
+        const more = btn('lbtn', ic('more', 's'), o.menu, 'Entry actions');
+        explainNode(more, 'shell.entryMenu', { title: 'Entry actions' });
+        top.append(more);
         v.append(top);
     } else {
         const top = el('div', 'en-top');
-        top.append(btn('round', ic('back'), o.up, o.hero ? 'Close the entry tab' : 'Up to the book'), el('div', 'sp'));
+        const up = btn('round', ic('back'), o.up, o.hero ? 'Close the entry tab' : 'Up to the book');
+        explainNode(up, 'shell.back', { title: o.hero ? 'Close the entry tab' : 'Up to the book' });
+        top.append(up, el('div', 'sp'));
         const pill = el('div', 'pill');
-        pill.append(btn('round', ic('drawer'), o.drawer, 'Entries in this book'), btn('round', ic('more'), o.menu, 'Entry actions'));
+        const drawer = btn('round', ic('drawer'), o.drawer, 'Entries in this book');
+        explainNode(drawer, 'shell.drawer', { title: 'Entries in this book' });
+        const menu = btn('round', ic('more'), o.menu, 'Entry actions');
+        explainNode(menu, 'shell.entryMenu', { title: 'Entry actions' });
+        pill.append(drawer, menu);
         top.append(pill);
         v.append(top);
     }
@@ -188,6 +207,7 @@ export function renderEntryPage(main, o) {
     h1.contentEditable = 'true';
     h1.spellcheck = false;
     h1.setAttribute('aria-label', 'Entry name');
+    explainNode(h1, 'inspector.rename', { title: e.comment || 'Entry name', text: 'Renames this entry. Explain mode will not type or save a name.' });
     h1.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); h1.blur(); } });
     h1.addEventListener('input', () => o.change(x => { x.comment = h1.textContent.trim(); }, true));
     h1.addEventListener('blur', () => { h1.textContent = e.comment ?? ''; o.retitle(); });
@@ -195,6 +215,7 @@ export function renderEntryPage(main, o) {
 
     if (!D) {
         const bl = btn('bookline', html`${ic('book', 's')}<span></span>`, o.up, 'Up to the book');
+        explainNode(bl, 'shell.bookline');
         bl.querySelector('span').textContent = o.bookName + (o.folder ? ` · ${o.folder}` : '');
         en.append(bl);
     }
@@ -207,6 +228,7 @@ export function renderEntryPage(main, o) {
     story.hidden = !n && !inc.length; // nothing to say: no chip
     story.innerHTML = ic('canvas', 's');
     story.append(el('span', '', n ? storyHeadline(o.lines) : `Pointed at by ${inc.length === 1 ? inc[0] : `${inc.length} entries`}`));
+    explainNode(story, D && n ? 'nav.disclosure' : 'inspector.showOnCanvas', D && n ? { title: 'Story logic', text: 'Shows the Story logic section. Nothing is changed.' } : canvasExplain);
     story.title = inc.length ? `Pointed at by: ${inc.join(', ')}` : '';
     story.addEventListener('click', () => {
         if (D && n) {
@@ -239,13 +261,15 @@ export function renderEntryPage(main, o) {
     const th = el('button', 'thin');
     th.type = 'button';
     th.append(sdot(e), el('span', '', 'Strategy:'), el('b', '', STRATEGY_NAME[e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys']), el('span', 'car', '▾'));
+    explainNode(th, 'nav.open', { title: 'Strategy', text: 'Opens the strategy choices. Explain mode blocks picking one.' });
     th.addEventListener('click', () => layer.sheet('Strategy', sh => {
         const cur = e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys';
         for (const k of ['keys', 'perm', 'vec']) {
-            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k] }));
+            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k], explain: { key: 'blocked.setting', title: STRATEGY_NAME[k], text: 'Changes how this entry fires. Explain mode leaves it as it is.' } }));
         }
     }));
-    sr.append(th, swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on'));
+    const onOff = swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on', { key: 'blocked.setting', title: 'Entry on', text: 'Turns this entry on or off. Explain mode leaves it as it is.' });
+    sr.append(th, onOff);
     en.append(sr);
 
     if (!e.constant) {
@@ -256,9 +280,10 @@ export function renderEntryPage(main, o) {
             const lt = el('button', 'thin');
             lt.type = 'button';
             lt.append(el('b', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
+            explainNode(lt, 'nav.open', { title: 'Condition', text: 'Opens the condition choices. Explain mode blocks changing them.' });
             lt.addEventListener('click', () => layer.sheet('Condition', sh => {
-                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash' }));
+                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k, explain: { key: 'blocked.setting', title: t, text: 'Changes how the two key word sets combine. Explain mode leaves it as it is.' } }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash', explain: { key: 'blocked.command', title: 'Remove condition', text: 'Removes the second key words. Explain mode will not change the entry.' } }));
             }));
             cl.append(lt);
             en.append(cl, keyBox(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
@@ -272,6 +297,7 @@ export function renderEntryPage(main, o) {
                 o.redraw();
                 setTimeout(() => main.querySelectorAll('.kbox')[1]?.click(), 0);
             });
+            explainNode(ac, 'blocked.command', { title: 'Add condition', text: 'Adds a second set of key words. Explain mode will not change the entry.' });
             // Pressing it would blur a focused key word box, whose commit redraws the page under the press, and the
             // click then lands on nothing. Keep the focus until the click, which lets it go itself.
             ac.addEventListener('mousedown', e => e.preventDefault());
@@ -291,7 +317,10 @@ export function renderEntryPage(main, o) {
         d.innerHTML = `${ic('right', 'chev')}<h2>Story logic</h2>`;
         if (!open) d.append(el('span', 'sum', logicSummary(o.lines)));
         if (o.hero) d.classList.add('fixed');
-        else d.addEventListener('click', () => { ui.logic = !ui.logic; o.redraw(); });
+        else {
+            explainNode(d, 'nav.disclosure', { title: 'Story logic', text: 'Shows or hides the story logic here. Nothing is changed.' });
+            d.addEventListener('click', () => { ui.logic = !ui.logic; o.redraw(); });
+        }
         en.append(d);
         if (open) {
             const box = el('div', 'logic');
@@ -307,12 +336,18 @@ export function renderEntryPage(main, o) {
             if (o.closed) {
                 const r = el('div', 'closedline');
                 r.append(el('span', '', 'Closed in this chat by '), el('em', '', o.closed.by));
-                r.append(btn('linkish acc', 'Reopen', o.closed.reopen));
+                const reopen = btn('linkish acc', 'Reopen', o.closed.reopen);
+                explainNode(reopen, 'inspector.reopen', { title: 'Reopen' });
+                r.append(reopen);
                 box.append(r);
             }
             const links = el('div', 'links');
             if (o.hero) {
-                links.append(btn('linkish', html`${ic('canvas', 's')} Show on canvas`, o.showOnCanvas), btn('linkish', html`${ic('code', 's')} Data`, o.data));
+                const show = btn('linkish', html`${ic('canvas', 's')} Show on canvas`, o.showOnCanvas);
+                explainNode(show, 'inspector.showOnCanvas', { title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' });
+                const data = btn('linkish', html`${ic('code', 's')} Data`, o.data);
+                explainNode(data, 'inspector.data', { title: 'Data' });
+                links.append(show, data);
             } else {
                 links.append(btn('linkish', D ? 'Edit in Hero mode ›' : 'Open in Hero mode ›', o.openInHero));
             }
@@ -328,19 +363,25 @@ export function renderEntryPage(main, o) {
     pd.type = 'button';
     pd.innerHTML = `${ic('right', 'chev')}<h2>Parameters</h2>`;
     pd.append(el('span', 'sum', paramSummary(e)));
+    explainNode(pd, 'nav.disclosure', { title: 'Parameters', text: 'Shows or hides this entry\'s parameters. Nothing is changed.' });
     pd.addEventListener('click', () => { ui.params = !ui.params; o.redraw(); });
     en.append(pd);
     // Story pieces on this entry: Probability, Sticky, Cooldown and Delay get a warning line when set.
     const pieced = !!o.lines?.length;
-    if (ui.params && D) en.append(paramGrid(e, (p, x) => o.setParam(p, x), { layer, note: p => storyParamNote(e, p, pieced) }));
-    else if (ui.params) {
+    if (ui.params && D) {
+        const grid = paramGrid(e, (p, x) => o.setParam(p, x), { layer, note: p => storyParamNote(e, p, pieced) });
+        blockRegion(grid);
+        en.append(grid);
+    } else if (ui.params) {
         for (const [group, list] of PARAMS) {
             en.append(el('div', 'plbl', group));
             for (const p of list) {
                 if (p.when && !p.when(e)) continue;
                 const value = paramValue(e, p);
                 const changed = paramChanged(e, p);
-                en.append(paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x))));
+                const row = paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x)));
+                explainNode(row, 'blocked.setting', { title: p.label, text: `Changes ${p.label}. Explain mode leaves it as it is.` });
+                en.append(row);
                 const note = storyParamNote(e, p, pieced);
                 if (note) en.append(el('p', 'pnote', note));
             }
@@ -353,12 +394,18 @@ export function renderEntryPage(main, o) {
     const text0 = version ? version.content : (e.content ?? '');
     const ch = el('div', 'content-h');
     const tk = el('small', '', `${tokenGuess(text0)} tokens`);
-    ch.append(el('h2', '', 'Content'), tk);
+    // Copies the text shown (the mask's version when one is picked); it replaced the ⋮ menu's Copy as text here.
+    const cp = btn('ccopy', html`${ic('copy', 's')}`, async () => {
+        try { await navigator.clipboard.writeText(en.querySelector('textarea[aria-label="Content"]')?.value ?? text0); o.layer.toast('Content copied'); } catch { o.layer.toast('Couldn\'t copy'); }
+    }, 'Copy content');
+    explainNode(cp, 'blocked.clipboard', { title: 'Copy content', text: 'Copies this text. Explain mode will not use the clipboard.' });
+    ch.append(el('h2', '', 'Content'), tk, cp);
     en.append(ch);
     if (masks.length) {
         const row = el('div', 'mchips');
         for (const m of [{ name: null, label: 'Main' }, ...masks.map(x => ({ name: x.name, label: x.name }))]) {
             const b = btn(`mchip${(version?.name ?? null) === m.name ? ' on' : ''}`, '', () => o.setMask(m.name), m.name ? `Mask ${m.label}` : 'Main text');
+            explainNode(b, 'blocked.setting', { title: m.name ? `Mask ${m.label}` : 'Main text', text: 'Shows another version of this text. Explain mode leaves the display as it is.' });
             b.append(el('span', '', m.label));
             if ((o.activeMask ?? null) === m.name && o.chatOpen) { const dot = el('i', 'mdot'); dot.title = 'Active in the open chat'; b.append(dot); }
             row.append(b);
@@ -382,13 +429,15 @@ export function renderEntryPage(main, o) {
     }
     const count = text => o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
     let countTimer = null;
-    en.append(autoText(text0, 'Type here', text => {
+    const content = autoText(text0, 'Type here', text => {
         if (version) o.changeMask(version.name, text);
         else o.change(x => { x.content = text; }, true);
         tk.textContent = `${tokenGuess(text)} tokens`;
         clearTimeout(countTimer);
         countTimer = setTimeout(() => count(text), 500);
-    }));
+    });
+    explainNode(content, 'blocked.input', { title: version ? `Mask ${version.name}` : 'Content', text: 'Explain mode does not type into the entry.' });
+    en.append(content);
     count(text0);
     if (!o.hero) storyLogic();
 
@@ -436,6 +485,7 @@ function keyBox(list, placeholder, done, clash) {
     box.tabIndex = 0;
     box.setAttribute('role', 'button');
     box.setAttribute('aria-label', placeholder);
+    explainNode(box, 'blocked.input', { title: placeholder, text: 'Explain mode does not edit key words.' });
     if (list.length) for (const k of list) box.append(markClash(el('span', 'kchip', k), k, clash));
     else box.append(el('span', 'ph', placeholder));
     const edit = () => {
@@ -472,13 +522,15 @@ function deskFields(en, o, main) {
     st.type = 'button';
     st.append(sdot(e), el('b', '', STRATEGY_NAME[cur]), el('span', 'car', '▾'));
     st.setAttribute('aria-label', `Strategy: ${STRATEGY_NAME[cur]}`);
+    explainNode(st, 'nav.open', { title: 'Strategy', text: 'Opens the strategy choices. Explain mode blocks picking one.' });
     st.addEventListener('click', () => layer.sheet(null, sh => {
         for (const k of ['keys', 'perm', 'vec']) {
-            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k] }));
+            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k], explain: { key: 'blocked.setting', title: STRATEGY_NAME[k], text: 'Changes how this entry fires. Explain mode leaves it as it is.' } }));
         }
     }, { at: st }));
     const sv = el('div', 'fval');
-    sv.append(st, el('span', 'sp'), swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on'));
+    const onOff = swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on', { key: 'blocked.setting', title: 'Entry on', text: 'Turns this entry on or off. Explain mode leaves it as it is.' });
+    sv.append(st, el('span', 'sp'), onOff);
     g.append(lab('Strategy'), sv);
     if (!e.constant) {
         g.append(lab('Keywords'), keyChips(e.key ?? [], 'Type a key word, then Enter', list => o.change(x => { x.key = list; }), o.clash), clashNote(e.key, o.clash));
@@ -487,9 +539,10 @@ function deskFields(en, o, main) {
             const lt = el('button', 'fmenu flab');
             lt.type = 'button';
             lt.append(el('span', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
+            explainNode(lt, 'nav.open', { title: 'Condition', text: 'Opens the condition choices. Explain mode blocks changing them.' });
             lt.addEventListener('click', () => layer.sheet(null, sh => {
-                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash' }));
+                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k, explain: { key: 'blocked.setting', title: t, text: 'Changes how the two key word sets combine. Explain mode leaves it as it is.' } }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash', explain: { key: 'blocked.command', title: 'Remove condition', text: 'Removes the second key words. Explain mode will not change the entry.' } }));
             }, { at: lt }));
             g.append(lt, keyChips(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
         } else {
@@ -502,6 +555,7 @@ function deskFields(en, o, main) {
                 o.redraw();
                 setTimeout(() => main.querySelectorAll('.kchips input')[1]?.focus(), 0);
             });
+            explainNode(ac, 'blocked.command', { title: 'Add condition', text: 'Adds a second set of key words. Explain mode will not change the entry.' });
             // Pressing it would blur a focused key word box, whose commit redraws the page under the press, and the
             // click then lands on nothing. Keep the focus until the click, which lets it go itself.
             ac.addEventListener('mousedown', e => e.preventDefault());
@@ -522,6 +576,7 @@ export function keyChips(list, placeholder, done, clash) {
     const input = el('input', 'kin2');
     input.placeholder = words.length ? '' : placeholder;
     input.setAttribute('aria-label', placeholder);
+    explainNode(input, 'blocked.input', { title: placeholder, text: 'Explain mode does not edit key words.' });
     const commit = next => { words = next; done([...words]); draw(); };
     const add = text => {
         const fresh = String(text).split(',').map(x => x.trim()).filter(Boolean).filter(x => !words.includes(x));
@@ -533,6 +588,7 @@ export function keyChips(list, placeholder, done, clash) {
             const c = el('span', 'kchip');
             c.append(el('span', '', w));
             const x = btn('kx', ic('x', 's'), ev => { ev.stopPropagation(); commit(words.filter((_, j) => j !== i)); }, `Remove ${w}`);
+            explainNode(x, 'blocked.command', { title: `Remove ${w}`, text: 'Removes this key word. Explain mode will not change the entry.' });
             c.append(x);
             markClash(c, w, clash);
             c.addEventListener('dblclick', () => { commit(words.filter((_, j) => j !== i)); input.value = w; input.focus(); });

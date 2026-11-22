@@ -251,18 +251,49 @@ shorter or older.
 
 ## 17. Explain mode (D31)
 
-- Capture-phase listeners on WI Hero's root (in `src/ui/explain.js`): one for
-  `click`, and one for each press event (`pointerdown`, `pointerup`,
-  `mousedown`, `touchstart`, `dblclick`, `contextmenu`). While explain mode is
-  on in Hero mode they stop the event, so no element's own handler runs. The
-  banner is the exception, so its Cancel still works.
-- The click's target is mapped to a Guide anchor by selector: piece chips by
-  `data-piece`, lines and pills by `data-kind`, ports through the canvas's
-  `PORT` table, and fixed controls (Fit, Tidy, the strip, the inspector) by
-  class or aria-label (`explainAnchor`). A tap on something that maps to
-  nothing shows a toast, and the mode stays on.
-- Back and Escape cancel; one successful tap ends it (AFTER_V1 has making it
-  stay on as a setting).
+- Explain mode is navigation only. Ordinary interactive controls carry explicit
+  metadata from `src/ui/explain-meta.js`: `explainNode(node, key, extra)` marks
+  it with `data-xkey`, and `EXPLAIN` supplies the default sentence and the one
+  classification, `navigate` (`'native'`, `'guide'`, or false). `extra` names
+  the control, gives its own sentence or Guide anchor, or allows a long press.
+  `blockRegion(node)` marks an editor: controls inside it are blocked and
+  explained generically unless they carry their own descriptor. `layer.opt`
+  accepts `explain` for sheet rows.
+- `canonicalTarget` walks from the press to the nearest marked node, canvas
+  concept, or interactive control. An unmarked nested button is its own
+  canonical control, so it can never inherit a navigational row's permission.
+  Canvas concepts still use the selector mapping (`explainAnchor`/`explainTip`,
+  `TIPS`) and keep their named one-liners.
+- Capture-phase listeners on WI Hero's root stop press and click events while
+  explain mode is on in Hero mode; the canvas keeps its presses only to pan.
+  `activationStep` is the tested contract: the first activation arms the
+  canonical control and shows its tooltip; a second activation follows a
+  `'native'` target by letting exactly one gesture and one click through, opens
+  a `'guide'` target's Guide page, and keeps a blocked target blocked. A
+  different target replaces the arm; a detached target cannot navigate.
+- A disabled form control receives no pointer events from the browser: the
+  handler asks the shadow root's `elementFromPoint` for what is drawn there,
+  explains it, and forces `navigate: false`.
+- The app's global key handler has an Explain-mode boundary before undo/redo and
+  `heroKey`: only `?` is handled (it ends Explain); mutating shortcuts such as
+  Ctrl+D, Ctrl+Z/Y, Tidy, Delete and the piece/shape keys are prevented. Other
+  keys keep their browser behavior, including scrolling.
+- `Show on canvas` is navigation only for a card already on the canvas. The
+  inspector's `onCanvas(book, key)` predicate drives each row's Explain
+  descriptor, and `showOnCanvas` itself refuses to place while Explain is on,
+  so no call site can save a placement behind a tooltip.
+- Opening, closing or redrawing a layer clears the old arm and schedules the
+  marks again (one `MutationObserver` and `requestAnimationFrame`, no polling).
+  The tooltip and banner sit above the layer. The banner is pointer-transparent
+  except for Done, so it cannot hide sheet rows.
+- Desktop hover shows the tooltip after a short delay and never arms. The first
+  click arms even when hover already showed a tip; the second follows. Escape
+  ends explain mode without closing WI Hero; Back closes one navigation layer
+  and keeps explain mode on until the canvas root. Opening the Guide ends it.
+- Focused coverage: `test/explain-meta.test.js` (canonical resolution, first and
+  second activation, blocked and detached targets, editor regions) and
+  `e2e/explain.mjs` (phone and desktop traversal, mutation sentinels, guided
+  long press).
 
 ## Persistence and mobile editing fixes (2026-11-12)
 

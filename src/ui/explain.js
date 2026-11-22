@@ -1,7 +1,12 @@
 // The Guide tab and explain mode in Hero mode (LAYOUT "Guide", "Explain mode"). Moved out of app.js: it reaches the
 // rest of the app only through the context passed to createExplain.
+//
+// Explain mode is navigation only. Every ordinary control carries explicit metadata: a key into EXPLAIN (its default
+// sentence and whether following it is navigation) and, where the sentence needs this control's own names or value, an
+// override supplied where the control is made. Nothing is classified from its label or from whether it has a handler.
 import { PORT } from './canvas-graph.js';
-import { PIECE_ANCHOR } from './guide.js';
+import { activationStep, canonicalTarget, describeNode, isConcept, nodeLabel, EXPLAIN } from './explain-meta.js';
+import { PIECE_ANCHOR, pageOf } from './guide.js';
 import { renderGuide } from './guide-page.js';
 
 /** The book the Guide's "Show me" opens. */
@@ -31,10 +36,15 @@ export function explainAnchor(t, H) {
     if (at('.mnav, .layercard')) return 'mask';
     if (at('.card.moment')) return 'moment';
     if (at('.card.greet')) return 'greeting';
+    if (at('.card .badge1')) return t.closest('.badge1').textContent === '1×' ? 'once' : 'closes';
+    if (at('.card .cbang')) return 'checks';
+    if (at('.card .sticky')) return null; // a sticky note: a tooltip only
     if (at('.card')) return 'canvas';
+    if (at('.tabs .tab, .tabrow .tab, button.tab')) return 'tabs';
+    if (at('.zlabel')) return 'fit';
     const b = at('button');
     const label = b?.getAttribute('aria-label') ?? '';
-    if (/^Fit/.test(label)) return 'fit';
+    if (/^(Fit|Zoom)/.test(label)) return 'fit';
     if (/^Tidy/.test(label)) return 'tidy';
     if (at('.checkchip')) return 'checks';
     if (at('.histbtns')) return 'undo';
@@ -44,45 +54,350 @@ export function explainAnchor(t, H) {
     return null;
 }
 
+/** A card's name on the canvas, or a pack's (#name), for a tooltip. */
+function nameIn(root, key) {
+    if (!key) return 'it';
+    if (key.startsWith('pack:')) return `#${key.slice(5)}`;
+    const c = root?.querySelector?.(`.card[data-id="${CSS.escape(key)}"] .t`);
+    return c?.textContent || 'the entry';
+}
+
+/**
+ * Explain mode's one-liners: what a thing does, in a sentence, as a concept (the Guide's page has the rules). A
+ * function takes the names this very thing joins, so a line says "keeps Mill shut until Road has fired".
+ */
+export const TIPS = {
+    opens: (a = 'the one before it', b = 'an entry') => `Keeps ${b} shut until ${a} has fired.`,
+    closes: (a = 'another entry', b = 'an entry') => `Shuts ${b} for good once ${a} fires.`,
+    glue: (a, b) => (a ? `Sends ${b} every time ${a} fires, key words or not.` : 'Keeps an entry going whether or not its key words match.'),
+    switch: () => 'A fork: the first path to fire shuts all the others.',
+    mask: () => 'Swaps in another version of the entry\'s text while its condition holds.',
+    tracker: () => 'A value the model writes in its replies; the newest one is what gets sent.',
+    pack: name => (name ? `Groups entries, so one rule on ${name} covers every entry in it.` : 'Groups entries, so one rule covers them all.'),
+    lock: phrase => (phrase ? `Holds its row until someone says "${phrase}" in the chat.` : 'Holds its row until a phrase is said in the chat.'),
+    wait: n => (n ? `Holds its row until ${n} more ${n === 1 ? 'message has' : 'messages have'} passed.` : 'Holds its row until a number of messages have passed.'),
+    moment: () => 'An event marked by a phrase in the chat. It sends nothing; entries wait on it or close on it.',
+    once: () => 'Fires a single time, then shuts itself.',
+    by: () => 'Limits whose messages can set off the key words: yours, the character\'s, or both.',
+    greeting: () => 'Starts a scenario when the chat opens on that greeting.',
+    canvas: () => 'An entry: SillyTavern sends its text when one of its key words comes up.',
+    fit: () => 'Brings every card into view.',
+    tidy: () => 'Lays every card out again from its links. Undo puts it back.',
+    undo: () => 'Steps back through your changes to this book.',
+    checks: () => 'Counts what can never fire: entries, rows and masks the rules leave shut.',
+    tabs: () => 'Anything you open gets a tab of its own; closing one loses nothing.',
+    panel: () => 'Every entry in the book. Drag a dot onto the canvas to place it.',
+    strip: () => 'Sets up the piece you are adding. Done keeps it, Cancel puts the book back.',
+    inspector: () => 'One entry\'s story logic, a row per piece.',
+    highlights: () => 'The words in the pretend exchange that set something off.',
+    also: () => 'What goes in without a word pointing at it: permanent entries, glue, earlier matches.',
+};
+
+/**
+ * What explain mode says about the element tapped: { anchor, title, text } for its one-line tooltip, or null when
+ * there is nothing to say (then it isn't explainable at all: no outline, a tap does nothing). The title names the
+ * piece; the text says what it does, with this thing's own names where the page shows them. `anchor` is where a long
+ * press opens the Guide; null for a tooltip only.
+ * @param {Element} t
+ * @param {object} H
+ * @param {ParentNode} [root] Where to look up card names.
+ */
+export function explainTip(t, H, root = null) {
+    const anchor = explainAnchor(t, H);
+    const at = sel => t.closest?.(sel);
+    const page = anchor ? pageOf(anchor) : null;
+    const tip = (title, text) => ({ anchor, title, text });
+    const say = (...a) => tip(page?.title ?? '', (TIPS[anchor] ?? (() => page?.line ?? ''))(...a));
+    const line = at('.lhit');
+    if (line?.dataset?.ends && TIPS[anchor]) {
+        const [a, b] = line.dataset.ends.split('>').map(k => nameIn(root, k));
+        return say(a, b);
+    }
+    const pill = at('.lockp');
+    if (pill) {
+        const what = pill.textContent.trim();
+        return pill.dataset.kind === 'wait' ? say(parseInt(what, 10) || null) : say(what || null);
+    }
+    const j = at('.junc');
+    if (j) return j.textContent.trim() === 'or'
+        ? tip('or', 'Any one of the rows joined here is enough to open it.')
+        : tip('and', 'Every link joined here has to have fired before it opens.');
+    const port = at('[data-port]');
+    if (port && page) {
+        const [key, kind] = port.dataset.port.split('|');
+        const name = nameIn(root, key);
+        const out = PORT[kind]?.dir === 'out';
+        const fam = PORT[kind]?.family;
+        const text = fam === 'open' ? (out ? `Way out: what ${name} opens starts here.` : `Way in: links arriving here keep ${name} shut until they fire.`)
+            : fam === 'close' ? (out ? `Way out: what ${name} closes starts here.` : `Way in: links arriving here shut ${name} for good.`)
+            : (out ? `Way out: entries glued to ${name} start here.` : `Way in: ${name} rides along with what arrives here.`);
+        return tip(page.title, text);
+    }
+    const pf = at('.packframe');
+    if (pf?.dataset?.pack) return say(`#${pf.dataset.pack}`);
+    const badge = at('.card .badge1');
+    if (badge) return badge.textContent === '1×' ? say() : tip('Closes', `Shuts this entry ${badge.textContent.slice(1)} messages after it first fires.`);
+    if (at('.card .fired')) return tip(`Fired ${at('.card .fired').textContent}`, 'How many times it has fired in the open chat.');
+    if (at('.card .cbang')) return tip('Problem', 'Something about this entry is off; the dead branches chip lists it.');
+    if (at('.card .sticky')) return tip('Sticky note', 'Your own note on the card, never sent to the model.');
+    if (at('[data-grip]')) return tip('Grip', 'Drag it to move the card.');
+    const card = at('.card[data-id]');
+    if (card && !card.classList.contains('moment')) {
+        const name = card.querySelector?.('.t')?.textContent || 'Entry';
+        const k = card.querySelector?.('.k')?.textContent?.trim() ?? '';
+        if (card.classList.contains('closed')) return tip(name, `${k.replace(/^CLOSED · by/, 'Closed by')}: it won't fire again on this branch of the chat.`);
+        if (k === 'permanent') return tip(name, 'Permanent: sent every time, no key words needed. Rules can still shut it.');
+        if (k.startsWith('mask: ')) return tip(name, `Its mask "${k.slice(6)}" is on: that version of the text is the one sent.`);
+        return tip(name, TIPS.canvas());
+    }
+    if (card) return tip(card.querySelector?.('.t')?.textContent || 'Moment', TIPS.moment());
+    const b = at('button');
+    const label = b?.getAttribute?.('aria-label') ?? '';
+    if (anchor === 'fit' && /^Zoom (in|out)/.test(label)) return tip(label, 'Two fingers or the mouse wheel zoom too.');
+    if (at('.zlabel')) return tip('Zoom', 'How big the canvas is drawn. Tap to go back to 100%.');
+    if (anchor === 'undo' && label) return tip(label.replace(/ \(.*\)$/, ''), label.startsWith('Redo') ? 'Steps forward again through what you undid.' : TIPS.undo());
+    if (anchor === 'tabs') {
+        const tb = at('.tab');
+        const name = tb?.getAttribute?.('aria-label') || tb?.textContent?.trim() || 'Tab';
+        const what = { Canvas: 'The book\'s entries as cards, and the rules between them as lines.', Preview: 'A pretend exchange: what would fire, and why.', Guide: 'How each piece works, in depth.' }[name];
+        return tip(name, what ?? 'An entry opened in a tab of its own.');
+    }
+    if (!page) return null;
+    return say();
+}
+
 /**
  * @param {object} A { S, H, root, layer, library, render, showMe(key) }: the app's state, its root element, the
  *   overlay layer, the library, a redraw, and "Show me" (open the Sample book's card `key` on the canvas).
  */
 export function createExplain({ S, H, root, layer, library, render, showMe }) {
+    /** The tooltip on screen, and the control it describes, or null. */
+    let tipEl = null;
+    let tipTarget = null;
+    function hideTip() { tipEl?.remove(); tipEl = null; tipTarget = null; }
+    /** The one control armed by a first activation, or null. Transient: never saved. */
+    let armed = null;
+    /** The canonical control allowed through the current gesture (second activation of a navigational target). */
+    let bypass = null;
+
+    const active = () => !!H.explain && S.mode === 'hero';
+    function clearArmed() { armed = null; bypass = null; }
+    function endExplainState() { clearArmed(); hideTip(); hovered = null; clearTimeout(hoverTimer); }
+
     /** Opens the Guide tab at an anchor (a piece's page, or a topic). */
     function openGuide(anchor) {
+        endExplainState();
         H.explain = false;
         H.guide = { anchor };
         H.active = 'guide';
         H.panel = false;
         render();
     }
-    /** Explain mode: for one tap, everything explainable is outlined and a tap opens the Guide there. */
+    /** Explain mode: everything explainable is outlined; a tap shows a tooltip, a second follows it if that is safe. */
     function startExplain() {
+        endExplainState();
         H.explain = true;
         H.bar.armed = null;
         render();
     }
-    function stopExplain() { H.explain = false; render(); }
+    function stopExplain() { endExplainState(); H.explain = false; render(); }
 
-    // In explain mode a press anywhere in WI Hero is caught before the element's own handlers: it never acts.
+    /** The descriptor for a control: explicit metadata first, then the canvas concepts' older selector mapping. */
+    function describeFor(node) {
+        const own = describeNode(node);
+        const blocked = !!node?.disabled || node?.getAttribute?.('disabled') != null;
+        if (own) return blocked ? { ...own, navigate: false, long: false } : own;
+        // Canvas concepts still use the selector catalogue (explainTip): their names and values live in the DOM.
+        if (isConcept(node)) {
+            const tip = explainTip(node, H, root);
+            if (!tip) return null;
+            if (node.closest?.('[data-flip]')) return { key: 'canvas.maskFlip', title: 'Layer arrows', ...EXPLAIN['canvas.maskFlip'], navigate: false, guide: 'mask', long: false };
+            const guide = tip.anchor ?? null;
+            return {
+                key: `concept:${guide ?? 'tip'}`,
+                title: tip.title || nodeLabel(node),
+                text: tip.text,
+                navigate: blocked ? false : guide ? 'guide' : false,
+                guide,
+                long: blocked ? false : !!guide,
+            };
+        }
+        return null;
+    }
+
+    /**
+     * What is under the pointer. A disabled form control does not receive pointer events (the browser sends them to
+     * its parent), but it can still be explained: the browser knows what is drawn there.
+     */
+    function pointed(e) {
+        const sr = root.getRootNode?.();
+        const el = sr?.elementFromPoint?.(e.clientX, e.clientY);
+        if (el && root.contains?.(el)) return el;
+        return e.composedPath()[0];
+    }
+
+    /** The tooltip for `desc` about `target`: above it when there is room, else below; kept inside WI Hero. */
+    function showTip(target, desc, { more = true, at = null } = {}) {
+        hideTip();
+        const box = document.createElement('div');
+        box.className = 'explaintip';
+        box.setAttribute('role', 'tooltip');
+        const p = document.createElement('p');
+        const h = document.createElement('b');
+        h.textContent = desc.title;
+        p.append(h, ` ${desc.text}`);
+        box.append(p);
+        if (desc.guide && more) {
+            const m = document.createElement('button');
+            m.type = 'button';
+            m.className = 'linkish acc';
+            m.textContent = 'More in the Guide ›';
+            m.addEventListener('click', () => openGuide(desc.guide));
+            box.append(m);
+        }
+        root.append(box);
+        tipEl = box;
+        tipTarget = target;
+        const R = root.getBoundingClientRect();
+        const r = target.getBoundingClientRect();
+        const w = box.offsetWidth;
+        const hgt = box.offsetHeight;
+        const point = at && Number.isFinite(at.x) && Number.isFinite(at.y);
+        const centre = point ? at.x - R.left : r.left - R.left + r.width / 2;
+        const x = Math.min(Math.max(8, centre - w / 2), R.width - w - 8);
+        const above = (point ? at.y - R.top : r.top - R.top) - hgt - 10;
+        const y = above >= 8 ? above : Math.min((point ? at.y - R.top : r.bottom - R.top) + 10, R.height - hgt - 8);
+        Object.assign(box.style, { left: `${x}px`, top: `${y}px` });
+    }
+
+    /** Marks what can be explained (.xok) and what can't (.xno), once a draw in explain mode has settled. */
+    function mark() {
+        for (const n of root.querySelectorAll('.xok, .xno')) n.classList.remove('xok', 'xno');
+        if (!active()) return;
+        for (const n of root.querySelectorAll(MARKABLE)) {
+            if (n.closest('.explainban, .explaintip, .explainq')) continue;
+            // Only a canonical control is outlined; a label or icon inside one is not a second target.
+            if (canonicalTarget(n) !== n) continue;
+            const ok = !!describeFor(n);
+            n.classList.toggle('xok', ok);
+            n.classList.toggle('xno', !ok);
+        }
+    }
+
+    // In explain mode a press anywhere in WI Hero is caught before the element's own handlers: it never acts. The
+    // canvas still gets its presses, but only to move the view (it knows explain mode is on), so you can look around.
+    const exempt = path => path.some(n => n.classList?.contains('explainban') || n.classList?.contains('explaintip') || n.classList?.contains('explainq'));
+    const onCanvas = path => path.some(n => n.classList?.contains('vp')) && !path.some(n => n.classList?.contains('canvas-tools') || n.classList?.contains('zlabel') || n.classList?.contains('histbtns') || n.classList?.contains('checkchip') || n.classList?.contains('explainq') || n.classList?.contains('panelBtn'));
+    let press = null; // { x, y, target, timer, long, mouse }
+    const LONG = 500;
     for (const type of ['pointerdown', 'pointerup', 'mousedown', 'touchstart', 'dblclick', 'contextmenu']) {
         root.addEventListener(type, e => {
-            if (!H.explain || S.mode !== 'hero' || e.composedPath().some(n => n.classList?.contains('explainban'))) return;
+            if (!active()) return;
+            const path = e.composedPath();
+            if (exempt(path)) return;
+            if (type === 'pointerdown') {
+                const t = pointed(e);
+                const node = t instanceof Element ? canonicalTarget(t) : null;
+                const desc = node ? describeFor(node) : null;
+                clearTimeout(press?.timer);
+                // A second activation of a navigational control: let this whole gesture through, once.
+                if (node && node === armed && node.isConnected !== false && desc?.navigate === 'native') {
+                    bypass = node;
+                    press = { x: e.clientX, y: e.clientY, target: t, long: false, mouse: e.pointerType === 'mouse', bypass: true };
+                    hideTip();
+                    return;
+                }
+                bypass = null;
+                hideTip();
+                press = { x: e.clientX, y: e.clientY, target: t, long: false, mouse: e.pointerType === 'mouse' };
+                // A long press is only a shortcut to a Guide page of a canvas concept; controls never take one.
+                if (e.button === 0 && e.pointerType !== 'mouse' && desc?.long && desc.guide) press.timer = setTimeout(() => {
+                    if (!active() || !press || press.moved) return;
+                    press.long = true;
+                    navigator.vibrate?.(12);
+                    openGuide(desc.guide);
+                }, LONG);
+            }
+            if (type === 'pointerup' || type === 'pointercancel') clearTimeout(press?.timer);
+            // A disabled form control gets no click event, so its tooltip is shown at the end of the tap instead.
+            if (type === 'pointerup' && press && !press.bypass && !press.moved && !press.long) {
+                const t = press.target;
+                const n = t instanceof Element ? canonicalTarget(t) : null;
+                const disabled = n && (n.disabled === true || n.getAttribute?.('disabled') != null);
+                const d = disabled ? describeFor(n) : null;
+                if (n && d) {
+                    hideTip();
+                    const step = activationStep(armed, n, d);
+                    armed = step.arm;
+                    if (step.action === 'tip') showTip(n, d);
+                    press = null;
+                    return;
+                }
+            }
+            if (bypass) return; // this gesture is the one approved navigation activation
+            if (onCanvas(path) && (type === 'pointerdown' || type === 'pointerup' || type === 'mousedown' || type === 'touchstart')) return;
             e.stopPropagation();
             if (e.cancelable && type !== 'touchstart') e.preventDefault();
         }, { capture: true, passive: false });
     }
+    root.addEventListener('pointermove', e => {
+        if (!press || !active()) return;
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
+            clearTimeout(press.timer);
+            press.moved = true;
+            if (press.bypass) bypass = null; // it became a drag: no navigation
+        }
+    }, true);
     root.addEventListener('click', e => {
-        if (!H.explain || S.mode !== 'hero') return;
+        if (!active()) return;
         const path = e.composedPath();
-        if (path.some(n => n.classList?.contains('explainban'))) return;
+        if (exempt(path)) return;
+        const p = press;
+        const t = p?.target instanceof Element ? p.target : e.target instanceof Element ? e.target : path[0];
+        const node = t instanceof Element ? canonicalTarget(t) : null;
+        const desc = node ? describeFor(node) : null;
+        // The one approved navigation click: already armed, and the gesture was let through at pointerdown.
+        if (node && bypass === node && p?.bypass) {
+            clearArmed();
+            hideTip();
+            press = null;
+            return;
+        }
         e.stopPropagation();
         e.preventDefault();
-        const t = path[0];
-        const anchor = t instanceof Element ? explainAnchor(t, H) : null;
-        if (anchor) openGuide(anchor);
-        else layer.toast('Nothing to explain there. Tap something outlined, or Cancel.');
+        press = null;
+        if (p?.long || p?.moved) return; // the Guide is already open, or it was a look around
+        if (!node || !desc) { clearArmed(); hideTip(); return; } // nothing to say: nothing happens
+        const step = activationStep(armed, node, desc);
+        armed = step.arm;
+        if (step.action === 'guide') { openGuide(desc.guide); return; }
+        if (step.action === 'native') {
+            // Reached without a trusted gesture (a synthetic click): stay safe and just show the tooltip.
+            armed = node;
+            showTip(node, desc);
+            return;
+        }
+        if (step.action === 'tip') showTip(node, desc, { at: node.classList?.contains('scrim') ? { x: e.clientX, y: e.clientY } : null });
+        else hideTip();
+    }, true);
+    // Desktop: the tooltip follows the mouse, after a moment's rest. It never arms anything.
+    let hoverTimer = null;
+    let hovered = null;
+    root.addEventListener('pointerover', e => {
+        if (!active() || e.pointerType !== 'mouse' || press) return;
+        const path = e.composedPath();
+        if (exempt(path)) return;
+        const t = pointed(e);
+        const node = t instanceof Element ? canonicalTarget(t) : null;
+        const desc = node ? describeFor(node) : null;
+        // While something is armed, its own tooltip stays: hovering elsewhere must not replace it.
+        if (armed && node !== armed) return;
+        const key = desc && `${desc.title}\n${desc.text}`;
+        if (key === hovered) return;
+        hovered = key;
+        clearTimeout(hoverTimer);
+        if (!desc) { hoverTimer = setTimeout(hideTip, 150); return; }
+        hoverTimer = setTimeout(() => { if (active() && !press && (!armed || armed === node)) showTip(node, desc, { more: false }); }, 250);
     }, true);
 
     /** Draws the Guide tab into `main`, scrolled to its anchor once. */
@@ -96,5 +411,35 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
         H.guide.anchor = null; // scrolled there once; a redraw keeps the reader's place
     }
 
-    return { openGuide, startExplain, stopExplain, renderGuideTab };
+    // An opened or closed sheet, or content redrawn inside one, ends the old first activation: the new controls
+    // start their own first/second cycle. A redraw of the layer is scheduled into the next frame, never polled.
+    let markQueued = false;
+    function scheduleMark() {
+        if (markQueued) return;
+        markQueued = true;
+        requestAnimationFrame(() => { markQueued = false; mark(); });
+    }
+    if (layer?.layer && globalThis.MutationObserver) {
+        new MutationObserver(() => {
+            if (!active()) return;
+            clearArmed();
+            hideTip();
+            scheduleMark();
+        }).observe(layer.layer, { childList: true, subtree: true });
+    }
+
+    /** After every Hero draw: the explain marks, no stale target, and no tooltip left over from before it. */
+    function afterRender() {
+        if (!H.explain) endExplainState();
+        else {
+            if (armed && armed.isConnected === false) clearArmed();
+            if (tipTarget && tipTarget.isConnected === false) hideTip();
+        }
+        scheduleMark();
+    }
+
+    return { openGuide, startExplain, stopExplain, renderGuideTab, afterRender };
 }
+
+/** What explain mode looks at to outline (or set aside): pieces of the canvas, rows, and every button and field. */
+const MARKABLE = '.pchip, .card, .card .badge1, .card .fired, .card .cbang, .card .sticky, .lockp, .junc, .packframe, .mnav, .layercard, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .zlabel, .pfold, .plist .phdr, .tab, [data-xkey], [data-xblock] button, [data-xblock] input, [data-xblock] select, [data-xblock] textarea, [data-xblock] [role="button"], button, [role="button"], [role="switch"], input, select, textarea, .scrim, .opt, .prow, [data-flip], .lhit, [data-port], [data-open], [data-grip], .also';

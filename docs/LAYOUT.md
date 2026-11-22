@@ -3,7 +3,7 @@
 Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). It
-describes the build as of 0.45.0, and every decision is listed in
+describes the build as of 0.47.0, and every decision is listed in
 [BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop (where ST uses its desktop layout, wider than 1000px) has
@@ -64,7 +64,7 @@ pick shows its effect behind it.
 | Section | Normal mode | Hero mode |
 |---------|-------------|-----------|
 | (top) | Mode switch | Mode switch |
-| View / Book | Home: Open books in (Normal mode, Hero mode); on desktop also Show books as (Tiles, List). Book page: Sort by (List order, Prompt order, A–Z, Largest first, Key words first, Permanent first, Vectorized first; inside each folder. List order is ST's list position, which drag changes; Prompt order is the Order parameter, shown on each row and editable there: a box on desktop, a button that asks on phones; Largest first sorts by the rough token count and shows it on each row) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. Then Guide › |
+| View / Book | Home: Open books in (Normal mode, Hero mode) · Show books as (List, Tiles). Phones and desktop keep their own choice: phones start on List, desktop on Tiles. Book page: Sort by (List order, Prompt order, A–Z, Largest first, Key words first, Permanent first, Vectorized first; inside each folder. List order is ST's list position, which drag changes; Prompt order is the Order parameter, shown on each row and editable there: a box on desktop, a button that asks on phones; Largest first sorts by the rough token count and shows it on each row) · Show disabled entries (switch) · Problems (n) › when there are any · Keyword clashes (n) › and Dead branches (n) › when there are any · Snapshots › | Desktop only: Book: Active globally (switch) · Linked to: "Seraphina +1 ›" opens the links sheet · Switch book › · Problems (n) › · Keyword clashes (n) › · Dead branches (n) › (each when there are any) · Snapshots ›. On phones these live at the foot of the entry panel: the book's name opens Books (New book · Import a file… · the books), ⋮ opens the book's menu (Active globally · Linked to › · Problems, Keyword clashes, Dead branches when there are any · Snapshots › · Rename · Duplicate · Delete); desktop has the same ⋮ by the book's name. Then Guide › |
 | Canvas | | Tidy layout · Legend (switch) · Show chat state (switch, off by default) · on desktop, Mouse wheel (Zoom, Scroll) |
 | Display | Content font (Serif, Sans) · Colors (Standard, Red-green safe, Blue-yellow safe) · Mark keyword clashes (switch, on by default) | The same |
 | Tabs | Close other tabs | Close other tabs |
@@ -126,7 +126,7 @@ The same page in both modes. Top to bottom:
 | Part | What it shows or does |
 |------|-----------------------|
 | ← (round bubble) | Up to the book (normal mode) or closes the entry tab (Hero mode) |
-| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
+| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · New entry below · Duplicate · Move to another book · Delete. The Content heading has a copy button |
 | Title | Big, edited in place. Not sticky; the tab already shows the name |
 | Book line | Book icon, the book's name and folder; tap goes up to the book |
 | Story chip | Only when the entry has story logic (or other entries' rules point at it): its first rule said plainly, then how many more, "Waits for *Road* · 2 more rules". Tap opens the Story logic section (normal mode) or shows the card on the canvas (Hero mode) |
@@ -210,9 +210,10 @@ Left to right: a search field, + in the middle, then New folder and Select.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "World Info", and a gear for ST's World Info settings |
+| Header | "World Info", a List/Tiles button (shows the view it switches to), and a gear for ST's World Info settings |
 | Book folders | Collapsible groups of books (WI Hero's own, not ST's) |
 | Book row | Name, status badges (Global, the first link and a count, or Off), entry count, ⋯. Off leads to the book's page, which says how to use it |
+| Book tile | With Tiles on: two to a row, each folder with its own grid. Book icon and ⋯ on top, the name on up to two lines, then the entry count and the same badges. Taps, long press and select mode work as on a row |
 | Tap a book | Opens it in a new tab |
 | Long press | Opens it in a background tab |
 | Book ⋯ | Open in new tab · Rename · Move to folder · Export · Snapshots · Delete |
@@ -249,7 +250,7 @@ Move (to a folder, No folder, + New folder) and Export. Import lives under +.
 | Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (☰) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe (no icon), name with a teal dot when the entry has story logic, keywords, on/off switch, ⋯. The switch is quiet while the entry is on (a gray track) and stands out only when it is off (an accent outline) |
 | Tap a row | Opens the entry page in this tab (from Home's tab, in a new tab) |
-| Entry ⋯ | Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
+| Entry ⋯ | Open in new tab · New entry below · Duplicate · Move to another book · Copy content · Delete |
 
 - The strategy stripe and dot use the strategy colors (VISUAL.md). Off rows are
   dimmed and gray.
@@ -600,7 +601,7 @@ the edge to reset):
 | Ctrl/Shift-click | Selects several; the right pane becomes the bulk pane |
 | Middle-click | Opens the entry in its own background tab |
 | Double-click | Opens the entry in its own tab |
-| Right-click, ⋯ | Open in new tab · Turn off · New entry below (right under it, in its folder) · Duplicate · Move to folder · Move to another book · Copy as text · Delete. With several selected, the same for all of them |
+| Right-click, ⋯ | Open in new tab · Turn off · New entry below (right under it, in its folder) · Duplicate · Move to folder · Move to another book · Copy content · Delete. With several selected, the same for all of them |
 | Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the List order sort (☰), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
 | Keyboard | ↑ ↓ move, Shift ↑ ↓ extend, Space turns on/off, Enter goes to the title, Delete deletes (Undo toast) |
 | Footer | Book settings · "N problems" when there are any (click goes to the first) |
@@ -833,17 +834,59 @@ Also reachable from ☰ › Guide. The text is in `src/ui/guide.js`.
 ### Explain mode
 
 A "?" at the top right of the canvas (phones), or in the tab row (desktop;
-also the ? key), turns explain mode on **for one tap**:
+also the ? key), turns explain mode on until Done or Escape. It is a way to
+explore Hero mode safely: it explains a control first, and only follows it
+when following it is navigation. It never changes a book, an entry, a setting,
+the clipboard, a file, the undo history, the canvas layout or Preview input.
 
-- Everything that can be explained gets a thin dashed accent outline and the
-  rest dims slightly. A banner at the bottom reads "Tap anything to learn about
-  it · Cancel" ("Click…" on desktop).
-- A tap opens the Guide at that element's anchor instead of doing the
-  element's own action, and ends the mode. Back or Escape cancels.
-- What can be explained: piece bar chips, ports, lines, and/or junctions, lock
-  and wait pills, pack frames, mask stacks, Moment cards, other cards, the
-  strip, inspector rows, Fit, Tidy, the undo arrows, the checks chip, the panel button, Preview
-  highlights and Also active.
+- Every explainable control is outlined, and every activated control is
+  intercepted. A control with no explanation is faded and does nothing at all
+  when tapped (no toast).
+- **First and second activation.** The first tap or click on a control shows
+  its one-line tooltip and arms that exact control. The second consecutive
+  activation follows it only when that is navigation: it dismisses the
+  tooltip and lets one normal activation through. A blocked control stays
+  blocked on every activation and keeps its tooltip. Activating a different
+  control arms that one instead. A control that is redrawn or replaced loses
+  its arming.
+- **What may be followed.** Opening drawers, menus, sheets, folders, tabs,
+  entry tabs, inspector rows and disclosures; navigational result rows;
+  changing the view (pan, zoom, Fit); going to an entry, card or Guide page.
+  Buttons that only close or go back are navigation too, and a scrim closes
+  its sheet on the second tap ("Close this menu or sheet"), never on the
+  first.
+- **What is blocked.** Anything that creates, renames, moves, deletes, links,
+  restores, turns on or off, or otherwise changes a book, entry, rule, mask,
+  pack, placement, setting, preference, selection, undo history, clipboard or
+  file; typing into a field; keyboard shortcuts such as Ctrl+D, Ctrl+Z,
+  Ctrl+Shift+Z, Ctrl+Y, T, Delete/Backspace, the piece keys and the shape keys;
+  Tidy; duplicating a tab; Preview Edit, Clear, seed choice and text entry;
+  choice rows' choices (unfolding them is fine); and switches. They receive a
+  tooltip and a second activation stays a no-op.
+- **Show on canvas** navigates only when the card is already on the canvas. An
+  unplaced card is not placed: its tooltip says going there would place it, and
+  every activation stays blocked.
+- **Phones:** a tap shows the tooltip next to the control, above it when there
+  is room: its name in bold, then what it does as a concept, using this thing's
+  own names where the canvas shows them ("Opens Keeps Mill shut until Road has
+  fired."; "Lock Holds its row until someone says "red beard" in the chat.").
+  Under it, "More in the Guide ›" when the concept has a Guide page. A long
+  press (500ms) on a canvas concept (a card, line, pill, port or pack name)
+  opens its Guide page straight away; controls and menu rows have no long
+  press.
+- **Desktop:** resting the mouse on a control shows its tooltip after a moment
+  and never arms it. The first click arms the control and shows the tooltip
+  with its Guide link; the second click follows it only when that is
+  navigation. Hovering does not count as the first click.
+- Explain mode stays on while moving through menus, sheets, drawers, Preview
+  and the inspector, including their nested sheets. Opening a new layer clears
+  the arm from the old one. Opening the Guide ends explain mode, as do Done
+  and Escape. Escape ends explain mode without closing WI Hero. Back closes
+  one navigation layer at a time and keeps explain mode on; at the canvas root
+  Back may end it.
+- Menu rows mostly stop at useful tooltips; only concepts that merit Guide
+  depth carry "More in the Guide ›". The one-liners are `TIPS` and the explicit
+  catalogue in `src/ui/explain.js` and `src/ui/explain-meta.js`.
 
 ### Direct "?"
 
@@ -858,7 +901,7 @@ Android's Back (and Escape on desktop) steps back one layer at a time:
 | Mode | Order |
 |------|-------|
 | Normal | Sheet → search → selection → the tab's history. On a tab's first screen it closes the tab. On Home it closes the editor |
-| Hero | Sheet → panel → entry tab → Preview's report page → Preview to Canvas. On the Canvas tab it closes the editor on phones; on desktop Escape stops there |
+| Hero | Sheet → panel → entry tab → Preview's report page → Preview to Canvas. In explain mode each of these closes one layer and keeps explain mode on; at the canvas root Back ends explain mode. On the Canvas tab it closes the editor on phones; on desktop Escape stops there |
 
 Back never switches between the two modes.
 

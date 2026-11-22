@@ -61,7 +61,7 @@ await chip.waitFor();
 assert.match(await chip.textContent(), /\d+ keyword clash/);
 await page.screenshot({ path: `${LOG}polish-chip.png` });
 await chip.click();
-await $('.sheet').last().getByText('“shared word”').waitFor();
+await $('.sheet').last().locator('.clashw', { hasText: 'shared word' }).waitFor();
 ok(`the entry list counts keyword clashes (${(await chip.textContent()).trim()}; ${chipBefore} canvas chips before), the canvas doesn't, and a tap opens the sheet`);
 await page.keyboard.press('Escape');
 

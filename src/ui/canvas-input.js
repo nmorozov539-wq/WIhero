@@ -209,6 +209,7 @@ export function wireInput(C) {
         I.moved = false;
         I.start = { x: e.clientX, y: e.clientY, tx: C.camera().tx, ty: C.camera().ty, target: C.lineUnder(e.target, e.clientX, e.clientY) };
         clearTimeout(I.holdTimer);
+        if (d.explaining?.()) { I.mode = 'pan'; return; } // explain mode: look around, nothing else
         if (R.press?.(e)) return; // before anything else under it (a mouse's ⋯, Space or the right button)
         if (grab(e, R === mouse)) return;
         R.empty(e); // empty canvas, a line, a pill: a mouse box-selects, a finger pans (or holds)
@@ -357,7 +358,7 @@ export function wireInput(C) {
                 C.render();
                 d.toast('Port moved');
             }
-        } else if (!moved && start) {
+        } else if (!moved && start && !d.explaining?.()) {
             // Desktop: Shift/Ctrl-click adds a card to the selection; a click selects it alone (then inspects it).
             const c = d.desk ? start.target.closest?.('.card[data-id]') : null;
             const SH = C.SH;

@@ -2,6 +2,7 @@
 // backdrop, the ☰ menu sheet, a one-line text form, and toasts, some with Undo.
 import { ic } from './icons.js';
 import { Html } from './html.js';
+import { explainNode } from './explain-meta.js';
 
 export { html } from './html.js';
 
@@ -39,13 +40,14 @@ export function scrollToTop(node, smooth = false) {
     box.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
 }
 
-export function swEl(on, fn, label = 'On') {
+export function swEl(on, fn, label = 'On', explain = null) {
     const s = el('button', `switch${on ? ' on' : ''}`);
     s.type = 'button';
     s.setAttribute('role', 'switch');
     s.setAttribute('aria-checked', String(!!on));
     s.setAttribute('aria-label', label);
     s.addEventListener('click', e => { e.stopPropagation(); fn(!s.classList.contains('on')); });
+    if (explain) explainNode(s, explain.key ?? 'blocked.setting', explain);
     return s;
 }
 
@@ -119,6 +121,7 @@ export function createLayer(layer, toastBox) {
         close();
         const s = el('div', `scrim${clear ? ' clear' : ''}`);
         s.addEventListener('click', close);
+        explainNode(s, 'nav.scrim');
         layer.append(s);
         return s;
     }
@@ -141,7 +144,8 @@ export function createLayer(layer, toastBox) {
         layer.append(sh);
         if (anchor) place(sh, anchor);
         if (opts.onClose) closers.push(opts.onClose);
-        sh.querySelector('button, input')?.focus({ preventScroll: true });
+        // Explain mode never puts the cursor or a keyboard into a sheet's first field.
+        if (!api.explainActive?.()) sh.querySelector('button, input')?.focus({ preventScroll: true });
         return sh;
     }
 
@@ -183,8 +187,11 @@ export function createLayer(layer, toastBox) {
         sh.style.top = up ? `${Math.max(8, a.above - box.top - Math.min(h, room))}px` : `${a.y - box.top}px`;
     }
 
-    /** A sheet row: label (and a line under it), and its current value at the right. */
-    function opt(label, fn, { val, sub, cur, dot, icon, cls, danger } = {}) {
+    /**
+     * A sheet row: label (and a line under it), and its current value at the right. `explain` gives it explain-mode
+     * metadata: { key, text, title, navigate, guide, long }. A row without it is set aside in explain mode.
+     */
+    function opt(label, fn, { val, sub, cur, dot, icon, cls, danger, explain } = {}) {
         const o = el('button', `opt${cur ? ' cur' : ''}${danger ? ' danger' : ''}${cls ? ` ${cls}` : ''}`);
         o.type = 'button';
         if (dot) { const d = el('i', 'cdot'); d.style.background = dot; o.append(d); }
@@ -195,6 +202,7 @@ export function createLayer(layer, toastBox) {
         o.append(g);
         if (val !== undefined && val !== null) o.append(el('span', 'val', val));
         o.addEventListener('click', fn);
+        if (explain) explainNode(o, explain.key ?? 'nav.open', explain);
         return o;
     }
 
@@ -211,6 +219,7 @@ export function createLayer(layer, toastBox) {
         input.type = type;
         input.placeholder = placeholder;
         input.value = value ?? '';
+        explainNode(input, 'blocked.input', { text: 'Explain mode does not type into this field.' });
         const err = el('div', 'err');
         const row = el('div', 'row');
         const go = () => {
@@ -221,11 +230,15 @@ export function createLayer(layer, toastBox) {
             close();
             done(v);
         };
-        row.append(btn('', 'Cancel', close), btn('pri', ok, go));
+        const cancel = btn('', 'Cancel', close);
+        explainNode(cancel, 'nav.close', { text: 'Closes this without saving anything.' });
+        const confirm = btn('pri', ok, go);
+        explainNode(confirm, 'blocked.confirm', { title: ok, text: 'This would save the change. Explain mode will not do it.' });
+        row.append(cancel, confirm);
         input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
         d.append(input, err, row);
         layer.append(d);
-        setTimeout(() => { input.focus(); input.select(); }, 0);
+        if (!api.explainActive?.()) setTimeout(() => { input.focus(); input.select(); }, 0);
         return d;
     }
 
@@ -273,7 +286,8 @@ export function createLayer(layer, toastBox) {
     /** Ends a waiting Undo toast now, so its delayed change happens (when WI Hero is closed, for example). */
     const flushToast = () => { if (current) endToast(false); };
 
-    return { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop };
+    const api = { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop, explainActive: () => false };
+    return api;
 }
 
 /**

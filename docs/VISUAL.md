@@ -61,6 +61,10 @@ themes, and `e2e/desktop.mjs` makes a light-theme pass.
 
 - One line-icon set, 24px grid, 2px stroke, round caps and joins, drawn in
   `currentColor`. 22px in buttons, 16px inline.
+- No sharp corners: boxes in an icon (Select, panels, folders, tiles, the
+  bot, the lock's body) are rounded rectangles (radius 2–4, the `rr` helper
+  in `icons.js`), like the controls around them. A picked checkbox shows a
+  check mark, never the Select icon.
 - No emoji anywhere in the UI.
 - The set lives in `src/ui/icons.js`. Every piece has an icon of its own
   (Opens, Closes, Glue, Switch, Mask, Pack, Tracker, Lock, Wait, Moment, Once,

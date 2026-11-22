@@ -4,6 +4,7 @@
 // up (so the canvas shows it), and Cancel puts the book back as it was when the strip opened.
 import { btn, el, html, swEl } from './dom.js';
 import { ic } from './icons.js';
+import { blockRegion, explainNode } from './explain-meta.js';
 import { maskName, refLabel, same } from './pieces.js';
 import * as L from './links.js';
 import { addMoment } from './data.js';
@@ -78,6 +79,7 @@ export function mountPieceBar(x) {
     // ---------------------------------------------------------------- the bar
     if (!B.edit) {
         const fold = btn('pfold', ic('down', 's'), () => { x.setFolded(!x.folded()); B.armed = null; x.render(); }, x.folded() ? 'Show the piece bar' : 'Fold the piece bar');
+        explainNode(fold, 'shell.piecesFold', { title: x.folded() ? 'Show the piece bar' : 'Fold the piece bar' });
         bottom.append(fold);
         if (x.folded()) { canvas.overlay(null); return; }
         const bar = el('div', 'pchips');
@@ -100,6 +102,7 @@ export function mountPieceBar(x) {
         if (x.desk) bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
         // A bar wider than its room fades at the cut edge, with an arrow that scrolls it (review 2026-11-11).
         const more = btn('pmore', ic('right', 's'), () => bar.scrollBy({ left: bar.clientWidth * 0.7, behavior: 'smooth' }), 'More pieces');
+        explainNode(more, 'shell.morePieces', { title: 'More pieces' });
         bottom.append(more);
         const edges = () => {
             const right = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
@@ -191,9 +194,13 @@ export function mountPieceBar(x) {
     const mid = el('div', 'pmid');
     const right = btn('pbtn done', 'Done', () => finish());
     const strip = el('div', 'pstrip');
+    blockRegion(strip);
+    explainNode(left, 'shell.strip.cancel', { title: 'Cancel' });
+    explainNode(right, 'shell.strip.done', { title: 'Done' });
     strip.style.setProperty('--c', colorOf(e.piece));
     // "?" opens this piece's page in the Guide.
     const help = x.guide ? btn('pbtn sq pq', ic('help', 's'), () => x.guide(e.piece), `How ${CHIP[e.piece]?.label ?? 'this piece'} works`) : null;
+    if (help) explainNode(help, 'shell.pieceGuide', { title: `How ${CHIP[e.piece]?.label ?? 'this piece'} works` });
     strip.append(left, mid, ...(help ? [help] : []), right);
     bottom.append(strip);
     const note = () => { if (e.note) mid.append(el('div', `pnote${e.noteBad ? ' bad' : ''}`, e.note)); };

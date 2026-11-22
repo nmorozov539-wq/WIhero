@@ -16,7 +16,7 @@ point, and retire once it moves past.
 >
 > **It is not tested with other extensions,** and for now it is not expected to
 > work alongside ones that touch World Info. It has only been tested on
-> SillyTavern 1.19.0.
+> SillyTavern 1.19.0 and 1.19.1.
 
 > [!CAUTION]
 > **WI Hero is in testing.** Expect bugs. Take a snapshot or export a book

@@ -2,12 +2,13 @@
 // folders, links, problems, colors and World Info settings. Moved out of app.js; it reaches the app only through
 // the context given to it.
 import { el, issueText, swEl } from './dom.js';
+import { explainNode } from './explain-meta.js';
 import {
-    SORT_NAMES, bookFolderOf, bookSettings, cardKey, copyBookSettings, duplicateEntry, entriesOf, entryAsText, moveEntry,
+    SORT_NAMES, bookFolderOf, bookSettings, cardKey, copyBookSettings, duplicateEntry, entriesOf, moveEntry,
     renameBookSettings, setBookFolder, setFolder, titleOf,
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
-import { keywordClashes } from './clashes.js';
+import { firesOn, keywordClashes } from './clashes.js';
 import { deadBranches } from '../engine/dead.js';
 
 /** The color modes (D22), as [value, label]. */
@@ -18,8 +19,18 @@ const COLOR_MODES = [['standard', 'Standard'], ['red-green', 'Red-green safe'], 
  */
 export function createMenus(A) {
     const {
-        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, onCanvas, page, render, saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     } = A;
+
+    /** What Explain says about a canvas destination: only an already placed card is navigation. */
+    function canvasNav(book, key, title, thereText = 'Goes to this entry on the canvas. Nothing is changed.') {
+        const there = onCanvas(book, key);
+        return {
+            key: 'nav.open', title,
+            navigate: there ? 'native' : false,
+            text: there ? thereText : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.',
+        };
+    }
 
     /** A menu row with a choice: tapping it unfolds the choices under it; picking one keeps the menu open. */
     function choiceRow(sh, label, choices, cur, pick) {
@@ -27,7 +38,7 @@ export function createMenus(A) {
         const list = el('div', 'choices');
         list.hidden = true;
         const fold = open => { list.hidden = !open; row.classList.toggle('unfolded', open); row.setAttribute('aria-expanded', String(open)); };
-        const row = layer.opt(label, () => fold(list.hidden), { val: name(cur), cls: 'has-choices' });
+        const row = layer.opt(label, () => fold(list.hidden), { val: name(cur), cls: 'has-choices', explain: { key: 'nav.disclosure', title: label, text: `Shows the choices for ${label}. Nothing is picked.` } });
         row.setAttribute('aria-expanded', 'false');
         for (const [k, lab, sub] of choices) {
             const o = layer.opt(lab, () => {
@@ -35,7 +46,7 @@ export function createMenus(A) {
                 row.querySelector('.val').textContent = name(k);
                 for (const x of list.children) x.classList.toggle('cur', x.dataset.k === k);
                 fold(false);
-            }, { cur: k === cur, sub });
+            }, { cur: k === cur, sub, explain: { key: 'blocked.setting', title: lab, text: `Picks ${lab} for ${label}. Explain mode leaves it as it is.` } });
             o.dataset.k = k;
             list.append(o);
         }
@@ -45,12 +56,13 @@ export function createMenus(A) {
 
     /** A menu row with a switch that flips in place; the menu stays open. */
     function switchRow(sh, label, on, flip, { sub } = {}) {
-        const r = layer.opt(label, () => s.click(), { sub });
+        const d = { key: 'blocked.setting', title: label, text: `Turns ${label} on or off. Explain mode leaves it as it is.` };
+        const r = layer.opt(label, () => s.click(), { sub, explain: d });
         const s = swEl(on, v => {
             flip(v);
             s.classList.toggle('on', v);
             s.setAttribute('aria-checked', String(v));
-        }, label);
+        }, label, d);
         r.append(s);
         sh.append(r);
         return r;
@@ -64,7 +76,9 @@ export function createMenus(A) {
             else if (p.type === 'home') {
                 sh.append(el('div', 'lbl', 'View'));
                 choiceRow(sh, 'Open books in', [['normal', 'Normal mode'], ['hero', 'Hero mode']], settings.openInHero ? 'hero' : 'normal', k => { settings.openInHero = k === 'hero'; saveSettings(); });
+                // Desktop and phones each keep their own choice; desktop starts on tiles, phones on the list.
                 if (S.desk) choiceRow(sh, 'Show books as', [['tiles', 'Tiles'], ['list', 'List']], deskSettings().homeView === 'list' ? 'list' : 'tiles', k => { deskSettings().homeView = k; saveSettings(); render(); });
+                else choiceRow(sh, 'Show books as', [['list', 'List'], ['tiles', 'Tiles']], settings.homeView === 'tiles' ? 'tiles' : 'list', k => { settings.homeView = k; saveSettings(); render(); });
             } else if (p.type === 'book') {
                 const data = library.peek(p.book);
                 sh.append(el('div', 'lbl', 'View'));
@@ -72,10 +86,10 @@ export function createMenus(A) {
                 switchRow(sh, 'Show disabled entries', S.showOff, v => { S.showOff = v; render(); });
                 if (data) {
                     const issues = modelOf(p.book, data).issues;
-                    if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(p.book), { val: '›', cls: 'probs' }));
+                    if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(p.book), { val: '›', cls: 'probs', explain: { key: 'menu.problems' } }));
                     checkRows(sh, p.book, data);
                 }
-                sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›' }));
+                sh.append(layer.opt('Snapshots', () => snapshotsSheet(p.book), { val: '›', explain: { key: 'menu.snapshots' } }));
             }
             sh.append(el('div', 'lbl', 'Display'));
             choiceRow(sh, 'Content font', [['serif', 'Serif'], ['sans', 'Sans']], settings.contentFont === 'sans' ? 'sans' : 'serif', k => {
@@ -83,7 +97,7 @@ export function createMenus(A) {
                 saveSettings();
                 render();
             });
-            sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard' }));
+            sh.append(layer.opt('Colors', colorsSheet, { val: COLOR_MODES.find(([k]) => k === settings.colorMode)?.[1] ?? 'Standard', explain: { key: 'menu.colors' } }));
             switchRow(sh, 'Mark keyword clashes', settings.markClashes !== false, v => { settings.markClashes = v; saveSettings(); render(); },
                 { sub: 'Key words that fire more than one entry: outlined, with an "also fires" line, and counted on the canvas' });
             sh.append(el('div', 'lbl', 'Tabs'));
@@ -95,7 +109,7 @@ export function createMenus(A) {
                     if (H.tabs.length) H.active = 0;
                 } else S.tabs = S.tabs.filter(t => t.home || t.id === S.active);
                 render();
-            }, { icon: 'x' }));
+            }, { icon: 'x', explain: { key: 'blocked.command', title: 'Close other tabs', text: 'Closes every other tab. Explain mode leaves the tabs as they are.' } }));
         }, { menu: true });
     }
 
@@ -110,6 +124,7 @@ export function createMenus(A) {
                 }, {
                     cur: (settings.colorMode ?? 'standard') === k,
                     sub: k === 'standard' ? 'WI Hero\'s own colors' : k === 'red-green' ? 'Stay apart with red-green color blindness' : 'Stay apart with blue-yellow color blindness',
+                    explain: { key: 'blocked.setting', title: label, text: `Uses ${label}. Explain mode leaves the colors as they are.` },
                 }));
             }
             const sw = el('div', 'swatches');
@@ -126,11 +141,12 @@ export function createMenus(A) {
         layer.sheet(issueText(issues, { menu: true }), sh => {
             for (const i of sorted) {
                 const uid = i.stKey ? Number(i.stKey.slice(i.stKey.lastIndexOf('.') + 1)) : null;
+                const key = uid !== null && data.entries[uid] ? cardKey(data.entries[uid]) : null;
                 const o = layer.opt(i.label, () => {
                     layer.close();
                     if (uid === null || !data.entries[uid]) return;
                     if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(data.entries[uid])); inspect(book, cardKey(data.entries[uid])); } else openIn({ type: 'entry', book, uid });
-                }, { sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)' });
+                }, { sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)', explain: canvasNav(book, key, i.label, 'Goes to the entry this problem is about. Nothing is changed.') });
                 sh.append(o);
             }
         }, { help: 'Problems (red) stop an entry from firing. Warnings (yellow) only point at something odd.' });
@@ -139,9 +155,9 @@ export function createMenus(A) {
     /** The ☰ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
     function checkRows(sh, book, data) {
         const n = keywordClashes(data, hiddenIn(book)).groups.length;
-        if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›' }));
+        if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›', explain: { key: 'menu.clashes' } }));
         const d = deadOf(book, data).length;
-        if (d) sh.append(layer.opt(`Dead branches (${d})`, () => deadSheet(book), { val: '›' }));
+        if (d) sh.append(layer.opt(`Dead branches (${d})`, () => deadSheet(book), { val: '›', explain: { key: 'menu.dead' } }));
     }
 
     const deadOf = (book, data) => deadBranches(modelOf(book, data), entriesOf(data).map(e => ({ ...e, world: book })));
@@ -177,12 +193,13 @@ export function createMenus(A) {
             for (const f of found) {
                 const uid = Number(f.stKey.slice(f.stKey.lastIndexOf('.') + 1));
                 const why = f.reasons.join('; ');
+                const key = data.entries[uid] ? cardKey(data.entries[uid]) : null;
                 sh.append(layer.opt(f.label, () => {
                     layer.close();
                     const e = data.entries[uid];
                     if (!e) return;
                     if (S.mode === 'hero') { H.active = 'canvas'; showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } else openIn({ type: 'entry', book, uid });
-                }, { sub: f.dead ? `Can never fire: ${why}` : why.replace(/^./, c => c.toUpperCase()), dot: f.dead ? 'var(--bad)' : 'var(--warn)' }));
+                }, { sub: f.dead ? `Can never fire: ${why}` : why.replace(/^./, c => c.toUpperCase()), dot: f.dead ? 'var(--bad)' : 'var(--warn)', explain: canvasNav(book, key, f.label, 'Goes to the entry this branch is about. Nothing is changed.') }));
             }
         }, { help: 'Read from the book alone, without any chat. Red: the entry can never fire. Yellow: it can, but one of its Waits for rows or masks never will.' });
     }
@@ -200,9 +217,23 @@ export function createMenus(A) {
         };
         layer.sheet(`Keyword clashes (${groups.length})`, sh => {
             if (!groups.length) sh.append(el('div', 'lbl', 'No key word fires more than one entry.'));
+            // One card per clash word; in each entry's key line the keys that fire on the word are marked.
             for (const g of groups) {
-                sh.append(el('div', 'lbl', `“${g.word}”`));
-                for (const uid of g.uids) sh.append(layer.opt(titleOf(data.entries[uid]), () => open(uid), { sub: (data.entries[uid].key ?? []).join(', ') }));
+                const card = el('div', 'clashg');
+                const head = el('div', 'clashh');
+                head.append(el('span', 'clashw', g.word), el('span', 'clashn', `${g.uids.length} entries`));
+                card.append(head);
+                for (const uid of g.uids) {
+                    const o = layer.opt(titleOf(data.entries[uid]), () => open(uid), { explain: canvasNav(book, cardKey(data.entries[uid]), titleOf(data.entries[uid])) });
+                    const keys = el('small', 'clashk');
+                    (data.entries[uid].key ?? []).forEach((k, i) => {
+                        if (i) keys.append(', ');
+                        keys.append(firesOn(g.word, k) ? el('mark', '', k) : String(k));
+                    });
+                    o.querySelector('.grow').append(keys);
+                    card.append(o);
+                }
+                sh.append(card);
             }
         }, { help: 'A key word fires every entry that has it, and a longer key fires the entries of the words inside it ("old mill" fires Mill too). Sometimes that is what you want.' });
     }
@@ -214,11 +245,11 @@ export function createMenus(A) {
                 done: async name => {
                     try { await snapshots.take(book, name); layer.toast(`Snapshot "${name}" taken`); } catch (e) { layer.toast(e.message); }
                 },
-            }), { icon: 'snap' }));
+            }), { icon: 'snap', explain: { key: 'blocked.command', title: 'Take snapshot', text: 'Takes a copy of the whole book. Explain mode will not change or store anything.' } }));
             const list = snapshots.list(book);
             if (!list.length) sh.append(el('p', 'help', 'No snapshots yet. A snapshot is a copy of the whole book you can go back to.'));
             for (const s of list) {
-                sh.append(layer.opt(s.name, () => snapshotSheet(book, s), { sub: `${new Date(s.at).toLocaleString()} · ${s.entries} entr${s.entries === 1 ? 'y' : 'ies'}`, icon: s.imported ? 'book' : 'snap' }));
+                sh.append(layer.opt(s.name, () => snapshotSheet(book, s), { sub: `${new Date(s.at).toLocaleString()} · ${s.entries} entr${s.entries === 1 ? 'y' : 'ies'}`, icon: s.imported ? 'book' : 'snap', explain: { key: 'menu.snapshot', title: s.name } }));
             }
         }, { help: 'Saving is automatic. Snapshots are copies you take yourself, to go back to later.' });
     }
@@ -232,9 +263,9 @@ export function createMenus(A) {
                     render();
                     layer.toast(`Restored "${s.name}"`, { action: ['Undo', async () => { await library.replace(book, old); render(); layer.toast('Restore undone'); }] });
                 } catch (e) { layer.toast(e.message); }
-            }, { icon: 'back', sub: 'Puts the book back as it was. The chat\'s story state stays as it is.' }));
+            }, { icon: 'back', sub: 'Puts the book back as it was. The chat\'s story state stays as it is.', explain: { key: 'blocked.command', title: 'Restore', text: 'Puts the book back as it was in this snapshot. Explain mode will not change the book.' } }));
             if (!s.imported) {
-                sh.append(layer.opt('Rename', () => layer.askText({ title: 'Rename snapshot', value: s.name, done: n => { snapshots.rename(book, s, n); snapshotsSheet(book); } }), { icon: 'edit' }));
+                sh.append(layer.opt('Rename', () => layer.askText({ title: 'Rename snapshot', value: s.name, done: n => { snapshots.rename(book, s, n); snapshotsSheet(book); } }), { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this snapshot. Explain mode will not change it.' } }));
             }
             sh.append(layer.opt('Delete', () => {
                 layer.close();
@@ -243,25 +274,25 @@ export function createMenus(A) {
                     action: ['Undo', () => snapshots.keep(book, s)],
                     onEnd: () => snapshots.removeFile(s),
                 });
-            }, { icon: 'trash', danger: true }));
+            }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this snapshot. Explain mode will not change your snapshots.' } }));
         }, { help: `${new Date(s.at).toLocaleString()} · ${s.entries} entries${s.imported ? ` · ${IMPORTED.toLowerCase()}` : ''}` });
     }
 
     function bookMenu(book, { fromHome = false, fromPage = false } = {}) {
         layer.sheet(book, sh => {
             if (fromPage) {
-                sh.append(layer.opt('List', () => layer.close(), { cur: true, icon: 'entry', sub: 'This page' }));
+                sh.append(layer.opt('List', () => layer.close(), { cur: true, icon: 'entry', sub: 'This page', explain: { key: 'nav.close', title: 'List', text: 'Closes this menu and stays on the entry page.' } }));
                 sh.append(el('div', 'div'));
-                sh.append(layer.opt('New folder…', () => newEntryFolder(book), { icon: 'folder' }));
-                sh.append(layer.opt('New entry defaults', () => defaultsSheet(book), { icon: 'gear', sub: defaultsSummary(book) || undefined, val: '›' }));
+                sh.append(layer.opt('New folder…', () => newEntryFolder(book), { icon: 'folder', explain: { key: 'blocked.command', title: 'New folder', text: 'Makes a folder for this book. Explain mode will not change the book.' } }));
+                sh.append(layer.opt('New entry defaults', () => defaultsSheet(book), { icon: 'gear', sub: defaultsSummary(book) || undefined, val: '›', explain: { key: 'nav.open', text: 'Opens the settings new entries start with. Explain mode will not change them.' } }));
             }
-            if (fromHome) sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'book', book }, { newTab: true }); }, { icon: 'tab' }));
-            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit' }));
-            if (fromPage) sh.append(layer.opt('Duplicate', () => { layer.close(); duplicateBook(book); }, { icon: 'copy' }));
-            sh.append(layer.opt('Move to folder', () => bookFolderSheet(f => { setBookFolder(settings, book, f); saveSettings(); render(); }), { icon: 'move', val: bookFolderOf(settings, book) || 'No folder' }));
-            sh.append(layer.opt('Export', () => { layer.close(); library.exportBook(book); layer.toast(`${book}.json exported`); }, { icon: 'code' }));
-            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›' }));
-            sh.append(layer.opt('Delete', () => { layer.close(); deleteBooks([book]); }, { icon: 'trash', danger: true }));
+            if (fromHome) sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'book', book }, { newTab: true }); }, { icon: 'tab', explain: { key: 'nav.open', text: 'Opens this book in a tab of its own. Nothing is changed.' } }));
+            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this book and its file. Explain mode will not change the book.' } }));
+            if (fromPage) sh.append(layer.opt('Duplicate', () => { layer.close(); duplicateBook(book); }, { icon: 'copy', explain: { key: 'blocked.command', title: 'Duplicate', text: 'Makes a copy of this whole book. Explain mode will not change your books.' } }));
+            sh.append(layer.opt('Move to folder', () => bookFolderSheet(f => { setBookFolder(settings, book, f); saveSettings(); render(); }), { icon: 'move', val: bookFolderOf(settings, book) || 'No folder', explain: { key: 'menu.folderPicker', title: 'Move to folder', text: 'Opens the folders books can sit in. Explain mode will not move this book.' } }));
+            sh.append(layer.opt('Export', () => { layer.close(); library.exportBook(book); layer.toast(`${book}.json exported`); }, { icon: 'code', explain: { key: 'blocked.file', title: 'Export', text: 'Downloads this book as a file. Explain mode will not export.' } }));
+            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›', explain: { key: 'menu.snapshots' } }));
+            sh.append(layer.opt('Delete', () => { layer.close(); deleteBooks([book]); }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this book. Explain mode will not change your books.' } }));
         });
     }
 
@@ -323,7 +354,7 @@ export function createMenus(A) {
                     after(n, moved);
                     render();
                     layer.toast(moved.length === 1 ? `Moved to ${n}` : `Moved ${moved.length} entries to ${n}`);
-                }, { icon: 'book' }));
+                }, { icon: 'book', explain: { key: 'blocked.command', title: n, text: `Moves entries to ${n}. Explain mode will not change a book.` } }));
             }
         }, { help: 'Links to other entries of this book don\'t travel; the other book lists them as problems.' });
     }
@@ -333,11 +364,20 @@ export function createMenus(A) {
         const data = library.peek(book);
         const e = data?.entries[uid];
         if (!e) return;
-        if (desk) { deskEntryMenu(book, uid, e, desk); return; }
+        if (desk) { deskEntryMenu(book, uid, e, desk, onPage); return; }
         layer.sheet(titleOf(e), sh => {
-            if (ht) sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, cardKey(e)); }, { icon: 'canvas' }));
-            else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab' }));
-            if (!ht) sh.append(layer.opt('New entry below', () => { layer.close(); newEntry(book, entryFolder(book, e), uid); }, { icon: 'plus' }));
+            if (ht) {
+                const key = cardKey(e);
+                const there = onCanvas(book, key);
+                sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, key); }, {
+                    icon: 'canvas',
+                    explain: { key: 'inspector.showOnCanvas', title: 'Show on canvas', navigate: there ? 'native' : false, text: there ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' },
+                }));
+            }
+            else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab', explain: { key: 'inspector.readEntry' } }));
+            // In a Hero tab, the inspector is a read-only destination of its own (Explain mode can follow it safely).
+            if (ht) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, cardKey(e)); }, { icon: 'eye', explain: { key: 'nav.open', title: 'Inspect', text: 'Opens this entry in the inspector. Nothing is changed.' } }));
+            if (!ht) sh.append(layer.opt('New entry below', () => { layer.close(); newEntry(book, entryFolder(book, e), uid); }, { icon: 'plus', explain: { key: 'blocked.command', title: 'New entry below', text: 'Makes a new entry here. Explain mode will not change the book.' } }));
             sh.append(layer.opt('Duplicate', () => {
                 layer.close();
                 const copy = library.change(book, d => duplicateEntry(d, uid));
@@ -347,8 +387,8 @@ export function createMenus(A) {
                 if (ht) ht.uid = copy.uid;
                 render();
                 layer.toast(`Made ${titleOf(copy)}`);
-            }, { icon: 'copy' }));
-            sh.append(layer.opt('Move to folder', () => folderSheet(book, entryFolder(book, e), f => { setFolder(settings, book, e, f); saveSettings(); render(); }), { icon: 'folder', val: entryFolder(book, e) || 'No folder' }));
+            }, { icon: 'copy', explain: { key: 'blocked.command', title: 'Duplicate', text: 'Makes a copy of this entry. Explain mode will not change the book.' } }));
+            sh.append(layer.opt('Move to folder', () => folderSheet(book, entryFolder(book, e), f => { setFolder(settings, book, e, f); saveSettings(); render(); }), { icon: 'folder', val: entryFolder(book, e) || 'No folder', explain: { key: 'menu.folderPicker', title: 'Move to folder', text: 'Opens the folders this entry can go in. Explain mode will not move it.' } }));
             sh.append(layer.opt('Move to another book', () => layer.sheet('Move to', s2 => {
                 for (const n of visibleNames().filter(x => x !== book)) {
                     s2.append(layer.opt(n, async () => {
@@ -364,27 +404,28 @@ export function createMenus(A) {
                         if (ht) { ht.book = n; ht.uid = moved.uid; }
                         render();
                         layer.toast(`Moved to ${n}`);
-                    }, { icon: 'book' }));
+                    }, { icon: 'book', explain: { key: 'blocked.command', title: n, text: `Moves this entry to ${n}. Explain mode will not change a book.` } }));
                 }
-            }, { help: 'Links to other entries of this book don\'t travel; the other book lists them as problems.' }), { icon: 'move' }));
-            sh.append(layer.opt('Copy as text', async () => {
+            }, { help: 'Links to other entries of this book don\'t travel; the other book lists them as problems.' }), { icon: 'move', explain: { key: 'menu.choose', title: 'Move to another book' } }));
+            // On the entry's own page the copy button sits by the Content heading instead.
+            if (!onPage) sh.append(layer.opt('Copy content', async () => {
                 layer.close();
-                try { await navigator.clipboard.writeText(entryAsText(e)); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
-            }, { icon: 'entry' }));
+                try { await navigator.clipboard.writeText(e.content ?? ''); layer.toast('Content copied'); } catch { layer.toast('Couldn\'t copy'); }
+            }, { icon: 'entry', explain: { key: 'blocked.clipboard', title: 'Copy content', text: 'Copies this entry\'s text. Explain mode will not use the clipboard.' } }));
             sh.append(layer.opt('Delete', () => {
                 layer.close();
                 if (onPage) { const t = tab(); if (t.history.length > 1) t.history.pop(); else t.history = [{ type: 'book', book }]; }
                 if (ht) { const i = H.tabs.indexOf(ht); H.tabs.splice(i, 1); H.active = i > 0 ? i - 1 : 'canvas'; }
                 deleteEntries(book, [uid]);
-            }, { icon: 'trash', danger: true }));
+            }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this entry. Explain mode will not change the book.' } }));
         });
     }
 
     /**
      * Desktop's entry menu (right-click, ⋯, ⋮): Open in new tab · Turn off · Duplicate · Move to folder · Move to
-     * another book · Copy as text · Delete. In an entry tab, "Show in its book" stands for Open in new tab.
+     * another book · Copy content · Delete (Copy content not on the entry's own page). In an entry tab, "Show in its book" stands for Open in new tab.
      */
-    function deskEntryMenu(book, uid, e, d) {
+    function deskEntryMenu(book, uid, e, d, onPage = false) {
         const p = page();
         layer.sheet(null, sh => {
             if (d.openTab) sh.append(layer.opt('Open in new tab', () => { layer.close(); d.openTab(); }, { icon: 'tab', val: 'Double-click' }));
@@ -405,9 +446,10 @@ export function createMenus(A) {
                 if (p.type === 'entry') Object.assign(p, { book: n, uid: moved[0].uid });
                 else if (p.type === 'book') p.sel = null;
             }), { icon: 'move' }));
-            sh.append(layer.opt('Copy as text', async () => {
+            // On the entry's own page the copy button sits by the Content heading instead.
+            if (!onPage) sh.append(layer.opt('Copy content', async () => {
                 layer.close();
-                try { await navigator.clipboard.writeText(entryAsText(e)); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
+                try { await navigator.clipboard.writeText(e.content ?? ''); layer.toast('Content copied'); } catch { layer.toast('Couldn\'t copy'); }
             }, { icon: 'entry' }));
             sh.append(el('div', 'div'));
             sh.append(layer.opt('Delete', () => {
@@ -424,18 +466,18 @@ export function createMenus(A) {
         const data = library.peek(book);
         const folders = [...new Set([...entriesOf(data).map(e => entryFolder(book, e)).filter(Boolean), ...(bookSettings(settings, book).folderList ?? [])])].sort();
         layer.sheet('Move to folder', sh => {
-            sh.append(layer.opt('No folder', () => { layer.close(); pick(''); }, { cur: current === '', icon: 'entry' }));
-            for (const f of folders) sh.append(layer.opt(f, () => { layer.close(); pick(f); }, { cur: current === f, icon: 'folder' }));
-            sh.append(layer.opt('New folder', () => layer.askText({ title: 'New folder', placeholder: 'Folder name', ok: 'Move', done: f => pick(f) }), { icon: 'plus' }));
+            sh.append(layer.opt('No folder', () => { layer.close(); pick(''); }, { cur: current === '', icon: 'entry', explain: { key: 'blocked.command', title: 'No folder', text: 'Takes this entry out of its folder. Explain mode will not move it.' } }));
+            for (const f of folders) sh.append(layer.opt(f, () => { layer.close(); pick(f); }, { cur: current === f, icon: 'folder', explain: { key: 'blocked.command', title: f, text: `Moves this entry to ${f}. Explain mode will not move it.` } }));
+            sh.append(layer.opt('New folder', () => layer.askText({ title: 'New folder', placeholder: 'Folder name', ok: 'Move', done: f => pick(f) }), { icon: 'plus', explain: { key: 'blocked.command', title: 'New folder', text: 'Makes a folder and moves this entry. Explain mode will not change the book.' } }));
         });
     }
 
     function bookFolderSheet(pick) {
         const folders = Object.keys(settings.bookFolders).sort();
         layer.sheet('Move to folder', sh => {
-            sh.append(layer.opt('No folder', () => { layer.close(); pick(''); }, { icon: 'book' }));
-            for (const f of folders) sh.append(layer.opt(f, () => { layer.close(); pick(f); }, { icon: 'folder' }));
-            sh.append(layer.opt('New folder', () => layer.askText({ title: 'New folder', placeholder: 'Folder name', ok: 'Move', done: f => pick(f) }), { icon: 'plus' }));
+            sh.append(layer.opt('No folder', () => { layer.close(); pick(''); }, { icon: 'book', explain: { key: 'blocked.command', title: 'No folder', text: 'Takes this book out of its folder. Explain mode will not move it.' } }));
+            for (const f of folders) sh.append(layer.opt(f, () => { layer.close(); pick(f); }, { icon: 'folder', explain: { key: 'blocked.command', title: f, text: `Moves this book to ${f}. Explain mode will not move it.` } }));
+            sh.append(layer.opt('New folder', () => layer.askText({ title: 'New folder', placeholder: 'Folder name', ok: 'Move', done: f => pick(f) }), { icon: 'plus', explain: { key: 'blocked.command', title: 'New folder', text: 'Makes a folder and moves this book. Explain mode will not change anything.' } }));
         }, { help: 'WI Hero\'s own folders for books.' });
     }
 
@@ -448,11 +490,11 @@ export function createMenus(A) {
                     layer.close();
                     try { await library.unlink(book, l); layer.toast(`Unlinked from ${l.name}`); } catch (e) { layer.toast(e.message); }
                     render();
-                }, { val: 'Unlink', icon: l.kind === 'chat' ? 'entry' : 'user', sub: l.kind === 'char' ? 'Character\'s book' : l.kind === 'aux' ? 'Character\'s extra book' : undefined }));
+                }, { val: 'Unlink', icon: l.kind === 'chat' ? 'entry' : 'user', sub: l.kind === 'char' ? 'Character\'s book' : l.kind === 'aux' ? 'Character\'s extra book' : undefined, explain: { key: 'blocked.command', title: l.name, text: 'Unlinks this book from that character or chat. Explain mode will not change the link.' } }));
             }
             if (library.chatOpen() && library.chatBook() !== book) {
                 const other = library.chatBook();
-                sh.append(layer.opt('Link to this chat', async () => { layer.close(); await library.linkChat(book); render(); }, { icon: 'plus', sub: other ? `Instead of ${other}` : undefined }));
+                sh.append(layer.opt('Link to this chat', async () => { layer.close(); await library.linkChat(book); render(); }, { icon: 'plus', sub: other ? `Instead of ${other}` : undefined, explain: { key: 'blocked.command', title: 'Link to this chat', text: 'Turns this book on for the open chat. Explain mode will not change the link.' } }));
             }
         }, { help: 'Characters and chats that turn this book on. Unlinking is how you turn a linked book off.' });
     }
@@ -468,7 +510,7 @@ export function createMenus(A) {
                     title: label, value: String(s[key]), type: 'number',
                     check: v => (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max ? null : `A whole number from ${min} to ${max}`),
                     done: v => { library.setWiSetting(key, Number(v)); draw(); },
-                }), { sub, val: shown(s[key]) }));
+                }), { sub, val: shown(s[key]), explain: { key: 'blocked.setting', title: label, text: `Changes ${label}. Explain mode leaves World Info settings as they are.` } }));
                 const flag = (key, label, sub) => switchRow(sh, label, !!s[key], v => library.setWiSetting(key, v), { sub });
 
                 sh.append(el('div', 'lbl', 'Scanning'));
@@ -500,8 +542,8 @@ export function createMenus(A) {
                 const order = [['0', 'Sorted evenly', 'Every book\'s entries by their order'], ['1', 'Character books first'], ['2', 'Global books first']];
                 const cur = order.find(([k]) => k === String(s.bookOrder)) ?? order[1];
                 sh.append(layer.opt('Book order', () => layer.sheet('Book order', o => {
-                    for (const [k, label, sub] of order) o.append(layer.opt(label, () => { library.setWiSetting('bookOrder', Number(k)); draw(); }, { cur: k === cur[0], sub }));
-                }, { help: 'Which books\' entries go into the prompt first when several books are on.' }), { sub: 'Whose entries go in first', val: `${cur[1]} ›` }));
+                    for (const [k, label, sub] of order) o.append(layer.opt(label, () => { library.setWiSetting('bookOrder', Number(k)); draw(); }, { cur: k === cur[0], sub, explain: { key: 'blocked.setting', title: label, text: 'Changes which books\' entries go first. Explain mode leaves World Info settings as they are.' } }));
+                }, { help: 'Which books\' entries go into the prompt first when several books are on.' }), { sub: 'Whose entries go in first', val: `${cur[1]} ›`, explain: { key: 'menu.bookOrder' } }));
             }, { help: 'SillyTavern\'s own settings. They apply to every book.' });
             sh.scrollTop = scroll;
             sh.addEventListener('scroll', () => { scroll = sh.scrollTop; });
