@@ -194,7 +194,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ☐ |
-| 1 Hangs + cheap wins | ◐ H1, H2, A1, A2 landed; C1–C10 pending |
+| 1 Hangs + cheap wins | ◐ H1, H2, A1, A2 landed; C1 done in #48; C2–C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
