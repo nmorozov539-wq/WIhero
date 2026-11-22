@@ -153,11 +153,12 @@ svg.i.s { width: 16px; height: 16px; }
 .bottombar { flex-shrink: 0; height: 58px; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--line); background: var(--bar); }
 .bottombar button { width: 56px; height: 46px; color: var(--muted); display: flex; align-items: center; justify-content: center; border-radius: 10px; }
 .bottombar button:hover { color: var(--fg); }
-.bottombar { justify-content: space-between; gap: 6px; padding: 0 8px; }
-.bottombar .bsearch { flex: 1; width: auto; height: 38px; max-width: 150px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); justify-content: flex-start; gap: 8px; padding: 0 12px; font-size: var(--t-s); }
+.bottombar { justify-content: space-between; gap: 12px; padding: 0 10px 0 12px; }
+.bottombar .bsearch { flex: 1; min-width: 0; width: auto; height: 40px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); justify-content: flex-start; gap: 8px; padding: 0 12px; font-size: var(--t-s); }
 .bottombar .bsearch svg { width: 16px; height: 16px; flex-shrink: 0; }
-.bottombar .bplus { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); width: 50px; border-radius: 25px; }
-.bottombar .bright { flex: 1; max-width: 150px; display: flex; justify-content: flex-end; }
+.bottombar .bright { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+.bottombar .bright button { width: 46px; }
+.bottombar .bright .bplus { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); width: 46px; height: 46px; border-radius: 23px; margin-left: 4px; }
 .item.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 /* Home's tile view on phones: two to a row. */
 .ptiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 4px 12px 8px; }

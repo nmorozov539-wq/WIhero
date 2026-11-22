@@ -271,7 +271,7 @@ export function createNormal(A) {
 
     // ---------------------------------------------------------------- bottom bar, selection
     /**
-     * The phone's bottom bar (#40): a search field, + in the middle, then new folder and select. The field opens
+     * The phone's bottom bar (#40): a search field filling the row, then new folder, select and + together on the right, evenly spaced. The field opens
      * search with the cursor in it, the same search as before.
      */
     function bottomBar(p) {
@@ -279,10 +279,10 @@ export function createNormal(A) {
         const book = p.type === 'book' ? p.book : null;
         const sf = btn('bsearch', html`${ic('search', 's')}<span>Search</span>`, () => { S.search = { query: '' }; render(); }, 'Search');
         bb.append(sf);
-        bb.append(btn('bplus', ic('plus'), () => (book ? newEntry(book) : homePlus()), book ? 'New entry' : 'New book or import'));
         const right = el('div', 'bright');
         right.append(btn('', ic('folder'), () => (book ? newEntryFolder(book) : newBookFolder()), 'New folder'));
         right.append(btn('', ic('select'), () => { S.select = new Set(); render(); }, 'Select'));
+        right.append(btn('bplus', ic('plus'), () => (book ? newEntry(book) : homePlus()), book ? 'New entry' : 'New book or import'));
         bb.append(right);
         return bb;
     }
