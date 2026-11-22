@@ -9,6 +9,7 @@ import { canvasMemory, mountCanvas } from './canvas.js';
 import { closedText } from './logic-text.js';
 import { entryStatus, slotValues, writtenText } from '../engine/turn.js';
 import { ic } from './icons.js';
+import { explainNode } from './explain-meta.js';
 import { mountPieceBar } from './piecebar.js';
 import { strategyColor } from './entry-page.js';
 
@@ -22,7 +23,7 @@ export function createHeroShell(A) {
         newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
-        renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
+        renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas, startExplain,
         stopExplain, explainDrawn, strip, tabbar, visibleNames, desk, deadCount, deadSheet, undoHistory, historyStep,
     } = A;
 
@@ -75,13 +76,14 @@ export function createHeroShell(A) {
     }
 
     function renderHeroTabs() {
-        const mk = (label, active, onOpen, onClose, { icon, dot } = {}) => {
+        const mk = (label, active, onOpen, onClose, { icon, dot, explain = 'shell.tab.entry' } = {}) => {
             const b = el('button', `tab${active ? ' active' : ''}${icon ? ' fixed' : ''}`);
             b.type = 'button';
             if (icon) { b.innerHTML = ic(icon); b.setAttribute('aria-label', label); } else {
                 if (dot) { const d = el('i', 'sd'); d.style.background = dot; b.append(d); }
                 b.append(el('span', 'name', label));
             }
+            explainNode(b, explain, { title: label });
             if (S.desk) b.title = label;
             if (S.desk && onClose) {
                 // Desktop: × on hover too, and middle-click closes.
@@ -93,15 +95,19 @@ export function createHeroShell(A) {
                 x.innerHTML = ic('x');
                 x.setAttribute('role', 'button');
                 x.setAttribute('aria-label', 'Close tab');
+                explainNode(x, 'shell.tab.close', { title: label });
                 x.addEventListener('click', e => { e.stopPropagation(); onClose(); });
                 b.append(x);
             }
             b.addEventListener('click', onOpen);
             strip.append(b);
         };
-        mk('Canvas', H.active === 'canvas', () => { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } }, null, { icon: 'canvas' });
-        mk('Preview', H.active === 'preview', () => { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } }, null, { icon: 'eye' });
-        if (H.guide) mk('Guide', H.active === 'guide', () => { if (H.active !== 'guide') { H.active = 'guide'; render(); } }, () => { H.guide = null; if (H.active === 'guide') H.active = 'canvas'; render(); }, { icon: 'help' });
+        mk('Canvas', H.active === 'canvas', () => { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } }, null, { icon: 'canvas', explain: 'shell.tab.canvas' });
+        mk('Preview', H.active === 'preview', () => { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } }, null, { icon: 'eye', explain: 'shell.tab.preview' });
+        if (H.guide) mk('Guide', H.active === 'guide', () => {
+            if (H.explain) stopExplain();
+            if (H.active !== 'guide') { H.active = 'guide'; render(); }
+        }, () => { H.guide = null; if (H.active === 'guide') H.active = 'canvas'; render(); }, { icon: 'help', explain: 'shell.tab.guide' });
         H.tabs.forEach((t, i) => {
             const e = library.peek(t.book)?.entries[t.uid];
             mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
@@ -116,9 +122,11 @@ export function createHeroShell(A) {
         const right = el('div', 'tright');
         const book = heroBook();
         const bp = btn('tbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
+        explainNode(bp, 'shell.book');
         bp.querySelector('span').textContent = book ?? 'No book';
         bp.title = 'Switch book';
         const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
+        explainNode(sb, 'shell.search');
         const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
         eq.title = 'Explain (?)';
         const wide = deskSettings().heroWide !== false;
@@ -130,6 +138,7 @@ export function createHeroShell(A) {
             render();
             requestAnimationFrame(() => heroCanvas?.fit());
         }, wide ? 'Drawer size' : 'Widen');
+        explainNode(wb, 'shell.widen', { title: wide ? 'Drawer size' : 'Widen' });
         wb.title = wide ? 'Drawer size' : 'Widen';
         // The canvas picker lives above the left panel's status footer. Keep switching available in other views
         // and when the entry list is hidden.
@@ -156,8 +165,21 @@ export function createHeroShell(A) {
     }
 
     function heroBack() {
-        if (H.explain) { stopExplain(); return true; }
         if (S.desk) return heroBackDesk();
+        // Back through explain mode's own layers keeps explain mode on; only at its canvas root does it end.
+        if (H.explain) {
+            if (H.active === 'canvas' && H.insp) { H.insp = null; render(); return true; }
+            if (H.panel) { H.panel = false; render(); return true; }
+            if (typeof H.active === 'number') { closeHeroTab(H.active); return true; }
+            if (H.active === 'preview') {
+                if (H.pv?.page) H.pv.page = null;
+                else H.active = 'canvas';
+                render();
+                return true;
+            }
+            stopExplain();
+            return true;
+        }
         // Back on an open strip is its Cancel; on an armed chip it disarms.
         if (H.active === 'canvas' && H.bar.edit) {
             const e = H.bar.edit;
@@ -205,7 +227,7 @@ export function createHeroShell(A) {
         if (H.explain) {
             const ban = el('div', 'explainban');
             ban.setAttribute('role', 'status');
-            ban.append(el('span', '', S.desk ? 'Point at anything outlined · click for the Guide' : 'Tap anything outlined · hold for the Guide'), btn('pbtn sm', 'Done', stopExplain));
+            ban.append(el('span', '', S.desk ? 'Point at anything outlined · click twice to follow · Done' : 'Tap anything outlined · tap again to follow · hold a piece for the Guide'), btn('pbtn sm', 'Done', stopExplain));
             root.append(ban);
         }
         explainDrawn();
@@ -242,6 +264,7 @@ export function createHeroShell(A) {
                     desk: {
                         crumbs: [{ label: t.book }, ...(folder ? folder.split('/').map(f => ({ label: f })) : [])],
                         showOnCanvas: e ? () => { showOnCanvas(t.book, cardKey(e)); inspect(t.book, cardKey(e)); } : null,
+                        onCanvas: e ? onCanvas(t.book, cardKey(e)) : false,
                     },
                 });
                 if (S.search) desk().renderSearch();
@@ -263,8 +286,11 @@ export function createHeroShell(A) {
             const v = el('div', 'view hempty');
             v.append(el('div', 'empty-note', 'No books yet. Make one, or import a lorebook file.'));
             const row = el('div', 'hempty-acts');
-            row.append(btn('pri', html`${ic('plus', 's')}<span>New book</span>`, () => newBookHere(), 'New book'),
-                btn('', html`${ic('import', 's')}<span>Import a file…</span>`, () => importHere(), 'Import a file'));
+            const nb = btn('pri', html`${ic('plus', 's')}<span>New book</span>`, () => newBookHere(), 'New book');
+            explainNode(nb, 'blocked.command', { title: 'New book', text: 'Makes a new book. Explain mode will not change your books.' });
+            const im = btn('', html`${ic('import', 's')}<span>Import a file…</span>`, () => importHere(), 'Import a file');
+            explainNode(im, 'blocked.file', { title: 'Import a file', text: 'Reads a lorebook file into a new book. Explain mode will not import.' });
+            row.append(nb, im);
             v.append(row);
             main.append(v);
             return;
@@ -313,6 +339,8 @@ export function createHeroShell(A) {
         const box = el('div', 'histbtns');
         const u = btn('', ic('undo'), () => historyStep(false), 'Undo (Ctrl Z)');
         const r = btn('', ic('redo'), () => historyStep(true), 'Redo (Ctrl Shift Z)');
+        explainNode(u, 'shell.undo', { title: 'Undo' });
+        explainNode(r, 'shell.undo', { title: 'Redo', text: 'Steps forward again through what you undid. Explain mode will not change the book.' });
         // While a piece is set up in the strip, its edits aren't steps yet: Done or Cancel first.
         u.disabled = !!H.bar.edit || !undoHistory.canUndo(book);
         r.disabled = !!H.bar.edit || !undoHistory.canRedo(book);
@@ -336,6 +364,7 @@ export function createHeroShell(A) {
         if (!dead) return [];
         const label = `${dead} dead branch${dead === 1 ? '' : 'es'}`;
         const b = btn('checkchip dead', html`${ic('alert', 's')}<span></span>`, () => deadSheet(book), label);
+        explainNode(b, 'shell.checks', { title: label });
         b.querySelector('span').textContent = `${dead} dead`;
         b.title = label;
         b.addEventListener('pointerdown', e => e.stopPropagation()); // not a canvas pan

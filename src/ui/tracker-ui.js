@@ -1,6 +1,7 @@
 // Trackers in the editor (TRACKERS 2.3, 4, 5): the Tracker piece (which text slots the model writes, and how), a
 // slot's value in the open chat with Edit and Clear, and the book's syntax builder.
 import { btn, el, swEl } from './dom.js';
+import { blockRegion, explainNode } from './explain-meta.js';
 import { isObject } from '../engine/util.js';
 import { rawConfig } from '../engine/model.js';
 import { DEFAULT_SYNTAX, DEFAULT_TEACH, SYNTAX_EXAMPLES, compileSyntax, instruction, sample, syntaxProblems, syntaxWarnings } from '../engine/written.js';
@@ -26,8 +27,10 @@ export function trackerEditor(box, x, update) {
     for (const s of slots) {
         const on = !!s.written;
         const row = el('div', 'mlayer trk');
+        blockRegion(row);
         const head = el('div', 'mlh');
-        head.append(el('span', '', s.name), swEl(on, v => update(cc => writeSlot(cc, s.mask, v ? { ...(t.shared ?? {}) } : null)), `${s.name} written by the model`));
+        const trkSwitch = swEl(on, v => update(cc => writeSlot(cc, s.mask, v ? { ...(t.shared ?? {}) } : null)), `${s.name} written by the model`, { key: 'inspector.switch', title: `${s.name} written by the model` });
+        head.append(el('span', '', s.name), trkSwitch);
         row.append(head);
         if (on) slotFields(row, s, x, update);
         else row.append(el('p', 'phelp', s.mask ? 'Written by hand, as usual.' : 'Written by hand, as usual. Switch on to let the model write it.'));
@@ -38,7 +41,12 @@ export function trackerEditor(box, x, update) {
         const syntax = t.shared?.syntax ?? DEFAULT_SYNTAX;
         const label = first.written.label || t.labelOf?.(first.mask) || 'Label';
         box.append(el('p', 'phelp', `The model writes ${sample(syntax, { label, shape: first.written.shape ?? 'line' }, '…').replace(/\n/g, ' ')}${t.shared?.teach?.on ? '. WI Hero teaches it the format.' : '. Your preset or card tells the model to write it.'}`));
-        if (t.builder) { box.append(btn('addb', 'Syntax and teaching…', t.builder)); box.append(el('p', 'pnote', 'One syntax for every tracker in this book.')); }
+        if (t.builder) {
+            const syntax = btn('addb', 'Syntax and teaching…', t.builder);
+            explainNode(syntax, 'nav.open', { title: 'Syntax and teaching…', text: 'Opens how the model writes tracker values. Explain mode does not change it.' });
+            box.append(syntax);
+            box.append(el('p', 'pnote', 'One syntax for every tracker in this book.'));
+        }
     }
 }
 
@@ -99,8 +107,14 @@ export function valueLine(box, x, mask) {
     shown.title = v ?? '';
     line.append(el('b', '', 'In this chat'), shown);
     const acts = el('span', 'acts');
-    acts.append(btn('linkish', 'Edit', () => askValue(x.layer, { title: mask ? `Value of ${mask}` : 'Value', value: v ?? '', done: text2 => t.set(mask, text2) })));
-    if (v) acts.append(btn('linkish', 'Clear', () => t.set(mask, '')));
+    const edit = btn('linkish', 'Edit', () => askValue(x.layer, { title: mask ? `Value of ${mask}` : 'Value', value: v ?? '', done: text2 => t.set(mask, text2) }));
+    explainNode(edit, 'blocked.edit', { title: 'Edit value', text: 'Edits the value in the open chat. Explain mode does not type or change chat state.' });
+    acts.append(edit);
+    if (v) {
+        const clear = btn('linkish', 'Clear', () => t.set(mask, ''));
+        explainNode(clear, 'blocked.command', { title: 'Clear value', text: 'Clears the value in the open chat. Explain mode does not change chat state.' });
+        acts.append(clear);
+    }
     line.append(acts);
     box.append(line);
 }
@@ -115,8 +129,13 @@ export function askValue(layer, { title, value, done }) {
     ta.value = value ?? '';
     ta.rows = Math.min(10, Math.max(3, String(value ?? '').split('\n').length + 1));
     ta.setAttribute('aria-label', title);
+    explainNode(ta, 'blocked.input', { title });
     const row = el('div', 'row');
-    row.append(btn('', 'Cancel', layer.close), btn('pri', 'Save', () => { layer.close(); done(ta.value.trim()); }));
+    const cancel = btn('', 'Cancel', layer.close);
+    explainNode(cancel, 'nav.close', { text: 'Closes this without saving anything.' });
+    const save = btn('pri', 'Save', () => { layer.close(); done(ta.value.trim()); });
+    explainNode(save, 'blocked.confirm', { title: 'Save', text: 'Saves this value on the chat. Explain mode will not change chat state.' });
+    row.append(cancel, save);
     d.append(ta, el('p', 'phelp', 'Saved on the latest message, so it rewinds with the chat. Empty clears it.'), row);
     layer.layer.append(d);
     setTimeout(() => ta.focus(), 0);
@@ -136,6 +155,7 @@ export function openBuilder(layer, o) {
     let teach = { ...DEFAULT_TEACH, ...(o.teach ?? {}) };
     layer.sheet(`Tracker syntax · ${o.book}`, sh => {
         sh.classList.add('trkb');
+        blockRegion(sh);
         sh.append(el('p', 'help', 'One syntax for every tracker in this book. {label} is the tracker\'s label, {value} what the model writes.'));
         const ex = el('div', 'rowbox');
         const inputs = {};
@@ -185,7 +205,10 @@ export function openBuilder(layer, o) {
         sh.append(tips);
         const row = el('div', 'row trkrow');
         const save = btn('pri', 'Save', () => { layer.close(); o.save(syntax, teach); });
-        row.append(btn('', 'Cancel', layer.close), save);
+        const cancel = btn('', 'Cancel', layer.close);
+        explainNode(cancel, 'nav.close', { text: 'Closes this without saving anything.' });
+        explainNode(save, 'blocked.confirm', { title: 'Save', text: 'Saves this tracker syntax on the book. Explain mode will not change it.' });
+        row.append(cancel, save);
         sh.append(row);
 
         function draw() {

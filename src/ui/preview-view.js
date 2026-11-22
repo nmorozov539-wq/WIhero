@@ -2,6 +2,7 @@
 // engine on a pretend exchange. Moved out of app.js; it reaches the app only through the context given to it.
 import { GREETINGS } from '../engine/model.js';
 import { el } from './dom.js';
+import { explainNode } from './explain-meta.js';
 import { cardKey, titleOf } from './data.js';
 import { greetingsOf, openingGreeting } from '../chat-state.js';
 import { greetingName } from './pieces.js';
@@ -14,7 +15,7 @@ import { strategyColor } from './entry-page.js';
  *   loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect }.
  */
 export function createPreview(A) {
-    const { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need, loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect } = A;
+    const { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need, loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect, onCanvas } = A;
 
     /** Where Preview can start from (BUILD_SPEC 15.5): the open chat, Fresh start, and each greeting of its character. */
     function previewSeeds() {
@@ -77,10 +78,15 @@ export function createPreview(A) {
             },
             set: patch => { Object.assign(H.pv, patch); render(); },
             pickSeed: () => layer.sheet('Start from', sh => {
-                for (const x of seeds) sh.append(layer.opt(x.label, () => { layer.close(); seedPreview(x); render(); }, { cur: x.id === seed.id, sub: x.sub }));
+                for (const x of seeds) {
+                    const o = layer.opt(x.label, () => { layer.close(); seedPreview(x); render(); }, { cur: x.id === seed.id, sub: x.sub });
+                    explainNode(o, 'blocked.command', { title: x.label, text: 'Starts the pretend exchange from here. Explain mode will not change the input.' });
+                    sh.append(o);
+                }
             }, { help: 'Preview reads the open chat\'s latest exchange and how far its story has got, or starts from the beginning.' }),
             openEntry: k => { const e = byStKey.get(k); if (e) openHeroTab(book, e.uid); },
             showOnCanvas: k => { const e = byStKey.get(k); if (e) showOnCanvas(book, cardKey(e)); },
+            onCanvas: k => { const e = byStKey.get(k); return !e || onCanvas(book, cardKey(e)); },
             desk: S.desk,
             // Desktop: a highlight or a report row jumps to the card on the canvas.
             jump: k => { const e = byStKey.get(k); if (e) { showOnCanvas(book, cardKey(e)); inspect(book, cardKey(e)); } },

@@ -2,6 +2,7 @@
 // explanation sheet and the report page. What it shows comes from runPreview (src/ui/preview.js).
 import { btn, html, el } from './dom.js';
 import { ic } from './icons.js';
+import { explainNode, blockRegion } from './explain-meta.js';
 import { explain } from './preview.js';
 
 const FAMILY = { moment: 'var(--accent)', open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', fire: 'var(--s-key)' };
@@ -43,6 +44,7 @@ export function renderPreviewPage(main, x) {
     const head = el('div', 'pvhead');
     head.append(el('h2', '', 'Preview'));
     const src = btn('srcchip', html`<span></span>${ic('down', 's')}`, x.pickSeed, 'Where it starts from');
+    explainNode(src, 'menu.previewSource');
     src.querySelector('span').textContent = x.seedLabel;
     head.append(src);
     pg.append(head);
@@ -60,6 +62,7 @@ export function renderPreviewPage(main, x) {
             const info = x.info(k);
             const kind = { permanent: 'permanent', vector: 'vector', hold: 'glue', ride: 'glue', keyword: 'earlier message' }[r.how];
             const c = btn(`achip${r.status === 'blocked' ? ' no' : ''}`, '', () => explainSheet(x, k), null);
+            explainNode(c, 'menu.previewExplain', { title: info?.title ?? r.title, text: 'Opens why this is active and what it does. Nothing is changed.' });
             c.textContent = `${info?.title ?? r.title} · ${kind}`;
             c.style.setProperty('--c', r.how === 'hold' || r.how === 'ride' ? 'var(--p-glue)' : info?.color ?? 'var(--s-key)');
             a.append(c);
@@ -77,7 +80,9 @@ export function renderPreviewPage(main, x) {
     if (x.inTwo) return;
     const ft = el('div', 'pfoot');
     const { fire, blocked, changes } = run.counts;
-    ft.append(btn('report', `Report: ${fire} fire, ${blocked} blocked, ${changes} change${changes === 1 ? '' : 's'}`, () => x.set({ page: 'report', edit: null })));
+    const report = btn('report', `Report: ${fire} fire, ${blocked} blocked, ${changes} change${changes === 1 ? '' : 's'}`, () => x.set({ page: 'report', edit: null }));
+    explainNode(report, 'menu.report');
+    ft.append(report);
     pg.append(ft);
 }
 
@@ -86,19 +91,27 @@ function slot(side, x) {
     const h = el('div', 'sh');
     h.append(el('b', '', side === 'user' ? 'YOU' : 'CHARACTER'));
     const editing = x.pv.edit === side;
-    h.append(btn('round', ic(editing ? 'check' : 'edit'), () => x.set({ edit: editing ? null : side }), editing ? 'Done' : 'Edit'));
-    if (x.pv[side]) h.append(btn('round', ic('x'), () => x.set({ [side]: '', edit: side }), 'Clear'));
+    const edit = btn('round', ic(editing ? 'check' : 'edit'), () => x.set({ edit: editing ? null : side }), editing ? 'Done' : 'Edit');
+    explainNode(edit, 'blocked.edit', { title: editing ? 'Done editing' : 'Edit', text: 'Edits the pretend exchange. Explain mode does not type into Preview.' });
+    h.append(edit);
+    if (x.pv[side]) {
+        const clear = btn('round', ic('x'), () => x.set({ [side]: '', edit: side }), 'Clear');
+        explainNode(clear, 'blocked.edit', { title: 'Clear', text: 'Clears this side of the pretend exchange. Explain mode will not change the input.' });
+        h.append(clear);
+    }
     s.append(h);
     if (editing) {
         const t = el('textarea');
         t.value = x.pv[side];
         t.placeholder = PLACEHOLDER[side];
+        explainNode(t, 'blocked.input', { title: side === 'user' ? 'Your message' : 'The character\'s reply', text: 'The pretend exchange is not typed into in Explain mode.' });
         t.addEventListener('input', () => { x.pv[side] = t.value; });
         t.addEventListener('blur', () => setTimeout(() => { if (x.pv.edit === side) x.set({ edit: null }); }, 150));
         s.append(t);
         setTimeout(() => t.focus(), 0);
     } else {
         const box = highlighted(side, x);
+        explainNode(box, 'blocked.edit', { title: side === 'user' ? 'Your message' : 'The character\'s reply', text: 'Tapping a highlight opens why it matched. Explain mode does not edit the pretend exchange.' });
         box.addEventListener('click', () => x.set({ edit: side }));
         s.append(box);
     }
@@ -124,6 +137,7 @@ function highlighted(side, x) {
         sp.append(phrase);
         sp.dataset.key = h.stKey;
         sp.style.setProperty('--c', h.lock ? (h.close ? 'var(--p-close)' : 'var(--p-open)') : info?.color ?? 'var(--s-key)');
+        explainNode(sp, 'menu.previewExplain', { title: info?.title ?? phrase, text: h.ok ? `Opens why "${phrase}" set this off. Nothing is changed.` : `Opens why "${phrase}" was blocked. Nothing is changed.` });
         box.append(sp);
         at = h.b;
     }
@@ -148,8 +162,14 @@ export function explainSheet(x, stKey, { phrase = null, hit = null, change = nul
         const also = !hit?.lock && !hit?.next ? r?.changes ?? [] : [];
         if (also.length) sh.append(el('div', 'rstate', `It also: ${also.map(c => low(c.text)).join('; ')}.`));
         if (info && !info.logic && !hit?.lock) sh.append(el('div', 'rstate', 'This entry has no pieces: plain World Info that fires on its key words.'));
-        sh.append(x.layer.opt('Open entry', () => { x.layer.close(); x.openEntry(stKey); }, { icon: 'entry' }));
-        if (info?.logic) sh.append(x.layer.opt('Show on canvas', () => { x.layer.close(); x.showOnCanvas(stKey); }, { icon: 'canvas' }));
+        sh.append(x.layer.opt('Open entry', () => { x.layer.close(); x.openEntry(stKey); }, { icon: 'entry', explain: { key: 'menu.previewEntry', title: 'Open entry' } }));
+        if (info?.logic) {
+            const there = x.onCanvas?.(stKey) !== false;
+            sh.append(x.layer.opt('Show on canvas', () => { x.layer.close(); x.showOnCanvas(stKey); }, {
+                icon: 'canvas',
+                explain: { key: 'menu.previewCanvas', title: 'Show on canvas', navigate: there ? 'native' : false, text: there ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' },
+            }));
+        }
     }, { cls: 'explain' });
 }
 
@@ -160,7 +180,9 @@ function renderReport(pg, x) {
         const { fire, blocked, changes } = run.counts;
         head.append(el('h2', 'rtitle', 'Report'), el('span', 'rcount', `${fire} fire · ${blocked} blocked · ${changes} change${changes === 1 ? '' : 's'}`));
     } else {
-        head.append(btn('round', ic('back'), () => x.set({ page: null }), 'Back to the preview'));
+        const back = btn('round', ic('back'), () => x.set({ page: null }), 'Back to the preview');
+        explainNode(back, 'menu.reportBack', { title: 'Back to the preview' });
+        head.append(back);
         head.append(el('h2', 'rtitle', 'Report'));
     }
     pg.append(head);
@@ -176,6 +198,13 @@ function renderReport(pg, x) {
         for (const row of rows) {
             const b = btn('rrow', '', row.open);
             b.style.setProperty('--c', row.color);
+            const jump = x.desk && x.jump;
+            explainNode(b, 'menu.previewExplain', {
+                title: row.title,
+                navigate: jump && row.there === false ? false : 'native',
+                text: jump && row.there === false ? 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.'
+                    : jump ? 'Finds this entry on the canvas. Nothing is changed.' : 'Opens why this is in the report. Nothing is changed.',
+            });
             const d = el('div');
             d.append(el('b', '', row.title));
             if (row.sub) d.append(el('small', '', row.sub));
@@ -187,10 +216,10 @@ function renderReport(pg, x) {
     const rows = status => results.filter(r => r.status === status).map(r => {
         const info = x.info(r.stKey);
         const why = status === 'fires' ? cap(r.why) + (r.mask ? `, with its "${r.mask}" mask` : '') + (typeof r.value === 'string' ? `. Sends the tracker's value: ${r.value.length > 80 ? `${r.value.slice(0, 80)}…` : r.value}` : '') : `Because ${r.why}`;
-        return { title: info?.title ?? r.title, color: info?.color ?? 'var(--s-key)', sub: why + (r.logic ? '' : ' (plain entry)'), open: () => (x.desk && x.jump ? x.jump(r.stKey) : explainSheet(x, r.stKey)) };
+        return { title: info?.title ?? r.title, color: info?.color ?? 'var(--s-key)', sub: why + (r.logic ? '' : ' (plain entry)'), there: x.onCanvas?.(r.stKey) !== false, open: () => (x.desk && x.jump ? x.jump(r.stKey) : explainSheet(x, r.stKey)) };
     });
     section('Fires', rows('fires'));
     section('Blocked', rows('blocked'));
-    section('Would change', run.changes.map(c => ({ title: c.text, color: FAMILY[c.family] ?? 'var(--muted)', sub: c.when, open: () => (x.desk && x.jump ? x.jump(c.stKey) : explainSheet(x, c.stKey, { change: c })) })));
+    section('Would change', run.changes.map(c => ({ title: c.text, color: FAMILY[c.family] ?? 'var(--muted)', sub: c.when, there: x.onCanvas?.(c.stKey) !== false, open: () => (x.desk && x.jump ? x.jump(c.stKey) : explainSheet(x, c.stKey, { change: c })) })));
     pg.append(body);
 }

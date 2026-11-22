@@ -5,6 +5,7 @@ import { CH, CW, G, PORT, SIDE_OF, TB, buildGraph, canvasSet, withFrames, comput
 import { createLinkEngine } from '../link-engine/index.js';
 import { addDot, moveDot, normalize, removeDot, setSegment, toCanvas } from '../link-engine/shape.js';
 import { btn, el } from './dom.js';
+import { explainNode } from './explain-meta.js';
 import { ic } from './icons.js';
 import { wireInput } from './canvas-input.js';
 
@@ -80,12 +81,19 @@ export function mountCanvas(vp, d) {
     const world = el('div', 'world');
     vp.append(world);
     const tools = el('div', 'canvas-tools');
-    tools.append(btn('', ic('fit'), () => fit(), 'Fit to screen'), btn('', ic('plus'), () => zoomAt(1.2), 'Zoom in'), btn('', ic('minus'), () => zoomAt(1 / 1.2), 'Zoom out'));
+    const fitBtn = btn('', ic('fit'), () => fit(), 'Fit to screen');
+    explainNode(fitBtn, 'shell.fit', { title: 'Fit to screen' });
+    const zin = btn('', ic('plus'), () => zoomAt(1.2), 'Zoom in');
+    explainNode(zin, 'shell.zoom', { title: 'Zoom in' });
+    const zout = btn('', ic('minus'), () => zoomAt(1 / 1.2), 'Zoom out');
+    explainNode(zout, 'shell.zoom', { title: 'Zoom out' });
+    tools.append(fitBtn, zin, zout);
     d.tools?.(tools); // desktop: Tidy and the inspector toggle
     // The zoom label: a click goes to 100% around the middle of the view.
     const zl = el('button', 'zlabel');
     zl.type = 'button';
     zl.title = 'Zoom to 100%';
+    explainNode(zl, 'canvas.zoomLabel');
     zl.addEventListener('click', () => zoomTo(1));
     vp.append(tools, zl);
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
@@ -184,6 +192,7 @@ export function mountCanvas(vp, d) {
             Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
             const pn = el('span', 'pn', `#${r.pack}`);
             pn.title = `#${r.pack} — Rename the pack (drag to move it)`;
+            explainNode(pn, 'blocked.command', { title: `#${r.pack}`, text: 'Renames this pack and moves it on the canvas. Explain mode will not change either.', guide: 'pack', long: true });
             f.append(pn);
             f.dataset.pack = r.pack;
             put(world, f);
@@ -277,8 +286,10 @@ export function mountCanvas(vp, d) {
                 const active = st?.mask ? e.masks.findIndex(x => x.name === st.mask) + 1 : 0;
                 const pv = btn('', ic('left'), null, 'Previous layer');
                 pv.dataset.flip = e.id; pv.dataset.d = -1;
+                explainNode(pv, 'canvas.maskFlip', { title: 'Previous layer', text: 'Shows the previous version of this card\'s text. Explain mode leaves the display as it is.' });
                 const nx = btn('', ic('right'), null, 'Next layer');
                 nx.dataset.flip = e.id; nx.dataset.d = 1;
+                explainNode(nx, 'canvas.maskFlip', { title: 'Next layer', text: 'Shows the next version of this card\'s text. Explain mode leaves the display as it is.' });
                 n.append(pv, el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`), nx);
                 put(world, n);
             }

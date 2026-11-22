@@ -9,6 +9,7 @@ import { isMoment } from '../engine/model.js';
 import { bookSettings, cardKey, configOf, duplicateEntry, isBlank, removeEntry, reorderEntries, setFolder, sortEntries, titleOf } from './data.js';
 import { writeConfig } from '../book.js';
 import { btn, el } from './dom.js';
+import { explainNode } from './explain-meta.js';
 import { ic } from './icons.js';
 import { canvasMemory, holdSpace } from './canvas.js';
 import { resizer } from './desk.js';
@@ -23,7 +24,7 @@ export function createHeroDesk(A) {
     const {
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
-        placePicker, render, saveSettings, settings, shadow, showOnCanvas, sortBy, startExplain, stopExplain, typing,
+        placePicker, render, saveSettings, settings, shadow, showOnCanvas, onCanvas, sortBy, startExplain, stopExplain, typing,
         canvas, deleteEntries, bulkEdit,
     } = A;
 
@@ -89,8 +90,11 @@ export function createHeroDesk(A) {
             desk: true,
             dir: LR,
             tools: box => {
-                box.append(btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)'));
+                const tidy = btn('', ic('tidy'), () => tidyNow(), 'Tidy layout (T)');
+                explainNode(tidy, 'canvas.tools.tidy', { title: 'Tidy layout' });
+                box.append(tidy);
                 const t = btn('itoggle', ic('panelRight'), () => { setInsp(!inspShown()); render(); }, 'Show or hide the inspector');
+                explainNode(t, 'shell.inspectorToggle', { title: 'Show or hide the inspector' });
                 t.title = 'Show or hide the inspector';
                 box.append(t);
                 for (const b of box.querySelectorAll('button')) b.title ||= b.getAttribute('aria-label') ?? '';
@@ -177,19 +181,19 @@ export function createHeroDesk(A) {
         const view = canvas()?.view;
         const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
         layer.sheet(title, sh => {
-            sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: 'Click' }));
+            sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: 'Click', explain: { key: 'nav.open', title: 'Inspect', text: 'Opens this card in the inspector. Nothing is changed.' } }));
             if (e) {
-                sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: 'New tab' }));
-                sh.append(layer.opt('Edit text', () => { layer.close(); inspect(book, key, null, { tab: 'text' }); }, { icon: 'edit', val: 'Double-click' }));
+                sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: 'New tab', explain: { key: 'inspector.readEntry', title: 'Open entry' } }));
+                sh.append(layer.opt('Edit text', () => { layer.close(); inspect(book, key, null, { tab: 'text' }); }, { icon: 'edit', val: 'Double-click', explain: { key: 'inspector.readEntry', title: 'Edit text', text: 'Opens this entry\'s text in the inspector. Explain mode does not type.' } }));
             }
             sh.append(el('div', 'lbl', 'Add piece'));
-            for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key }));
+            for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key, explain: { key: 'blocked.command', title: p.label, text: `Starts setting up ${p.label} on this card. Explain mode will not change the book.` } }));
             if (e && !isMoment(e)) {
                 const note = configOf(e)?.note;
-                sh.append(layer.opt(note ? 'Edit note' : 'Add note', () => { layer.close(); askNote(layer, library, book, e.uid, note); }, { icon: 'edit', sub: note || 'Only for you: never sent to the model' }));
+                sh.append(layer.opt(note ? 'Edit note' : 'Add note', () => { layer.close(); askNote(layer, library, book, e.uid, note); }, { icon: 'edit', sub: note || 'Only for you: never sent to the model', explain: { key: 'inspector.note', title: note ? 'Edit note' : 'Add note' } }));
             }
-            if (e) sh.append(layer.opt('Data', () => { layer.close(); dataSheet(e); }, { icon: 'code' }));
-            sh.append(layer.opt('Take off canvas', () => { layer.close(); takeOffPicked([key]); }, { icon: 'trash', val: linked ? 'Remove its links first' : 'Del', cls: linked ? 'muted' : undefined }));
+            if (e) sh.append(layer.opt('Data', () => { layer.close(); dataSheet(e); }, { icon: 'code', explain: { key: 'inspector.data', title: 'Data' } }));
+            sh.append(layer.opt('Take off canvas', () => { layer.close(); takeOffPicked([key]); }, { icon: 'trash', val: linked ? 'Remove its links first' : 'Del', cls: linked ? 'muted' : undefined, explain: { key: 'inspector.takeOff', title: 'Take off canvas' } }));
         });
     }
 
@@ -224,10 +228,15 @@ export function createHeroDesk(A) {
         if (!issues.length) body.append(el('p', 'help', 'No problems in this book.'));
         for (const i of [...issues.filter(x => !x.warning), ...issues.filter(x => x.warning)]) {
             const uid = i.stKey ? Number(i.stKey.slice(i.stKey.lastIndexOf('.') + 1)) : null;
+            const key = uid === null ? null : data.entries[uid] ? cardKey(data.entries[uid]) : null;
+            const there = key ? onCanvas(book, key) : false;
             body.append(layer.opt(i.label, () => {
                 const x = uid === null ? null : data.entries[uid];
                 if (x) { showOnCanvas(book, cardKey(x)); inspect(book, cardKey(x)); }
-            }, { sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)' }));
+            }, {
+                sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)',
+                explain: { key: 'nav.open', title: i.label, navigate: there ? 'native' : false, text: there ? 'Goes to the card this result is about. Nothing is changed.' : 'This card is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' },
+            }));
         }
         body.append(el('div', 'lbl', 'Links'));
         const lg = el('div', 'ilegend');
@@ -251,10 +260,12 @@ export function createHeroDesk(A) {
         sh.append(body);
         col.append(sh);
         const head = el('div', 'ihead');
-        head.append(el('h2', '', `${keys.length} cards selected`), btn('round flat', ic('x'), () => { canvas()?.setPicked(new Set()); }, 'Clear the selection'));
+        const clear = btn('round flat', ic('x'), () => { canvas()?.setPicked(new Set()); }, 'Clear the selection');
+        explainNode(clear, 'blocked.selection', { title: 'Clear the selection' });
+        head.append(el('h2', '', `${keys.length} cards selected`), clear);
         body.append(head);
         body.append(el('p', 'help', `${names.join(', ')}. Drag any of them to move them together.`));
-        const act = (label, icon, fn) => body.append(layer.opt(label, fn, { icon }));
+        const act = (label, icon, fn) => body.append(layer.opt(label, fn, { icon, explain: { key: 'blocked.command', title: label, text: `${label} changes the book. Explain mode will not do it.` } }));
         act('Pack into…', 'tag', () => layer.sheet('Pack into', s2 => {
             const pack = name => {
                 layer.close();

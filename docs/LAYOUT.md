@@ -834,32 +834,59 @@ Also reachable from ☰ › Guide. The text is in `src/ui/guide.js`.
 ### Explain mode
 
 A "?" at the top right of the canvas (phones), or in the tab row (desktop;
-also the ? key), turns explain mode on until Done, Back or Escape:
+also the ? key), turns explain mode on until Done or Escape. It is a way to
+explore Hero mode safely: it explains a control first, and only follows it
+when following it is navigation. It never changes a book, an entry, a setting,
+the clipboard, a file, the undo history, the canvas layout or Preview input.
 
-- Everything that can be explained gets a thin dashed accent outline. Buttons
-  and fields with nothing to explain fade out and do nothing at all when
-  tapped (no toast). A banner at the bottom reads "Tap anything outlined ·
-  hold for the Guide · Done" ("Point at anything outlined · click for the
-  Guide" on desktop).
-- **Phones:** a tap shows a one-line tooltip next to the thing, above it when
-  there is room: its name in bold, then what it does as a concept, using this
-  thing's own names where the canvas shows them ("Opens Keeps Mill shut until
-  Road has fired."; "Lock Holds its row until someone says "red beard" in the
-  chat."). Under it, "More in the Guide ›". A long press (500ms) opens the
-  Guide at that thing's page straight away. Explain mode stays on after a
-  tooltip, so you can tap around; opening the Guide ends it.
-- **Desktop:** resting the mouse on a thing shows its tooltip (no More link);
-  a click opens the Guide there.
-- One finger (a mouse's left drag) on the canvas still moves the view, so you
-  can look around; nothing on the canvas acts, moves or opens.
-- What can be explained: piece bar chips, ports (way in, way out), lines,
-  and/or junctions, lock and wait pills, pack frames, mask stacks, Moment
-  cards, other cards (closed, permanent and masked ones say so), a card's
-  grip, 1× and +N badges, problem mark and sticky note, the tabs (Canvas,
-  Preview, Guide, entries), the strip, inspector rows, Fit, zoom in and out,
-  the zoom label, Tidy, the undo and redo arrows, the checks chip, the panel
-  button, Preview highlights and Also active. The one-liners are `TIPS` in
-  `src/ui/explain.js`.
+- Every explainable control is outlined, and every activated control is
+  intercepted. A control with no explanation is faded and does nothing at all
+  when tapped (no toast).
+- **First and second activation.** The first tap or click on a control shows
+  its one-line tooltip and arms that exact control. The second consecutive
+  activation follows it only when that is navigation: it dismisses the
+  tooltip and lets one normal activation through. A blocked control stays
+  blocked on every activation and keeps its tooltip. Activating a different
+  control arms that one instead. A control that is redrawn or replaced loses
+  its arming.
+- **What may be followed.** Opening drawers, menus, sheets, folders, tabs,
+  entry tabs, inspector rows and disclosures; navigational result rows;
+  changing the view (pan, zoom, Fit); going to an entry, card or Guide page.
+  Buttons that only close or go back are navigation too, and a scrim closes
+  its sheet on the second tap ("Close this menu or sheet"), never on the
+  first.
+- **What is blocked.** Anything that creates, renames, moves, deletes, links,
+  restores, turns on or off, or otherwise changes a book, entry, rule, mask,
+  pack, placement, setting, preference, selection, undo history, clipboard or
+  file; typing into a field; keyboard shortcuts such as Ctrl+D, Ctrl+Z,
+  Ctrl+Shift+Z, Ctrl+Y, T, Delete/Backspace, the piece keys and the shape keys;
+  Tidy; duplicating a tab; Preview Edit, Clear, seed choice and text entry;
+  choice rows' choices (unfolding them is fine); and switches. They receive a
+  tooltip and a second activation stays a no-op.
+- **Show on canvas** navigates only when the card is already on the canvas. An
+  unplaced card is not placed: its tooltip says going there would place it, and
+  every activation stays blocked.
+- **Phones:** a tap shows the tooltip next to the control, above it when there
+  is room: its name in bold, then what it does as a concept, using this thing's
+  own names where the canvas shows them ("Opens Keeps Mill shut until Road has
+  fired."; "Lock Holds its row until someone says "red beard" in the chat.").
+  Under it, "More in the Guide ›" when the concept has a Guide page. A long
+  press (500ms) on a canvas concept (a card, line, pill, port or pack name)
+  opens its Guide page straight away; controls and menu rows have no long
+  press.
+- **Desktop:** resting the mouse on a control shows its tooltip after a moment
+  and never arms it. The first click arms the control and shows the tooltip
+  with its Guide link; the second click follows it only when that is
+  navigation. Hovering does not count as the first click.
+- Explain mode stays on while moving through menus, sheets, drawers, Preview
+  and the inspector, including their nested sheets. Opening a new layer clears
+  the arm from the old one. Opening the Guide ends explain mode, as do Done
+  and Escape. Escape ends explain mode without closing WI Hero. Back closes
+  one navigation layer at a time and keeps explain mode on; at the canvas root
+  Back may end it.
+- Menu rows mostly stop at useful tooltips; only concepts that merit Guide
+  depth carry "More in the Guide ›". The one-liners are `TIPS` and the explicit
+  catalogue in `src/ui/explain.js` and `src/ui/explain-meta.js`.
 
 ### Direct "?"
 
@@ -874,7 +901,7 @@ Android's Back (and Escape on desktop) steps back one layer at a time:
 | Mode | Order |
 |------|-------|
 | Normal | Sheet → search → selection → the tab's history. On a tab's first screen it closes the tab. On Home it closes the editor |
-| Hero | Sheet → panel → entry tab → Preview's report page → Preview to Canvas. On the Canvas tab it closes the editor on phones; on desktop Escape stops there |
+| Hero | Sheet → panel → entry tab → Preview's report page → Preview to Canvas. In explain mode each of these closes one layer and keeps explain mode on; at the canvas root Back ends explain mode. On the Canvas tab it closes the editor on phones; on desktop Escape stops there |
 
 Back never switches between the two modes.
 

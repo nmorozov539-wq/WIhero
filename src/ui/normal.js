@@ -26,7 +26,7 @@ export function createNormal(A) {
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
         linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
-        saveSettings, settings, shadow, showOnCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
+        saveSettings, settings, shadow, showOnCanvas, onCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
     } = A;
 
     // ---------------------------------------------------------------- Home
@@ -474,6 +474,7 @@ export function createNormal(A) {
             up: nav?.up ?? up,
             hero: !!nav,
             showOnCanvas: () => showOnCanvas(book, cardKey(e)),
+            onCanvas: nav ? onCanvas(book, cardKey(e)) : false,
             data: () => dataSheet(e),
             openInHero: () => switchMode(cardKey(e)),
             masks: nav ? (configOf(e)?.masks ?? []).filter(x => isObject(x) && typeof x.name === 'string') : [],

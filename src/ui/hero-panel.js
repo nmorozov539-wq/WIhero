@@ -3,6 +3,7 @@
 // Moved out of app.js; it reaches the app only through the context given to it.
 import { btn, el, html, pressable } from './dom.js';
 import { ic } from './icons.js';
+import { explainNode } from './explain-meta.js';
 import { bookSettings, cardKey, setFolder, sortEntries, strategyOf, titleOf } from './data.js';
 import { CH } from './canvas-graph.js';
 import { momentName } from './canvas-graph.js';
@@ -19,7 +20,7 @@ import { resizer } from './desk.js';
 export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
-        createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
+        createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
         folderSheet, bulkEdit, clashCount, clashesSheet,
     } = A;
     let panelState = () => {};
@@ -31,6 +32,7 @@ export function createHeroPanel(A) {
         const pb = desk
             ? btn('panelBtn', ic(listShown() ? 'left' : 'panel'), () => { H.dlist = !listShown(); render(); }, listShown() ? 'Hide the entry list' : 'Show the entry list')
             : btn('panelBtn', ic('panel'), () => { H.panel = !H.panel; panelState(); }, 'Entries');
+        explainNode(pb, 'shell.panel', { title: desk ? (listShown() ? 'Hide the entry list' : 'Show the entry list') : 'Entries' });
         if (desk) pb.title = listShown() ? 'Hide the entry list' : 'Show the entry list';
         if (desk && !listShown()) { main.append(pb); panelState = () => {}; return; }
         const p = el('aside', desk ? 'panel dock' : 'panel');
@@ -39,7 +41,9 @@ export function createHeroPanel(A) {
         let filled = false;
         if (desk) {
             panelState = () => { if (!filled) fill(); p.classList.remove('closed'); };
-            p.append(resizer(() => deskSettings().heroListW ?? 250, w => { deskSettings().heroListW = w; deskColumns(); }, { min: 200, max: 420, def: 250, side: 'right', onEnd: () => saveSettings() }));
+            const grip = resizer(() => deskSettings().heroListW ?? 250, w => { deskSettings().heroListW = w; deskColumns(); }, { min: 200, max: 420, def: 250, side: 'right', onEnd: () => saveSettings() });
+            explainNode(grip, 'shell.panel.resize');
+            p.append(grip);
         } else panelState = () => {
             if (H.panel && !filled) fill();
             p.classList.toggle('closed', !H.panel);
@@ -52,6 +56,7 @@ export function createHeroPanel(A) {
         const q = el('input');
         q.placeholder = 'Search entries';
         q.setAttribute('aria-label', 'Search entries');
+        explainNode(q, 'blocked.search', { title: 'Search entries' });
         q.value = H.q;
         q.addEventListener('input', () => { H.q = q.value; fill(); });
         const plus = btn('round flat', ic('plus'), () => layer.askText({
@@ -59,11 +64,13 @@ export function createHeroPanel(A) {
             // Made, not placed: it waits in the panel with a hollow dot until it is placed.
             done: name => { createEntry(book, name); H.panel = true; H.q = ''; render(); layer.toast(`${name} made. Drag or tap its dot to place it`); },
         }), 'New entry');
+        explainNode(plus, 'shell.panel.newEntry');
         ph.append(q);
         if (desk) ph.append(plus);
         // Select (Features 1): pick entries in the list to place, move, turn on or off, or edit together.
         // Toggled in place: a full draw would rebuild the panel button too, which then jumps.
         const sb = btn(`round flat${H.psel ? ' on' : ''}`, ic('select'), () => setSelecting(!H.psel), H.psel ? 'Leave selection' : 'Select entries');
+        explainNode(sb, 'shell.panel.select', { title: 'Select entries' });
         const setSelecting = on => {
             if (!on && H.psel) canvas()?.setPicked(new Set(), true);
             H.psel = on ? new Set() : null;
@@ -78,6 +85,7 @@ export function createHeroPanel(A) {
         const clashes = clashCount(book, data);
         if (clashes) {
             const cb = btn('pclash', html`${ic('alert', 's')}<span></span>${ic('right', 's')}`, () => clashesSheet(book), 'Keyword clashes');
+            explainNode(cb, 'shell.panel.clashes', { title: 'Keyword clashes' });
             cb.querySelector('span').textContent = `${clashes} keyword clash${clashes === 1 ? '' : 'es'}`;
             p.append(cb);
         }
@@ -223,6 +231,7 @@ export function createHeroPanel(A) {
             if (greets.length) {
                 const open = !H.closedFolders.has('\u0000greetings');
                 const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
+                explainNode(hd, 'panel.folder', { title: 'Greetings' });
                 hd.querySelector('small').textContent = greets.length;
                 list.append(hd);
                 if (open) {
@@ -241,9 +250,11 @@ export function createHeroPanel(A) {
                             if (!placed) { canvasMemory(bookSettings(settings, book)).cards[g.key] = { placed: true }; saveSettings(); }
                             showOnCanvas(book, g.key);
                         }, placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas`);
+                        explainNode(gd, 'shell.panel.dot', { title: placed ? `Show ${g.title} on the canvas` : `Place ${g.title} on the canvas` });
                         if (desk) { dotDrag(r, g.key, g.title); r.classList.toggle('on', H.insp?.key === g.key); } else dotDrag(gd, g.key, g.title);
                         r.append(gd);
                         r.addEventListener('click', ev => { if (desk && dragged(ev)) return; inspect(book, g.key); });
+                        explainNode(r, 'shell.panel.row', { title: g.title, text: desk ? `Inspects ${g.title} on the canvas. Nothing is changed.` : `Opens ${g.title} in a tab of its own. Nothing is changed.` });
                         box.append(r);
                     }
                     list.append(box);
@@ -254,6 +265,7 @@ export function createHeroPanel(A) {
             if (moments.length) {
                 const open = !H.closedFolders.has('\u0000moments');
                 const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Moments</span><small></small>`, () => { open ? H.closedFolders.add('\u0000moments') : H.closedFolders.delete('\u0000moments'); fill(); });
+                explainNode(hd, 'panel.folder', { title: 'Moments' });
                 hd.querySelector('small').textContent = moments.length;
                 list.append(hd);
                 if (open) {
@@ -269,9 +281,14 @@ export function createHeroPanel(A) {
                         const placed = on.has(key);
                         const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
                         const gd = btn(`dotc${placed ? ' in' : ''}`, html`<i></i>`, ev => { ev.stopPropagation(); if (!dragged(ev)) place(); }, placed ? `Show ${momentName(e)} on the canvas` : `Place ${momentName(e)} on the canvas`);
+                        explainNode(gd, 'shell.panel.dot', { title: placed ? `Show ${momentName(e)} on the canvas` : `Place ${momentName(e)} on the canvas` });
                         if (desk) { dotDrag(r, key, momentName(e)); r.classList.toggle('on', H.insp?.key === key); } else dotDrag(gd, key, momentName(e));
                         r.append(gd);
                         r.addEventListener('click', ev => { if (desk && dragged(ev)) return; if (placed || desk) inspect(book, key); else place(); });
+                        const canOpen = placed || desk;
+                        explainNode(r, canOpen ? 'shell.panel.row' : 'shell.panel.dot', canOpen
+                            ? { title: momentName(e), text: desk ? `Inspects ${momentName(e)} on the canvas. Nothing is changed.` : `Opens ${momentName(e)} in a tab of its own. Nothing is changed.` }
+                            : { title: momentName(e), text: `Places ${momentName(e)} on the canvas. Explain mode leaves the canvas layout alone.` });
                         box.append(r);
                     }
                     list.append(box);
@@ -283,6 +300,7 @@ export function createHeroPanel(A) {
                     const f = kid.path;
                     const open = !H.closedFolders.has(f) || !!needle;
                     const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span></span><small></small>`, () => { H.closedFolders.has(f) ? H.closedFolders.delete(f) : H.closedFolders.add(f); fill(); });
+                    explainNode(hd, 'panel.folder', { title: name });
                     hd.querySelector('span').textContent = name;
                     hd.querySelector('small').textContent = kid.n;
                     box.append(hd);
@@ -316,16 +334,21 @@ export function createHeroPanel(A) {
                     const place = () => { if (!placed) { canvasMemory(bookSettings(settings, book)).cards[key] = { placed: true }; saveSettings(); } showOnCanvas(book, key); };
                     const d = btn(`dotc${placed ? ' in' : ''}`, html`<i></i>`, ev => { ev.stopPropagation(); if (!dragged(ev)) place(); },
                         placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas`);
+                    explainNode(d, 'shell.panel.dot', { title: placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas` });
                     r.append(d);
                     const rowMenu = () => layer.sheet(titleOf(e), sh => {
-                        sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: desk ? 'Double-click' : undefined }));
-                        sh.append(layer.opt(placed ? 'Show on canvas' : 'Place on canvas', () => { layer.close(); place(); }, { icon: 'canvas' }));
-                        if (placed || desk) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: desk ? 'Click' : undefined }));
+                        const there = onCanvas(book, key);
+                        sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: desk ? 'Double-click' : undefined, explain: { key: 'inspector.readEntry', title: titleOf(e) } }));
+                        sh.append(layer.opt(there ? 'Show on canvas' : 'Place on canvas', () => { layer.close(); place(); }, {
+                            icon: 'canvas',
+                            explain: { key: 'inspector.showOnCanvas', title: there ? 'Show on canvas' : 'Place on canvas', navigate: there ? 'native' : false, text: there ? `Finds ${titleOf(e)} on the canvas. Nothing is changed.` : `${titleOf(e)} is not on the canvas yet: going there would place it. Explain mode will not change the canvas.` },
+                        }));
+                        if (placed || desk) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: desk ? 'Click' : undefined, explain: { key: 'nav.open', title: 'Inspect', text: 'Opens this entry in the inspector. Nothing is changed.' } }));
                         sh.append(layer.opt('Delete', () => {
                             layer.close();
                             if (H.insp?.key === key) H.insp = null;
                             deleteEntries(book, [e.uid]);
-                        }, { icon: 'trash', danger: true }));
+                        }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this entry. Explain mode will not change the book.' } }));
                     }, { help: desk ? null : 'Or drag its dot onto the canvas to place it where you drop it.' });
                     if (H.psel) {
                         const toggle = () => { H.psel.has(e.uid) ? H.psel.delete(e.uid) : H.psel.add(e.uid); fill(); light(); };
@@ -343,6 +366,9 @@ export function createHeroPanel(A) {
                         dotDrag(d, key, titleOf(e));
                         pressable(r, () => openHeroTab(book, e.uid), rowMenu);
                     }
+                    explainNode(r, H.psel ? 'blocked.selection' : 'shell.panel.row', H.psel
+                        ? { title: titleOf(e), text: 'Picks this entry for a bulk action. Explain mode will not start a selection.' }
+                        : { title: titleOf(e), text: desk ? `Inspects ${titleOf(e)} on the canvas. Nothing is changed.` : `Opens ${titleOf(e)} in a tab of its own. Nothing is changed.` });
                     box.append(r);
                 }
             };
@@ -362,13 +388,20 @@ export function createHeroPanel(A) {
             const uids = picked();
             const head = el('div', 'pselhead');
             const every = shown.length && shown.every(e => H.psel.has(e.uid));
-            head.append(el('span', 'cnt', `${uids.length} selected`), btn('', every ? 'None' : 'All', () => {
+            const all = btn('', every ? 'None' : 'All', () => {
                 H.psel = every ? new Set() : new Set(shown.map(e => e.uid));
                 fill();
                 light();
-            }));
+            });
+            explainNode(all, 'blocked.selection', { title: every ? 'None' : 'All', text: 'Picks or unpicks every visible entry. Explain mode will not start a selection.' });
+            head.append(el('span', 'cnt', `${uids.length} selected`), all);
             const acts = el('div', 'pselacts');
-            const act = (icon, label, fn) => { const b = btn('', html`${ic(icon)}<span>${label}</span>`, fn); b.disabled = !uids.length; acts.append(b); };
+            const act = (icon, label, fn) => {
+                const b = btn('', html`${ic(icon)}<span>${label}</span>`, fn);
+                b.disabled = !uids.length;
+                explainNode(b, 'blocked.command', { title: label, text: `${label} changes the selected entries or the canvas. Explain mode will not do it.` });
+                acts.append(b);
+            };
             act('canvas', 'Place', () => placeMany(uids));
             act('move', 'Move', () => folderSheet(book, null, f => {
                 for (const u of uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], f);
@@ -386,10 +419,12 @@ export function createHeroPanel(A) {
         if (desk) {
             // The footer: the book's links and how many of its entries are on the canvas.
             const picker = btn('panelbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
+            explainNode(picker, 'shell.panel.book', { title: 'Switch book' });
             picker.querySelector('span').textContent = book;
             picker.title = book;
             const prow = el('div', 'panelbookrow');
             const more = btn('panelmore', ic('more', 's'), () => heroBookMenu(book), 'Book actions');
+            explainNode(more, 'shell.panel.bookMenu', { title: 'Book actions' });
             more.title = 'Book actions';
             prow.append(picker, more);
             p.append(prow);
@@ -425,6 +460,7 @@ export function createHeroPanel(A) {
                 fold.setAttribute('aria-label', label());
                 if (filled) fill();
             }, label());
+            explainNode(fold, 'nav.disclosure', { title: label() });
             tools.append(fold);
         }
         tools.addEventListener('contextmenu', e => { const b = e.target.closest('button'); if (b) { e.preventDefault(); layer.toast(b.getAttribute('aria-label')); } });
@@ -432,12 +468,13 @@ export function createHeroPanel(A) {
         // The footer: the book's name opens the books menu, ⋮ this book's menu; a quiet line says where it is active.
         const br = el('div', 'bookrow');
         const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><small></small>`, () => bookPicker(), 'Books');
+        explainNode(bp, 'shell.panel.book', { title: 'Books' });
         bp.querySelector('b span').textContent = book;
         const lt = linkText(book);
         const listed = entriesShown(book, data);
         const placed = listed.filter(e => (view?.ids ?? new Set()).has(cardKey(e))).length;
         bp.querySelector('small').textContent = `${library.isGlobal(book) ? 'Global' : lt ? `Linked to ${lt}` : 'Not linked'} · ${placed} of ${listed.length} placed`;
-        br.append(bp, btn('round flat', ic('more'), () => heroBookMenu(book), 'Book actions'));
+        br.append(bp, (() => { const b = btn('round flat', ic('more'), () => heroBookMenu(book), 'Book actions'); explainNode(b, 'shell.panel.bookMenu', { title: 'Book actions' }); return b; })());
         p.append(br);
         panelState();
     }

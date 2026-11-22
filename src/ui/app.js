@@ -25,6 +25,7 @@ import { createNormal } from './normal.js';
 import { createHeroBar } from './hero-bar.js';
 import { createHeroInspector } from './hero-inspector.js';
 import { SAMPLE, createExplain } from './explain.js';
+import { explainNode, blockRegion } from './explain-meta.js';
 import { deskNormal } from './desk.js';
 
 /** "light" when the theme's text is dark (a light theme), so the piece colors can deepen (VISUAL 2). */
@@ -33,6 +34,21 @@ function toneOf(root) {
     if (!m) return 'dark';
     const [r, g, b] = m.slice(1, 4).map(Number);
     return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'light' : 'dark';
+}
+
+/**
+ * Whether a Hero key would run an app command that Explain mode must not run (it changes the book, canvas or undo
+ * history). Unlisted keys keep their ordinary browser behavior, such as scrolling.
+ */
+function explainWouldAct(e) {
+    const k = e.key.toLowerCase();
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && !e.altKey && ['d', 'z', 'y', 'k'].includes(k)) return true; // duplicate, undo/redo, search
+    if (ctrl || e.altKey || e.metaKey) return false;
+    if (['Delete', 'Backspace', 'ContextMenu', 'F10'].includes(e.key)) return true;
+    if (k === 't' || k === 'x') return true; // Tidy; flip a shaped link
+    if ('1234'.includes(k)) return true; // line shape keys
+    return 'ocgsmprlwe'.includes(k); // piece shortcuts
 }
 
 /**
@@ -64,6 +80,7 @@ export function createApp(deps) {
     const root = el('div', 'wih');
     const tabbar = el('div', 'tabbar');
     const menuBtn = btn('iconbtn', ic('menu'), () => openMenu(), 'Menu');
+    explainNode(menuBtn, 'shell.menu');
     const strip = el('div', 'strip');
     tabbar.append(menuBtn, strip);
     const main = el('div', 'main');
@@ -97,6 +114,13 @@ export function createApp(deps) {
         const inside = e.composedPath().includes(host) || (S.mode === 'hero' && document.activeElement === document.body);
         const ctrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
         const z = e.key.toLowerCase();
+        // Explain mode has no keyboard commands except "?" (which ends it); Escape has its own listener below.
+        // This boundary sits before undo/redo and heroKey, so no shortcut can mutate behind the tooltip contract.
+        if (S.mode === 'hero' && H.explain && (inside || ctrlK)) {
+            if (e.key === '?') { e.preventDefault(); e.stopPropagation(); stopExplain(); return; }
+            if (explainWouldAct(e)) { e.preventDefault(); e.stopPropagation(); }
+            return;
+        }
         // Undo and redo: also when a click left the focus on the page itself (a list redrawn under it).
         if ((e.ctrlKey || e.metaKey) && !e.altKey && (z === 'z' || z === 'y') && !typing() && !layer.isOpen()
             && (inside || document.activeElement === document.body)) {
@@ -111,6 +135,13 @@ export function createApp(deps) {
         if (library.operationText?.() || e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
         if (e.composedPath()[0]?.dataset?.ownEscape) return; // a field that cancels its own edit with Escape
+        // Escape ends explain mode by itself, and never closes WI Hero.
+        if (S.mode === 'hero' && H.explain) {
+            e.preventDefault();
+            e.stopPropagation();
+            stopExplain();
+            return;
+        }
         e.preventDefault();
         e.stopPropagation();
         back();
@@ -525,7 +556,7 @@ export function createApp(deps) {
     const normal = () => (normalView ??= createNormal({
         H, S, back, bookFolderSheet, bookMenu, countInto, ctx, dataSheet, deleteBooks, deleteEntries, entriesShown,
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
-        linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic,
+        linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, onCanvas: onHeroCanvas, page, problemsOf, warningsOf, hasLogic,
         render: () => render(), renderTabs, saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         switchMode, tab, up, visibleNames, wiSettingsSheet,
     }));
@@ -677,7 +708,7 @@ export function createApp(deps) {
         newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
-        renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
+        renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas: onHeroCanvas,
         startExplain, stopExplain, explainDrawn, strip, switchMode, tabbar, visibleNames, desk: () => deskN, deadCount: (book, data) => menus().deadCount(book, data), deadSheet, undoHistory, historyStep,
     }));
     function chatStatus(...a) { return heroShell().chatStatus(...a); }
@@ -696,6 +727,8 @@ export function createApp(deps) {
         S, H, root, layer, library, render: () => render(),
         showMe: key => { showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
     });
+    // Sheets opened while Explain mode is on never take the focus into a field (search and editing are blocked).
+    layer.explainActive = () => S.mode === 'hero' && H.explain;
 
     // ---------------------------------------------------------------- the piece bar (hero-bar.js)
     // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
@@ -723,14 +756,14 @@ export function createApp(deps) {
     let previewView = null;
     const preview = () => (previewView ??= createPreview({
         ctx, S, H, main, layer, library, settings, scan: deps.scan, render: () => render(), heroBook, need, loadingNote, linkable,
-        buildBookModel, openHeroTab, showOnCanvas, inspect,
+        buildBookModel, openHeroTab, showOnCanvas, inspect, onCanvas: onHeroCanvas,
     }));
     const renderPreviewTab = () => preview().renderPreviewTab();
     let heroPanelView = null;
     const panelView = () => (heroPanelView ??= createHeroPanel({
         S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
-        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
+        entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas: onHeroCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
@@ -749,11 +782,11 @@ export function createApp(deps) {
     function bookPicker() {
         const open = heroOpen;
         layer.sheet('Books', sh => {
-            sh.append(layer.opt('New book', heroNewBook, { icon: 'plus' }));
-            sh.append(layer.opt('Import a file…', () => { layer.close(); heroImport(); }, { icon: 'import' }));
+            sh.append(layer.opt('New book', heroNewBook, { icon: 'plus', explain: { key: 'blocked.command', title: 'New book', text: 'Makes a new book. Explain mode will not change your books.' } }));
+            sh.append(layer.opt('Import a file…', () => { layer.close(); heroImport(); }, { icon: 'import', explain: { key: 'blocked.file', title: 'Import a file', text: 'Reads a lorebook file into a new book. Explain mode will not import.' } }));
             sh.append(el('div', 'div'));
             for (const n of visibleNames()) {
-                sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
+                sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined, explain: { key: 'nav.open', title: n, text: `Looks at ${n} on the canvas. Nothing is changed.` } }));
             }
         });
     }
@@ -766,16 +799,16 @@ export function createApp(deps) {
                 render();
                 layer.toast(v ? `${book} is active everywhere` : `${book} is no longer global`);
             });
-            sh.append(layer.opt('Linked to', () => linksSheet(book), { icon: 'chain', val: `${linkText(book) || 'Nothing'} ›` }));
+            sh.append(layer.opt('Linked to', () => linksSheet(book), { icon: 'chain', val: `${linkText(book) || 'Nothing'} ›`, explain: { key: 'menu.links' } }));
             const data = library.peek(book);
             if (data) {
                 const issues = modelOf(book, data).issues;
-                if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs' }));
+                if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs', explain: { key: 'menu.problems' } }));
                 menus().checkRows(sh, book, data);
             }
-            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›' }));
+            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›', explain: { key: 'menu.snapshots' } }));
             sh.append(el('div', 'div'));
-            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit' }));
+            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this book and its file. Explain mode will not change the book.' } }));
             sh.append(layer.opt('Duplicate', async () => {
                 layer.close();
                 let to;
@@ -785,12 +818,12 @@ export function createApp(deps) {
                 H.book = to; H.active = 'canvas'; H.insp = null; H.pick = [];
                 render();
                 layer.toast(`Made ${to}`);
-            }, { icon: 'copy' }));
+            }, { icon: 'copy', explain: { key: 'blocked.command', title: 'Duplicate', text: 'Makes a copy of this whole book. Explain mode will not change your books.' } }));
             sh.append(layer.opt('Delete', () => {
                 layer.close();
                 if (H.book === book) { H.book = null; H.panel = false; }
                 deleteBooks([book]);
-            }, { icon: 'trash', danger: true }));
+            }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this book. Explain mode will not change your books.' } }));
         });
     }
 
@@ -824,12 +857,12 @@ export function createApp(deps) {
         const usesPack = rs => (rs ?? []).flat().some(r => r === `#${name}` || (typeof r === 'string' && r.startsWith(`#${name}:`)));
         const users = m.E.filter(e => usesPack(e.gate) || usesPack([e.gatesFor]) || usesPack(e.closeGate) || usesPack([e.closesFor]));
         layer.sheet(`#${name}`, sh => {
-            sh.append(layer.opt('Rename', () => { layer.close(); renamePackAsk(book, name); }, { icon: 'edit' }));
+            sh.append(layer.opt('Rename', () => { layer.close(); renamePackAsk(book, name); }, { icon: 'edit', explain: { key: 'blocked.command', title: `Rename #${name}`, text: 'Renames this pack everywhere the book names it. Explain mode will not change the book.' } }));
             sh.append(el('div', 'lbl', 'In this pack'));
-            for (const e of members) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry) }));
+            for (const e of members) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry), explain: { key: 'nav.open', title: e.title, text: `Inspects ${e.title} on the canvas. Nothing is changed.` } }));
             if (users.length) {
                 sh.append(el('div', 'lbl', 'Used by'));
-                for (const e of users) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry) }));
+                for (const e of users) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry), explain: { key: 'nav.open', title: e.title, text: `Inspects ${e.title} on the canvas. Nothing is changed.` } }));
             }
         }, { help: 'A pack is a tag. Rules can wait for any, all, or a number of its entries.' });
     }
@@ -848,6 +881,7 @@ export function createApp(deps) {
     function inspect(...a) { return heroInsp().inspect(...a); }
     function inspectorFor(...a) { return heroInsp().inspectorFor(...a); }
     function showOnCanvas(...a) { return heroInsp().showOnCanvas(...a); }
+    function onHeroCanvas(...a) { return heroInsp().onCanvas(...a); }
 
     /** The mode switch at the top of the ☰ menu: tap once to arm it, again to switch (LAYOUT "Modes"). */
     function modeButton(sh) {
@@ -856,6 +890,7 @@ export function createApp(deps) {
             if (!b.classList.contains('arm')) { b.classList.add('arm'); b.querySelector('span').textContent = `Tap again to switch to ${target}`; return; }
             switchMode();
         });
+        explainNode(b, 'menu.mode', { title: `Switch to ${target}` });
         sh.append(b);
     }
 
@@ -894,23 +929,23 @@ export function createApp(deps) {
                 render();
                 layer.toast(v ? `${book} is active everywhere` : `${book} is no longer global`);
             });
-            sh.append(layer.opt('Linked to', () => linksSheet(book), { val: `${linkText(book) || 'Nothing'} ›` }));
-            sh.append(layer.opt('Switch book', bookPicker, { val: `${book} ›` }));
+            sh.append(layer.opt('Linked to', () => linksSheet(book), { val: `${linkText(book) || 'Nothing'} ›`, explain: { key: 'menu.links' } }));
+            sh.append(layer.opt('Switch book', bookPicker, { val: `${book} ›`, explain: { key: 'menu.bookPicker' } }));
             const data = library.peek(book);
             if (data) {
                 const issues = modelOf(book, data).issues;
-                if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs' }));
+                if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs', explain: { key: 'menu.problems' } }));
                 menus().checkRows(sh, book, data);
             }
-            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›' }));
+            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›', explain: { key: 'menu.snapshots' } }));
         }
-        sh.append(layer.opt('Guide', () => { layer.close(); openGuide(null); }, { icon: 'help', val: '›' }));
+        sh.append(layer.opt('Guide', () => { layer.close(); openGuide(null); }, { icon: 'help', val: '›', explain: { key: 'menu.guide' } }));
         sh.append(el('div', 'lbl', 'Canvas'));
         sh.append(layer.opt('Tidy layout', () => {
             layer.close();
             if (H.active !== 'canvas') { H.active = 'canvas'; render(); }
             tidyNow();
-        }, { icon: 'tidy', val: S.desk ? 'T' : undefined }));
+        }, { icon: 'tidy', val: S.desk ? 'T' : undefined, explain: { key: 'shell.tidy' } }));
         // A trackpad pans with two fingers when the wheel scrolls; Ctrl+wheel and a pinch zoom either way.
         if (S.desk) {
             menus().choiceRow(sh, 'Mouse wheel', [['zoom', 'Zoom', 'Node-editor style: two fingers on a trackpad zoom'], ['scroll', 'Scroll', 'For a trackpad: two fingers pan, pinch or Ctrl+wheel zooms']],
@@ -931,7 +966,7 @@ export function createApp(deps) {
             sh.append(pre);
             sh.append(layer.opt('Copy', async () => {
                 try { await navigator.clipboard.writeText(pre.textContent); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
-            }, { icon: 'copy' }));
+            }, { icon: 'copy', explain: { key: 'blocked.clipboard', title: 'Copy', text: 'Copies this data to the clipboard. Explain mode will not copy.' } }));
         }, { help: 'The story logic as it is stored in the entry. It travels with the book.' });
     }
 
@@ -942,7 +977,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let menusView = null;
     const menus = () => (menusView ??= createMenus({
-        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
+        H, S, back, check, defaultsSheet, defaultsSummary, deleteBooks, deleteEntries, deskSettings, entryFolder, heroMenu, hiddenIn, inspect, layer, leave, library, main, modeButton, modelOf, newEntry, openIn, onCanvas: onHeroCanvas, page, render: () => render(), saveSettings, settings, showOnCanvas, snapshots, sortBy, tab, toggle, visibleNames,
     }));
     function bookFolderSheet(...a) { return menus().bookFolderSheet(...a); }
     function checkCounts(...a) { return menus().checkCounts(...a); }
@@ -977,7 +1012,7 @@ export function createApp(deps) {
     const heroDesk = () => (heroDeskView ??= createHeroDesk({
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder, hide,
         inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
-        placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
+        placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, onCanvas: onHeroCanvas, sortBy: () => sortBy(),
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(), deleteEntries,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids),
     }));
