@@ -365,10 +365,14 @@ svg.lk path.head { stroke-width: 0; }
 .canvas-tools button, .panelBtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
 .panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: left .22s ease; }
 /* Undo and redo on the canvas: beside the entries button, top left. */
-.histbtns { position: absolute; left: 62px; top: 10px; z-index: 6; display: flex; gap: 4px; }
+/* Phone: undo and redo in a row at the bottom right, in thumb reach, under the zoom column; the top left keeps
+   only the panel button and the legend. Desktop keeps them top left. */
+.histbtns { position: absolute; right: 10px; bottom: 10px; z-index: 6; display: flex; gap: 6px; }
+.vp:has(> .histbtns) .canvas-tools { bottom: 60px; }
 .histbtns button { width: 40px; height: 40px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
 .histbtns button:disabled { color: var(--muted); opacity: .45; }
-[data-desk="1"] .main[data-page="hero:canvas"] .histbtns { left: 52px; }
+[data-desk="1"] .main[data-page="hero:canvas"] .histbtns { left: 52px; top: 10px; right: auto; bottom: auto; }
+[data-desk="1"] .vp:has(> .histbtns) .canvas-tools { bottom: 10px; }
 [data-desk="1"] .histbtns button { width: 32px; height: 32px; border-radius: 8px; }
 /* The book's checks (#42): dead branches and keyword clashes, top right of the canvas, left of the phone's "?". */
 .checkchip { position: absolute; right: 58px; top: 14px; z-index: 6; display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px 0 9px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-size: var(--t-xs); box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent) inset; }
@@ -379,7 +383,7 @@ svg.lk path.head { stroke-width: 0; }
 .zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font: inherit; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; border: 0; cursor: pointer; }
 .zlabel:hover { color: var(--fg); }
 .cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
-.legend { position: absolute; left: 154px; top: 14px; right: 10px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: var(--t-xs); color: var(--muted); pointer-events: none; }
+.legend { position: absolute; left: 66px; top: 14px; right: 58px; z-index: 5; display: flex; gap: 10px; flex-wrap: wrap; font-size: var(--t-xs); color: var(--muted); pointer-events: none; }
 .legend span { display: inline-flex; align-items: center; gap: 4px; }
 .legend i { width: 14px; height: 3px; border-radius: 2px; background: currentColor; }
 .legend i.d { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px); }
@@ -973,7 +977,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .pfoot .plinks { display: inline-flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-desk="1"] .pfoot .pcount { white-space: nowrap; }
 [data-desk="1"] .main[data-page="hero:canvas"] > .panelBtn { left: calc(var(--lw, 0px) + 10px); top: 10px; width: 32px; height: 32px; border-radius: 8px; z-index: 6; transition: none; }
-[data-desk="1"] .main[data-page="hero:canvas"] .legend { left: calc(var(--lw, 0px) + 130px); }
+[data-desk="1"] .main[data-page="hero:canvas"] .legend { left: calc(var(--lw, 0px) + 130px); right: 10px; }
+/* Phone: with the checks chip at the top right, the legend drops under the top row. */
+[data-desk=""] .vp:has(> .checkchip) > .legend { top: 64px; left: 14px; right: 14px; }
 [data-desk="1"] .canvas-tools button { width: 32px; height: 32px; border-radius: 8px; }
 [data-desk="1"] .canvas-tools .itoggle { margin-top: 6px; }
 [data-desk="1"] .hinsp { grid-column: 3; grid-row: 1 / 3; position: relative; min-width: 0; border-left: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; }
