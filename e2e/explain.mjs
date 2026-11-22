@@ -95,6 +95,7 @@ async function phone() {
     await $(page, '.explainq').click();
     await $(page, '.explainban').waitFor();
     await page.waitForTimeout(100);
+    assert.equal((await $(page, '.explainban span').innerText()).trim(), 'Tap again to follow · hold for the Guide', 'the banner keeps only the follow hint');
     assert.ok(await $(page, '.vp .card.xok').count() > 3, 'cards are outlined');
     assert.equal(await $(page, 'button[aria-label="Menu"].xok').count(), 1, 'the menu button is explainable');
     const undo = $(page, '.histbtns button').first();
@@ -102,6 +103,7 @@ async function phone() {
     await tap(undo);
     await waitTip(page);
     assert.match(await tipText(page), /^Undo /, 'a disabled control can still be explained');
+    assert.match(await tipText(page), /Explain mode won't run this/, 'the caveat is one uniform line, not part of the copy');
     assert.ok((await hero(page)).explain);
     await shot(page, 'phone-on');
 
@@ -133,6 +135,7 @@ async function phone() {
     const menuBtn = $(page, 'button[aria-label="Menu"]');
     await tap(menuBtn);
     await waitTip(page);
+    assert.match(await tipText(page), /Tap again to open/, 'a navigational tooltip offers the second tap');
     assert.equal(await sheets(page), 0, 'the first tap does not open the menu');
     assert.ok((await hero(page)).explain);
     await tap(menuBtn);
@@ -189,6 +192,7 @@ async function phone() {
     assert.ok(await sheets(page) > 0, 'the menu stays open after blocked Tidy');
     await tapAt(372, 60); await tapAt(372, 60);
     await page.waitForTimeout(150);
+    assert.equal(await $(page, '.layer .xok, .layer .xno, .layer .hit').count(), 0, 'closing a sheet leaves no marks in the layer');
     ok('phone: Tidy is tooltip-only and leaves the saved layout untouched');
 
     // 9: entry panel, row menu, and a read-only destination.
@@ -216,6 +220,7 @@ async function phone() {
     await tap(actions);
     await $(page, '.sheet').waitFor();
     await page.waitForTimeout(250);
+    assert.equal(await $(page, '.sheet .opt').filter({ hasText: 'Show on canvas' }).count(), 0, 'entry actions no longer duplicate the panel dot');
     const inspectRow = $(page, '.sheet .opt').filter({ hasText: 'Inspect' }).first();
     await tap(inspectRow);
     await waitTip(page);
@@ -279,29 +284,20 @@ async function phone() {
     await tap(panelBtn); await tap(panelBtn);
     await page.waitForTimeout(150);
     const village = $(page, '.panel .prow').filter({ hasText: 'Village (not gated)' }).first();
-    await tap(village); await waitTip(page);
-    await tap(village);
-    await page.waitForTimeout(150);
-    await $(page, '.en h1').waitFor();
-    const villageActions = $(page, 'button[aria-label="Entry actions"]').first();
-    await tap(villageActions); await waitTip(page);
-    await tap(villageActions);
-    await page.waitForTimeout(250);
-    const villageShow = $(page, '.sheet .opt').filter({ hasText: 'Show on canvas' }).first();
+    const villageDot = village.locator('.dotc');
     const canvasBefore = await cardsJson(page);
-    await tap(villageShow); await waitTip(page);
-    assert.match(await tipText(page), /not on the canvas yet/);
-    await tap(villageShow);
-    assert.equal(await cardsJson(page), canvasBefore, 'Show on canvas did not place an unplaced card');
+    await tap(villageDot); await waitTip(page);
+    assert.match(await tipText(page), /Lit when the entry is on the canvas/);
+    assert.match(await tipText(page), /Explain mode won't run this/);
+    await tap(villageDot);
+    assert.equal(await cardsJson(page), canvasBefore, 'the entry panel dot did not place an unplaced card');
     assert.ok((await hero(page)).explain, 'the blocked placement kept Explain on');
-    assert.equal(typeof (await hero(page)).active, 'number', 'the blocked placement stayed on the entry tab');
-    await tapAt(372, 60); await tapAt(372, 60);
-    await page.waitForTimeout(120);
+    assert.equal((await hero(page)).panel, true, 'the blocked placement stayed in the entry panel');
     await page.evaluate(() => wihero.app.back());
     await page.waitForTimeout(120);
-    assert.equal((await hero(page)).active, 'canvas', 'Back returned to the canvas after the blocked placement');
+    assert.equal((await hero(page)).panel, false, 'Back closed the entry panel');
     assert.ok((await hero(page)).explain);
-    ok('phone: Show on canvas is blocked for an unplaced card and its saved canvas layout does not change');
+    ok('phone: the entry panel dot is the place/find affordance, and it is blocked for an unplaced card');
 
     // 10: Preview: source picker opens, its choice is blocked; a highlight explains; Open entry navigates.
     await $(page, '.tab[aria-label="Canvas"]').click();
@@ -358,6 +354,18 @@ async function phone() {
     assert.ok((await hero(page)).explain, 'still explaining');
     ok('phone: one finger on empty canvas still pans in Explain mode');
 
+    // §5: a press that is not the armed control ends the first activation, a pan included.
+    await tap(panelBtn);
+    await waitTip(page);
+    await swipe(T, spot, { x: spot.x + 60, y: spot.y + 40 });
+    await T([]);
+    await page.waitForTimeout(150);
+    await tap(panelBtn);
+    assert.equal((await hero(page)).panel, false, 'panning cleared the armed control');
+    assert.ok(await $(page, '.explaintip').count() > 0, 'the next tap only explains it again');
+    await tapAt(10, 300);
+    ok('phone: panning clears the armed control, so a later tap only explains');
+
     // Back from Preview's report returns to Preview, then to Canvas, keeping Explain until the Canvas root.
     await tap(previewTab); await waitTip(page);
     await tap(previewTab);
@@ -404,6 +412,18 @@ async function phone() {
     await page.context().close();
 }
 
+async function narrow() {
+    const page = await open(320, 700, { hasTouch: true, isMobile: true });
+    await $(page, '.explainq').click();
+    await $(page, '.explainban').waitFor();
+    await page.waitForTimeout(150);
+    const b = await $(page, '.explainban').boundingBox();
+    assert.ok(b.x >= 0 && b.x + b.width <= 320, `the banner fits a 320 px screen (${b.x} + ${b.width})`);
+    assert.match(await $(page, '.explainban span').innerText(), /Tap again to follow/);
+    ok('phone: the Explain banner fits a 320 px screen');
+    await page.context().close();
+}
+
 async function desktop() {
     const page = await open(1366, 768);
     await $(page, '.tright .explainq').click();
@@ -413,7 +433,7 @@ async function desktop() {
     const pill = $(page, '.lockp').first();
     await pill.hover();
     await $(page, '.explaintip').waitFor();
-    assert.match(await tipText(page), /^(Lock|Wait) Holds its row/);
+    assert.match(await tipText(page), /^(Lock|Wait) Holds its rule/);
     assert.equal(await $(page, '.explaintip button').count(), 0, 'hover: no More button');
     await shot(page, 'desk-hover');
     await pill.click();
@@ -538,6 +558,7 @@ async function desktop() {
 
 try {
     await phone();
+    await narrow();
     await desktop();
     assert.deepEqual(errors, []);
     console.log('all explain checks passed');

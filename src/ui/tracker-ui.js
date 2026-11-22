@@ -43,7 +43,7 @@ export function trackerEditor(box, x, update) {
         box.append(el('p', 'phelp', `The model writes ${sample(syntax, { label, shape: first.written.shape ?? 'line' }, '…').replace(/\n/g, ' ')}${t.shared?.teach?.on ? '. WI Hero teaches it the format.' : '. Your preset or card tells the model to write it.'}`));
         if (t.builder) {
             const syntax = btn('addb', 'Syntax and teaching…', t.builder);
-            explainNode(syntax, 'nav.open', { title: 'Syntax and teaching…', text: 'Opens how the model writes tracker values. Explain mode does not change it.' });
+            explainNode(syntax, 'nav.open', { title: 'Syntax and teaching…', text: 'Opens how the model writes tracker values.' });
             box.append(syntax);
             box.append(el('p', 'pnote', 'One syntax for every tracker in this book.'));
         }
@@ -108,11 +108,11 @@ export function valueLine(box, x, mask) {
     line.append(el('b', '', 'In this chat'), shown);
     const acts = el('span', 'acts');
     const edit = btn('linkish', 'Edit', () => askValue(x.layer, { title: mask ? `Value of ${mask}` : 'Value', value: v ?? '', done: text2 => t.set(mask, text2) }));
-    explainNode(edit, 'blocked.edit', { title: 'Edit value', text: 'Edits the value in the open chat. Explain mode does not type or change chat state.' });
+    explainNode(edit, 'blocked.edit', { title: 'Edit value', text: 'Edits the value in the open chat.' });
     acts.append(edit);
     if (v) {
         const clear = btn('linkish', 'Clear', () => t.set(mask, ''));
-        explainNode(clear, 'blocked.command', { title: 'Clear value', text: 'Clears the value in the open chat. Explain mode does not change chat state.' });
+        explainNode(clear, 'blocked.command', { title: 'Clear value', text: 'Clears the value in the open chat.' });
         acts.append(clear);
     }
     line.append(acts);
@@ -134,7 +134,7 @@ export function askValue(layer, { title, value, done }) {
     const cancel = btn('', 'Cancel', layer.close);
     explainNode(cancel, 'nav.close', { text: 'Closes this without saving anything.' });
     const save = btn('pri', 'Save', () => { layer.close(); done(ta.value.trim()); });
-    explainNode(save, 'blocked.confirm', { title: 'Save', text: 'Saves this value on the chat. Explain mode will not change chat state.' });
+    explainNode(save, 'blocked.confirm', { title: 'Save', text: 'Saves this value on the chat.' });
     row.append(cancel, save);
     d.append(ta, el('p', 'phelp', 'Saved on the latest message, so it rewinds with the chat. Empty clears it.'), row);
     layer.layer.append(d);
@@ -207,7 +207,7 @@ export function openBuilder(layer, o) {
         const save = btn('pri', 'Save', () => { layer.close(); o.save(syntax, teach); });
         const cancel = btn('', 'Cancel', layer.close);
         explainNode(cancel, 'nav.close', { text: 'Closes this without saving anything.' });
-        explainNode(save, 'blocked.confirm', { title: 'Save', text: 'Saves this tracker syntax on the book. Explain mode will not change it.' });
+        explainNode(save, 'blocked.confirm', { title: 'Save', text: 'Saves this tracker syntax on the book.' });
         row.append(cancel, save);
         sh.append(row);
 

@@ -38,6 +38,7 @@ export function explainAnchor(t, H) {
     if (at('.card.greet')) return 'greeting';
     if (at('.card .badge1')) return t.closest('.badge1').textContent === '1×' ? 'once' : 'closes';
     if (at('.card .cbang')) return 'checks';
+    if (at('.card .wval')) return 'tracker';
     if (at('.card .sticky')) return null; // a sticky note: a tooltip only
     if (at('.card')) return 'canvas';
     if (at('.tabs .tab, .tabrow .tab, button.tab')) return 'tabs';
@@ -69,21 +70,21 @@ function nameIn(root, key) {
 export const TIPS = {
     opens: (a = 'the one before it', b = 'an entry') => `Keeps ${b} shut until ${a} has fired.`,
     closes: (a = 'another entry', b = 'an entry') => `Shuts ${b} for good once ${a} fires.`,
-    glue: (a, b) => (a ? `Sends ${b} every time ${a} fires, key words or not.` : 'Keeps an entry going whether or not its key words match.'),
+    glue: (a, b) => (a ? `Sends ${b} every time ${a} fires, key words or not.` : 'Once this entry first fires, it stays in every reply until a rule closes it.'),
     switch: () => 'A fork: the first path to fire shuts all the others.',
     mask: () => 'Swaps in another version of the entry\'s text while its condition holds.',
     tracker: () => 'A value the model writes in its replies; the newest one is what gets sent.',
     pack: name => (name ? `Groups entries, so one rule on ${name} covers every entry in it.` : 'Groups entries, so one rule covers them all.'),
-    lock: phrase => (phrase ? `Holds its row until someone says "${phrase}" in the chat.` : 'Holds its row until a phrase is said in the chat.'),
-    wait: n => (n ? `Holds its row until ${n} more ${n === 1 ? 'message has' : 'messages have'} passed.` : 'Holds its row until a number of messages have passed.'),
-    moment: () => 'An event marked by a phrase in the chat. It sends nothing; entries wait on it or close on it.',
+    lock: phrase => (phrase ? `Holds its rule until someone says "${phrase}" in the chat.` : 'Holds its rule until a phrase is said in the chat.'),
+    wait: n => (n ? `Holds its rule until ${n} more ${n === 1 ? 'message has' : 'messages have'} passed.` : 'Holds its rule until a number of messages have passed.'),
+    moment: () => 'An event marked by a phrase in the chat. Sends nothing; entries can wait on it or close on it.',
     once: () => 'Fires a single time, then shuts itself.',
     by: () => 'Limits whose messages can set off the key words: yours, the character\'s, or both.',
     greeting: () => 'Starts a scenario when the chat opens on that greeting.',
     canvas: () => 'An entry: SillyTavern sends its text when one of its key words comes up.',
     fit: () => 'Brings every card into view.',
-    tidy: () => 'Lays every card out again from its links. Undo puts it back.',
-    undo: () => 'Steps back through your changes to this book.',
+    tidy: () => 'Tries to lay the cards out so the story reads better, and resets link ports. Undo puts it back.',
+    undo: () => 'Undo the last change to this book — text, rules, or card layout. Moving the view doesn\'t count.',
     checks: () => 'Counts what can never fire: entries, rows and masks the rules leave shut.',
     tabs: () => 'Anything you open gets a tab of its own; closing one loses nothing.',
     panel: () => 'Every entry in the book. Drag a dot onto the canvas to place it.',
@@ -140,7 +141,12 @@ export function explainTip(t, H, root = null) {
     if (at('.card .fired')) return tip(`Fired ${at('.card .fired').textContent}`, 'How many times it has fired in the open chat.');
     if (at('.card .cbang')) return tip('Problem', 'Something about this entry is off; the dead branches chip lists it.');
     if (at('.card .sticky')) return tip('Sticky note', 'Your own note on the card, never sent to the model.');
-    if (at('[data-grip]')) return tip('Grip', 'Drag it to move the card.');
+    if (at('.card .wval')) {
+        const card = at('.card[data-id]');
+        const name = card?.querySelector?.('.t')?.textContent || 'Tracker';
+        return tip(name, TIPS.tracker());
+    }
+    if (at('[data-grip]')) return tip('Grip', 'Drag to move the card. Its color is the strategy: green keywords, blue permanent, purple vectorized, gray off.');
     const card = at('.card[data-id]');
     if (card && !card.classList.contains('moment')) {
         const name = card.querySelector?.('.t')?.textContent || 'Entry';
@@ -153,9 +159,9 @@ export function explainTip(t, H, root = null) {
     if (card) return tip(card.querySelector?.('.t')?.textContent || 'Moment', TIPS.moment());
     const b = at('button');
     const label = b?.getAttribute?.('aria-label') ?? '';
-    if (anchor === 'fit' && /^Zoom (in|out)/.test(label)) return tip(label, 'Two fingers or the mouse wheel zoom too.');
-    if (at('.zlabel')) return tip('Zoom', 'How big the canvas is drawn. Tap to go back to 100%.');
-    if (anchor === 'undo' && label) return tip(label.replace(/ \(.*\)$/, ''), label.startsWith('Redo') ? 'Steps forward again through what you undid.' : TIPS.undo());
+    if (anchor === 'fit' && /^Zoom (in|out)/.test(label)) return tip(label, label === 'Zoom in' ? 'Zoom in.' : 'Zoom out.');
+    if (at('.zlabel')) return tip('Zoom', 'Back to 100%.');
+    if (anchor === 'undo' && label) return tip(label.replace(/ \(.*\)$/, ''), label.startsWith('Redo') ? 'Step forward again through what you undid.' : TIPS.undo());
     if (anchor === 'tabs') {
         const tb = at('.tab');
         const name = tb?.getAttribute?.('aria-label') || tb?.textContent?.trim() || 'Tab';
@@ -182,7 +188,14 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
 
     const active = () => !!H.explain && S.mode === 'hero';
     function clearArmed() { armed = null; bypass = null; }
-    function endExplainState() { clearArmed(); hideTip(); hovered = null; clearTimeout(hoverTimer); }
+    function endExplainState() {
+        clearArmed();
+        hideTip();
+        hovered = null;
+        clearTimeout(hoverTimer);
+        // Sweep every mark under the root, sheets and the tab row included: a redraw may have orphaned some.
+        for (const n of root.querySelectorAll('.xok, .xno')) n.classList.remove('xok', 'xno');
+    }
 
     /** Opens the Guide tab at an anchor (a piece's page, or a topic). */
     function openGuide(anchor) {
@@ -247,6 +260,12 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
         h.textContent = desc.title;
         p.append(h, ` ${desc.text}`);
         box.append(p);
+        // The Explain caveat lives in one place, derived from what the control may do. It never belongs in `text`.
+        const note = document.createElement('div');
+        note.className = 'explaintipnote';
+        if (desc.navigate === false && !String(desc.key ?? '').startsWith('concept:')) note.textContent = 'Explain mode won\'t run this.';
+        else if (desc.navigate === 'native') note.textContent = S.desk ? 'Click again to open.' : 'Tap again to open.';
+        if (note.textContent) box.append(note);
         if (desc.guide && more) {
             const m = document.createElement('button');
             m.type = 'button';
@@ -308,6 +327,8 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
                     return;
                 }
                 bypass = null;
+                // Any press whose target is not the armed control ends that first activation, canvas pans included.
+                if (node !== armed) clearArmed();
                 hideTip();
                 press = { x: e.clientX, y: e.clientY, target: t, long: false, mouse: e.pointerType === 'mouse' };
                 // A long press is only a shortcut to a Guide page of a canvas concept; controls never take one.
@@ -442,4 +463,4 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
 }
 
 /** What explain mode looks at to outline (or set aside): pieces of the canvas, rows, and every button and field. */
-const MARKABLE = '.pchip, .card, .card .badge1, .card .fired, .card .cbang, .card .sticky, .lockp, .junc, .packframe, .mnav, .layercard, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .zlabel, .pfold, .plist .phdr, .tab, [data-xkey], [data-xblock] button, [data-xblock] input, [data-xblock] select, [data-xblock] textarea, [data-xblock] [role="button"], button, [role="button"], [role="switch"], input, select, textarea, .scrim, .opt, .prow, [data-flip], .lhit, [data-port], [data-open], [data-grip], .also';
+const MARKABLE = '.pchip, .card, .card .badge1, .card .fired, .card .cbang, .card .sticky, .card .wval, .lockp, .junc, .packframe, .mnav, .layercard, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .zlabel, .pfold, .plist .phdr, .tab, [data-xkey], [data-xblock] button, [data-xblock] input, [data-xblock] select, [data-xblock] textarea, [data-xblock] [role="button"], button, [role="button"], [role="switch"], input, select, textarea, .scrim, .opt, .prow, [data-flip], .lhit, [data-port], [data-open], [data-grip], .also';

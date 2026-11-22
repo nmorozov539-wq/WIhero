@@ -26,6 +26,31 @@ export function canvasMemory(bookSettings) {
 }
 
 /**
+ * Tidy's layout as data: the positions every card gets from the current graph, packs as frames (VISUAL 7.6).
+ * Kept separate from the mounted canvas so it can be tested and reused.
+ * @returns {Record<string, {x: number, y: number}>}
+ */
+export function tidyPositions(m, ids, dir = TB) {
+    const g = withFrames(m, buildGraph(m), ids);
+    return layout(m, g, ids, { dir });
+}
+
+/**
+ * Tidy's saved-state change: snapshots the cards, lays them out again, resets every port, and returns Undo.
+ * `view` is the live camera to restore; the caller keeps it.
+ * @returns {() => (object|null)} Undo: restores the cards and hands back `view`.
+ */
+export function tidyMemory(m, memory, ids, view = null, dir = TB) {
+    const before = structuredClone(memory.cards);
+    const pos = tidyPositions(m, ids, dir);
+    for (const k of ids) { const c = (memory.cards[k] ??= {}); c.x = pos[k].x; c.y = pos[k].y; delete c.ports; }
+    return () => {
+        memory.cards = before;
+        return view;
+    };
+}
+
+/**
  * Lays out what isn't placed yet: the whole book once (D8), then each new card beside its partner.
  * @returns {{ g, ids, pos, R, P }}
  */
@@ -84,9 +109,9 @@ export function mountCanvas(vp, d) {
     const fitBtn = btn('', ic('fit'), () => fit(), 'Fit to screen');
     explainNode(fitBtn, 'shell.fit', { title: 'Fit to screen' });
     const zin = btn('', ic('plus'), () => zoomAt(1.2), 'Zoom in');
-    explainNode(zin, 'shell.zoom', { title: 'Zoom in' });
+    explainNode(zin, 'shell.zoom', { title: 'Zoom in', text: 'Zoom in.' });
     const zout = btn('', ic('minus'), () => zoomAt(1 / 1.2), 'Zoom out');
-    explainNode(zout, 'shell.zoom', { title: 'Zoom out' });
+    explainNode(zout, 'shell.zoom', { title: 'Zoom out', text: 'Zoom out.' });
     tools.append(fitBtn, zin, zout);
     d.tools?.(tools); // desktop: Tidy and the inspector toggle
     // The zoom label: a click goes to 100% around the middle of the view.
@@ -102,6 +127,7 @@ export function mountCanvas(vp, d) {
     let drawn = 0; // full draws so far: a card drag notices one made under it
     let moving = null;
     let hit = null;
+    let flashTimer = null;
     let cam = null;
     /** Desktop: the cards selected on the canvas (click, Shift/Ctrl-click, a drag on empty canvas). */
     let picked = new Set();
@@ -192,7 +218,7 @@ export function mountCanvas(vp, d) {
             Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
             const pn = el('span', 'pn', `#${r.pack}`);
             pn.title = `#${r.pack} — Rename the pack (drag to move it)`;
-            explainNode(pn, 'blocked.command', { title: `#${r.pack}`, text: 'Renames this pack and moves it on the canvas. Explain mode will not change either.', guide: 'pack', long: true });
+            explainNode(pn, 'blocked.command', { title: `#${r.pack}`, text: 'Renames this pack and moves it on the canvas.', guide: 'pack', long: true });
             f.append(pn);
             f.dataset.pack = r.pack;
             put(world, f);
@@ -286,10 +312,10 @@ export function mountCanvas(vp, d) {
                 const active = st?.mask ? e.masks.findIndex(x => x.name === st.mask) + 1 : 0;
                 const pv = btn('', ic('left'), null, 'Previous layer');
                 pv.dataset.flip = e.id; pv.dataset.d = -1;
-                explainNode(pv, 'canvas.maskFlip', { title: 'Previous layer', text: 'Shows the previous version of this card\'s text. Explain mode leaves the display as it is.' });
+                explainNode(pv, 'canvas.maskFlip', { title: 'Previous layer', text: 'Shows the previous version of this card\'s text.' });
                 const nx = btn('', ic('right'), null, 'Next layer');
                 nx.dataset.flip = e.id; nx.dataset.d = 1;
-                explainNode(nx, 'canvas.maskFlip', { title: 'Next layer', text: 'Shows the next version of this card\'s text. Explain mode leaves the display as it is.' });
+                explainNode(nx, 'canvas.maskFlip', { title: 'Next layer', text: 'Shows the next version of this card\'s text.' });
                 n.append(pv, el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`), nx);
                 put(world, n);
             }
@@ -720,7 +746,8 @@ export function mountCanvas(vp, d) {
         if (flash) {
             hit = key;
             render();
-            setTimeout(() => { if (hit === key) { hit = null; if (vp.isConnected && !moving) render(); } }, 1600);
+            clearTimeout(flashTimer);
+            flashTimer = setTimeout(() => { if (hit === key) { hit = null; if (vp.isConnected && !moving) render(); } }, 1600);
         }
         applyView();
         saveCamera();
@@ -1090,19 +1117,16 @@ export function mountCanvas(vp, d) {
     /** Tidy: lay everything out again and put every port back on its default side. Returns what Undo needs. */
     function tidy() {
         const mem = memory();
-        const before = structuredClone(mem.cards);
         const view = camera() ? { ...camera() } : null;
         const { m } = d.book();
         const ids = CV?.ids ?? new Set();
-        const g = withFrames(m, buildGraph(m), ids);
-        const pos = layout(m, g, ids, { dir: d.dir ?? TB });
-        for (const k of ids) { const c = (mem.cards[k] ??= {}); c.x = pos[k].x; c.y = pos[k].y; delete c.ports; }
+        const undo = tidyMemory(m, mem, ids, view, d.dir ?? TB);
         d.save();
         render();
         fit();
         return () => {
-            mem.cards = before;
-            if (view) { cam = view; saveCamera(); }
+            const restore = undo();
+            if (restore) { cam = restore; saveCamera(); }
             d.save();
             render();
         };

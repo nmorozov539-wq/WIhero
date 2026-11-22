@@ -729,6 +729,8 @@ export function createApp(deps) {
     });
     // Sheets opened while Explain mode is on never take the focus into a field (search and editing are blocked).
     layer.explainActive = () => S.mode === 'hero' && H.explain;
+    // A closed sheet can leave marks on controls whose context changed: mark again once it is gone (§6.2).
+    layer.onClose = explainDrawn;
 
     // ---------------------------------------------------------------- the piece bar (hero-bar.js)
     // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
@@ -782,8 +784,8 @@ export function createApp(deps) {
     function bookPicker() {
         const open = heroOpen;
         layer.sheet('Books', sh => {
-            sh.append(layer.opt('New book', heroNewBook, { icon: 'plus', explain: { key: 'blocked.command', title: 'New book', text: 'Makes a new book. Explain mode will not change your books.' } }));
-            sh.append(layer.opt('Import a file…', () => { layer.close(); heroImport(); }, { icon: 'import', explain: { key: 'blocked.file', title: 'Import a file', text: 'Reads a lorebook file into a new book. Explain mode will not import.' } }));
+            sh.append(layer.opt('New book', heroNewBook, { icon: 'plus', explain: { key: 'blocked.command', title: 'New book', text: 'Makes a new book.' } }));
+            sh.append(layer.opt('Import a file…', () => { layer.close(); heroImport(); }, { icon: 'import', explain: { key: 'blocked.file', title: 'Import a file', text: 'Reads a lorebook file into a new book.' } }));
             sh.append(el('div', 'div'));
             for (const n of visibleNames()) {
                 sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined, explain: { key: 'nav.open', title: n, text: `Looks at ${n} on the canvas. Nothing is changed.` } }));
@@ -798,7 +800,7 @@ export function createApp(deps) {
                 library.setGlobal(book, v);
                 render();
                 layer.toast(v ? `${book} is active everywhere` : `${book} is no longer global`);
-            });
+            }, { explain: { key: 'book.global', title: 'Active globally' } });
             sh.append(layer.opt('Linked to', () => linksSheet(book), { icon: 'chain', val: `${linkText(book) || 'Nothing'} ›`, explain: { key: 'menu.links' } }));
             const data = library.peek(book);
             if (data) {
@@ -808,7 +810,7 @@ export function createApp(deps) {
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›', explain: { key: 'menu.snapshots' } }));
             sh.append(el('div', 'div'));
-            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this book and its file. Explain mode will not change the book.' } }));
+            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit', explain: { key: 'book.rename', title: 'Rename' } }));
             sh.append(layer.opt('Duplicate', async () => {
                 layer.close();
                 let to;
@@ -818,12 +820,12 @@ export function createApp(deps) {
                 H.book = to; H.active = 'canvas'; H.insp = null; H.pick = [];
                 render();
                 layer.toast(`Made ${to}`);
-            }, { icon: 'copy', explain: { key: 'blocked.command', title: 'Duplicate', text: 'Makes a copy of this whole book. Explain mode will not change your books.' } }));
+            }, { icon: 'copy', explain: { key: 'book.duplicate', title: 'Duplicate' } }));
             sh.append(layer.opt('Delete', () => {
                 layer.close();
                 if (H.book === book) { H.book = null; H.panel = false; }
                 deleteBooks([book]);
-            }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this book. Explain mode will not change your books.' } }));
+            }, { icon: 'trash', danger: true, explain: { key: 'book.delete', title: 'Delete' } }));
         });
     }
 
@@ -857,7 +859,7 @@ export function createApp(deps) {
         const usesPack = rs => (rs ?? []).flat().some(r => r === `#${name}` || (typeof r === 'string' && r.startsWith(`#${name}:`)));
         const users = m.E.filter(e => usesPack(e.gate) || usesPack([e.gatesFor]) || usesPack(e.closeGate) || usesPack([e.closesFor]));
         layer.sheet(`#${name}`, sh => {
-            sh.append(layer.opt('Rename', () => { layer.close(); renamePackAsk(book, name); }, { icon: 'edit', explain: { key: 'blocked.command', title: `Rename #${name}`, text: 'Renames this pack everywhere the book names it. Explain mode will not change the book.' } }));
+            sh.append(layer.opt('Rename', () => { layer.close(); renamePackAsk(book, name); }, { icon: 'edit', explain: { key: 'blocked.command', title: `Rename #${name}`, text: 'Renames this pack everywhere the book names it.' } }));
             sh.append(el('div', 'lbl', 'In this pack'));
             for (const e of members) sh.append(layer.opt(e.title, () => { layer.close(); inspect(book, e.id); }, { dot: strategyColor(e.entry), explain: { key: 'nav.open', title: e.title, text: `Inspects ${e.title} on the canvas. Nothing is changed.` } }));
             if (users.length) {
@@ -928,7 +930,7 @@ export function createApp(deps) {
                 library.setGlobal(book, v);
                 render();
                 layer.toast(v ? `${book} is active everywhere` : `${book} is no longer global`);
-            });
+            }, { explain: { key: 'book.global', title: 'Active globally' } });
             sh.append(layer.opt('Linked to', () => linksSheet(book), { val: `${linkText(book) || 'Nothing'} ›`, explain: { key: 'menu.links' } }));
             sh.append(layer.opt('Switch book', bookPicker, { val: `${book} ›`, explain: { key: 'menu.bookPicker' } }));
             const data = library.peek(book);
@@ -966,7 +968,7 @@ export function createApp(deps) {
             sh.append(pre);
             sh.append(layer.opt('Copy', async () => {
                 try { await navigator.clipboard.writeText(pre.textContent); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
-            }, { icon: 'copy', explain: { key: 'blocked.clipboard', title: 'Copy', text: 'Copies this data to the clipboard. Explain mode will not copy.' } }));
+            }, { icon: 'copy', explain: { key: 'blocked.clipboard', title: 'Copy', text: 'Copies this data to the clipboard.' } }));
         }, { help: 'The story logic as it is stored in the entry. It travels with the book.' });
     }
 

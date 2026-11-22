@@ -80,7 +80,7 @@ export function createPreview(A) {
             pickSeed: () => layer.sheet('Start from', sh => {
                 for (const x of seeds) {
                     const o = layer.opt(x.label, () => { layer.close(); seedPreview(x); render(); }, { cur: x.id === seed.id, sub: x.sub });
-                    explainNode(o, 'blocked.command', { title: x.label, text: 'Starts the pretend exchange from here. Explain mode will not change the input.' });
+                    explainNode(o, 'blocked.command', { title: x.label, text: 'Starts the pretend exchange from here.' });
                     sh.append(o);
                 }
             }, { help: 'Preview reads the open chat\'s latest exchange and how far its story has got, or starts from the beginning.' }),

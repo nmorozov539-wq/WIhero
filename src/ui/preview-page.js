@@ -92,11 +92,11 @@ function slot(side, x) {
     h.append(el('b', '', side === 'user' ? 'YOU' : 'CHARACTER'));
     const editing = x.pv.edit === side;
     const edit = btn('round', ic(editing ? 'check' : 'edit'), () => x.set({ edit: editing ? null : side }), editing ? 'Done' : 'Edit');
-    explainNode(edit, 'blocked.edit', { title: editing ? 'Done editing' : 'Edit', text: 'Edits the pretend exchange. Explain mode does not type into Preview.' });
+    explainNode(edit, 'blocked.edit', { title: editing ? 'Done editing' : 'Edit', text: 'Edits the pretend exchange.' });
     h.append(edit);
     if (x.pv[side]) {
         const clear = btn('round', ic('x'), () => x.set({ [side]: '', edit: side }), 'Clear');
-        explainNode(clear, 'blocked.edit', { title: 'Clear', text: 'Clears this side of the pretend exchange. Explain mode will not change the input.' });
+        explainNode(clear, 'blocked.edit', { title: 'Clear', text: 'Clears this side of the pretend exchange.' });
         h.append(clear);
     }
     s.append(h);
@@ -104,14 +104,14 @@ function slot(side, x) {
         const t = el('textarea');
         t.value = x.pv[side];
         t.placeholder = PLACEHOLDER[side];
-        explainNode(t, 'blocked.input', { title: side === 'user' ? 'Your message' : 'The character\'s reply', text: 'The pretend exchange is not typed into in Explain mode.' });
+        explainNode(t, 'blocked.input', { title: side === 'user' ? 'Your message' : 'The character\'s reply', text: 'Types the pretend exchange.' });
         t.addEventListener('input', () => { x.pv[side] = t.value; });
         t.addEventListener('blur', () => setTimeout(() => { if (x.pv.edit === side) x.set({ edit: null }); }, 150));
         s.append(t);
         setTimeout(() => t.focus(), 0);
     } else {
         const box = highlighted(side, x);
-        explainNode(box, 'blocked.edit', { title: side === 'user' ? 'Your message' : 'The character\'s reply', text: 'Tapping a highlight opens why it matched. Explain mode does not edit the pretend exchange.' });
+        explainNode(box, 'blocked.edit', { title: side === 'user' ? 'Your message' : 'The character\'s reply', text: 'Tapping a highlight opens why it matched.' });
         box.addEventListener('click', () => x.set({ edit: side }));
         s.append(box);
     }
@@ -167,7 +167,7 @@ export function explainSheet(x, stKey, { phrase = null, hit = null, change = nul
             const there = x.onCanvas?.(stKey) !== false;
             sh.append(x.layer.opt('Show on canvas', () => { x.layer.close(); x.showOnCanvas(stKey); }, {
                 icon: 'canvas',
-                explain: { key: 'menu.previewCanvas', title: 'Show on canvas', navigate: there ? 'native' : false, text: there ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' },
+                explain: { key: 'menu.previewCanvas', title: 'Show on canvas', navigate: there ? 'native' : false, text: there ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it.' },
             }));
         }
     }, { cls: 'explain' });
@@ -202,7 +202,7 @@ function renderReport(pg, x) {
             explainNode(b, 'menu.previewExplain', {
                 title: row.title,
                 navigate: jump && row.there === false ? false : 'native',
-                text: jump && row.there === false ? 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.'
+                text: jump && row.there === false ? 'This entry is not on the canvas yet: going there would place it.'
                     : jump ? 'Finds this entry on the canvas. Nothing is changed.' : 'Opens why this is in the report. Nothing is changed.',
             });
             const d = el('div');

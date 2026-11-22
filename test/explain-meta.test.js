@@ -2,7 +2,7 @@
 // the first and second activations do, and that a blocked control never acts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activationStep, blockRegion, canonicalTarget, describeNode, explainNode } from '../src/ui/explain-meta.js';
+import { EXPLAIN, activationStep, blockRegion, canonicalTarget, describeNode, explainNode } from '../src/ui/explain-meta.js';
 
 /**
  * A stand-in element: `sel` is its tag/class set, `parent` its parent. `closest` finds the first ancestor (itself
@@ -82,7 +82,7 @@ test('an editor region blocks its controls with a readable general tooltip', () 
     const field = node(['input'], { parent: region, label: 'Label' });
     assert.equal(canonicalTarget(field), field);
     assert.deepEqual(describeNode(field), {
-        key: 'blocked.edit', title: 'Label', text: 'This edits the book, so Explain mode will not do it.',
+        key: 'blocked.edit', title: 'Label', text: 'Edits the book.',
         navigate: false, guide: null, long: false,
     });
 });
@@ -92,4 +92,21 @@ test('a descriptor can name the control and use its own value', () => {
     explainNode(row, 'shell.panel.row', { title: 'Mill', text: 'Opens Mill in a tab of its own.' });
     assert.equal(describeNode(row).title, 'Mill');
     assert.equal(describeNode(row).text, 'Opens Mill in a tab of its own.');
+});
+
+test('the catalogue says what a thing does, never what Explain mode will not do', () => {
+    for (const [key, d] of Object.entries(EXPLAIN)) {
+        if (typeof d.text === 'string') assert.doesNotMatch(d.text, /Explain mode/i, key);
+        if (d.navigate === false && d.text) assert.ok(d.text.length > 0, key);
+    }
+});
+
+test('book actions carry their own copy, and the canvas copy follows the review', () => {
+    assert.equal(EXPLAIN['book.global'].text, 'Global = every chat uses this book when a key word matches.');
+    assert.match(EXPLAIN['book.delete'].text, /Undo for a few seconds/);
+    assert.equal(EXPLAIN['shell.zoomLabel'].text, 'Back to 100%.');
+    assert.equal(EXPLAIN['canvas.zoomLabel'].text, 'Back to 100%.');
+    assert.match(EXPLAIN['shell.tidy'].text, /resets link ports/);
+    assert.equal(EXPLAIN['shell.legend'].text, 'The legend: what the line colors and card marks mean.');
+    assert.equal(EXPLAIN['shell.panel.dot'].text, 'Lit when the entry is on the canvas. Drag it to place or move the card.');
 });

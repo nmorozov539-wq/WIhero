@@ -22,6 +22,7 @@ test('the strip explains the piece it edits; cards, buttons and the rest by kind
     assert.equal(explainAnchor(node([[['.pstrip']]]), H), 'strip');
     assert.equal(explainAnchor(node([[['.card.moment', '.card']]]), H), 'moment');
     assert.equal(explainAnchor(node([[['.card']]]), H), 'canvas');
+    assert.equal(explainAnchor(node([[['.card .wval']]]), H), 'tracker');
     assert.equal(explainAnchor(node([[['button'], {}, 'Tidy layout']]), H), 'tidy');
     assert.equal(explainAnchor(node([[['.also']]]), H), 'also');
     assert.equal(explainAnchor(node([[['.nothing']]]), H), null);

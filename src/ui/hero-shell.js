@@ -227,7 +227,7 @@ export function createHeroShell(A) {
         if (H.explain) {
             const ban = el('div', 'explainban');
             ban.setAttribute('role', 'status');
-            ban.append(el('span', '', S.desk ? 'Point at anything outlined · click twice to follow · Done' : 'Tap anything outlined · tap again to follow · hold a piece for the Guide'), btn('pbtn sm', 'Done', stopExplain));
+            ban.append(el('span', '', S.desk ? 'Click twice to follow · hold for the Guide' : 'Tap again to follow · hold for the Guide'), btn('pbtn sm', 'Done', stopExplain));
             root.append(ban);
         }
         explainDrawn();
@@ -287,9 +287,9 @@ export function createHeroShell(A) {
             v.append(el('div', 'empty-note', 'No books yet. Make one, or import a lorebook file.'));
             const row = el('div', 'hempty-acts');
             const nb = btn('pri', html`${ic('plus', 's')}<span>New book</span>`, () => newBookHere(), 'New book');
-            explainNode(nb, 'blocked.command', { title: 'New book', text: 'Makes a new book. Explain mode will not change your books.' });
+            explainNode(nb, 'blocked.command', { title: 'New book', text: 'Makes a new book.' });
             const im = btn('', html`${ic('import', 's')}<span>Import a file…</span>`, () => importHere(), 'Import a file');
-            explainNode(im, 'blocked.file', { title: 'Import a file', text: 'Reads a lorebook file into a new book. Explain mode will not import.' });
+            explainNode(im, 'blocked.file', { title: 'Import a file', text: 'Reads a lorebook file into a new book.' });
             row.append(nb, im);
             v.append(row);
             main.append(v);
@@ -340,7 +340,7 @@ export function createHeroShell(A) {
         const u = btn('', ic('undo'), () => historyStep(false), 'Undo (Ctrl Z)');
         const r = btn('', ic('redo'), () => historyStep(true), 'Redo (Ctrl Shift Z)');
         explainNode(u, 'shell.undo', { title: 'Undo' });
-        explainNode(r, 'shell.undo', { title: 'Redo', text: 'Steps forward again through what you undid. Explain mode will not change the book.' });
+        explainNode(r, 'shell.undo', { title: 'Redo', text: 'Step forward again through what you undid.' });
         // While a piece is set up in the strip, its edits aren't steps yet: Done or Cancel first.
         u.disabled = !!H.bar.edit || !undoHistory.canUndo(book);
         r.disabled = !!H.bar.edit || !undoHistory.canRedo(book);

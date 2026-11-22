@@ -150,7 +150,7 @@ export function renderEntryPage(main, o) {
     const D = o.desk ?? null;
     // "Show on canvas" is only navigation when the card is already there; placing it is a saved layout change.
     const onCanvasNow = o.onCanvas ?? D?.onCanvas ?? false;
-    const canvasExplain = { key: 'inspector.showOnCanvas', title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' };
+    const canvasExplain = { key: 'inspector.showOnCanvas', title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it.' };
     const v = el('div', 'view');
     main.append(v);
     if (D) {
@@ -178,7 +178,7 @@ export function renderEntryPage(main, o) {
         }
         if (D.showOnCanvas) {
             const show = btn('linkish', 'Show on canvas ›', D.showOnCanvas);
-            explainNode(show, 'inspector.showOnCanvas', { title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' });
+            explainNode(show, 'inspector.showOnCanvas', { title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it.' });
             top.append(show);
         }
         const more = btn('lbtn', ic('more', 's'), o.menu, 'Entry actions');
@@ -207,7 +207,7 @@ export function renderEntryPage(main, o) {
     h1.contentEditable = 'true';
     h1.spellcheck = false;
     h1.setAttribute('aria-label', 'Entry name');
-    explainNode(h1, 'inspector.rename', { title: e.comment || 'Entry name', text: 'Renames this entry. Explain mode will not type or save a name.' });
+    explainNode(h1, 'inspector.rename', { title: e.comment || 'Entry name', text: 'Renames this entry.' });
     h1.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); h1.blur(); } });
     h1.addEventListener('input', () => o.change(x => { x.comment = h1.textContent.trim(); }, true));
     h1.addEventListener('blur', () => { h1.textContent = e.comment ?? ''; o.retitle(); });
@@ -261,14 +261,14 @@ export function renderEntryPage(main, o) {
     const th = el('button', 'thin');
     th.type = 'button';
     th.append(sdot(e), el('span', '', 'Strategy:'), el('b', '', STRATEGY_NAME[e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys']), el('span', 'car', '▾'));
-    explainNode(th, 'nav.open', { title: 'Strategy', text: 'Opens the strategy choices. Explain mode blocks picking one.' });
+    explainNode(th, 'nav.open', { title: 'Strategy', text: 'Opens the strategy choices.' });
     th.addEventListener('click', () => layer.sheet('Strategy', sh => {
         const cur = e.constant ? 'perm' : e.vectorized ? 'vec' : 'keys';
         for (const k of ['keys', 'perm', 'vec']) {
-            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k], explain: { key: 'blocked.setting', title: STRATEGY_NAME[k], text: 'Changes how this entry fires. Explain mode leaves it as it is.' } }));
+            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k], explain: { key: 'blocked.setting', title: STRATEGY_NAME[k], text: 'Changes how this entry fires.' } }));
         }
     }));
-    const onOff = swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on', { key: 'blocked.setting', title: 'Entry on', text: 'Turns this entry on or off. Explain mode leaves it as it is.' });
+    const onOff = swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on', { key: 'blocked.setting', title: 'Entry on', text: 'Turns this entry on or off.' });
     sr.append(th, onOff);
     en.append(sr);
 
@@ -280,10 +280,10 @@ export function renderEntryPage(main, o) {
             const lt = el('button', 'thin');
             lt.type = 'button';
             lt.append(el('b', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
-            explainNode(lt, 'nav.open', { title: 'Condition', text: 'Opens the condition choices. Explain mode blocks changing them.' });
+            explainNode(lt, 'nav.open', { title: 'Condition', text: 'Opens the condition choices.' });
             lt.addEventListener('click', () => layer.sheet('Condition', sh => {
-                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k, explain: { key: 'blocked.setting', title: t, text: 'Changes how the two key word sets combine. Explain mode leaves it as it is.' } }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash', explain: { key: 'blocked.command', title: 'Remove condition', text: 'Removes the second key words. Explain mode will not change the entry.' } }));
+                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k, explain: { key: 'blocked.setting', title: t, text: 'Changes how the two key word sets combine.' } }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash', explain: { key: 'blocked.command', title: 'Remove condition', text: 'Removes the second key words.' } }));
             }));
             cl.append(lt);
             en.append(cl, keyBox(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
@@ -297,7 +297,7 @@ export function renderEntryPage(main, o) {
                 o.redraw();
                 setTimeout(() => main.querySelectorAll('.kbox')[1]?.click(), 0);
             });
-            explainNode(ac, 'blocked.command', { title: 'Add condition', text: 'Adds a second set of key words. Explain mode will not change the entry.' });
+            explainNode(ac, 'blocked.command', { title: 'Add condition', text: 'Adds a second set of key words.' });
             // Pressing it would blur a focused key word box, whose commit redraws the page under the press, and the
             // click then lands on nothing. Keep the focus until the click, which lets it go itself.
             ac.addEventListener('mousedown', e => e.preventDefault());
@@ -344,7 +344,7 @@ export function renderEntryPage(main, o) {
             const links = el('div', 'links');
             if (o.hero) {
                 const show = btn('linkish', html`${ic('canvas', 's')} Show on canvas`, o.showOnCanvas);
-                explainNode(show, 'inspector.showOnCanvas', { title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' });
+                explainNode(show, 'inspector.showOnCanvas', { title: 'Show on canvas', navigate: onCanvasNow ? 'native' : false, text: onCanvasNow ? 'Finds this entry on the canvas. Nothing is changed.' : 'This entry is not on the canvas yet: going there would place it.' });
                 const data = btn('linkish', html`${ic('code', 's')} Data`, o.data);
                 explainNode(data, 'inspector.data', { title: 'Data' });
                 links.append(show, data);
@@ -380,7 +380,7 @@ export function renderEntryPage(main, o) {
                 const value = paramValue(e, p);
                 const changed = paramChanged(e, p);
                 const row = paramRow(p, paramText(e, p), changed, () => editParam(layer, p, value, x => o.setParam(p, x)));
-                explainNode(row, 'blocked.setting', { title: p.label, text: `Changes ${p.label}. Explain mode leaves it as it is.` });
+                explainNode(row, 'blocked.setting', { title: p.label, text: `Changes ${p.label}.` });
                 en.append(row);
                 const note = storyParamNote(e, p, pieced);
                 if (note) en.append(el('p', 'pnote', note));
@@ -398,14 +398,14 @@ export function renderEntryPage(main, o) {
     const cp = btn('ccopy', html`${ic('copy', 's')}`, async () => {
         try { await navigator.clipboard.writeText(en.querySelector('textarea[aria-label="Content"]')?.value ?? text0); o.layer.toast('Content copied'); } catch { o.layer.toast('Couldn\'t copy'); }
     }, 'Copy content');
-    explainNode(cp, 'blocked.clipboard', { title: 'Copy content', text: 'Copies this text. Explain mode will not use the clipboard.' });
+    explainNode(cp, 'blocked.clipboard', { title: 'Copy content', text: 'Copies this text.' });
     ch.append(el('h2', '', 'Content'), tk, cp);
     en.append(ch);
     if (masks.length) {
         const row = el('div', 'mchips');
         for (const m of [{ name: null, label: 'Main' }, ...masks.map(x => ({ name: x.name, label: x.name }))]) {
             const b = btn(`mchip${(version?.name ?? null) === m.name ? ' on' : ''}`, '', () => o.setMask(m.name), m.name ? `Mask ${m.label}` : 'Main text');
-            explainNode(b, 'blocked.setting', { title: m.name ? `Mask ${m.label}` : 'Main text', text: 'Shows another version of this text. Explain mode leaves the display as it is.' });
+            explainNode(b, 'blocked.setting', { title: m.name ? `Mask ${m.label}` : 'Main text', text: 'Shows another version of this text.' });
             b.append(el('span', '', m.label));
             if ((o.activeMask ?? null) === m.name && o.chatOpen) { const dot = el('i', 'mdot'); dot.title = 'Active in the open chat'; b.append(dot); }
             row.append(b);
@@ -436,7 +436,7 @@ export function renderEntryPage(main, o) {
         clearTimeout(countTimer);
         countTimer = setTimeout(() => count(text), 500);
     });
-    explainNode(content, 'blocked.input', { title: version ? `Mask ${version.name}` : 'Content', text: 'Explain mode does not type into the entry.' });
+    explainNode(content, 'blocked.input', { title: version ? `Mask ${version.name}` : 'Content', text: 'Edits the entry text.' });
     en.append(content);
     count(text0);
     if (!o.hero) storyLogic();
@@ -485,7 +485,7 @@ function keyBox(list, placeholder, done, clash) {
     box.tabIndex = 0;
     box.setAttribute('role', 'button');
     box.setAttribute('aria-label', placeholder);
-    explainNode(box, 'blocked.input', { title: placeholder, text: 'Explain mode does not edit key words.' });
+    explainNode(box, 'blocked.input', { title: placeholder, text: 'Edits the key words.' });
     if (list.length) for (const k of list) box.append(markClash(el('span', 'kchip', k), k, clash));
     else box.append(el('span', 'ph', placeholder));
     const edit = () => {
@@ -522,14 +522,14 @@ function deskFields(en, o, main) {
     st.type = 'button';
     st.append(sdot(e), el('b', '', STRATEGY_NAME[cur]), el('span', 'car', '▾'));
     st.setAttribute('aria-label', `Strategy: ${STRATEGY_NAME[cur]}`);
-    explainNode(st, 'nav.open', { title: 'Strategy', text: 'Opens the strategy choices. Explain mode blocks picking one.' });
+    explainNode(st, 'nav.open', { title: 'Strategy', text: 'Opens the strategy choices.' });
     st.addEventListener('click', () => layer.sheet(null, sh => {
         for (const k of ['keys', 'perm', 'vec']) {
-            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k], explain: { key: 'blocked.setting', title: STRATEGY_NAME[k], text: 'Changes how this entry fires. Explain mode leaves it as it is.' } }));
+            sh.append(layer.opt(STRATEGY_NAME[k], () => { layer.close(); o.change(x => setStrategy(x, k)); }, { cur: cur === k, dot: STRATEGY_COLOR[k], sub: STRATEGY_HELP[k], explain: { key: 'blocked.setting', title: STRATEGY_NAME[k], text: 'Changes how this entry fires.' } }));
         }
     }, { at: st }));
     const sv = el('div', 'fval');
-    const onOff = swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on', { key: 'blocked.setting', title: 'Entry on', text: 'Turns this entry on or off. Explain mode leaves it as it is.' });
+    const onOff = swEl(!e.disable, on => o.change(x => { x.disable = !on; }), 'Entry on', { key: 'blocked.setting', title: 'Entry on', text: 'Turns this entry on or off.' });
     sv.append(st, el('span', 'sp'), onOff);
     g.append(lab('Strategy'), sv);
     if (!e.constant) {
@@ -539,10 +539,10 @@ function deskFields(en, o, main) {
             const lt = el('button', 'fmenu flab');
             lt.type = 'button';
             lt.append(el('span', '', logicName(e.selectiveLogic)), el('span', 'car', '▾'));
-            explainNode(lt, 'nav.open', { title: 'Condition', text: 'Opens the condition choices. Explain mode blocks changing them.' });
+            explainNode(lt, 'nav.open', { title: 'Condition', text: 'Opens the condition choices.' });
             lt.addEventListener('click', () => layer.sheet(null, sh => {
-                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k, explain: { key: 'blocked.setting', title: t, text: 'Changes how the two key word sets combine. Explain mode leaves it as it is.' } }));
-                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash', explain: { key: 'blocked.command', title: 'Remove condition', text: 'Removes the second key words. Explain mode will not change the entry.' } }));
+                for (const [k, t] of LOGIC) sh.append(layer.opt(t, () => { layer.close(); o.change(x => { x.selectiveLogic = k; x.selective = true; }); }, { cur: Number(e.selectiveLogic ?? 0) === k, explain: { key: 'blocked.setting', title: t, text: 'Changes how the two key word sets combine.' } }));
+                sh.append(layer.opt('Remove condition', () => { layer.close(); removeCondition(o, e, ui); }, { icon: 'trash', explain: { key: 'blocked.command', title: 'Remove condition', text: 'Removes the second key words.' } }));
             }, { at: lt }));
             g.append(lt, keyChips(second, 'Second key words', list => o.change(x => { x.keysecondary = list; x.selective = true; })));
         } else {
@@ -555,7 +555,7 @@ function deskFields(en, o, main) {
                 o.redraw();
                 setTimeout(() => main.querySelectorAll('.kchips input')[1]?.focus(), 0);
             });
-            explainNode(ac, 'blocked.command', { title: 'Add condition', text: 'Adds a second set of key words. Explain mode will not change the entry.' });
+            explainNode(ac, 'blocked.command', { title: 'Add condition', text: 'Adds a second set of key words.' });
             // Pressing it would blur a focused key word box, whose commit redraws the page under the press, and the
             // click then lands on nothing. Keep the focus until the click, which lets it go itself.
             ac.addEventListener('mousedown', e => e.preventDefault());
@@ -576,7 +576,7 @@ export function keyChips(list, placeholder, done, clash) {
     const input = el('input', 'kin2');
     input.placeholder = words.length ? '' : placeholder;
     input.setAttribute('aria-label', placeholder);
-    explainNode(input, 'blocked.input', { title: placeholder, text: 'Explain mode does not edit key words.' });
+    explainNode(input, 'blocked.input', { title: placeholder, text: 'Edits the key words.' });
     const commit = next => { words = next; done([...words]); draw(); };
     const add = text => {
         const fresh = String(text).split(',').map(x => x.trim()).filter(Boolean).filter(x => !words.includes(x));
@@ -588,7 +588,7 @@ export function keyChips(list, placeholder, done, clash) {
             const c = el('span', 'kchip');
             c.append(el('span', '', w));
             const x = btn('kx', ic('x', 's'), ev => { ev.stopPropagation(); commit(words.filter((_, j) => j !== i)); }, `Remove ${w}`);
-            explainNode(x, 'blocked.command', { title: `Remove ${w}`, text: 'Removes this key word. Explain mode will not change the entry.' });
+            explainNode(x, 'blocked.command', { title: `Remove ${w}`, text: 'Removes this key word.' });
             c.append(x);
             markClash(c, w, clash);
             c.addEventListener('dblclick', () => { commit(words.filter((_, j) => j !== i)); input.value = w; input.focus(); });

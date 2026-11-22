@@ -288,7 +288,7 @@ export function createHeroPanel(A) {
                         const canOpen = placed || desk;
                         explainNode(r, canOpen ? 'shell.panel.row' : 'shell.panel.dot', canOpen
                             ? { title: momentName(e), text: desk ? `Inspects ${momentName(e)} on the canvas. Nothing is changed.` : `Opens ${momentName(e)} in a tab of its own. Nothing is changed.` }
-                            : { title: momentName(e), text: `Places ${momentName(e)} on the canvas. Explain mode leaves the canvas layout alone.` });
+                            : { title: momentName(e), text: `Places ${momentName(e)} on the canvas.` });
                         box.append(r);
                     }
                     list.append(box);
@@ -337,18 +337,13 @@ export function createHeroPanel(A) {
                     explainNode(d, 'shell.panel.dot', { title: placed ? `Show ${titleOf(e)} on the canvas` : `Place ${titleOf(e)} on the canvas` });
                     r.append(d);
                     const rowMenu = () => layer.sheet(titleOf(e), sh => {
-                        const there = onCanvas(book, key);
                         sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: desk ? 'Double-click' : undefined, explain: { key: 'inspector.readEntry', title: titleOf(e) } }));
-                        sh.append(layer.opt(there ? 'Show on canvas' : 'Place on canvas', () => { layer.close(); place(); }, {
-                            icon: 'canvas',
-                            explain: { key: 'inspector.showOnCanvas', title: there ? 'Show on canvas' : 'Place on canvas', navigate: there ? 'native' : false, text: there ? `Finds ${titleOf(e)} on the canvas. Nothing is changed.` : `${titleOf(e)} is not on the canvas yet: going there would place it. Explain mode will not change the canvas.` },
-                        }));
                         if (placed || desk) sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: desk ? 'Click' : undefined, explain: { key: 'nav.open', title: 'Inspect', text: 'Opens this entry in the inspector. Nothing is changed.' } }));
                         sh.append(layer.opt('Delete', () => {
                             layer.close();
                             if (H.insp?.key === key) H.insp = null;
                             deleteEntries(book, [e.uid]);
-                        }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this entry. Explain mode will not change the book.' } }));
+                        }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this entry.' } }));
                     }, { help: desk ? null : 'Or drag its dot onto the canvas to place it where you drop it.' });
                     if (H.psel) {
                         const toggle = () => { H.psel.has(e.uid) ? H.psel.delete(e.uid) : H.psel.add(e.uid); fill(); light(); };
@@ -367,7 +362,7 @@ export function createHeroPanel(A) {
                         pressable(r, () => openHeroTab(book, e.uid), rowMenu);
                     }
                     explainNode(r, H.psel ? 'blocked.selection' : 'shell.panel.row', H.psel
-                        ? { title: titleOf(e), text: 'Picks this entry for a bulk action. Explain mode will not start a selection.' }
+                        ? { title: titleOf(e), text: 'Picks this entry for a bulk action.' }
                         : { title: titleOf(e), text: desk ? `Inspects ${titleOf(e)} on the canvas. Nothing is changed.` : `Opens ${titleOf(e)} in a tab of its own. Nothing is changed.` });
                     box.append(r);
                 }
@@ -393,13 +388,13 @@ export function createHeroPanel(A) {
                 fill();
                 light();
             });
-            explainNode(all, 'blocked.selection', { title: every ? 'None' : 'All', text: 'Picks or unpicks every visible entry. Explain mode will not start a selection.' });
+            explainNode(all, 'blocked.selection', { title: every ? 'None' : 'All', text: 'Picks or unpicks every visible entry.' });
             head.append(el('span', 'cnt', `${uids.length} selected`), all);
             const acts = el('div', 'pselacts');
             const act = (icon, label, fn) => {
                 const b = btn('', html`${ic(icon)}<span>${label}</span>`, fn);
                 b.disabled = !uids.length;
-                explainNode(b, 'blocked.command', { title: label, text: `${label} changes the selected entries or the canvas. Explain mode will not do it.` });
+                explainNode(b, 'blocked.command', { title: label, text: `${label} changes the selected entries or the canvas.` });
                 acts.append(b);
             };
             act('canvas', 'Place', () => placeMany(uids));

@@ -184,10 +184,10 @@ export function createHeroDesk(A) {
             sh.append(layer.opt('Inspect', () => { layer.close(); inspect(book, key); }, { icon: 'eye', val: 'Click', explain: { key: 'nav.open', title: 'Inspect', text: 'Opens this card in the inspector. Nothing is changed.' } }));
             if (e) {
                 sh.append(layer.opt('Open entry', () => { layer.close(); openHeroTab(book, e.uid); }, { icon: 'tab', val: 'New tab', explain: { key: 'inspector.readEntry', title: 'Open entry' } }));
-                sh.append(layer.opt('Edit text', () => { layer.close(); inspect(book, key, null, { tab: 'text' }); }, { icon: 'edit', val: 'Double-click', explain: { key: 'inspector.readEntry', title: 'Edit text', text: 'Opens this entry\'s text in the inspector. Explain mode does not type.' } }));
+                sh.append(layer.opt('Edit text', () => { layer.close(); inspect(book, key, null, { tab: 'text' }); }, { icon: 'edit', val: 'Double-click', explain: { key: 'inspector.readEntry', title: 'Edit text', text: 'Opens this entry\'s text in the inspector.' } }));
             }
             sh.append(el('div', 'lbl', 'Add piece'));
-            for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key, explain: { key: 'blocked.command', title: p.label, text: `Starts setting up ${p.label} on this card. Explain mode will not change the book.` } }));
+            for (const p of BAR) sh.append(layer.opt(p.label, () => { layer.close(); dropPiece(book, p.k, { card: key }); }, { dot: `var(--p-${p.c})`, val: p.key, explain: { key: 'blocked.command', title: p.label, text: `Starts setting up ${p.label} on this card.` } }));
             if (e && !isMoment(e)) {
                 const note = configOf(e)?.note;
                 sh.append(layer.opt(note ? 'Edit note' : 'Add note', () => { layer.close(); askNote(layer, library, book, e.uid, note); }, { icon: 'edit', sub: note || 'Only for you: never sent to the model', explain: { key: 'inspector.note', title: note ? 'Edit note' : 'Add note' } }));
@@ -235,7 +235,7 @@ export function createHeroDesk(A) {
                 if (x) { showOnCanvas(book, cardKey(x)); inspect(book, cardKey(x)); }
             }, {
                 sub: i.message, dot: i.warning ? 'var(--warn)' : 'var(--bad)',
-                explain: { key: 'nav.open', title: i.label, navigate: there ? 'native' : false, text: there ? 'Goes to the card this result is about. Nothing is changed.' : 'This card is not on the canvas yet: going there would place it. Explain mode will not change the canvas.' },
+                explain: { key: 'nav.open', title: i.label, navigate: there ? 'native' : false, text: there ? 'Goes to the card this result is about. Nothing is changed.' : 'This card is not on the canvas yet: going there would place it.' },
             }));
         }
         body.append(el('div', 'lbl', 'Links'));
@@ -265,7 +265,7 @@ export function createHeroDesk(A) {
         head.append(el('h2', '', `${keys.length} cards selected`), clear);
         body.append(head);
         body.append(el('p', 'help', `${names.join(', ')}. Drag any of them to move them together.`));
-        const act = (label, icon, fn) => body.append(layer.opt(label, fn, { icon, explain: { key: 'blocked.command', title: label, text: `${label} changes the book. Explain mode will not do it.` } }));
+        const act = (label, icon, fn) => body.append(layer.opt(label, fn, { icon, explain: { key: 'blocked.command', title: label, text: `${label} changes the book.` } }));
         act('Pack into…', 'tag', () => layer.sheet('Pack into', s2 => {
             const pack = name => {
                 layer.close();

@@ -3,7 +3,7 @@
 Part 2 of the spec: every screen, every control on it, and what it does. The
 rules behind the story logic are in [CONCEPTS.md](CONCEPTS.md); colors, type and
 how pieces are drawn are in [VISUAL.md](VISUAL.md). It
-describes the build as of 0.47.0, and every decision is listed in
+describes the build as of 0.47.1, and every decision is listed in
 [BUILD_SPEC.md](BUILD_SPEC.md).
 
 Phone first. Desktop (where ST uses its desktop layout, wider than 1000px) has
@@ -865,19 +865,27 @@ the clipboard, a file, the undo history, the canvas layout or Preview input.
   tooltip and a second activation stays a no-op.
 - **Show on canvas** navigates only when the card is already on the canvas. An
   unplaced card is not placed: its tooltip says going there would place it, and
-  every activation stays blocked.
+  every activation stays blocked. The entry panel row's dot is the canonical
+  place/find affordance: lit when the card is on the canvas, dragged to place or
+  move it. Entry actions do not duplicate it; the inspector and Preview jumps
+  stay, since they are navigation.
 - **Phones:** a tap shows the tooltip next to the control, above it when there
   is room: its name in bold, then what it does as a concept, using this thing's
   own names where the canvas shows them ("Opens Keeps Mill shut until Road has
-  fired."; "Lock Holds its row until someone says "red beard" in the chat.").
-  Under it, "More in the Guide ›" when the concept has a Guide page. A long
-  press (500ms) on a canvas concept (a card, line, pill, port or pack name)
-  opens its Guide page straight away; controls and menu rows have no long
-  press.
+  fired."; "Lock Holds its rule until someone says "red beard" in the chat.").
+  Under it, "More in the Guide ›" when the concept has a Guide page, "Tap again
+  to open" when a second tap would follow it, or the one uniform caveat
+  "Explain mode won't run this" when it would not. The copy itself never
+  mentions Explain mode. A long press (500ms) on a canvas concept (a card,
+  line, pill, port or pack name) opens its Guide page straight away; controls
+  and menu rows have no long press.
 - **Desktop:** resting the mouse on a control shows its tooltip after a moment
   and never arms it. The first click arms the control and shows the tooltip
   with its Guide link; the second click follows it only when that is
   navigation. Hovering does not count as the first click.
+- A press anywhere except the armed control ends that first activation and
+  hides the tooltip, a canvas pan included, so a later tap cannot execute by
+  accident. Closing a sheet marks the screen again, so no outline lingers.
 - Explain mode stays on while moving through menus, sheets, drawers, Preview
   and the inspector, including their nested sheets. Opening a new layer clears
   the arm from the old one. Opening the Guide ends explain mode, as do Done

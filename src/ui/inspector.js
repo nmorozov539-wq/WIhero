@@ -109,40 +109,40 @@ export function pickTarget(layer, o) {
             const ents = o.entries.filter(e => hit(e.title));
             if (o.self && hit(`${o.self.title} this entry`)) {
                 list.append(el('div', 'lbl', 'This entry'));
-                list.append(layer.opt(o.self.title, () => { layer.close(); o.done(ed => ed.idOf(o.self.uid)); }, { icon: 'clock', sub: 'After it first fires. Add a wait to close it that many messages later.', explain: choose(o.self.title, 'Picks this entry for the rule. Explain mode will not change the book.') }));
+                list.append(layer.opt(o.self.title, () => { layer.close(); o.done(ed => ed.idOf(o.self.uid)); }, { icon: 'clock', sub: 'After it first fires. Add a wait to close it that many messages later.', explain: choose(o.self.title, 'Picks this entry for the rule.') }));
             }
             if (ents.length) list.append(el('div', 'lbl', 'Entries'));
-            for (const e of ents) list.append(layer.opt(e.title, () => { layer.close(); o.done(ed => ed.idOf(e.uid)); }, { dot: e.dot, explain: choose(e.title, `Picks ${e.title} for this rule. Explain mode will not change the book.`) }));
+            for (const e of ents) list.append(layer.opt(e.title, () => { layer.close(); o.done(ed => ed.idOf(e.uid)); }, { dot: e.dot, explain: choose(e.title, `Picks ${e.title} for this rule.`) }));
             const packs = (o.packs ?? []).filter(p => hit(`#${p}`));
             if (packs.length) list.append(el('div', 'lbl', 'Packs'));
             for (const p of packs) {
                 list.append(layer.opt(`#${p}`, () => {
                     if (!o.readings) { layer.close(); o.done(() => `#${p}`); return; }
                     layer.sheet(`#${p}`, s2 => {
-                        s2.append(layer.opt('Any of them', () => { layer.close(); o.done(() => reading(p)); }, { sub: 'Any member has fired', explain: choose('Any of them', 'Makes the rule need any member. Explain mode will not change the book.') }));
-                        s2.append(layer.opt('All of them', () => { layer.close(); o.done(() => reading(p, 'all')); }, { sub: 'Every member has fired', explain: choose('All of them', 'Makes the rule need every member. Explain mode will not change the book.') }));
+                        s2.append(layer.opt('Any of them', () => { layer.close(); o.done(() => reading(p)); }, { sub: 'Any member has fired', explain: choose('Any of them', 'Makes the rule need any member.') }));
+                        s2.append(layer.opt('All of them', () => { layer.close(); o.done(() => reading(p, 'all')); }, { sub: 'Every member has fired', explain: choose('All of them', 'Makes the rule need every member.') }));
                         s2.append(layer.opt('A number of them…', () => layer.askText({
                             title: `How many of #${p}?`, type: 'number', value: '2', ok: 'Add',
                             check: v => (Number.isInteger(Number(v)) && Number(v) >= 1 ? null : 'A whole number, 1 or more'),
                             done: v => o.done(() => reading(p, Number(v))),
-                        }), { sub: 'At least that many members have fired', explain: choose('A number of them…', 'Makes the rule need a set number of members. Explain mode will not change the book.') }));
+                        }), { sub: 'At least that many members have fired', explain: choose('A number of them…', 'Makes the rule need a set number of members.') }));
                     }, { help: 'How this rule reads the pack.' });
                 }, { icon: 'tag', explain: { key: 'nav.open', title: `#${p}`, text: 'Opens how this pack can be read. Nothing is chosen.' } }));
             }
             const greets = (o.greetings ?? []).filter(g => hit(g.title) || hit(g.text ?? ''));
             if (greets.length) list.append(el('div', 'lbl', 'Greetings'));
-            for (const g of greets) list.append(layer.opt(g.title, () => { layer.close(); o.done(() => ({ ...g.ref })); }, { icon: 'chat', sub: g.text, explain: choose(g.title, 'Picks this greeting for the rule. Explain mode will not change the book.') }));
+            for (const g of greets) list.append(layer.opt(g.title, () => { layer.close(); o.done(() => ({ ...g.ref })); }, { icon: 'chat', sub: g.text, explain: choose(g.title, 'Picks this greeting for the rule.') }));
             if (o.lock) {
                 list.append(el('div', 'lbl', 'Other'));
                 list.append(layer.opt('Lock phrase…', () => layer.askText({
                     title: 'Lock phrase', placeholder: 'Phrases, separated by commas', ok: 'Add',
                     done: v => { const lock = v.split(',').map(s => s.trim()).filter(Boolean); if (lock.length) o.done(() => ({ lock })); },
-                }), { icon: 'lock', sub: 'Waits until someone says it', explain: choose('Lock phrase…', 'Adds a phrase to wait for. Explain mode will not change the book.') }));
+                }), { icon: 'lock', sub: 'Waits until someone says it', explain: choose('Lock phrase…', 'Adds a phrase to wait for.') }));
                 list.append(layer.opt('Wait…', () => layer.askText({
                     title: 'Wait how many messages?', type: 'number', value: '3', ok: 'Add',
                     check: v => (Number.isInteger(Number(v)) && Number(v) >= 1 ? null : 'A whole number, 1 or more'),
                     done: v => o.done(() => ({ wait: Number(v) })),
-                }), { icon: 'clock', sub: 'Runs out that many messages after the rest of the row', explain: choose('Wait…', 'Adds a wait to this row. Explain mode will not change the book.') }));
+                }), { icon: 'clock', sub: 'Runs out that many messages after the rest of the row', explain: choose('Wait…', 'Adds a wait to this row.') }));
             }
             if (!list.children.length) list.append(el('p', 'help', 'Nothing matches.'));
         };
@@ -172,7 +172,7 @@ export function renderInspector(box, x) {
         const sp = el('span', 'mspark');
         sp.innerHTML = ic('spark', 's');
         head.append(sp, h, close);
-    } else head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on', { key: 'inspector.switch', title: 'Entry on', text: 'Turns this entry on or off. Explain mode leaves it as it is.' }), close);
+    } else head.append(d, h, swEl(!e.disable, on => x.edit((ed, data) => { data.entries[e.uid].disable = !on; }), 'Entry on', { key: 'inspector.switch', title: 'Entry on', text: 'Turns this entry on or off.' }), close);
     body.append(head);
 
     if (x.desk && c.moment !== true) {
@@ -237,7 +237,7 @@ export function renderInspector(box, x) {
             lab.append('Edit text');
             edit.append(lab, pre);
             edit.addEventListener('click', () => x.openEntry());
-            explainNode(edit, 'inspector.readEntry', { title: 'Edit text', text: 'Opens this entry in a tab of its own. Explain mode does not type there.' });
+            explainNode(edit, 'inspector.readEntry', { title: 'Edit text', text: 'Opens this entry in a tab of its own.' });
             acts.append(edit);
             if (x.note) {
                 const nb = btn('inote', html`${ic('edit', 's')} ${typeof c.note === 'string' && c.note.trim() ? 'Edit note' : 'Add note'}`, x.note);
@@ -247,7 +247,7 @@ export function renderInspector(box, x) {
             body.append(acts);
         } else {
             pre.addEventListener('click', () => x.setTab('text'));
-            explainNode(pre, 'menu.inspectorTab', { title: 'Text', text: 'Shows this entry\'s text. Explain mode does not type.' });
+            explainNode(pre, 'menu.inspectorTab', { title: 'Text', text: 'Shows this entry\'s text.' });
             body.append(pre);
         }
     }
@@ -287,7 +287,7 @@ export function renderInspector(box, x) {
         tap.type = 'button';
         tap.append(el('b', '', `Path of ${x.pathOf.name}`), el('span', 'pcs', forkGateOnly ? `Can't fire before ${x.pathOf.name} does. Tap to edit the switch.` : 'Tap to edit the switch.'));
         tap.addEventListener('click', () => x.pathOf.open());
-        explainNode(tap, 'inspector.row', { title: `Path of ${x.pathOf.name}`, text: 'Opens the switch this path belongs to. Explain mode does not change it.' });
+        explainNode(tap, 'inspector.row', { title: `Path of ${x.pathOf.name}`, text: 'Opens the switch this path belongs to.' });
         const guide = btn('pq', ic('help'), () => (x.guide ? x.guide('switch') : null), 'What is a switch?');
         explainNode(guide, 'inspector.guide', { title: 'What is a switch?' });
         ph.append(tap, guide);
@@ -311,7 +311,7 @@ export function renderInspector(box, x) {
         lab.append(p.label);
         tap.append(lab, el('span', 'pcs', sentence(p.label) || (open ? '' : 'Tap to set it up')));
         tap.addEventListener('click', () => x.setOpen(open ? null : p.key));
-        explainNode(tap, 'inspector.row', { title: p.label, text: `${open ? 'Closes' : 'Opens'} this piece's editor. Explain mode does not change anything.` });
+        explainNode(tap, 'inspector.row', { title: p.label, text: `${open ? 'Closes' : 'Opens'} this piece's editor.` });
         const guide = btn('pq', ic('help'), () => (x.guide ? x.guide(p.key) : layer.sheet(p.label, sh => sh.append(el('p', 'help', p.help)))), `What is ${p.label}?`);
         explainNode(guide, 'inspector.guide', { title: `What is ${p.label}?` });
         ph.append(tap, guide);
@@ -347,7 +347,7 @@ export function renderInspector(box, x) {
                     if (['once', 'by', 'glue'].includes(p.key)) update(cc => addPiece(cc, p.key));
                     if (p.key === 'written') update(cc => { addPiece(cc, 'written'); Object.assign(cc.written, x.tracker?.shared ?? {}); });
                     x.setOpen(p.key);
-                }, { sub: p.help, dot: FAMILY_COLOR[p.family], explain: { key: 'blocked.command', title: p.label, text: `Adds ${p.label} to this entry. Explain mode will not change the book.` } }));
+                }, { sub: p.help, dot: FAMILY_COLOR[p.family], explain: { key: 'blocked.command', title: p.label, text: `Adds ${p.label} to this entry.` } }));
             }
             if (x.guide) sh.append(layer.opt('How each piece works', () => { layer.close(); x.guide(null); }, { icon: 'help', val: 'Guide ›', explain: { key: 'menu.guideRow', title: 'How each piece works' } }));
         }, { help: 'Story logic for this entry. Links between cards are quicker from the piece bar under the canvas: drag a piece onto a card, or tap a piece and then a card.' }));
@@ -512,12 +512,12 @@ function editorOf(key, x, update) {
                 done: v => { const to = maskName(v, masks, m.name); update(cc => { cc.masks[i].name = to; }); x.renamedMask(m.name, to); },
             });
             const eye = btn('', ic('eye'), () => x.showMask(m.name), `Show ${m.name} on the canvas`);
-            explainNode(eye, 'blocked.setting', { title: `Show ${m.name} on the canvas`, text: 'Shows this version on the canvas. Explain mode leaves the display as it is.' });
+            explainNode(eye, 'blocked.setting', { title: `Show ${m.name} on the canvas`, text: 'Shows this version on the canvas.' });
             const moreBtn = btn('', ic('more'), () => layer.sheet(`Mask ${m.name}`, sh => {
-                    sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this mask. Explain mode will not change the book.' } }));
+                    sh.append(layer.opt('Rename', () => { layer.close(); rename(); }, { icon: 'edit', explain: { key: 'blocked.command', title: 'Rename', text: 'Renames this mask.' } }));
                     sh.append(layer.opt('Edit text', () => { layer.close(); x.openEntry(m.name); }, { icon: 'entry', explain: { key: 'inspector.maskText', title: 'Edit text' } }));
-                    if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins', explain: { key: 'blocked.command', title: 'Move up', text: 'Changes which mask wins when several are on. Explain mode will not change the book.' } }));
-                    sh.append(layer.opt('Delete', () => { layer.close(); removeAndSay(x, `Mask ${m.name} removed`, () => update(cc => { cc.masks.splice(i, 1); })); }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this mask. Explain mode will not change the book.' } }));
+                    if (i > 0) sh.append(layer.opt('Move up', () => { layer.close(); update(cc => moveMaskUp(cc, i)); }, { icon: 'up', sub: 'Lower priority: a mask further down wins', explain: { key: 'blocked.command', title: 'Move up', text: 'Changes which mask wins when several are on.' } }));
+                    sh.append(layer.opt('Delete', () => { layer.close(); removeAndSay(x, `Mask ${m.name} removed`, () => update(cc => { cc.masks.splice(i, 1); })); }, { icon: 'trash', danger: true, explain: { key: 'blocked.command', title: 'Delete', text: 'Deletes this mask.' } }));
                 }), `${m.name} actions`);
             explainNode(moreBtn, 'inspector.maskActions', { title: `${m.name} actions` });
             mh.append(eye, moreBtn);
@@ -560,12 +560,12 @@ function editorOf(key, x, update) {
         });
         const addPack = name => update(cc => { cc.packs = addToList(Array.isArray(cc.packs) ? cc.packs : [], name); });
         const addPackBtn = btn('addb', '+ add', () => layer.sheet('Add to pack', sh => {
-            for (const p of x.packs.filter(p => !list.includes(p))) sh.append(layer.opt(`#${p}`, () => { layer.close(); addPack(p); }, { icon: 'tag', explain: { key: 'blocked.command', title: `#${p}`, text: 'Adds this entry to the pack. Explain mode will not change the book.' } }));
+            for (const p of x.packs.filter(p => !list.includes(p))) sh.append(layer.opt(`#${p}`, () => { layer.close(); addPack(p); }, { icon: 'tag', explain: { key: 'blocked.command', title: `#${p}`, text: 'Adds this entry to the pack.' } }));
             sh.append(layer.opt('New pack…', () => layer.askText({
                 title: 'New pack', placeholder: 'Pack name (town/inn for one inside another)', ok: 'Add',
                 check: v => (/^[A-Za-z0-9][A-Za-z0-9_.\-/]*$/.test(v.replace(/^#/, '')) ? null : 'Letters, numbers, - _ . and / only'),
                 done: v => addPack(v.replace(/^#/, '')),
-            }), { icon: 'plus', explain: { key: 'blocked.command', title: 'New pack…', text: 'Makes a pack and adds this entry to it. Explain mode will not change the book.' } }));
+            }), { icon: 'plus', explain: { key: 'blocked.command', title: 'New pack…', text: 'Makes a pack and adds this entry to it.' } }));
         }));
         explainNode(addPackBtn, 'menu.addToPack', { title: 'Add to pack' });
         wrap.append(addPackBtn);

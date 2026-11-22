@@ -1172,12 +1172,15 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 .explaining .prow.xok { outline: 1.5px dashed var(--accent); outline-offset: -1px; }
 /* Nothing to say about it: it sits out explain mode, faded and deaf to the pointer's look. */
 .explaining .xno { opacity: .38; cursor: default; }
-.explaintip { position: absolute; z-index: 61; max-width: min(300px, calc(100% - 16px)); padding: 10px 12px; border-radius: 12px; background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); line-height: 1.4; pointer-events: auto; }
+.explaintip { position: absolute; z-index: 61; max-width: min(300px, calc(100% - 16px)); padding: 10px 12px; border-radius: 12px; background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); line-height: 1.4; pointer-events: none; }
+.explaintip .linkish { pointer-events: auto; }
 .explaintip b { color: var(--fg); margin-right: 2px; }
 .explaintip p { margin: 0; color: var(--muted); }
+.explaintipnote { margin-top: 6px; color: var(--muted); font-size: var(--t-xs); font-style: italic; }
 .explaintip .linkish { margin-top: 4px; padding: 0; }
 .explaining .vp .world, .explaining .pchips { filter: saturate(.7) brightness(.92); }
-.explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; pointer-events: none; }
+.explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; justify-content: center; gap: 12px; max-width: calc(100% - 24px); padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: normal; text-align: center; pointer-events: none; }
+.explainban span { min-width: 0; }
 .explainban button { pointer-events: auto; }
 .pstrip .pq { width: 32px; padding: 0; justify-content: center; color: var(--muted); }
 /* Shaping a link (the strip of a drawn line): the others fade, the picked one gets a band, its dots and ghost dots. */

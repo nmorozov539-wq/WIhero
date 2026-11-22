@@ -114,6 +114,7 @@ export function createLayer(layer, toastBox) {
     function close() {
         layer.innerHTML = '';
         while (closers.length) closers.pop()();
+        api.onClose?.();
     }
     const isOpen = () => layer.children.length > 0;
 
@@ -219,7 +220,7 @@ export function createLayer(layer, toastBox) {
         input.type = type;
         input.placeholder = placeholder;
         input.value = value ?? '';
-        explainNode(input, 'blocked.input', { text: 'Explain mode does not type into this field.' });
+        explainNode(input, 'blocked.input', { text: 'Types into this field.' });
         const err = el('div', 'err');
         const row = el('div', 'row');
         const go = () => {
@@ -233,7 +234,7 @@ export function createLayer(layer, toastBox) {
         const cancel = btn('', 'Cancel', close);
         explainNode(cancel, 'nav.close', { text: 'Closes this without saving anything.' });
         const confirm = btn('pri', ok, go);
-        explainNode(confirm, 'blocked.confirm', { title: ok, text: 'This would save the change. Explain mode will not do it.' });
+        explainNode(confirm, 'blocked.confirm', { title: ok, text: 'This would save the change.' });
         row.append(cancel, confirm);
         input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
         d.append(input, err, row);
@@ -286,7 +287,7 @@ export function createLayer(layer, toastBox) {
     /** Ends a waiting Undo toast now, so its delayed change happens (when WI Hero is closed, for example). */
     const flushToast = () => { if (current) endToast(false); };
 
-    const api = { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop, explainActive: () => false };
+    const api = { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop, onClose: null, explainActive: () => false };
     return api;
 }
 
