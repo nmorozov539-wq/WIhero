@@ -678,7 +678,7 @@ export function createApp(deps) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
-        startExplain, stopExplain, strip, switchMode, tabbar, visibleNames, desk: () => deskN, deadCount: (book, data) => menus().deadCount(book, data), deadSheet, undoHistory, historyStep,
+        startExplain, stopExplain, explainDrawn, strip, switchMode, tabbar, visibleNames, desk: () => deskN, deadCount: (book, data) => menus().deadCount(book, data), deadSheet, undoHistory, historyStep,
     }));
     function chatStatus(...a) { return heroShell().chatStatus(...a); }
     function heroBack(...a) { return heroShell().heroBack(...a); }
@@ -692,7 +692,7 @@ export function createApp(deps) {
     const heroCanvas = () => heroShellView?.canvas() ?? null;
 
     // ---------------------------------------------------------------- the Guide and explain mode (explain.js)
-    const { openGuide, startExplain, stopExplain, renderGuideTab } = createExplain({
+    const { openGuide, startExplain, stopExplain, renderGuideTab, afterRender: explainDrawn } = createExplain({
         S, H, root, layer, library, render: () => render(),
         showMe: key => { showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
     });

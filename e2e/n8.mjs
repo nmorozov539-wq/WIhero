@@ -133,6 +133,8 @@ await run(async () => {
     await $('.explainban').waitFor();
     const mb = await card('Missing tooth').boundingBox();
     await page.mouse.click(mb.x + mb.width / 2, mb.y + 10);
+    await $('.explaintip').filter({ hasText: 'Missing tooth' }).waitFor(); // a tap: the one-line tooltip first
+    await $('.explaintip button').click(); // More in the Guide
     await $('.guide .gpage[data-anchor="moment"]').waitFor();
     assert.equal(await $('.insp').count(), 0, 'the tap did not inspect the card');
     await shot('guide');
@@ -141,7 +143,7 @@ await run(async () => {
     await $('.insp .pc[data-piece="gatesFor"] .pq').first().click();
     await $('.guide .gpage[data-anchor="opens"]').waitFor();
     await $('.tab[aria-label="Canvas"]').click();
-    ok('explain mode on a phone: "?" then a tap on a Moment opens the Guide at Moment; an inspector row\'s "?" opens its page');
+    ok('explain mode on a phone: "?" then a tap on a Moment shows its tooltip, whose More opens the Guide at Moment; an inspector row\'s "?" opens its page');
 
     // ── Normal mode hides them ──
     await ev(() => { wihero.settings.openInHero = false; });

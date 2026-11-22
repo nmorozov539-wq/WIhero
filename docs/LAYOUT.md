@@ -834,17 +834,32 @@ Also reachable from ☰ › Guide. The text is in `src/ui/guide.js`.
 ### Explain mode
 
 A "?" at the top right of the canvas (phones), or in the tab row (desktop;
-also the ? key), turns explain mode on **for one tap**:
+also the ? key), turns explain mode on until Done, Back or Escape:
 
-- Everything that can be explained gets a thin dashed accent outline and the
-  rest dims slightly. A banner at the bottom reads "Tap anything to learn about
-  it · Cancel" ("Click…" on desktop).
-- A tap opens the Guide at that element's anchor instead of doing the
-  element's own action, and ends the mode. Back or Escape cancels.
-- What can be explained: piece bar chips, ports, lines, and/or junctions, lock
-  and wait pills, pack frames, mask stacks, Moment cards, other cards, the
-  strip, inspector rows, Fit, Tidy, the undo arrows, the checks chip, the panel button, Preview
-  highlights and Also active.
+- Everything that can be explained gets a thin dashed accent outline. Buttons
+  and fields with nothing to explain fade out and do nothing at all when
+  tapped (no toast). A banner at the bottom reads "Tap anything outlined ·
+  hold for the Guide · Done" ("Point at anything outlined · click for the
+  Guide" on desktop).
+- **Phones:** a tap shows a one-line tooltip next to the thing, above it when
+  there is room: its name in bold, then what it does as a concept, using this
+  thing's own names where the canvas shows them ("Opens Keeps Mill shut until
+  Road has fired."; "Lock Holds its row until someone says "red beard" in the
+  chat."). Under it, "More in the Guide ›". A long press (500ms) opens the
+  Guide at that thing's page straight away. Explain mode stays on after a
+  tooltip, so you can tap around; opening the Guide ends it.
+- **Desktop:** resting the mouse on a thing shows its tooltip (no More link);
+  a click opens the Guide there.
+- One finger (a mouse's left drag) on the canvas still moves the view, so you
+  can look around; nothing on the canvas acts, moves or opens.
+- What can be explained: piece bar chips, ports (way in, way out), lines,
+  and/or junctions, lock and wait pills, pack frames, mask stacks, Moment
+  cards, other cards (closed, permanent and masked ones say so), a card's
+  grip, 1× and +N badges, problem mark and sticky note, the tabs (Canvas,
+  Preview, Guide, entries), the strip, inspector rows, Fit, zoom in and out,
+  the zoom label, Tidy, the undo and redo arrows, the checks chip, the panel
+  button, Preview highlights and Also active. The one-liners are `TIPS` in
+  `src/ui/explain.js`.
 
 ### Direct "?"
 

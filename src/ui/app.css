@@ -1165,7 +1165,13 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 [data-desk="1"] .explainq { position: static; width: 46px; height: auto; border: none; border-radius: 0; background: none; }
 .explaining .explainq { color: var(--accent); }
 .explaining .main { cursor: help; }
-.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .pfold, .plist .phdr) { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+.explaining :is(.pchip, .card, .lockp, .junc, .packframe, .mnav, .pstrip, .pc, .insp .ihead, .hinsp .ihead, .panelBtn, .checkchip, .histbtns button, .canvas-tools button, .zlabel, .pfold, .plist .phdr, .tab).xok { outline: 1.5px dashed var(--accent); outline-offset: 2px; }
+/* Nothing to say about it: it sits out explain mode, faded and deaf to the pointer's look. */
+.explaining .xno { opacity: .38; cursor: default; }
+.explaintip { position: absolute; z-index: 61; max-width: min(300px, calc(100% - 16px)); padding: 10px 12px; border-radius: 12px; background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); line-height: 1.4; pointer-events: auto; }
+.explaintip b { color: var(--fg); margin-right: 2px; }
+.explaintip p { margin: 0; color: var(--muted); }
+.explaintip .linkish { margin-top: 4px; padding: 0; }
 .explaining .vp .world, .explaining .pchips { filter: saturate(.7) brightness(.92); }
 .explainban { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 22px; background: var(--tint); border: 1px solid var(--accent); box-shadow: 0 8px 24px var(--shadow); font-size: var(--t-s); white-space: nowrap; }
 .pstrip .pq { width: 32px; padding: 0; justify-content: center; color: var(--muted); }

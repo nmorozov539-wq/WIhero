@@ -45,7 +45,7 @@ export function renderGuide(main, x) {
     const v = el('div', 'view guide');
     main.append(v);
     const head = el('div', 'ghead');
-    head.append(el('h1', '', 'Guide'), el('p', 'help', 'How each piece works. In explain mode (the "?" on the canvas), tap anything to come here.'));
+    head.append(el('h1', '', 'Guide'), el('p', 'help', 'How each piece works. In explain mode (the "?" on the canvas), tap anything for a one-line tip, or hold it to come here.'));
     const idx = el('div', 'gidx');
     for (const p of [...BASICS, ...PAGES, ...TOPICS]) {
         const b = btn('gchip', '', () => scrollToTop(v.querySelector(`[data-anchor="${p.id}"]`), true));

@@ -23,7 +23,7 @@ export function createHeroShell(A) {
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
-        stopExplain, strip, tabbar, visibleNames, desk, deadCount, deadSheet, undoHistory, historyStep,
+        stopExplain, explainDrawn, strip, tabbar, visibleNames, desk, deadCount, deadSheet, undoHistory, historyStep,
     } = A;
 
     let heroCanvas = null;
@@ -205,9 +205,10 @@ export function createHeroShell(A) {
         if (H.explain) {
             const ban = el('div', 'explainban');
             ban.setAttribute('role', 'status');
-            ban.append(el('span', '', S.desk ? 'Click anything to learn about it' : 'Tap anything to learn about it'), btn('pbtn sm', 'Cancel', stopExplain));
+            ban.append(el('span', '', S.desk ? 'Point at anything outlined · click for the Guide' : 'Tap anything outlined · hold for the Guide'), btn('pbtn sm', 'Done', stopExplain));
             root.append(ban);
         }
+        explainDrawn();
         if (typeof H.active === 'number' && !H.tabs[H.active]) H.active = 'canvas';
         const keepBook = H.active === 'canvas' ? heroBook() : null;
         const kept = heroMount && heroCanvas && keepBook && heroMount.book === keepBook && library.peek(keepBook) === heroMount.data
@@ -286,6 +287,7 @@ export function createHeroShell(A) {
             lasso: lassoFor(book, data),
             toast: text => layer.toast(text),
             holdEmpty: at => placePicker(book, data, at),
+            explaining: () => !!H.explain, // explain mode: a press only moves the view
             // A loose end let go on empty canvas: the entry picked there is placed and takes the loose end.
             looseEmpty: at => placePicker(book, data, at, key => { const end = barApi(book).nodeOf(key); if (end) H.bar.loosePick?.(end); }),
             undo: () => historyStep(false), // a two-finger tap
