@@ -3,7 +3,7 @@
 // the context given to it.
 import { el, issueText, swEl } from './dom.js';
 import {
-    SORT_NAMES, bookFolderOf, bookSettings, cardKey, copyBookSettings, duplicateEntry, entriesOf, entryAsText, moveEntry,
+    SORT_NAMES, bookFolderOf, bookSettings, cardKey, copyBookSettings, duplicateEntry, entriesOf, moveEntry,
     renameBookSettings, setBookFolder, setFolder, titleOf,
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
@@ -349,7 +349,7 @@ export function createMenus(A) {
         const data = library.peek(book);
         const e = data?.entries[uid];
         if (!e) return;
-        if (desk) { deskEntryMenu(book, uid, e, desk); return; }
+        if (desk) { deskEntryMenu(book, uid, e, desk, onPage); return; }
         layer.sheet(titleOf(e), sh => {
             if (ht) sh.append(layer.opt('Show on canvas', () => { layer.close(); showOnCanvas(book, cardKey(e)); }, { icon: 'canvas' }));
             else sh.append(layer.opt('Open in new tab', () => { layer.close(); openIn({ type: 'entry', book, uid }, { newTab: true }); }, { icon: 'tab' }));
@@ -383,9 +383,10 @@ export function createMenus(A) {
                     }, { icon: 'book' }));
                 }
             }, { help: 'Links to other entries of this book don\'t travel; the other book lists them as problems.' }), { icon: 'move' }));
-            sh.append(layer.opt('Copy as text', async () => {
+            // On the entry's own page the copy button sits by the Content heading instead.
+            if (!onPage) sh.append(layer.opt('Copy content', async () => {
                 layer.close();
-                try { await navigator.clipboard.writeText(entryAsText(e)); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
+                try { await navigator.clipboard.writeText(e.content ?? ''); layer.toast('Content copied'); } catch { layer.toast('Couldn\'t copy'); }
             }, { icon: 'entry' }));
             sh.append(layer.opt('Delete', () => {
                 layer.close();
@@ -398,9 +399,9 @@ export function createMenus(A) {
 
     /**
      * Desktop's entry menu (right-click, ⋯, ⋮): Open in new tab · Turn off · Duplicate · Move to folder · Move to
-     * another book · Copy as text · Delete. In an entry tab, "Show in its book" stands for Open in new tab.
+     * another book · Copy content · Delete (Copy content not on the entry's own page). In an entry tab, "Show in its book" stands for Open in new tab.
      */
-    function deskEntryMenu(book, uid, e, d) {
+    function deskEntryMenu(book, uid, e, d, onPage = false) {
         const p = page();
         layer.sheet(null, sh => {
             if (d.openTab) sh.append(layer.opt('Open in new tab', () => { layer.close(); d.openTab(); }, { icon: 'tab', val: 'Double-click' }));
@@ -421,9 +422,10 @@ export function createMenus(A) {
                 if (p.type === 'entry') Object.assign(p, { book: n, uid: moved[0].uid });
                 else if (p.type === 'book') p.sel = null;
             }), { icon: 'move' }));
-            sh.append(layer.opt('Copy as text', async () => {
+            // On the entry's own page the copy button sits by the Content heading instead.
+            if (!onPage) sh.append(layer.opt('Copy content', async () => {
                 layer.close();
-                try { await navigator.clipboard.writeText(entryAsText(e)); layer.toast('Copied'); } catch { layer.toast('Couldn\'t copy'); }
+                try { await navigator.clipboard.writeText(e.content ?? ''); layer.toast('Content copied'); } catch { layer.toast('Couldn\'t copy'); }
             }, { icon: 'entry' }));
             sh.append(el('div', 'div'));
             sh.append(layer.opt('Delete', () => {

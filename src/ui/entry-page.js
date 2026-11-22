@@ -353,7 +353,11 @@ export function renderEntryPage(main, o) {
     const text0 = version ? version.content : (e.content ?? '');
     const ch = el('div', 'content-h');
     const tk = el('small', '', `${tokenGuess(text0)} tokens`);
-    ch.append(el('h2', '', 'Content'), tk);
+    // Copies the text shown (the mask's version when one is picked); it replaced the ⋮ menu's Copy as text here.
+    const cp = btn('ccopy', html`${ic('copy', 's')}`, async () => {
+        try { await navigator.clipboard.writeText(en.querySelector('textarea[aria-label="Content"]')?.value ?? text0); o.layer.toast('Content copied'); } catch { o.layer.toast('Couldn\'t copy'); }
+    }, 'Copy content');
+    ch.append(el('h2', '', 'Content'), tk, cp);
     en.append(ch);
     if (masks.length) {
         const row = el('div', 'mchips');

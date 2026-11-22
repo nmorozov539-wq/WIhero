@@ -126,7 +126,7 @@ The same page in both modes. Top to bottom:
 | Part | What it shows or does |
 |------|-----------------------|
 | ← (round bubble) | Up to the book (normal mode) or closes the entry tab (Hero mode) |
-| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
+| Entries drawer and ⋮ (a pill of two round bubbles, right) | Drawer: every entry in the book, grouped and ordered like the book page; tap one to switch to it, long press to open it in a background tab. ⋮: Open in new tab · New entry below · Duplicate · Move to another book · Delete. The Content heading has a copy button |
 | Title | Big, edited in place. Not sticky; the tab already shows the name |
 | Book line | Book icon, the book's name and folder; tap goes up to the book |
 | Story chip | Only when the entry has story logic (or other entries' rules point at it): its first rule said plainly, then how many more, "Waits for *Road* · 2 more rules". Tap opens the Story logic section (normal mode) or shows the card on the canvas (Hero mode) |
@@ -250,7 +250,7 @@ Move (to a folder, No folder, + New folder) and Export. Import lives under +.
 | Folder header | Name, count, collapse arrow, + for a new entry in that folder. Folders always show: they are containers, and Sort by (☰) orders the entries inside each one. Entries with no folder come first |
 | Entry row | Strategy stripe (no icon), name with a teal dot when the entry has story logic, keywords, on/off switch, ⋯. The switch is quiet while the entry is on (a gray track) and stands out only when it is off (an accent outline) |
 | Tap a row | Opens the entry page in this tab (from Home's tab, in a new tab) |
-| Entry ⋯ | Open in new tab · New entry below · Duplicate · Move to another book · Copy as text · Delete |
+| Entry ⋯ | Open in new tab · New entry below · Duplicate · Move to another book · Copy content · Delete |
 
 - The strategy stripe and dot use the strategy colors (VISUAL.md). Off rows are
   dimmed and gray.
@@ -601,7 +601,7 @@ the edge to reset):
 | Ctrl/Shift-click | Selects several; the right pane becomes the bulk pane |
 | Middle-click | Opens the entry in its own background tab |
 | Double-click | Opens the entry in its own tab |
-| Right-click, ⋯ | Open in new tab · Turn off · New entry below (right under it, in its folder) · Duplicate · Move to folder · Move to another book · Copy as text · Delete. With several selected, the same for all of them |
+| Right-click, ⋯ | Open in new tab · Turn off · New entry below (right under it, in its folder) · Duplicate · Move to folder · Move to another book · Copy content · Delete. With several selected, the same for all of them |
 | Drag rows | Onto a folder header (or the empty list for No folder) to move them there. In the List order sort (☰), dropping on a row puts them just above or below it, into that row's folder: only ST's list position (`displayIndex`) is written, never the Order parameter. Ctrl Z puts both back. Other sorts don't reorder |
 | Keyboard | ↑ ↓ move, Shift ↑ ↓ extend, Space turns on/off, Enter goes to the title, Delete deletes (Undo toast) |
 | Footer | Book settings · "N problems" when there are any (click goes to the first) |
