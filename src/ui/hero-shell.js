@@ -19,7 +19,7 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroShell(A) {
     const {
-        H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, startExplain,
@@ -257,7 +257,17 @@ export function createHeroShell(A) {
         }
         main.dataset.page = 'hero:canvas';
         const book = heroBook();
-        if (!book) { const v = el('div', 'view'); v.append(el('div', 'empty-note', 'No books yet. Switch to Normal mode to make one.')); main.append(v); return; }
+        if (!book) {
+            // No books at all: say so, and offer the two ways to get one, right here.
+            const v = el('div', 'view hempty');
+            v.append(el('div', 'empty-note', 'No books yet. Make one, or import a lorebook file.'));
+            const row = el('div', 'hempty-acts');
+            row.append(btn('pri', html`${ic('plus', 's')}<span>New book</span>`, () => newBookHere(), 'New book'),
+                btn('', html`${ic('import', 's')}<span>Import a file…</span>`, () => importHere(), 'Import a file'));
+            v.append(row);
+            main.append(v);
+            return;
+        }
         const data = need(book);
         if (!data) { const v = el('div', 'view'); v.append(el('div', 'empty-note', loadingNote(book))); main.append(v); return; }
 

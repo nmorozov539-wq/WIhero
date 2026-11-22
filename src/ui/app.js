@@ -674,7 +674,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let heroShellView = null;
     const heroShell = () => (heroShellView ??= createHeroShell({
-        H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas,
@@ -731,22 +731,26 @@ export function createApp(deps) {
         S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
         entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
-        bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
+        bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet, newEntryFolder, sortNames: SORT_NAMES,
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
     const panelState = () => panelView().panelState();
 
     /** Hero's books menu: pick a book, or make or import one. Managing a book is its own menu (heroBookMenu). */
+    const heroOpen = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
+    /** New book and Import from Hero mode: the book opens on the canvas. */
+    const heroNewBook = () => layer.askText({
+        title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
+        done: async n => {
+            try { heroOpen(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
+        },
+    });
+    const heroImport = () => importBook(heroOpen);
     function bookPicker() {
-        const open = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
+        const open = heroOpen;
         layer.sheet('Books', sh => {
-            sh.append(layer.opt('New book', () => layer.askText({
-                title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
-                done: async n => {
-                    try { open(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
-                },
-            }), { icon: 'plus' }));
-            sh.append(layer.opt('Import a file…', () => { layer.close(); importBook(n => open(n)); }, { icon: 'import' }));
+            sh.append(layer.opt('New book', heroNewBook, { icon: 'plus' }));
+            sh.append(layer.opt('Import a file…', () => { layer.close(); heroImport(); }, { icon: 'import' }));
             sh.append(el('div', 'div'));
             for (const n of visibleNames()) {
                 sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));

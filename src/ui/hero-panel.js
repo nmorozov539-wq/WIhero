@@ -20,7 +20,7 @@ export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
         createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
-        folderSheet, bulkEdit, clashCount, clashesSheet,
+        folderSheet, bulkEdit, clashCount, clashesSheet, newEntryFolder, sortNames,
     } = A;
     let panelState = () => {};
 
@@ -54,11 +54,13 @@ export function createHeroPanel(A) {
         q.setAttribute('aria-label', 'Search entries');
         q.value = H.q;
         q.addEventListener('input', () => { H.q = q.value; fill(); });
-        ph.append(q, btn('round flat', ic('plus'), () => layer.askText({
+        const plus = btn('round flat', ic('plus'), () => layer.askText({
             title: 'New entry', placeholder: 'Entry name', ok: 'Create',
             // Made, not placed: it waits in the panel with a hollow dot until it is placed.
             done: name => { createEntry(book, name); H.panel = true; H.q = ''; render(); layer.toast(`${name} made. Drag or tap its dot to place it`); },
-        }), 'New entry'));
+        }), 'New entry');
+        ph.append(q);
+        if (desk) ph.append(plus);
         // Select (Features 1): pick entries in the list to place, move, turn on or off, or edit together.
         // Toggled in place: a full draw would rebuild the panel button too, which then jumps.
         const sb = btn(`round flat${H.psel ? ' on' : ''}`, ic('select'), () => setSelecting(!H.psel), H.psel ? 'Leave selection' : 'Select entries');
@@ -70,7 +72,7 @@ export function createHeroPanel(A) {
             sb.title = on ? 'Leave selection' : 'Select entries';
             if (filled) fill();
         };
-        ph.append(sb);
+        if (desk) ph.append(sb);
         p.append(ph);
         // Keyword clashes are about key words, so they live here with the entries, not on the canvas (Features 8).
         const clashes = clashCount(book, data);
@@ -404,6 +406,28 @@ export function createHeroPanel(A) {
             panelState();
             return;
         }
+        // Phone: a tool row over the footer, as in Obsidian's file list: New entry · New folder · Sort · Select ·
+        // fold or unfold every folder.
+        const folders = () => {
+            const all = new Set(['\u0000greetings', '\u0000moments', ...(settings.books?.[book]?.folderList ?? [])]);
+            for (const e of entriesShown(book, data)) { const f = entryFolder(book, e); if (f) all.add(f); }
+            for (const f of [...all]) { const parts = f.split('/'); for (let i = 1; i < parts.length; i++) all.add(parts.slice(0, i).join('/')); }
+            return all;
+        };
+        const anyOpen = () => [...folders()].some(f => !H.closedFolders.has(f));
+        const tools = el('div', 'ptools');
+        const fold = btn('', ic(anyOpen() ? 'foldAll' : 'unfoldAll'), () => {
+            if (anyOpen()) for (const f of folders()) H.closedFolders.add(f); else H.closedFolders.clear();
+            fold.innerHTML = ic(anyOpen() ? 'foldAll' : 'unfoldAll');
+            fold.setAttribute('aria-label', anyOpen() ? 'Fold all folders' : 'Unfold all folders');
+            if (filled) fill();
+        }, anyOpen() ? 'Fold all folders' : 'Unfold all folders');
+        tools.append(plus, btn('', ic('folderPlus'), () => newEntryFolder(book), 'New folder'),
+            btn('', ic('sort'), () => layer.sheet('Sort by', sh => {
+                for (const [k, label] of Object.entries(sortNames)) sh.append(layer.opt(label, () => { layer.close(); settings.sortBy = k; saveSettings(); fill(); }, { cur: k === sortBy() }));
+            }), 'Sort by'), sb, fold);
+        tools.addEventListener('contextmenu', e => { const b = e.target.closest('button'); if (b) { e.preventDefault(); layer.toast(b.getAttribute('aria-label')); } });
+        p.append(tools);
         // The footer: the book's name opens the books menu, ⋮ this book's menu; a quiet line says where it is active.
         const br = el('div', 'bookrow');
         const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><small></small>`, () => bookPicker(), 'Books');

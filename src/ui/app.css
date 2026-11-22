@@ -396,6 +396,7 @@ svg.lk path.head { stroke-width: 0; }
 .panel .phead { display: flex; align-items: center; gap: 6px; padding: 10px 8px 4px 16px; min-height: 64px; }
 .panel .phead input { flex: 1; min-width: 0; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
 .panel .phead input:focus { border-color: var(--accent); }
+[data-desk=""] .panel .phead { min-height: 56px; padding-right: 16px; }
 .plist { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
 .pnone { color: var(--muted); font-size: var(--t-s); padding: 16px 10px; }
 .phdr { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 36px; padding: 0 8px; font-size: var(--t-s); color: var(--muted); }
@@ -437,7 +438,13 @@ svg.lk path.head { stroke-width: 0; }
 .pselacts button svg { width: 18px; height: 18px; }
 .pselacts button:disabled { opacity: .4; }
 /* The phone panel's footer: the book's name (the books menu) with a quiet status line, and ⋮ (this book's menu). */
-.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px 6px 8px 4px; border-top: 1px solid var(--line); }
+.ptools { flex-shrink: 0; display: flex; justify-content: space-around; align-items: center; padding: 6px 8px 2px; border-top: 1px solid var(--line); }
+.ptools button { width: 44px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.ptools button:active { background: var(--surface); }
+.ptools button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ptools button svg { width: 22px; height: 22px; }
+.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 6px; margin: 4px 8px 10px; padding: 2px 4px 2px 2px; border-radius: 16px; background: var(--surface); }
+.bookrow .round { background: none; }
 .bookpick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; border-radius: 10px; text-align: left; color: var(--fg); }
 .bookpick:active { background: var(--surface); }
 .bookpick b { font-size: var(--t-m); font-weight: 600; display: flex; align-items: center; gap: 4px; max-width: 100%; }
@@ -1232,3 +1239,6 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 [data-desk="1"] .panelbookrow .panelbook { flex: 1; min-width: 0; width: auto; border-top: 0; background: none; }
 [data-desk="1"] .panelmore { width: 36px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
 [data-desk="1"] .panelmore:hover { color: var(--fg); background: var(--hover); }
+.hempty-acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 16px; }
+.hempty-acts button { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 21px; border: 1px solid var(--line); color: var(--fg); font-size: var(--t-s); }
+.hempty-acts button.pri { background: var(--accent); border-color: var(--accent); color: var(--tint); font-weight: 600; }

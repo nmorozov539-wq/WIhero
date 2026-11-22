@@ -125,7 +125,7 @@ async function phone() {
     assert.ok(off.length >= 2, `at least two entries off the canvas (${off.length})`);
     // The toggle redraws only the list: the panel button stays the same element, so it doesn't jump.
     await $(page, '.panelBtn').evaluate(n => { n.dataset.mark = '1'; });
-    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    await $(page, '.panel .ptools button[aria-label="Select entries"]').click();
     assert.equal(await $(page, '.panelBtn[data-mark="1"]').count(), 1, 'the panel button wasn\'t rebuilt');
     for (const k of off.slice(0, 2)) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
     assert.match(await $(page, '.pselhead .cnt').innerText(), /2 selected/);
@@ -155,7 +155,7 @@ async function phone() {
     // On, Off and Edit… act on the selection; the selection lights the canvas.
     await $(page, '.panelBtn').click();
     await page.waitForTimeout(300);
-    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    await $(page, '.panel .ptools button[aria-label="Select entries"]').click();
     for (const k of off.slice(0, 2)) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
     await $(page, '.pselacts button:has-text("Off")').click();
     await page.waitForTimeout(300);
@@ -222,7 +222,7 @@ async function phone() {
     // A picked row's dot drags every picked entry: one ghost per card, in the column they land in.
     await $(page, '.panelBtn').click();
     await page.waitForTimeout(300);
-    await $(page, '.panel .phead button[aria-label="Select entries"]').click();
+    await $(page, '.panel .ptools button[aria-label="Select entries"]').click();
     const two2 = await $(page, '.panel .prow:has(.dotc:not(.in))').evaluateAll(ns => ns.slice(0, 2).map(n => n.dataset.key));
     assert.equal(two2.length, 2, 'two more entries off the canvas');
     for (const k of two2) await $(page, `.panel .prow[data-key="${k}"] .nm`).click();
