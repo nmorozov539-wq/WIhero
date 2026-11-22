@@ -1,7 +1,7 @@
 // The ST side of one turn (BUILD_SPEC 6): reads ST's events, calls the engine, applies its decisions to ST's
 // entry lists and activated Map. SillyTavern is reached only through `ctx()` and the `st` functions passed in,
 // so this can be tested with a stand-in.
-import { buildModel, FIELD, stKey } from './engine/model.js';
+import { buildModel, FIELD, rawConfig, stKey } from './engine/model.js';
 import { advance, baseState, rereadReply, slotOpen, slotValues, entryStatus, holdingKeys, keepAtLoad, keywordOnSide, settleScan, stateForScan } from './engine/turn.js';
 import { pickMask, reopen, setSlot } from './engine/manual.js';
 import { readState } from './engine/state.js';
@@ -51,10 +51,22 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     /** Model of the books ST loaded last, and its signature to skip rebuilding. */
     let model = buildModel([]);
     let signature = '';
-    /** The entries ST loaded last, before any were removed, and their ST hashes by world.uid. */
+    /** The entries ST loaded last, before any were removed, and the ST hashes of those that needed one, by world.uid. */
     let loaded = [];
     let hashes = new Map();
     let hashWarned = false;
+    let hashChecked = false;
+    /**
+     * ST's hash of an entry (timers.js entryHash), worked out when asked for and kept until the next load. It is only
+     * asked for while ST holds a sticky effect, and then only for entries with a sticky: hashing every entry of every
+     * book on every generation (a JSON.stringify each, twice per generation) was the biggest cost of a load.
+     */
+    const hashOf = e => {
+        const key = stKey(e);
+        let h = hashes.get(key);
+        if (h === undefined) { h = entryHash(e, st.getStringHash); hashes.set(key, h); }
+        return h;
+    };
     /**
      * The generation in progress (BUILD_SPEC 6.7): { type, uncounted, working, chat, sticky, forced, victims, fired }.
      * Dry runs never create one; only a counted one is written as a snapshot.
@@ -71,6 +83,9 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     const stateOptions = chat => ({ greeting: openingGreeting(chat, character()), renamed: settings.renamed ?? {} });
     const greetingFp = greetingFpOf(() => ctx().characters, st.getStringHash);
 
+    /** The fields of an ST entry that buildModel reads (src/engine/model.js, step 1), plus its story logic. */
+    const modelInput = e => [e.world, e.uid, e.comment, e.key, e.content, e.constant, e.disable, e.useProbability, e.probability, e.cooldown, rawConfig(e)];
+
     function rebuild(entries) {
         // A loaded book under a name a rename left behind is a new book: its state is its own (review finding 2).
         let dropped = false;
@@ -78,8 +93,11 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
             if (settings.renamed && Object.hasOwn(settings.renamed, book)) { delete settings.renamed[book]; dropped = true; }
         }
         if (dropped) saveSettings();
-        // Compare the same complete inputs buildModel receives, including ordinary ST fields.
-        const sig = JSON.stringify(entries) + `\n${greetingSignature(character(), st.getStringHash)}`;
+        // Compare the inputs buildModel reads: every field of it that an entry with story logic has, ordinary ST fields
+        // included (`disable`, key words, probability…). Entries without story logic never reach the model, and ST's
+        // `hash` and `decorators` (present when the entries come from getSortedEntries, not from the load event)
+        // aren't read, so the same books give the same signature from either path.
+        const sig = JSON.stringify(entries.filter(e => rawConfig(e) != null).map(modelInput)) + `\n${greetingSignature(character(), st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;
         model = buildModel(entries, { greetingFp });
@@ -87,7 +105,8 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
 
     const sticky = type => {
         const timed = ctx().chatMetadata?.timedWorldInfo;
-        return new Set(stickyHeld(loaded, timed, scanLength(ctx().chat ?? [], type), e => hashes.get(stKey(e))).keys());
+        if (!Object.keys(timed?.sticky ?? {}).length) return new Set(); // nothing held: no hash is needed
+        return new Set(stickyHeld(loaded, timed, scanLength(ctx().chat ?? [], type), hashOf).keys());
     };
 
     // 6.1
@@ -141,16 +160,34 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         }
     }
 
+    /**
+     * Whether our hash of an entry is ST's (a sign ST changed how it hashes). ST hashes every entry the same way, so
+     * the first few entries and those with decorators (the part most likely to drift) are enough, once a session.
+     * @returns {boolean} whether any entry was compared (if none was, the next generation tries again)
+     */
+    function checkHashes(entries) {
+        const raw = new Map(loaded.map(e => [stKey(e), e]));
+        let checked = 0;
+        for (const e of entries) {
+            const mine = raw.get(stKey(e));
+            if (!mine || e.hash === undefined || !(checked < 10 || String(mine.content ?? '').startsWith('@@'))) continue;
+            checked++;
+            if (hashOf(mine) !== e.hash) {
+                hashWarned = true;
+                console.warn('[WI Hero] Entry hashes differ from SillyTavern\'s; sticky entries may be cut short when they close.');
+                return true;
+            }
+        }
+        return checked > 0;
+    }
+
     // 6.2, glue: force-activate holds before the scan. ST clears forced entries after every scan.
     async function onAfterCommands(type, _options, dryRun) {
         if (dryRun) return;
         try { teach(scanChat(ctx().chat ?? [], type), type); } catch (e) { console.error('[WI Hero] Could not build the trackers\' instruction', e); }
         if (!active()) return;
         const entries = await st.getSortedEntries();
-        if (!hashWarned && entries.some(e => hashes.has(stKey(e)) && hashes.get(stKey(e)) !== e.hash)) {
-            hashWarned = true;
-            console.warn('[WI Hero] Entry hashes differ from SillyTavern\'s; sticky entries may be cut short when they close.');
-        }
+        if (!hashChecked) hashChecked = checkHashes(entries);
         const chat = scanChat(ctx().chat ?? [], type);
         const keys = new Set(holdingKeys(model, stateForScan(chat, model, stateOptions(chat))));
         const holds = entries.filter(e => keys.has(stKey(e)) && !e.disable);
@@ -168,7 +205,7 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         if (selfLoading && !pending) return;
         if (selfLoading) selfSpliced = true;
         loaded = Object.values(lore ?? {}).filter(Array.isArray).flat();
-        hashes = new Map(loaded.map(e => [stKey(e), entryHash(e, st.getStringHash)]));
+        hashes = new Map();
         rebuild(loaded);
         if (!active()) return onChange();
         const chat = scanChat(ctx().chat ?? [], pending?.type);
@@ -368,8 +405,10 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         const chat = ctx().chat ?? [];
         const { index } = baseState(chat, model, stateOptions(chat));
         const state = stateForScan(chat, model, stateOptions(chat));
+        // Every tracker's value, read once: each entry with a written mask needs them to pick its mask.
+        const values = model.slots?.size ? slotValues(model, state, chat) : null;
         const rows = [...model.byStKey.values()].map(node => {
-            const s = node.key ? entryStatus(node, state, chat, model) : { status: 'blocked', text: 'has a problem', mask: null };
+            const s = node.key ? entryStatus(node, state, chat, model, values) : { status: 'blocked', text: 'has a problem', mask: null };
             return {
                 key: node.key, id: node.id, book: node.book, label: node.label,
                 status: s.status, text: s.text + (s.mask ? ` · mask: ${s.mask}` : ''),

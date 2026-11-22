@@ -6,7 +6,7 @@ import { ensureSettings } from './src/ui/data.js';
 import { createLibrary } from './src/ui/st-books.js';
 import { createSnapshots } from './src/ui/snapshots.js';
 import { createApp } from './src/ui/app.js';
-import { mountPanel, render, renderNotice } from './src/panel.js';
+import { mountPanel, renderNotice, renderWhenVisible } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
 import { createCatchUpDialog } from './src/catch-up-dialog.js';
 import { createBubble } from './src/bubble.js';
@@ -32,7 +32,7 @@ let refreshTimer = null;
 /** ST refreshes often during a generation, so the panel is redrawn at most every 150 ms. */
 function refresh() {
     clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => { render(hooks.view()); app?.refresh(); bubble?.render(); }, 150);
+    refreshTimer = setTimeout(() => { renderWhenVisible(() => hooks.view()); app?.refresh(); bubble?.render(); }, 150);
 }
 let app = null;
 let bubble = null;

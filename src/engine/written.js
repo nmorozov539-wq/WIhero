@@ -2,7 +2,7 @@
 // its text comes from the chat. This file reads the stored settings, compiles a book's syntax and reads messages.
 // Pure, no SillyTavern imports.
 import { isObject } from './util.js';
-import { readState } from './state.js';
+import { readWrote } from './state.js';
 
 /** The starting syntax of a book (TRACKERS 5): a line and a block template. */
 export const DEFAULT_SYNTAX = Object.freeze({ line: '[{label}: {value}]', open: '<{label}>', close: '</{label}>' });
@@ -247,12 +247,18 @@ function similar(a, b) {
  * @param {object[]} chat
  * @param {string} key Slot key.
  * @param {(text: string) => Map<string, string>} [readGreeting] The book's reader, for the opening greeting.
+ * @param {Map<number, object | null>} [wroteAt] A cache of the written values stored at each message index.
  */
-export function slotValue(state, chat, key, readGreeting) {
+export function slotValue(state, chat, key, readGreeting, wroteAt = null) {
     if (Object.hasOwn(state.wrote ?? {}, key)) return state.wrote[key];
     const at = state.written?.[key];
     if (Number.isInteger(at)) {
-        const stored = readState(chat?.[at]?.extra?.wihero, { renamed: state.renamed })?.wrote;
+        // `wroteAt` (message index → its snapshot's written values) is shared by the slots of one slotValues call.
+        let stored = wroteAt?.get(at);
+        if (stored === undefined) {
+            stored = readWrote(chat?.[at]?.extra?.wihero, { renamed: state.renamed }) ?? null;
+            wroteAt?.set(at, stored);
+        }
         if (isObject(stored) && Object.hasOwn(stored, key)) return String(stored[key]);
         return undefined;
     }

@@ -170,11 +170,12 @@ export function slotValues(model, state, chat) {
     const out = new Map();
     if (!model.slots?.size) return out;
     const greeting = new Map();
+    const wroteAt = new Map();
     for (const slot of model.slots.values()) {
         if (slot.bad) continue;
         const t = model.trackers.get(slot.book);
         if (!greeting.has(slot.book)) greeting.set(slot.book, t?.reader ? memo(t.reader.read) : null);
-        const v = slotValue(state, chat, slot.key, greeting.get(slot.book));
+        const v = slotValue(state, chat, slot.key, greeting.get(slot.book), wroteAt);
         if (v !== undefined) out.set(slot.key, v);
     }
     return out;
@@ -469,33 +470,46 @@ export function diceRoll(fork, chat, mesId) {
 export function keywordOnSide(entry, chat, side, globals) {
     const depth = Number.isInteger(entry.scanDepth) ? entry.scanDepth : globals.depth;
     if (!(depth > 0)) return false;
-    const messages = (chat ?? []).filter(m => m && !m.is_system).slice(-depth).filter(m => (m.is_user ? 'user' : 'char') === side);
+    // The last `depth` messages that count, found from the end: the chat can be thousands of messages long.
+    const messages = [];
+    let seen = 0; // messages of either side count toward `depth`; only the allowed side's are matched
+    for (let i = (chat?.length ?? 0) - 1; i >= 0 && seen < depth; i--) {
+        const m = chat[i];
+        if (!m || m.is_system) continue;
+        seen++;
+        if ((m.is_user ? 'user' : 'char') === side) messages.push(m);
+    }
+    if (!messages.length) return false;
     const caseSensitive = entry.caseSensitive ?? globals.caseSensitive;
     const whole = entry.matchWholeWords ?? globals.matchWholeWords;
     const toRegex = globals.parseRegexFromString ?? parseRegex;
     const transform = s => caseSensitive ? s : s.toLowerCase();
     const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const match = (haystack, key) => {
+    // One test per key, built once: not a new pattern for every message.
+    const tests = (entry.key ?? []).filter(k => typeof k === 'string' && k.trim()).map(raw => {
+        const key = raw.trim();
         const regex = toRegex(key);
-        if (regex) { regex.lastIndex = 0; return regex.test(haystack); }
-        const h = transform(haystack);
+        if (regex) return haystack => { regex.lastIndex = 0; return regex.test(haystack); };
         const k = transform(key);
-        if (!whole || k.split(/\s+/).length > 1) return h.includes(k);
-        return new RegExp(`(?:^|\\W)(${escape(k)})(?:$|\\W)`).test(h);
-    };
-    return (entry.key ?? []).filter(k => typeof k === 'string' && k.trim()).some(key => messages.some(m => match(m.mes ?? '', key.trim())));
+        if (!whole || k.split(/\s+/).length > 1) return haystack => transform(haystack).includes(k);
+        const word = new RegExp(`(?:^|\\W)(${escape(k)})(?:$|\\W)`);
+        return haystack => word.test(transform(haystack));
+    });
+    return tests.some(test => messages.some(m => test(m.mes ?? '')));
 }
 
 /**
  * What the panel shows for an entry now.
  * @returns {{ status: 'blocked' | 'closed' | 'holding' | 'open' | 'waiting', text: string, mask: string | null }}
  */
-export function entryStatus(node, state, chat, model) {
+export function entryStatus(node, state, chat, model, values = null) {
     if (node.moment) {
         if (node.blocked) return { status: 'blocked', text: 'has a problem', mask: null };
         return (state.fired[node.key] ?? 0) > 0 ? { status: 'happened', text: 'happened', mask: null } : { status: 'waiting', text: 'not yet', mask: null };
     }
-    const mask = node.masks?.length && !node.blocked ? chooseMask(node, state, chat, model) : null;
+    // `values` (slotValues) is worked out once by a caller that asks for many entries: chooseMask would otherwise
+    // read every tracker again for each entry with a written mask.
+    const mask = node.masks?.length && !node.blocked ? chooseMask(node, state, chat, model, undefined, values) : null;
     if (node.blocked) return { status: 'blocked', text: 'has a problem', mask: null };
     const closed = state.closed[node.key];
     if (closed) return { status: 'closed', text: `closed (${closed.by})`, mask };

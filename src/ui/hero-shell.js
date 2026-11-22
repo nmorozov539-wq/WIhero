@@ -61,7 +61,7 @@ export function createHeroShell(A) {
             if (!key.startsWith('id:')) return null;
             const node = model.nodes.get(`${book}/${key.slice(3)}`);
             if (!node) return null;
-            const s = entryStatus(node, state, chat, model);
+            const s = entryStatus(node, state, chat, model, node.masks.some(m => m.written) ? (values ??= slotValues(model, state, chat)) : null);
             return {
                 fired: state.fired[node.key] ?? 0,
                 closed: s.status === 'closed' ? closedText(state.closed[node.key].by, nameOf) : null,

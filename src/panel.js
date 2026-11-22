@@ -2,6 +2,7 @@
 // stood-down engine, a chat to catch up), and a status table of the entries with story logic, left from N1 testing.
 
 let handlers = {};
+let content;
 let summary;
 let table;
 let issueList;
@@ -48,6 +49,32 @@ export function mountPanel({ settings, handlers: h }) {
     );
     document.getElementById('extensions_settings2')?.append(root);
     render(null);
+    // Drawn again when it comes on screen: the Extensions drawer opened, or this section expanded. The section's body
+    // is watched, not the section: its header stays on screen while the body opens and closes.
+    content = root.querySelector('.inline-drawer-content');
+    if (content && globalThis.IntersectionObserver) {
+        new IntersectionObserver(seen => { if (seen.some(x => x.isIntersecting)) drawIfStale(); }).observe(content);
+    }
+}
+
+let source = null;
+let stale = false;
+/** Whether the section can be seen: the Extensions drawer is open and this section is expanded. */
+const onScreen = () => !content || !content.checkVisibility || content.checkVisibility();
+function drawIfStale() {
+    if (!stale || !source || !onScreen()) return;
+    stale = false;
+    render(source());
+}
+
+/**
+ * Draws the panel from `getView()` (hooks.view) when it can be seen. Otherwise nothing is worked out: the view of
+ * every entry, and a table row for each, is only built when the section is opened, not on every message.
+ */
+export function renderWhenVisible(getView) {
+    source = getView;
+    stale = true;
+    drawIfStale();
 }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;

@@ -62,8 +62,9 @@ export function stickyHeld(entries, timed, length, hashOf) {
         if (!effect || typeof effect !== 'object') continue;
         if (length <= Number(effect.start) && !effect.protected) continue;
         if (length >= Number(effect.end)) continue;
-        const entry = (entries ?? []).find(e => String(hashOf(e)) === String(effect.hash));
-        if (!entry?.sticky) continue;
+        // Only an entry with a sticky can be held by one, so the others are never hashed.
+        const entry = (entries ?? []).find(e => e.sticky && String(hashOf(e)) === String(effect.hash));
+        if (!entry) continue;
         held.set(entryKey(entry), Number(effect.end));
     }
     return held;
