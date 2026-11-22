@@ -77,7 +77,7 @@ await menu();
 const clashRow = $('.sheet').last().getByText(/Keyword clashes \(\d+\)/);
 await clashRow.waitFor();
 await clashRow.click();
-await $('.sheet').last().getByText('“shared word”').waitFor();
+await $('.sheet').last().locator('.clashw', { hasText: 'shared word' }).waitFor();
 ok('☰ lists Keyword clashes, and the sheet groups entries by the word');
 await page.keyboard.press('Escape');
 await page.keyboard.press('Escape');
