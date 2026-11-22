@@ -101,6 +101,17 @@ Synthetic desktop Node, same shapes as the 0.47.0 audit:
 
 The first call at 1,000 entries was 13.8 ms including JIT warm-up. At 6×, 12.9 ms native is roughly 77 ms, so the 50 ms e2e target is not yet verified; the merge gate (no > 100 ms at 6×) is expected to pass. Repeat entry-page and menu draws are free while the book revision is unchanged.
 
+**H2 — A–Z collation (`src/ui/data.js`).** One shared `Intl.Collator` for A–Z and one plain collator for folder/group names; `sortEntries` decorates with `titleOf` so it runs once per entry. `clashes.js`, `normal.js`, and `desk.js` use the shared text comparator.
+
+| Entries | Before | After |
+|---:|---:|---:|
+| 150 | 6.4 ms | 1.1 ms |
+| 500 | 26.2 ms | 2.0 ms |
+| 1,000 | 61.8 ms | 3.0 ms |
+| 3,000 | 221.1 ms | 12.7 ms |
+
+Desktop Node, warm, synthetic titles. A relative timing test pins the win without relying on an absolute machine speed.
+
 ---
 
 ## 3. What is already good — preserve it
@@ -179,7 +190,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ☐ |
-| 1 Hangs + cheap wins | ◐ H1 landed; H2/A1/A2/C1–C10 pending |
+| 1 Hangs + cheap wins | ◐ H1, H2 landed; A1/A2/C1–C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -194,7 +205,7 @@ Dependencies:
 | 2 | This plan |
 | 3 | B0 baseline + harness |
 | 4 | H1 clash (landed) |
-| 5 | H2 collator |
+| 5 | H2 collator (landed) |
 | 6 | A1 + A2 blur/transform |
 | 7 | C2–C10 cheap per-draw batch |
 | 8 | T0 token count |
@@ -291,14 +302,18 @@ Callers: `src/ui/normal.js:467` (every entry-page draw, Normal and Hero entry ta
 
 ```js
 const AZ = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
-const cmp = by === 'az'
-    ? (a, b) => AZ.compare(titleOf(a), titleOf(b)) || order(a, b)
-    : /* ... */;
+if (by === 'az') {
+    const keyed = entries.map(e => [titleOf(e), e]);
+    keyed.sort(([ta, a], [tb, b]) => AZ.compare(ta, tb) || order(a, b));
+    return keyed.map(([, e]) => e);
+}
 ```
 
-Optionally decorate-sort-undecorate (`entries.map(e => [titleOf(e), e])`) to avoid repeated `titleOf` calls, but the collator is the 23× win. Use the shared collator for folder names and clash group sorting too. Feature-detect `Intl.Collator` and fall back to the current comparator on the weakest denominator.
+Decorate-sort-undecorate avoids repeated `titleOf` calls; the collator is the main win. Use the shared collator for folder names and clash group sorting too. Feature-detect `Intl.Collator` and fall back to the current comparator on the weakest denominator.
 
 **Done when.** A–Z order is identical (same sensitivity, numeric handling); sort tests pass; 1,000 entries under the budget; a timing check exists.
+
+**Status.** Landed. 1,000 entries: 61.8 ms → 3.0 ms; 3,000: 221.1 ms → 12.7 ms. The relative timing test in `test/ui.test.js` pins the win.
 
 **Risk.** Very low. This is a pure comparator swap.
 
@@ -1075,3 +1090,4 @@ Measure before committing to these:
 | 2026-11-22 | `f7f84e8` | #48 engine hot paths | 325 pass, 0 fail, 7 skipped; behavior hash identical |
 | 2026-11-22 | this commit | Plan | Replaces the three source notes; single source of truth |
 | 2026-11-22 | this commit | H1 clash scan | Token index + revision cache; 1,000 × 4: 1,151 ms → 12.9 ms warm, cached ~0; 327 pass, 0 fail, 7 skipped |
+| 2026-11-22 | this commit | H2 A–Z collator | Shared collator + decorate-sort; 1,000 entries: 61.8 ms → 3.0 ms; 328 pass, 0 fail, 7 skipped |

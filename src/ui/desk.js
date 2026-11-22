@@ -5,7 +5,7 @@
 import { btn, html, el, issueText, swEl } from './dom.js';
 import { ic } from './icons.js';
 import {
-    MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
+    MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, compareText, duplicateEntry, entriesOf, groupEntries, paramValue, search,
     bookTokens, promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf, tokenGuess, tokensText,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
@@ -226,7 +226,7 @@ export function deskNormal(A) {
 
         // Folders first, in name order; "Not in a folder" last, and only while a book is in it or one is being dragged
         // (it is where a book is dropped to take it out of its folder). Empty folders still show, as drop targets.
-        const folders = Object.keys(settings.bookFolders).sort((a, b) => a.localeCompare(b));
+        const folders = Object.keys(settings.bookFolders).sort((a, b) => compareText(a, b));
         const groups = folders.map(f => [f, settings.bookFolders[f].filter(n => shown.includes(n))]);
         const loose = shown.filter(n => !bookFolderOf(settings, n));
         if (groups.length) groups.push(['', loose]); else groups.push([null, loose]);
@@ -456,7 +456,7 @@ export function deskNormal(A) {
     /** The entries in the order the left pane shows them (folders as they are open). */
     function listOrder(book, data, shown) {
         const groups = groupEntries(shown, A.sortBy(), e => A.entryFolder(book, e));
-        groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
+        groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
         const out = [];
         for (const [g, list] of groups) if (!g || !S.collapsed.has(`${book}:folder:${g}`)) out.push(...list.map(e => e.uid));
         return out;
@@ -512,7 +512,7 @@ export function deskNormal(A) {
             const shown = shownNow();
             const groups = groupEntries(shown, A.sortBy(), e => A.entryFolder(book, e));
             for (const fl of bookSettings(settings, book).folderList ?? []) if (!groups.some(([x]) => x === fl)) groups.push([fl, []]);
-            groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
+            groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
             order = [];
             for (const [grp, items] of groups) {
                 const key = `${book}:folder:${grp}`;

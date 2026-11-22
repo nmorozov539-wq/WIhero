@@ -1,7 +1,7 @@
 // Normal mode's views (LAYOUT "Normal mode"): Home, the book page with its bottom bar and selection, search, and
 // the entry page. Moved out of app.js; it reaches the app only through the context given to it.
 import {
-    MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, configOf, groupEntries, idOf, paramSummary,
+    MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, compareText, configOf, groupEntries, idOf, paramSummary,
     bookTokens, paramText, paramValue, promptOrder, rekeyEntry, tokenGuess, tokensText, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
 } from './data.js';
 import { bookEditor } from './pieces.js';
@@ -52,12 +52,12 @@ export function createNormal(A) {
             v.append(h);
         }
         // A folder shows while it holds a book shown here, or nothing at all (a new folder, #40).
-        const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
+        const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => compareText(a, b));
         const loose = names.filter(n => !bookFolderOf(settings, n));
         v.append(el('div', 'section', 'Books'));
         books(loose);
         for (const f of folders) {
-            const list = settings.bookFolders[f].filter(n => names.includes(n)).sort((a, b) => a.localeCompare(b));
+            const list = settings.bookFolders[f].filter(n => names.includes(n)).sort((a, b) => compareText(a, b));
             const key = `home:${f}`;
             const open = !S.collapsed.has(key);
             v.append(sectionHead(`${f} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list : null));
@@ -162,7 +162,7 @@ export function createNormal(A) {
 
         const groups = groupEntries(shown, sortBy(), e => entryFolder(book, e));
         for (const f of bookSettings(settings, book).folderList ?? []) if (!groups.some(([g]) => g === f)) groups.push([f, []]);
-        groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
+        groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
         for (const [g, list] of groups) {
             const key = `${book}:folder:${g}`;
             const open = !S.collapsed.has(key);

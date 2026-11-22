@@ -147,6 +147,18 @@ test('folders are containers; entries sort inside them by order, A–Z or a stra
     assert.deepEqual(uids('keys'), [0, 1, 3, 2]);
 });
 
+test('A–Z sort uses one collator, not localeCompare with options', () => {
+    const list = Array.from({ length: 1000 }, (_, i) => e(i, null, undefined, { comment: `Entry ${(i * 7919) % 1000} of the old mill` }));
+    const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
+    const old = (a, b) => a.comment.localeCompare(b.comment, undefined, { sensitivity: 'base', numeric: true }) || order(a, b);
+    const time = f => { const t0 = performance.now(); for (let i = 0; i < 2; i++) f(); return (performance.now() - t0) / 2; };
+    sortEntries(list, 'az'); // warm
+    [...list].sort(old);
+    const oldMs = time(() => [...list].sort(old));
+    const newMs = time(() => sortEntries(list, 'az'));
+    assert.ok(newMs < oldMs / 2, `A–Z sort ${newMs.toFixed(1)} ms vs localeCompare ${oldMs.toFixed(1)} ms`);
+});
+
 test('search: the open book\'s entries first, then other books\', books and folders', () => {
     const books = [
         { name: 'Eldoria', folder: 'Fantasy', entries: [e(0, 'river'), e(1, 'King', undefined, { key: ['king'] })], folderOf: x => (x.uid === 0 ? 'Rivers' : '') },

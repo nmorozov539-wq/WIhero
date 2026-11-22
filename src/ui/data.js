@@ -349,11 +349,24 @@ export const SORT_NAMES = { order: 'List order', prompt: 'Prompt order', az: 'Aâ
 /** The Order parameter as ST reads it (100 when unset). */
 export const promptOrder = e => (Number.isFinite(Number(e.order)) && e.order !== null && e.order !== '' ? Number(e.order) : 100);
 
+// A shared collator: passing options to localeCompare inside a comparator builds a collation per call.
+const HAS_COLLATOR = typeof Intl !== 'undefined' && typeof Intl.Collator === 'function';
+const AZ = HAS_COLLATOR ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }) : null;
+const PLAIN = HAS_COLLATOR ? new Intl.Collator() : null;
+const azCompare = (a, b) => AZ ? AZ.compare(a, b) : String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
+/** Locale order for folder and group names, with one shared collator. */
+export const compareText = (a, b) => PLAIN ? PLAIN.compare(a, b) : String(a).localeCompare(String(b));
+
 export function sortEntries(entries, by = 'order') {
     const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
     const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
-    const cmp = by === 'az' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || order(a, b)
-        : by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
+    // Decorate-sort-undecorate: titleOf runs once per entry, not twice per comparison.
+    if (by === 'az') {
+        const keyed = entries.map(e => [titleOf(e), e]);
+        keyed.sort(([ta, a], [tb, b]) => azCompare(ta, tb) || order(a, b));
+        return keyed.map(([, e]) => e);
+    }
+    const cmp = by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
         : by === 'size' ? (a, b) => tokenGuess(b.content) - tokenGuess(a.content) || order(a, b)
         : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
         : order;
@@ -392,7 +405,7 @@ export function groupEntries(entries, by, folder) {
         if (!groups.has(k)) groups.set(k, []);
         groups.get(k).push(e);
     }
-    return [...groups.entries()].sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
+    return [...groups.entries()].sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
 }
 
 /**

@@ -1,6 +1,6 @@
 // Keyword clash finder (AFTER_V1 brainstorm): key words that fire two or more entries at once. Works on plain
 // World Info too, so Normal mode shows it as well as Hero mode.
-import { entriesOf, titleOf } from './data.js';
+import { compareText, entriesOf, titleOf } from './data.js';
 import { rawConfig } from '../engine/model.js';
 
 const norm = k => String(k).trim().toLowerCase().replace(/\s+/g, ' ');
@@ -85,7 +85,7 @@ export function keywordClashes(data, skip = new Set(), revision = null) {
         }
         if (uids.size > 1) groups.push({ word: w, uids: [...uids] });
     }
-    groups.sort((a, b) => a.word.localeCompare(b.word));
+    groups.sort((a, b) => compareText(a.word, b.word));
     const byUid = new Map(); // uid → the groups it belongs to, in the same sorted order
     for (const g of groups) for (const u of g.uids) {
         let list = byUid.get(u);
