@@ -131,7 +131,18 @@ export function createHeroBar(A) {
         if (k === 'tracker') { makeTracker(book, hit); return; }
         if (k === 'moment') { newMoment(book, hit?.card ? nodeOf(book, hit.card) : null, hit?.card ? null : at); return; }
         const r = startPiece(k, hit, barApi(book));
-        if (r.why) { render(); layer.toast(r.why); return; }
+        if (r.why) {
+            render();
+            // A lock lives on a rule row. A free-standing phrase is a Moment, so offer that instead of a dead end.
+            if (k === 'lock') {
+                layer.toast('A lock lives on a rule. Make a Moment for a stand-alone phrase.', {
+                    action: ['Make a Moment', () => newMoment(book, null, at)],
+                });
+                return;
+            }
+            layer.toast(r.why);
+            return;
+        }
         if (r.choose) {
             // A lock or wait on a card with several gates: which one (#15).
             render();
