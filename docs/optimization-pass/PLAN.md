@@ -1,0 +1,1059 @@
+# WI Hero optimization plan
+
+**Status:** living document — the single source of truth for optimization work.
+**Baseline:** `main` @ `ddac6b4` (0.47.1) plus PR #48.
+**Work branch:** `perf/engine-hot-paths` (PR #48). All optimization updates land there, one commit per update.
+**Supersedes:** `Astra6.md`, `Qwen4.md`, `DeepSeek-Flash.md` (removed; this document replaces them).
+**Goal:** overall smoothness on the weakest denominator, before animation.
+**Device policy:** the weakest Android WebView we can test. Feature-detect every modern API and keep a working fallback. Do not assume a desktop GPU, a recent Chromium, or a fast phone.
+**Measurement policy:** label every number as measured-native, measured-at-6×, estimated, or unverified. A 6× CPU throttle is a comparison tool, not a phone prediction.
+
+Line numbers below are from the 0.47.0 audits and may drift. Treat them as starting points, not guarantees.
+
+---
+
+## 0. Working agreement
+
+- **One PR.** All optimization work lands on PR #48. No separate optimization PRs.
+- **One commit per update.** Each commit contains the code, its tests, and the status/measurement update to this document.
+- **One plan.** This document is authoritative. Do not add parallel optimization notes beside it; update this file instead.
+- **Evidence before “done”.** Every workstream has a done condition. Mark it done only with a measurement, a trace, or a test that pins the behavior.
+- **Behavior first.** Existing tests stay green. Any optimization that changes semantics needs a regression test that pins the intended behavior.
+- **Weakest denominator.** If a fix needs `Intl.Collator`, `field-sizing`, `content-visibility`, `checkVisibility`, `IntersectionObserver`, or `requestIdleCallback`, add a fallback and test the fallback path.
+- **Overall smoothness, not one symptom.** Reduce long tasks and per-draw work across all interaction paths. Do not optimize only the currently loudest screen.
+- **Reviewable slices.** Do not bundle the hang fixes with the Normal-mode retention work. Land the cheap, low-risk work first.
+
+---
+
+## 1. Executive summary
+
+PR #48 has already landed the engine-side hot-path work:
+
+- lazy entry hashing (no whole-book hash on every load; sticky entries only, sampled drift check);
+- a narrower model signature (only the fields `buildModel` reads);
+- `readWrote` / `slotValue` caching and one `slotValues` pass per panel view;
+- the `view()` O(entries × trackers) fix;
+- `keywordOnSide` scanning from the end with one compiled test per key;
+- hidden Extensions-panel deferral;
+- `stickyHeld` hashing only entries that have a sticky.
+
+The next five moves, in order:
+
+1. **Establish the baseline and the harness.** Disposable fixture, instrumentation, scale benchmarks, agreed budgets.
+2. **Remove the two measured hangs.** The keyword-clash scan and A–Z collation.
+3. **Remove the phone blur and cache the real token count.** Cheap, high-impact, and the blur is the prerequisite for compositor-only animation.
+4. **Fix the typing path.** Save-path clones and stringifies, `saveSettings` cadence, history transactions and a byte budget, chat-hider and textarea work.
+5. **Fix Hero per-draw work.** Per-book revisions, `canvasSig` projection, retained chrome, overlay and link-node indexes.
+
+Then: Normal-mode retention and windowing, memory/loading/search, lazy editor, animation readiness.
+
+**North star:** no long task over 50 ms on the interaction path; stable DOM identity; bounded memory; then animation.
+
+**What not to do:** do not debounce `history.take()` alone; do not memoize `normalize` without cloning at mutating callers; do not remove save baselines or pending-native-save synchronization; do not virtualize before keyed rows and delegation; do not move routing to a Worker before measuring transfer; do not animate layout properties; do not change clash semantics to substring matching.
+
+---
+
+## 2. Baseline and what PR #48 changed
+
+### 2.1 What #48 already fixed
+
+| Change | Before | After |
+|---|---:|---:|
+| Generation cost, 200 entries | 4.2 ms | 1.9 ms |
+| Generation cost, 1,000 entries | 35.9 ms | 7.7 ms |
+| Generation cost, 3,000 entries | 91.3 ms | 28.8 ms |
+| `JSON.stringify` calls per generation, 3,000 entries | 6,002 | 2 |
+| `slotValues`, 20/60/120 tracker slots | 3.25 / 9.71 / 25.47 ms | 0.39 / 0.25 / 0.37 ms |
+| `view()`, 20/60/120 tracker slots | 18.06 / 134.22 / 726.81 ms | 0.93 / 0.69 / 0.86 ms |
+| Model rebuilds across 4 generate + `loadModel` | 3 | 0 |
+| `loadModel` median | 36.8 ms | 17.7 ms |
+
+Behavior comparison against the base produced the same hash (`897800cddace9896`) across four synthetic scenarios. Full suite: 325 passed, 0 failed, 7 skipped.
+
+The `view()` number is the important correction to the earlier notes: the 1.7 ms figure in the 0.47.0 audit did not include written masks. With 120 tracker slots the real path was **727 ms per view**. Treat any future `view()` measurement as incomplete unless it includes written masks.
+
+### 2.2 What remains
+
+The three earlier notes still contain valid work that #48 does not cover:
+
+- the quadratic keyword-clash scan;
+- A–Z collation on every comparison;
+- the tokenizer call on every entry-page draw and every 500 ms of typing;
+- save-path cloning/stringifying and `saveSettings` cadence;
+- history snapshots with a step limit but no byte budget;
+- Hero chrome rebuilds, `canvasSig` over-invalidation, `overlay(null)` walks, and `relink` scans;
+- Normal-mode full-view replacement and per-row listeners;
+- bounded loading, clean-book eviction, search indexing, and Home count cancellation;
+- lazy editor loading, phone blur removal, and animation readiness.
+
+---
+
+## 3. What is already good — preserve it
+
+- Card drag is rAF-batched, moves only the card’s own nodes via `translate`, swaps cross-card links for straight guide lines, and redraws fully only on drop (`canvas-input.js:63–106`).
+- Hero retains its mounted canvas; the chrome redraws without redrawing cards/links (`hero-shell.js:236–249`, `211–218`).
+- The link engine re-routes only links whose ends or nearby obstacles changed (`link-engine/index.js:577+`).
+- Pan/zoom is a single `transform` on `.world`; `will-change` is used only during gestures (`canvas.js:121–126`, `app.css:309–311`, `.card.moving` 331).
+- `uiCtx` caches `getContext()` per synchronous task; the typing guard and rAF coalescing are in `app.js:290–326`; the count pump uses concurrency 3 and one redraw per book (`app.js:246–288`); listeners are passive; `revealActiveTab` fixes layout (`app.js:425–433`).
+- `tokenGuess` is length-based, not a real tokenizer (`data.js:33`). Keep it that way.
+- Sheet `up` keyframes animate transform and opacity only (`app.css:253–254`).
+- Home loads counts three books at a time and updates spans directly.
+- Reduced-motion support already exists (`app.css:563`). Keep it.
+
+Do not trade these for a smaller diff.
+
+---
+
+## 4. Priority model and budgets
+
+### 4.1 Priority definitions
+
+- **P0 — measured hangs.** Work that blocks the main thread long enough to feel like a freeze on a weak device. Fix first, with scale tests.
+- **P1 — per-interaction and per-draw cost.** Work that runs on every tap, keystroke, draw, or generation and keeps the base from feeling smooth. Fix before structural rewrites.
+- **P2 — structural retention and memory.** Work that changes how lists, loading, caches, and history are retained. Bigger diffs, bigger UX payoff, higher regression risk.
+- **P3 — launch and animation readiness.** Launch cost, paint cost, and the conditions that make compositor-only animation possible. Do after the interaction base is cheap.
+
+### 4.2 Two-tier budgets
+
+- **Merge gate:** generous, stable, and intended to catch regressions. Start by recording these; gate later once the measurement is stable.
+- **Target:** the weakest-device goal. Do not promise it before Phase 0 produces a baseline.
+
+| Interaction / metric | Merge gate | Target | How |
+|---|---|---|---|
+| Tap feedback (selection, tab, button) | p95 < 100 ms | no long task > 50 ms | e2e perf + long-task observer |
+| Typing in a 100 KB entry | worst long task < 100 ms at 6× | no > 50 ms; zero tokenizer calls until pause/blur | e2e typing step |
+| Open an entry in a 1,000-entry book | no > 100 ms at 6× | no > 50 ms | clash/sort bench + e2e |
+| A–Z sort, 1,000 entries | < 32 ms at 6× | < 16 ms | microbench |
+| Hero card tap | no full canvas redraw unless geometry changed; < 16 ms JS | < 8 ms JS/frame | e2e hero tap |
+| Pan / pinch | zero long tasks | zero long tasks; no blur repaint | e2e pan + paint flashing |
+| First row after open | < 200 ms at 6× | < 100 ms where possible | e2e `firstRowMs` |
+| Generation with editor closed | no settings-table rebuild; no > 50 ms | minimal | instrumentation |
+| Memory after 10 open/close cycles | plateau | plateau; history bounded by bytes | heap snapshots |
+| Home, 40 books | first row before counts finish | no queued count work after leaving | e2e Home |
+| Launch | editor not parsed at boot | boot long tasks lower than baseline | boot trace |
+
+These are proposals. Phase 0 sets the baseline and may adjust them.
+
+---
+
+## 5. Roadmap
+
+| Phase | Priority | Workstreams | Exit gate |
+|---|---|---|---|
+| 0 | — | B0 Baseline and instrumentation | Baseline JSON + traces; budgets agreed |
+| 1 | P0 / P1 | H1 Clash, H2 Collator, A1 Blur, A2 Transform prep, C1–C10 cheap per-draw wins | No > 50 ms long task opening an entry/menu/Hero panel in a 1,000-entry book; A–Z budget; no blur repaint |
+| 2 | P1 | T0 Token count, T1 Save path, T2 `saveSettings`, T3 History, T4 Chat hider, T5 Autosize | Typing budget; undo/save semantics intact |
+| 3 | P1 | V1 Per-book revisions, V2 `canvasSig`, V3 Hero chrome, V4 Overlay, V5 Link indexes, V6 Status-only updates | Inspector/strip changes leave card DOM identity and route counts unchanged; editing B does not redraw A |
+| 4 | P1 / P2 | N1 Keyed rows, N2 Delegation, N3 Retained pane, N4 Windowing, N5 `content-visibility` | Selection/filter typing does not recreate rows; focus, scroll, selection, a11y and drag survive |
+| 5 | P2 | M1 Loader/cancellation, M2 Summaries/LRU, M3 Home counts, M4 Search | Memory plateau; leaving Home stops queued work; search typing budget |
+| 6 | P3 | L1 Lazy editor, A3 Reduced motion, A4 Raster/lifecycle, A5 Animation checklist | Editor not parsed at boot; animation checklist complete |
+
+Dependencies:
+
+- H1/H2 are independent and can land immediately.
+- T1/T2 depend on T0 only for measurement, not for code.
+- V1 is the enabler for V2, V3, V6, and the Phase 5 caches.
+- N1/N2/N3 must land before N4; do not virtualize first.
+- M2 depends on V1’s per-book revisions and on a clean pinning policy.
+- L1 is independent, but land it after the interaction work unless launch is the dominant complaint.
+
+### 5.1 Status
+
+| Phase | Status |
+|---|---|
+| #48 engine hot paths | ✅ landed (`f7f84e8`) |
+| Plan | ✅ this commit |
+| 0 Baseline | ☐ |
+| 1 Hangs + cheap wins | ☐ |
+| 2 Typing path | ☐ |
+| 3 Hero per-draw | ☐ |
+| 4 Normal retention | ☐ |
+| 5 Memory/loading/search | ☐ |
+| 6 Launch/animation readiness | ☐ |
+
+### 5.2 Commit slices
+
+| Commit | Contents |
+|---|---|
+| 1 | #48 engine hot paths (landed) |
+| 2 | This plan |
+| 3 | B0 baseline + harness |
+| 4 | H1 clash |
+| 5 | H2 collator |
+| 6 | A1 + A2 blur/transform |
+| 7 | C2–C10 cheap per-draw batch |
+| 8 | T0 token count |
+| 9 | T1 + T2 save path and settings |
+| 10 | T3 history |
+| 11 | T4 + T5 chat hider and autosize |
+| 12 | V1 per-book revisions |
+| 13 | V2 + V3 `canvasSig` and Hero chrome |
+| 14 | V4 + V5 + V6 overlay, links, status |
+| 15 | N1 + N2 + N3 keyed rows, delegation, pane |
+| 16 | N4 + N5 windowing and `content-visibility` |
+| 17 | M1 + M2 + M3 loader, eviction, counts |
+| 18 | M4 search |
+| 19 | L1 lazy editor |
+| 20 | A3 + A4 + A5 animation readiness |
+
+Every commit updates the status table and the measurement table in this document.
+
+---
+
+## 6. Workstreams
+
+### Phase 0 — B0 Baseline and instrumentation
+
+**Why.** Without a baseline, the budgets are guesses and the three earlier notes’ numbers cannot be compared. The existing `e2e/perf.mjs` creates 40 persistent Stress books and changes settings; it must not silently seed a real library.
+
+**Change.**
+
+- Use a disposable ST profile or an in-memory harness. Never seed a real library.
+- Vendor the #48 benchmark harness into `tools/perf/` (or `e2e/perf/`) so the generation, tracker, rebuild, and behavior-comparison numbers are reproducible in-repo. Add clash and collator scale benchmarks.
+- Add temporary instrumentation: app renders, canvas renders, model builds, route computes, row mounts, serialized characters, save attempts; timings around history, model construction, `arrange`/routing, DOM commit, and status derivation. Record layout/paint and heap separately in browser traces.
+- Record scenarios: cold/warm Home; tap during loading; book selection; long-content typing; search during loading; pan/pinch; single/group drop; dot shaping; inspector toggles with chat state off/on; generation with the editor closed; repeated open/close and book switching; failed and overlapping saves.
+- Use multiple scales: 150, 1,000, 3,000 and 5,000-entry books; sparse and dense graphs; large pack overlap; 40- and 100-book libraries; short and long chats.
+- Collect device evidence: the weakest phone available, desktop, and throttled browser runs. Separate cold network from warm interaction. Report median and p95, long-task totals, worst task, frame gaps, DOM counts, and retained heap after settling.
+- Agree the budgets in §4.2 against the baseline.
+
+**Done when.** Baseline JSON/traces exist; the harness is runnable from the repo; the budgets are written down; no behavior changed.
+
+**Risk.** The fixture itself changes behavior or pollutes a real profile. Keep it isolated and disposable.
+
+**Source.** Astra verification plan; Qwen measurement appendix; DeepSeek acceptance targets.
+
+---
+
+### Phase 1 — Stop the hangs and take the cheap wins
+
+#### H1 — Replace the quadratic keyword-clash scan (P0)
+
+**Why.** `src/ui/clashes.js:27–55` (`keywordClashes`) loops over every distinct key and, for each, loops over every other distinct key. `within` (`:65–68`) builds a new `RegExp` per pair. `keyed` (`:10–14`) calls `configOf`, which normalizes (deep-clones) each entry just to read the Moment flag. This is O(distinct keys²) with up to O(distinct keys²) regex allocations.
+
+Measured on synthetic books with unique multi-word keys:
+
+| Entries × keys | Distinct keys | `keywordClashes` |
+|---:|---:|---:|
+| 150 × 3 | 450 | 43.5 ms |
+| 500 × 4 | 2,000 | 576 ms |
+| 1,000 × 4 | 4,000 | 1,151 ms |
+| 2,000 × 4 | 8,000 | 14,177 ms |
+
+The existing harness shape (150 entries × two single-token keys) is about 24 ms. The cost is driven by distinct keys and key length, which is what real lorebooks have. A token-index prototype with the same whole-word semantics did the 150 × 2 case in 1.1–1.8 ms.
+
+Callers: `src/ui/normal.js:467` (every entry-page draw, Normal and Hero entry tabs); `src/ui/menus.js:157` (`checkRows`, every book menu / Hero ☰ open, uncached); `:172` (`checkCounts`); `:211` (`clashesSheet`); `src/ui/app.js:989–992` (`clashCount`, memoized by a signature that includes `library.version`, which bumps on every edit including quiet typing).
+
+**Change.**
+
+1. One compiled regex per distinct word, cached in a `Map`.
+2. Index distinct keys by the tokens they contain (`Map<token, Set<normalizedKey>>`). For a word `w`, only keys containing `w`’s first token can contain `w` as a whole-word substring; test only those. Fall back to all keys for words with no alphanumeric token.
+3. Use `rawConfig(e)?.moment === true` in `keyed` instead of `configOf(e)?.moment`.
+4. Precompute `groupsByUid: Map<uid, group[]>` so `of(uid, key)` scans that entry’s groups, not all groups.
+5. Memoize the result per book revision at the call sites, or attach it to the cached book model. Pass the revision explicitly; do not rely on a WeakMap keyed by a mutable object.
+
+**Done when.** `test/cheap.test.js` passes unchanged, including “mill is not a whole word of miller”, regex keys, Permanent entries, Moments, and pending deletes. A scale test at 1,000 entries with four unique multi-word keys has a generous bound so a regression is visible. Opening an entry or menu in that book produces no > 50 ms long task at 6×.
+
+**Risk.** Low if the index preserves the whole-word rule. Do not switch to plain substring matching; the tests exist precisely because “miller” must not clash with “mill”.
+
+**Source.** DeepSeek #1; Qwen’s entry-page path.
+
+#### H2 — Use one `Intl.Collator` for A–Z (P0)
+
+**Why.** `src/ui/data.js:352–361` (`sortEntries`, line 355) calls `titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true })` inside the comparator. Passing options to `localeCompare` creates/uses a collation per call, and the comparator runs O(n log n) times. `titleOf` is also called twice per comparison.
+
+| Entries | `localeCompare(..., options)` | Cached `Intl.Collator` |
+|---:|---:|---:|
+| 150 | 6.7 ms | 0.53 ms |
+| 500 | 32.6 ms | 1.28 ms |
+| 1,000 | 60.8 ms | 2.71 ms |
+| 3,000 | 218 ms | 11.0 ms |
+
+`groupEntries` calls `sortEntries`; Normal mode calls `groupEntries` for the book page, the desktop list, and the drawer; Hero calls `sortEntries` for the entry panel and for Moments (always `'az'`). A–Z is a normal user choice, not an edge case.
+
+**Change.**
+
+```js
+const AZ = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+const cmp = by === 'az'
+    ? (a, b) => AZ.compare(titleOf(a), titleOf(b)) || order(a, b)
+    : /* ... */;
+```
+
+Optionally decorate-sort-undecorate (`entries.map(e => [titleOf(e), e])`) to avoid repeated `titleOf` calls, but the collator is the 23× win. Use the shared collator for folder names and clash group sorting too. Feature-detect `Intl.Collator` and fall back to the current comparator on the weakest denominator.
+
+**Done when.** A–Z order is identical (same sensitivity, numeric handling); sort tests pass; 1,000 entries under the budget; a timing check exists.
+
+**Risk.** Very low. This is a pure comparator swap.
+
+**Source.** DeepSeek #2.
+
+#### A1 — Remove the full-screen phone blur (P1, animation prerequisite)
+
+**Why.** `app.css:42` (`.wih`) and `:252` (`.sheet, .dlg`) apply `backdrop-filter: blur(...)`. Desktop disables it at `:1073–1077` with a comment that Hero’s canvas “fell to a few frames a second”. Phones still blur the whole viewport, and a sheet’s 180 ms `up` animation re-blurs every frame. The blur is the prerequisite for compositor-only animation.
+
+**Change.** Apply the desktop treatment on phones as well, or add a “Glass background” setting that defaults off on phones:
+
+```css
+.wih, .sheet, .dlg {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b);
+}
+```
+
+Keep the existing `[data-desk="1"]` rules or fold them into the above. The visual delta is small because ST’s `--SmartThemeBlurTintColor` is mostly opaque.
+
+**Done when.** Pan/pinch and sheet-open traces show no blur repaint; the low-end phone is subjectively smoother; the visual delta is accepted.
+
+**Risk.** Low. The weakest denominator may not support `rgb(from ...)`; use a plain opaque background fallback.
+
+**Source.** Qwen F2; DeepSeek #10; Astra animation prep.
+
+#### A2 — Transform/opacity prep for the switch (P1)
+
+**Why.** `app.css:135–137` transitions `.switch::after` on `left` (3px → 19px); `:366` transitions `.panelBtn` on `left`. Layout-property animation is the one existing violation of the animation rule.
+
+**Change.**
+
+```css
+.switch::after { left: 3px; transition: transform .15s, background .15s; }
+.switch.on::after { transform: translateX(16px); }
+```
+
+Animate `.panelBtn` with `transform` if the move is a fixed delta; otherwise leave it as a low-priority item. Rule for the animation pass: transform and opacity only.
+
+**Done when.** Controls e2e passes; no visual regression; the switch no longer animates `left`.
+
+**Risk.** Low.
+
+**Source.** Qwen F14; DeepSeek #10.
+
+#### C1 — Hidden Extensions panel (done in #48; verify)
+
+**Why.** `index.js:33` used to schedule `render(hooks.view())` on every refresh; `hooks.view()` computed status for every modeled entry and `panel.js` rebuilt the table even when the drawer was collapsed.
+
+**Change.** #48 adds `renderWhenVisible()`: the view is computed only when the section can be seen, and redrawn on reveal via `IntersectionObserver` / `checkVisibility`, with a fallback that always draws.
+
+**Done when.** Chat events with the panel collapsed produce no settings-table rebuild; reopening shows current state immediately; the fallback path is tested.
+
+**Risk.** Low. If `checkVisibility` is unavailable, the fallback draws on every refresh (safe, just no saving).
+
+**Source.** Astra #4; Qwen F9; implemented in #48.
+
+#### C2 — Group model issues once (P1)
+
+**Why.** `app.js:202` (`problemsOf`) and `:212` (`warningsOf`) filter the whole `model.issues` array per row. They are called from `normal.js:195`, the entry page, the inspector, and `hero-shell.js:39–41` (`blockingUids`). That is O(rows × issues) per book draw.
+
+**Change.** Group once when the model is built, or memoize in `modelOf` (`app.js:193–201`):
+
+```js
+model.issuesByStKey = new Map();
+for (const i of model.issues) {
+    const k = i.stKey ?? '';
+    (model.issuesByStKey.get(k) ?? model.issuesByStKey.set(k, []).get(k)).push(i);
+}
+```
+
+Keep the `warning`/`blocking` split at read time. `blockingUids` can use the same map.
+
+**Done when.** Issue-related tests pass; a book draw no longer scans all issues per row.
+
+**Risk.** Low.
+
+**Source.** Qwen F4; DeepSeek #12.
+
+#### C3 — Memoize `normalize`, clone at mutating callers (P1)
+
+**Why.** `engine/model.js:45–47` (`normalize` → `clone(raw)`) is called per row per draw via `configOf` (`data.js:27`), `hasLogic` (`app.js:207–210`), and `normal.js:194`. A 150-entry book draw does ~150 deep clones just to answer “has story logic?”. The raw config object’s identity is stable until the entry is edited.
+
+**Trap.** `bookEditor` (`pieces.js:259–265`) does `configOf(entry) ?? {}` and mutates the returned config in place before `writeConfig`. `hero-bar.js:43–70` runs trial edits on a cloned book. A shared memoized object would be corrupted.
+
+**Change.** Memoize `normalize` keyed by the raw object in a `WeakMap`, and make mutating callers clone first:
+
+```js
+const normCache = new WeakMap();
+export function normalize(raw) {
+    if (!isObject(raw)) return { config: raw, ui: {}, legacy: false };
+    let hit = normCache.get(raw);
+    if (!hit) { hit = /* existing body */; normCache.set(raw, hit); }
+    return hit;
+}
+// pieces.js bookEditor:
+const config = uid => structuredClone(configOf(data.entries[uid]) ?? {});
+```
+
+Audit every `configOf`/`normalize` caller for mutation before enabling the cache. If the audit is uncomfortable, a read-only `hasLogic` path derived from the model is the fallback — but verify its semantics against the current definition, because `byStKey` membership is not exactly “has keys beyond id”.
+
+**Done when.** `test/pieces.test.js`, `test/engine.test.js`, `test/trackers.test.js`, and bar-edit e2e pass; no mutating caller shares a cached object.
+
+**Risk.** Medium — the mutation trap is real.
+
+**Source.** Qwen F5; DeepSeek #12.
+
+#### C4 — Cache parsed icon templates (P1)
+
+**Why.** `icons.js` returns markup strings; `innerHTML` parses them in `dom.js` `btn()`, `normal.js:101,116,190,262`, canvas cards, etc. Hundreds of parses per book draw.
+
+**Change.** Cache a parsed `<template>` per markup string and clone:
+
+```js
+const tplCache = new Map();
+export function icNode(name, size) {
+    const markup = ic(name, size).markup;
+    let t = tplCache.get(markup);
+    if (!t) { t = document.createElement('template'); t.innerHTML = markup; tplCache.set(markup, t); }
+    return t.content.cloneNode(true);
+}
+```
+
+Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when content is an icon. Keep `ic()` for sheets and one-offs. Templates live in the main document but clone fine into the shadow root.
+
+**Done when.** `test/html.test.js` and visual e2e pass; no per-row icon parse in the hot path.
+
+**Risk.** Low.
+
+**Source.** Qwen F13; DeepSeek #12.
+
+#### C5 — Cache `toneOf` (P1)
+
+**Why.** `app.js:32–37` reads computed style; `:341` calls it in every `render()`.
+
+**Change.** Cache the tone and recompute on `show()` and on ST theme/settings changes (or a `MutationObserver` on the theme attributes ST sets). Once per theme change, not per draw.
+
+**Done when.** Theme changes still update the tone; a draw no longer calls `getComputedStyle` unconditionally.
+
+**Risk.** Low.
+
+**Source.** Qwen F16; DeepSeek #12.
+
+#### C6 — Cache `filterChoices.get()` (P1)
+
+**Why.** `data.js:65–70` rebuilds the character/tag arrays on every `charsText` call.
+
+**Change.** Cache by the `characters`/tags array identity, invalidated on character edits. Keep the returned shape.
+
+**Done when.** Character/tag tests pass; repeated `charsText` calls do not rebuild the arrays.
+
+**Risk.** Low.
+
+**Source.** DeepSeek #12.
+
+#### C7 — Precompute Home sort keys (P1)
+
+**Why.** `desk.js:252–258` calls `val(a)`/`val(b)` inside the comparator; for “Entries” each call does `entriesShown(n, data).length`, so a 40-book Home sort re-filters entries hundreds of times.
+
+**Change.** Precompute sort keys once (`list.map(n => [key(n), n]).sort(...)`) instead of calling `val()` inside the comparator. Keep the current ordering and tie-breakers.
+
+**Done when.** Home sort order is unchanged; `entriesShown` per Home draw is O(books), not O(books × entries).
+
+**Risk.** Low.
+
+**Source.** DeepSeek #6.
+
+#### C8 — Build one links index per Home pass (P1)
+
+**Why.** `st-books.js:499–513` (`links(name)`) iterates `ctx().characters` and does `chars.find` per character; it is called via `linkText` (`app.js:213`) from `bookMeta` (`normal.js:77`) for every Home row. That is 40 books × N characters per draw.
+
+**Change.** Build one reverse index per render pass (book → links) and pass it into `bookMeta`, or cache it in the library invalidated on `CHAT_CHANGED` / `CHARACTER_EDITED` / character-list changes.
+
+**Done when.** Home draw cost with many characters drops; link text is unchanged.
+
+**Risk.** Low.
+
+**Source.** Qwen F12; Astra #9.
+
+#### C9 — `offCanvasMoments` fast path (P1)
+
+**Why.** `app.js:229–231` inside `need()` filters every entry on every `need()`, then builds a canvas model only if Moments exist.
+
+**Change.** Memoize the filter per book revision; skip the canvas model entirely when there are no Moments.
+
+**Done when.** Books without Moments do not pay an O(entries) filter per `need()`; Moments still appear.
+
+**Risk.** Low.
+
+**Source.** DeepSeek #6/#12.
+
+#### C10 — Containment step 1 (P1, measured intermediate)
+
+**Why.** `app.css` has no `contain`/`content-visibility` in 113 KB. Rows `.item` (96), `.ptile` (166), `.drow` (830) are repainted broadly.
+
+**Change.** Start with the safe step:
+
+```css
+.item, .ptile, .drow { contain: layout style paint; }
+```
+
+Do **not** put `contain: paint` on `.card`: sticky notes sit above the card box (`.card .sticky { bottom: calc(100% - 4px) }`) and would be clipped. `contain: layout style` on cards is acceptable if profiling wants it. Treat this as a measured intermediate, not a substitute for retention.
+
+**Done when.** Scroll/selection/explain-mode e2e pass; no clipped content; paint/layout scope improves in a trace.
+
+**Risk.** Medium — test explain-mode outlines, scroll anchoring, and in-page find.
+
+**Source.** Qwen F15; DeepSeek #7; Astra #3.
+
+---
+
+### Phase 2 — Typing path
+
+#### T0 — Cache the real token count (P1)
+
+**Why.** `src/ui/normal.js:508` wires `tokens: text => ctx().getTokenCountAsync(text)`; `entry-page.js:430–441` calls it on every entry-page render and 500 ms after each keystroke. Depending on ST’s tokenizer setting this is a full tokenization pass or a server request. A 100 KB entry is re-tokenized on every fold toggle, mask switch, strategy change, page open, and every 500 ms of typing. The page already shows `tokenGuess` immediately (`entry-page.js:420`).
+
+**Change.**
+
+- Cache the last result by exact text (`Map<text, count>` or `{ text, count }` on the page closure).
+- While typing, keep `tokenGuess` and request the real count on idle/blur, not every 500 ms.
+- Skip the call while the host is hidden or the page is being rebuilt; cancel stale results with a token/generation check.
+
+**Done when.** Typing 10 s into a 100 KB entry makes zero tokenizer calls until a pause/blur; opening an entry calls it once; the visible number still updates.
+
+**Risk.** Low. Remote tokenizers make this a network cost, so caching matters more.
+
+**Source.** DeepSeek #4.
+
+#### T1 — Stop cloning and stringifying the whole book on every save (P1)
+
+**Why.** `st-books.js:8` sets `SAVE_DELAY = 350`; `:28` compares with `JSON.stringify(a) === JSON.stringify(b)`; `:127–134` schedules; `:136–163` handles change; `:165–214` (`saveNow`) clones at 171 and 177 and compares at 175 and 185. Continuous typing fires a save every 350 ms; each save clones the whole book twice and stringifies it 2–4 times. On a ~1 MB book that is a periodic main-thread stall mid-sentence.
+
+**Change.**
+
+1. Keep comparison bases as JSON strings, computed once: `sentJson = JSON.stringify(copy)` (drop the `sent` object clone); same for the `cacheSeen` base. Compare `JSON.stringify(after) === sentJson`.
+2. Adaptive debounce: while `change()` calls keep arriving (typing), stretch the delay toward ~1000 ms; discrete edits keep 350 ms. The `pagehide`/`visibilitychange` flush in `index.js` (`flushNow`) already bounds the loss window — keep it.
+3. `upgradeBook` runs on every save and re-normalizes every entry. With C3 it gets cheap; without C3, skip entries whose raw config identity is unchanged since the last save.
+
+**Done when.** A 10 s typing burst in one book produces one save per debounce window, not per 350 ms; host-save tests pass; the crash-loss window is documented.
+
+**Risk.** Low–medium. Longer debounce means a larger crash-loss window; the flush covers tab hide/close but not a hard process kill. Do not remove baselines, concurrency comparisons, or pending-native-save synchronization.
+
+**Source.** Qwen F6; Astra #8.
+
+#### T2 — Batch `saveSettings` and the `edited` write (P1)
+
+**Why.** `st-books.js:181–185` calls `saveSettings()` when `upgradeBook` adopted UI fields, then again after writing `edited`. `saveNow` runs on the 350 ms save debounce while typing and on retries. `settings` includes every book’s `canvas.cards`, folders, defaults, snapshots, and `renamed`. ST’s `saveSettingsDebounced` eventually serializes the whole `extension_settings` object and sends it to the server. A library with many placed cards can queue a multi-hundred-KB serialization/POST on every keystroke pause.
+
+**Change.**
+
+- Set `edited` once per save transaction, not per intermediate save; call `saveSettings()` once after the save loop, not twice.
+- Consider keeping `edited` out of the per-save path: derive “Edited” from the book’s saved revision, or write it at most once a minute / on blur.
+- Measure `saveSettingsDebounced` call size and frequency in the target ST before changing behavior. Do not bypass ST’s settings save.
+
+**Done when.** A 10 s typing burst produces at most one settings save per debounce window; the payload does not grow with unrelated books’ canvas state; “Edited …” semantics are preserved.
+
+**Risk.** Low–medium. `edited` is user-visible.
+
+**Source.** DeepSeek #5.
+
+#### T3 — History transactions and a byte budget (P1)
+
+**Why.** `history.js:59` (`take`), `:73` (`touch`), and the `withHistory` proxy. `entry-page.js:212` records title input; content editing also takes the quiet-change path. Every library mutation advances the version; `history.changed()` then serializes all entries and `originalData`. The one-second typing merge reduces stored undo steps but does not avoid serializing on each keystroke. Redraws still serialize tracked settings even when entries are unchanged.
+
+History keeps up to 100 whole-state records **per book**, with no global byte budget. A book with roughly 5.9 million serialized characters could retain roughly 590 million entry characters across 100 distinct entry-edit snapshots, before other retained state.
+
+Measured edit cost (history wrapper + mutation, excluding rendering/persistence/token counting):
+
+| Entries | Serialized book size | Median edit | Sample p95 |
+|---:|---:|---:|---:|
+| 150 | 175,108 chars | 0.34 ms | 0.68 ms |
+| 1,000 | 1,169,608 chars | 4.13 ms | 7.42 ms |
+| 5,000 | 5,865,608 chars | 14.58 ms | 18.30 ms |
+
+**Change.**
+
+1. Introduce explicit edit transactions and distinguish entry edits, canvas/settings edits, and non-edit presentation changes.
+2. Capture a typing transaction’s pre-edit state once. Commit a changed-entry patch or immutable revision at the transaction boundary instead of generating a whole-book string per input.
+3. Use patches for ordinary entry/settings edits; retain full checkpoints for import/replace and periodic recovery points.
+4. Bound history by estimated bytes across books as well as step count (for example 8–16 MB total). Drop oldest states first. Release history through an explicit lifecycle policy.
+
+**Done when.** Typing in a 5,000-entry book does not serialize the whole book per keystroke; undo grouping, Done/Cancel, rename, external edits, and piece-bar cancellation behave as before; history stays under the byte budget across repeated navigation; `test/history.test.js` and the related e2e pass.
+
+**Risk.** Medium–large. Do not simply debounce `take()`: that can lose the pre-edit state, change Done/Cancel semantics, or merge actions that must remain separately undoable. Keep camera movement excluded and external-save history resets intact.
+
+**Source.** Astra #1; DeepSeek #8.
+
+#### T4 — Memoize the chat hider (P1)
+
+**Why.** `show-in-chat.js:25–38` (`hide()`) always re-runs `messageFormatting` + `innerHTML` when a message has hidden lines. `index.js` wires five events, each `setTimeout(() => hider.hide(id), 0)` — several calls per message per turn; `all()` loops every message on chat/book changes.
+
+**Change.** Memoize the last rendered output per message box (`WeakMap<box, { mes, active, out }>`) and bail when unchanged. Coalesce the per-event timeouts into one pending-id set flushed in a single `setTimeout`/rAF. Clear the memo on `CHAT_CHANGED` and on formatting/settings events; ST rendering settings can change mid-chat.
+
+**Done when.** Trackers show-in-chat tests and `e2e/trackers-real.mjs` pass; unchanged messages are not reformatted.
+
+**Risk.** Low–medium. The memo can stale if ST formatting changes without an event; clear on chat change and settings events.
+
+**Source.** Qwen F10; DeepSeek #12.
+
+#### T5 — Stop the per-keystroke textarea reflow (P1)
+
+**Why.** `entry-page.js:448–457` (`autoText`) writes `height:auto`, reads `scrollHeight`, and writes `height` again on every input — a forced layout per key.
+
+**Change.** Prefer native sizing with a fallback:
+
+```css
+textarea.auto { field-sizing: content; min-height: 200px; }
+```
+
+If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce it into rAF (one fit per frame, not per key). Preserve caret/composition behavior.
+
+**Done when.** Long-entry typing on a throttled phone is smooth; `e2e/mobile-edit.mjs` passes; the fallback path is tested.
+
+**Risk.** Low.
+
+**Source.** Qwen F11; DeepSeek #12.
+
+---
+
+### Phase 3 — Hero per-draw
+
+#### V1 — Per-book revisions (P1)
+
+**Why.** `app.js:190` (`modelOf`) keys its retained model on the global `library.version`; `st-books.js` increments that version for any dirty book. `hero-shell.js:210` (`canvasSig`) also includes the global version and serializes book settings plus top-level scalar settings. An edit in book B can invalidate book A’s derived model/canvas. Bookkeeping changes in the signature can provoke a redraw even when geometry did not change.
+
+**Change.** Introduce per-book revisions, with separate geometry, content/presentation, settings, and chat-state revisions where useful. Keep a global library-list revision for Home. Geometry depends on topology, placements, ports, packs, visible cards, and link shapes; chat badges depend on a chat revision. Patch status text/classes without rerouting. If a status change truly affects bounds, invalidate that geometry explicitly.
+
+**Done when.** Editing book B does not rebuild A; a changed gate, pack, or greeting still refreshes every affected view; chat-state changes patch badges without rerouting.
+
+**Risk.** Medium — invalidation correctness. Do not drop greeting fingerprints or ordinary ST fields from model inputs merely to improve cache hits.
+
+**Source.** Astra #2; DeepSeek #3; Qwen F3.
+
+#### V2 — Project `canvasSig` and compute it once (P1)
+
+**Why.** `hero-shell.js:211–218` spreads `{ ...bs, canvas }`, so the signature includes `edited`, `seen`, `snapshots`, `folders`, and `defaults`. `saveNow()` writes `settings.books[name].edited = Date.now()` and calls `saveSettings()` on every save (`st-books.js:181–185`), so a content edit can force a full canvas redraw even though geometry did not change. The signature also includes the global `library.version`, which bumps on every keystroke. On a changed draw it is computed twice (`hero-shell.js:244` and `:246`). It returns `null` whenever “Show chat state” is on, and the retained-canvas branch explicitly redraws on `null`.
+
+**Change.** Build a canvas input projection for `canvasSig`: only `canvas.cards` (position, ports, layer, `links` shapes), `canvas.placed`, and the hidden set. Exclude `edited`, `seen`, `snapshots`, `folders`, `defaults`, and the global `library.version`. Use V1’s per-book geometry revision. Compute the signature once per draw and reuse it. Do not return `null` for chat state; patch badges separately.
+
+**Done when.** Opening an inspector or changing a strip leaves card DOM identity and route-compute counts unchanged, with “Show chat state” both off and on; a content edit does not redraw the canvas; a geometry change still does.
+
+**Risk.** Medium — invalidation correctness. Keep the existing `settle()` and external-save boundaries.
+
+**Source.** DeepSeek #3b; Astra #2.
+
+#### V3 — Retain Hero chrome (P1)
+
+**Why.** `renderHero()` calls `renderTabs()` (`app.js:390–423`), which clears `strip.innerHTML`; `heroPanel()` creates a new panel button, header, search field, and clash chip; `mountPieceBar()` builds ~10 chips plus the fold arrow and listeners; `heroInspector()` rebuilds the inspector body; `heroAround()` re-appends the checks chip and history buttons. Only the canvas element survives. This is the per-tap allocation/GC cost and the reason animations on chrome restart every draw.
+
+**Change.** Retain the tab row and the panel/piece-bar/inspector shells; update labels and classes in place. This is the same “keyed rows” work as Normal mode, scoped to Hero chrome. Keep the canvas’s existing retained mount.
+
+**Done when.** A Hero draw with no state change does not recreate the chrome; opening the inspector or switching a strip keeps DOM identity; labels and classes still update.
+
+**Risk.** Medium. Keep event listeners stable; avoid stale closures over book/state.
+
+**Source.** DeepSeek #3c; Qwen’s retained-canvas note.
+
+#### V4 — Make `overlay(null)` a no-op (P1)
+
+**Why.** `hero-shell.js:245` calls `heroCanvas.overlay(null)`; `canvas.js:580–604` does two `querySelectorAll` passes over every card/pack frame and toggles three classes on each. For 500 cards that is 500+ class operations per tap even when there is no overlay.
+
+**Change.** Track whether anything is dimmed/selected; if nothing was drawn, return immediately. Otherwise remove only the nodes/classes that were applied.
+
+**Done when.** A tap with no overlay does not walk every card; overlay-on and overlay-off visuals are unchanged.
+
+**Risk.** Low.
+
+**Source.** DeepSeek #3d.
+
+#### V5 — Index link nodes, use the arrange result, and stop rescanning (P1)
+
+**Why.** `canvas.js:134` serializes canvas memory twice around `arrange`, clears `.world`, recreates cards/ports/SVG, and calls `LINKS.layout`. The link engine correctly skips cached routes with unchanged signatures and unaffected obstacles (`link-engine/index.js:577+`), so a full canvas redraw is not necessarily a full route recomputation — but it still recreates DOM. `canvas.js:399–406` (`CV.relink`) scans every `.ln` and `.lhit` for each changed link, so a dot drag is O(changed links × rendered links).
+
+**Change.**
+
+- Keep `Map<linkId, nodes>` and `Map<cardId, nodes>` indexes.
+- Use an explicit placement-changed result from `arrange` instead of stringifying the whole memory twice.
+- Retain stable card/link elements and consume the routing engine’s changed/removed lists.
+- Index link nodes by `def.id` so `relink` touches only that link’s nodes.
+
+**Done when.** A dot drag touches only the changed link’s nodes; a full redraw still recreates DOM only when geometry changed; link visuals are unchanged.
+
+**Risk.** Medium. Keep hit testing and link ordering correct.
+
+**Source.** Astra #6; DeepSeek #3e.
+
+#### V6 — Patch status, do not reroute (P1)
+
+**Why.** Chat badges and status text are folded into the canvas/geometry path, so a chat-state change can trigger routing or a full redraw.
+
+**Change.** Give status/chat badges their own revision and patch text/classes on existing nodes. Invalidate geometry only when a status change actually affects bounds.
+
+**Done when.** A new message updates badges without route recomputation; a status change that changes bounds explicitly invalidates geometry.
+
+**Risk.** Medium — easy to miss a bounds-changing status.
+
+**Source.** Astra #2; DeepSeek #3b.
+
+---
+
+### Phase 4 — Normal mode
+
+#### N1 — Retain the shell and key rows (P1)
+
+**Why.** `app.js:355` (`main.innerHTML = ''`) and `desk.js:175` clear and rebuild the page on every draw. `desk.js:510–537` (`fill`) rebuilds the entry list on every filter keystroke. `normal.js:125–218` materializes every shown entry row. Repeated node creation, listener setup, derived summaries, style/layout, and GC scale with book size; focus and scroll are hard to restore when the view disappears.
+
+**Change.** Retain the page shell and update keyed rows by UID. Separate the entry pane from the list so opening/selecting an entry updates only the selection and the pane. Keep selection/order in the data model. Preserve keyboard navigation, folder headings, variable row heights, scroll-to-entry, drag/drop, and screen-reader behavior. A selected or focused row may need to remain mounted outside the window.
+
+**Done when.** Selecting an entry updates only the selection and the right pane; the left list keeps DOM identity and scroll; a full redraw happens only when the page actually changes.
+
+**Risk.** Medium–large. This is the biggest structural change; stage it.
+
+**Source.** Astra #3; Qwen F3/F7; DeepSeek #7.
+
+#### N2 — Delegate row events (P1)
+
+**Why.** `dom.js` `pressable()` adds seven listeners (pointerdown/move/up/cancel/leave, click, contextmenu), `swEl()` adds one, and the `more` button adds one — about nine per row. 150 rows ≈ 1,350+ listeners and closures allocated and GC’d per full redraw.
+
+**Change.** Delegate on the list container (`.view` / `main`): one pointerdown/move/up/cancel/leave + click + contextmenu set, resolving the row via `e.target.closest('.item, .ptile, .drow')` and its `data-book`/`data-uid`. Keep the 480 ms long-press and 8 px move-cancel logic; store per-gesture state in one closure instead of per row. Rows become dumb DOM (also the groundwork for FLIP reorder animations).
+
+**Done when.** Long press, select mode, `swEl` stopPropagation, and taps on `button, .check` behave as before; row creation allocates no listeners.
+
+**Risk.** Medium. Migrate one surface at a time (book list first); keep `pressable` for sheets/menus until proven.
+
+**Source.** Qwen F7; DeepSeek #7.
+
+#### N3 — Separate the entry pane from the list (P1)
+
+**Why.** Desktop entry selection leads back into the app renderer; the whole page is replaced to show a different entry.
+
+**Change.** Keep the list mounted and update only the selection and the right pane. Preserve scroll position and focus.
+
+**Done when.** Selecting an entry does not recreate the list; the pane updates; focus stays sensible.
+
+**Risk.** Medium.
+
+**Source.** Astra #3.
+
+#### N4 — Window long lists (P1/P2)
+
+**Why.** `normal.js:125` and the desktop book list materialize every shown entry, so DOM memory and layout scale with book size.
+
+**Change.** Window with overscan, keeping selection/order in the data model. Preserve keyboard navigation, folder headings, variable row heights, scroll-to-entry, drag/drop, and screen-reader behavior. Keep a selected or focused row mounted outside the window if needed. Do not virtualize until N1–N3 are in place.
+
+**Done when.** A 1,000-entry book scrolls smoothly; focus/scroll/selection/drag/a11y survive; DOM node count is bounded.
+
+**Risk.** Medium–large. Test scroll anchoring, in-page find, and explain-mode outlines.
+
+**Source.** Astra #3; DeepSeek #7.
+
+#### N5 — `content-visibility` as a measured enhancement (P2)
+
+**Why.** After keyed rows, long lists can skip rendering offscreen rows.
+
+**Change.** Test `content-visibility: auto; contain-intrinsic-size: auto 54px` on `.item.ent` (60px for book rows) for 500-entry books. Do not put `contain: paint` on `.card`; sticky notes sit above the card box. Keep C10’s `contain: layout style paint` on rows.
+
+**Done when.** Scroll-to-top, scroll anchoring, explain-mode outlines, and in-page find still work; a trace shows less rendering work.
+
+**Risk.** Medium — test the edge cases before keeping it.
+
+**Source.** Qwen F15; DeepSeek #7.
+
+---
+
+### Phase 5 — Memory, loading, search
+
+#### M1 — Shared loader with cancellation (P2)
+
+**Why.** `app.js:266` queues Home counts through `library.get()`. `st-books.js:106` retains each loaded book in `copies` and a full cloned baseline in `bases`; there is no general clean-book eviction policy. `cacheSeen` may retain further clones after saves/events. The count queue is concurrency-limited but continues processing queued work without a current-view cancellation check. `countSpans` retains its last span per book. Three-at-a-time loading prevents a request flood; it does not bound eventual memory.
+
+**Change.** Add a shared loader with foreground priority and cancellation of queued obsolete work. The current book loads ahead of remaining counts. Store small summaries separately from editable working copies. If ST cannot provide count metadata, compute summaries during a bounded read and release clean, unpinned extension copies afterward. Host caching may still retain data, so measure total memory too.
+
+**Done when.** Opening a large library then leaving Home stops unnecessary queued work; the current book loads ahead; memory reaches a bounded plateau across repeated navigation.
+
+**Risk.** Medium. Pin open books, dirty/failed saves, in-flight operations, and any state needed for undo.
+
+**Source.** Astra #5; DeepSeek #8/#9.
+
+#### M2 — Summaries, LRU eviction, and pinning (P2)
+
+**Why.** Home and Search can eventually retain every listed book just to show counts. An LRU must never discard the user’s only unsaved copy.
+
+**Change.** Keep small summaries (counts, names, folder, edited) separate from working copies. Evict clean, unpinned books with an LRU. Pin open books, dirty/failed saves, in-flight operations, and anything needed for Undo. Clear detached span references when leaving/replacing Home. Never evict the only unsaved copy.
+
+**Done when.** Memory plateaus across repeated Home ↔ book navigation; unsaved edits and external merges survive eviction tests; heap snapshots, not just object counts, show the plateau.
+
+**Risk.** Medium — pinning correctness.
+
+**Source.** Astra #5; DeepSeek #8.
+
+#### M3 — Cancel Home counts when leaving (P2)
+
+**Why.** The count pump continues processing queued books after the user leaves Home; the count spans are no longer visible.
+
+**Change.** Check the current view before each queued count; cancel obsolete work. Clear the retained span references.
+
+**Done when.** Leaving Home stops queued count work; the current book’s count still loads.
+
+**Risk.** Low.
+
+**Source.** Astra #5.
+
+#### M4 — Search indexing, debounce, and current-book-first (P2)
+
+**Why.** `data.js:404` lowercases titles/keywords and resolves folders for entries on each query. `normal.js:395` builds book arrays and takes the first 80 results only after search; `desk.js:989` limits to 60 after the complete scan. Search does not scan content. `normal.js:395–396` calls `need(n, { open: false })` for **every** book when the search overlay opens, before the user types, which starts loading the whole library. The search rebuilds the corpus and scans every entry on each keystroke, with no debounce (`normal.js:397–425`).
+
+**Change.**
+
+- Normalize searchable fields once per changed entry/book and retain a small index.
+- Process the current book first; preserve the current ranking rules for books and folders.
+- Debounce input 120–150 ms; keep the immediate first run on open.
+- Load only loaded books with a visible “still loading” state; do not load all 40 on open.
+- Use a query revision to discard stale asynchronous results.
+- Update visible results as loading completes; do not depend on a whole-app redraw that may be deferred while typing.
+- Cache per-book lowercase haystacks keyed by book revision.
+
+**Done when.** Opening search does not load 40 books; typing stays under one frame at 6× with the current book loaded; folder deduplication, hidden-entry exclusions, Moments exclusions, and current-book priority are unchanged.
+
+**Risk.** Medium. Preserve ranking and partial-load behavior.
+
+**Source.** Astra #7; Qwen F8; DeepSeek #9.
+
+---
+
+### Phase 6 — Launch and animation readiness
+
+#### L1 — Lazy-load the editor (P3)
+
+**Why.** `index.js` statically imports the editor graph. The static import graph reaches 63 modules, ~1,053–1,078 KB of JS, with zero dynamic imports. `createApp` also attaches the ~116 KB `app.css` at boot. Split: the engine side (hooks, engine, panel, bubble, library, data, compat) is 27 modules / ~261–267 KB and must stay eager (it runs during generation). The editor-only subtree (`app.js` → canvas, desk, piecebar, inspector, menus, explain, guide, preview, link-engine, …) is 36 modules / ~793–811 KB, parsed/compiled on every ST launch even if World Info is never opened.
+
+**Change.**
+
+```js
+let app = null, appLoading = null;
+const loadApp = () => (appLoading ??= import('./src/ui/app.js').then(({ createApp }) => {
+    app = createApp({ /* same deps as today */ });
+    return app;
+}));
+// in syncWithDrawer, when the drawer opens and !native:
+wiDrawer.classList.add('wihero-under'); // immediately, so ST's editor never flashes
+await loadApp();
+askedBook ? app.openBook(askedBook) : app.show();
+// a few seconds after boot, so first open is still instant on capable devices:
+setTimeout(() => requestIdleCallback?.(() => loadApp()), 3000);
+```
+
+Wiring to handle:
+
+- `syncWithDrawer`, `openStEditor`, `keepBesideSidePanel` touch `app` unconditionally — add null/loading guards.
+- The `touchstart`/`mousedown` stopPropagation listeners on `app.host` move into the loaded path (or attach once after load).
+- `askedBook`/`askedTimer` already queue a book requested before the editor exists — reuse that.
+- Keep `globalThis.wihero` eager with `app: null` until loaded (e2e reads `wihero.settings` before opening; `perf.mjs` only evaluates `wihero.app`). Add a `wihero.ready` promise for tests.
+- Show a minimal placeholder in the host while the import resolves.
+- `style.css` (global, ~4.5 KB) stays eager; only `app.css` moves with the chunk.
+- Feature-detect `requestIdleCallback` and fall back to `setTimeout`.
+
+**Done when.** ST boot long tasks drop by the editor parse/eval cost; first drawer open still shows a row quickly; `e2e/perf.mjs` `firstRowMs`, drawer e2e, lifecycle e2e, and `node --test` pass.
+
+**Risk.** Medium — wiring guards and the eager `wihero` surface.
+
+**Source.** Qwen F1; DeepSeek #11; Astra #9.
+
+#### A3 — Reduced motion and hidden-page pause (P3)
+
+**Why.** Reduced-motion support exists (`app.css:563`), but optional animation should also stop when the editor/page is hidden.
+
+**Change.** Keep the media query; consider a “Reduce motion” setting for devices that do not set it. Stop optional animation when the editor/page is hidden.
+
+**Done when.** `prefers-reduced-motion` disables/shortens motion; hidden pages do not run optional animation.
+
+**Risk.** Low.
+
+**Source.** Qwen animation checklist; DeepSeek #10.
+
+#### A4 — Raster memory and lifecycle cleanup (P3)
+
+**Why.** A promoted `.world` at low zoom can be a large layer. Canvas/input modules schedule timers and animation frames without a single comprehensive public dispose path. This inspection does not establish an unbounded listener leak; detached element listeners alone are not proof of one.
+
+**Change.** Check large scenes and low zoom on the weakest phone; do not promote every card. Keep `will-change` temporary. Add explicit lifecycle cleanup as components become retained/virtualized. Verify retaining paths with heap snapshots.
+
+**Done when.** Large scenes at low zoom do not exhaust raster memory; open/close cycles show no retained-listener or retained-DOM growth in heap snapshots.
+
+**Risk.** Medium — verify with traces, not object counts.
+
+**Source.** Astra animation prep; DeepSeek #10.
+
+#### A5 — Animation readiness checklist (P3, gate to the animation pass)
+
+Do not start the animation work until:
+
+1. A1 is done: no live full-screen blur.
+2. Stable DOM identity exists for Normal rows and Hero chrome; the canvas is already retained.
+3. Transform/opacity only; no `left/top/width/height/background` animation. A2 fixes the switch.
+4. No long tasks on the interaction path: H1, H2, T0–T5, V1–V6 are done.
+5. Reduced motion and hidden-page pause are in place.
+6. Paint is measured, not just JS: paint flashing/compositor traces for blurred surfaces, the promoted `.world`, and large scenes at low zoom.
+
+Practical rule: if a change needs a layout read (`getBoundingClientRect`, `scrollHeight`, `getComputedStyle`) inside a pointer move, it is not ready for animation.
+
+**Source.** Astra animation preparation; Qwen animation checklist; DeepSeek #10.
+
+---
+
+## 7. Verification plan
+
+### 7.1 Fixture and isolation
+
+- Use a disposable ST profile or an in-memory harness. Never seed a real library.
+- The existing `e2e/perf.mjs` creates 40 persistent Stress books and changes settings; keep performance runs isolated.
+- Vendor the #48 benchmark harness (generation, trackers, rebuild, behavior comparison) into `tools/perf/` and add clash/collator scale benchmarks.
+
+### 7.2 Instrumentation
+
+Add temporary counters and timings, then remove or keep behind a flag:
+
+- app renders, canvas renders, model builds, route computes, row mounts;
+- serialized characters, save attempts, `saveSettings` calls;
+- history capture/commit time; model construction; `arrange`/routing; DOM commit; status derivation;
+- layout/paint and heap in browser traces.
+
+### 7.3 Scenario matrix
+
+- cold/warm Home; tap during loading; book selection;
+- long-content typing; search during loading;
+- pan/pinch; single/group drop; dot shaping;
+- inspector toggles with chat state off/on;
+- generation with the editor closed;
+- repeated open/close and book switching;
+- failed and overlapping saves.
+
+### 7.4 Scales
+
+- 150, 1,000, 3,000 and 5,000-entry books;
+- sparse and dense graphs;
+- large pack overlap;
+- 40- and 100-book libraries;
+- short and long chats.
+
+### 7.5 Device evidence
+
+- The weakest phone available, desktop, and throttled browser runs.
+- Separate cold network from warm interaction.
+- Report median and p95, long-task totals, worst task, frame gaps, DOM counts, and retained heap after settling.
+- 6× CPU throttling is a comparison tool, not a substitute for mobile GPU/memory behavior.
+
+### 7.6 Regression suites
+
+- `node --test` for logic and engine semantics.
+- `e2e/perf.mjs` for browser scenarios and long tasks.
+- `tools/link-bench.js` for routing.
+- `test/history.test.js`, `test/book-write.test.js`, `test/st-books.test.js`, `test/library-lifecycle.test.js` for save/history behavior.
+- `test/cheap.test.js` for clash semantics.
+- `test/ui.test.js`, `test/html.test.js`, `test/pieces.test.js`, `test/engine.test.js`, `test/trackers.test.js` for UI/engine changes.
+- `e2e/n2.mjs`, `e2e/tiles.mjs`, `e2e/polish.mjs`, `e2e/mobile-edit.mjs`, `e2e/host-saves.mjs`, `e2e/drawer.mjs`, `e2e/lifecycle.mjs`, `e2e/trackers-real.mjs`, `e2e/explain` for the relevant surfaces.
+- `tools/st-drift.mjs` is unaffected.
+
+### 7.7 PR reporting
+
+- Record the JSON lines and the before/after table in the commit message or PR description for each optimization commit.
+- Update §2 and §5 in this document in the same commit.
+- Start with reporting; add a CI gate only once a metric is stable.
+
+---
+
+## 8. Risks and things not to do
+
+- **Do not debounce `history.take()` alone.** You lose the pre-edit state or merge actions that must remain separately undoable. Use transactions/patches.
+- **Do not memoize `normalize` without cloning at mutating callers.** `pieces.js` `bookEditor` mutates the returned config in place.
+- **Do not remove save baselines, concurrency comparisons, or pending-native-save synchronization** for speed. They protect overlapping native and extension edits.
+- **Do not virtualize Normal lists before keyed rows and delegation.** Focus, scroll, selection, and accessibility break in ways that are hard to debug.
+- **Do not move link routing to a Worker before measuring transfer.** Initial routing is 47–214 ms for 120–500 cards, but DOM rebuild may dominate; a Worker adds serialization and stale-result handling.
+- **Do not animate layout properties or promote every card.** Keep `will-change` temporary.
+- **Do not drop greeting fingerprints or ordinary ST fields from model inputs** to improve cache hits.
+- **Do not change clash semantics to plain substring matching.** “miller” must not clash with “mill”; the tests pin this.
+- **Do not rewrite the canvas into WebGL as the first move.** Existing DOM/SVG offers text, focus, and interaction behavior that would be expensive to replace.
+- **Do not put `contain: paint` on `.card`.** Sticky notes sit above the card box and would be clipped.
+- **Do not trust 6× as a phone prediction.** Measure the weakest device when possible.
+- **Do not seed a real library with performance fixtures.**
+- **Do not assume lazy-loading the editor fixes jank once it is open.** It is a launch win, not a pan/typing win.
+- **Do not bypass ST’s settings save.** Measure `saveSettingsDebounced` first.
+- **Do not remove offscreen obstacles from the routing model when culling.** They still affect routes; only rendering is culled.
+- **Do not cache solely by mutable object identity.** Use a revision or a stable identity.
+
+---
+
+## 9. Open questions and assumptions
+
+Because there is no target device, the plan assumes the weakest denominator and keeps fallbacks for every modern API. Resolve these as the work lands:
+
+1. **Typical book shape.** Entries per book, distinct keys, multi-word keys, Moments, placed cards. The clash fix matters most for multi-word keys; the sort fix matters for A–Z users. Benchmark 150/1,000/3,000/5,000 entries.
+2. **Tokenizer setting.** Local or remote. If remote, T0 is a network cost as well as CPU; cache regardless.
+3. **Is A–Z used in practice?** The fix is cheap enough to do regardless.
+4. **Animation plan.** CSS transitions vs JS/FLIP, and which surfaces (lists, cards, sheets, inspector). The retention work should be scoped to those surfaces.
+5. **`saveSettingsDebounced` behavior in the target ST.** Confirm the debounce interval and payload before changing T2.
+6. **Hero vs Normal order.** The plan puts Hero (Phase 3) before Normal (Phase 4) because Hero is smaller and V1 unlocks both. Swap them if large-book navigation is the dominant complaint after Phase 0.
+7. **Harness location.** Vendor the #48 benchmark harness under `tools/perf/` unless there is a reason to keep it external.
+
+---
+
+## 10. Appendices
+
+### A. Provenance
+
+This plan consolidates the three earlier passes:
+
+| Plan area | Astra6 | Qwen4 | DeepSeek-Flash |
+|---|---|---|---|
+| Baseline/instrumentation | Verification plan | Measurement appendix | Acceptance targets |
+| Clash scan | — | — | #1 |
+| A–Z collator | — | — | #2 |
+| Hidden panel | #4 | F9 | — |
+| Token count | — | — | #4 |
+| Save path | #8 | F6 | #5 |
+| History | #1 | — | #8 |
+| Hero per-draw | #2, #6 | canvas notes | #3 |
+| Normal retention | #3 | F3, F7 | #7 |
+| Memory/loading | #5 | — | #8, #9 |
+| Search | #7 | F8 | #9 |
+| Lazy editor | #9 | F1 | #11 |
+| Blur/paint | Animation prep | F2, F14, F15 | #10 |
+| Small wins | #9 | F4, F5, F10–F13, F16 | #6, #12 |
+
+The three source notes are superseded by this document and have been removed.
+
+### B. Measurement recipes
+
+- **Clash:** synthetic books with unique multi-word keys; 150/500/1,000/2,000 entries × 3–4 keys. Use `keywordClashes` directly; warm up once. Do not put scratch files in the repo.
+- **A–Z:** sort 150/500/1,000/3,000 synthetic titles with `localeCompare(..., options)` vs a shared `Intl.Collator`.
+- **History:** `createHistory`/`withHistory` with a mock library; append one character per change; discard warmup; report median and p95.
+- **Link routing:** `node tools/link-bench.js` and a fresh `createLinkEngine()` per sample; time `layout(defs)` after setting obstacles.
+- **Generation/trackers/rebuild:** the #48 harness (`bench-generation.mjs`, `bench-trackers.mjs`, `bench-rebuild.mjs`, `compare-behavior.mjs`) with `REPO=...`.
+- **Browser:** `e2e/perf.mjs` at 6× CPU, 390×844, 40 stress books; add multi-word-key entry open, ☰ menu, Hero entry panel, 100 KB typing, and book switching.
+- **Device:** the weakest phone available; paint flashing/compositor traces; heap snapshots after settling.
+
+### C. PR #48 summary
+
+- Commit `f7f84e8`: lazy hashing, narrower model signature, `readWrote`/`slotValues`, `view()` sharing, `keywordOnSide`, panel deferral, sticky hashing.
+- Full suite: 325 passed, 0 failed, 7 skipped.
+- Behavior comparison: identical hash (`897800cddace9896`) across four synthetic scenarios.
+- This plan is the second commit on the same PR.
+
+### D. Deferred / out of scope
+
+Measure before committing to these:
+
+- Worker-based link routing or culling; needs serializable scene inputs, revision-tagged requests, stale-result rejection, and route-order preservation.
+- WebGL canvas rewrite; the DOM/SVG interaction model is valuable.
+- Full Normal virtualization before N1–N3.
+- Moving save-path JSON work to a Worker; may add another full structured clone unless ownership changes.
+- Canvas render’s double `JSON.stringify(mem)`; small, revisit with V5.
+- `barAct` trial clone + two `buildModel` calls; discrete user actions, fine.
+- `waitTime` chat index; only if long-chat profiles show it.
+- Preview scan windows; only if profiles show it.
+- Forced-rider `sortedEntries.find` map; narrow.
+- `packMembers` index; only if profiles show it.
+- `tokenGuess`; keep it length-based.
+- Root-level `:has()` selectors; fine on modern engines, but know they invalidate broadly.
+- A dedicated “Reduce motion” setting; consider after A3.
+
+### E. Key files
+
+- Engine: `src/engine/model.js`, `src/engine/turn.js`, `src/engine/state.js`, `src/engine/written.js`, `src/engine/rows.js`, `src/timers.js`, `src/st-hooks.js`.
+- UI shell: `src/ui/app.js`, `src/ui/normal.js`, `src/ui/desk.js`, `src/ui/hero-shell.js`, `src/ui/canvas.js`, `src/ui/canvas-input.js`, `src/ui/link-engine/index.js`, `src/ui/entry-page.js`, `src/ui/history.js`, `src/ui/st-books.js`, `src/ui/book-write.js`, `src/ui/data.js`, `src/ui/clashes.js`, `src/ui/menus.js`, `src/ui/pieces.js`, `src/ui/show-in-chat.js`, `src/ui/icons.js`, `src/ui/dom.js`, `src/ui/preview.js`, `src/ui/canvas-graph.js`.
+- Entry/panel: `index.js`, `src/panel.js`, `src/bubble.js`.
+- Styles: `src/ui/app.css` (or the built `app.css`), `style.css`.
+- Tests/harnesses: `test/`, `e2e/`, `tools/link-bench.js`, `tools/st-drift.mjs`.
+
+### F. Status log
+
+| Date | Commit | Work | Notes |
+|---|---|---|---|
+| 2026-11-22 | `f7f84e8` | #48 engine hot paths | 325 pass, 0 fail, 7 skipped; behavior hash identical |
+| 2026-11-22 | this commit | Plan | Replaces the three source notes; single source of truth |
