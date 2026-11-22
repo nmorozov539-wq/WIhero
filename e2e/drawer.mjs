@@ -95,6 +95,10 @@ async function phone() {
     assert.match(await $(page, '.pclash').innerText(), /\d+ keyword clash/);
     await $(page, '.pclash').click();
     await $(page, '.sheet:has-text("zzclash")').waitFor();
+    // One card per clash word, and the key that fires on it is marked in each entry's key line.
+    assert.ok(await $(page, '.sheet .clashg').count() >= 1, 'clash groups are cards');
+    assert.ok(await $(page, '.sheet .clashg:has(.clashw:text-is("zzclash")) mark').count() >= 2, 'the clashing key is marked');
+    await shot(page, 'clashes');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     ok('phone: no timing badge on cards; keyword clashes are a row in the entry panel, not a chip on the canvas');

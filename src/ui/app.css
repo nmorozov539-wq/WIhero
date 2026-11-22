@@ -1204,3 +1204,11 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 /* Book transactions hold editing until persistence and host links have settled. */
 .operation-status { position: absolute; inset: 0; z-index: 100; display: grid; place-items: center;
   background: color-mix(in srgb, var(--tint) 90%, transparent); color: var(--fg); font-size: var(--t-l); }
+/* The Keyword clashes sheet: one card per clash word; the keys that fire on it are marked in each entry's key line. */
+.clashg { margin: 8px 12px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.clashh { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; }
+.clashw { padding: 2px 10px; border-radius: 999px; background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--fg); font-weight: 600; font-size: var(--t-s); }
+.clashn { color: var(--muted); font-size: var(--t-xs); margin-left: auto; }
+.clashg .opt { min-height: 46px; padding: 6px 14px; }
+.clashg .opt + .opt { border-top: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
+.clashk mark { background: none; color: var(--fg); text-decoration: underline; text-decoration-color: var(--warn); text-decoration-thickness: 2px; text-underline-offset: 3px; }

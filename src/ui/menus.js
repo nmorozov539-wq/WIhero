@@ -7,7 +7,7 @@ import {
     renameBookSettings, setBookFolder, setFolder, titleOf,
 } from './data.js';
 import { IMPORTED, defaultSnapshotName } from './snapshots.js';
-import { keywordClashes } from './clashes.js';
+import { firesOn, keywordClashes } from './clashes.js';
 import { deadBranches } from '../engine/dead.js';
 
 /** The color modes (D22), as [value, label]. */
@@ -202,9 +202,23 @@ export function createMenus(A) {
         };
         layer.sheet(`Keyword clashes (${groups.length})`, sh => {
             if (!groups.length) sh.append(el('div', 'lbl', 'No key word fires more than one entry.'));
+            // One card per clash word; in each entry's key line the keys that fire on the word are marked.
             for (const g of groups) {
-                sh.append(el('div', 'lbl', `“${g.word}”`));
-                for (const uid of g.uids) sh.append(layer.opt(titleOf(data.entries[uid]), () => open(uid), { sub: (data.entries[uid].key ?? []).join(', ') }));
+                const card = el('div', 'clashg');
+                const head = el('div', 'clashh');
+                head.append(el('span', 'clashw', g.word), el('span', 'clashn', `${g.uids.length} entries`));
+                card.append(head);
+                for (const uid of g.uids) {
+                    const o = layer.opt(titleOf(data.entries[uid]), () => open(uid));
+                    const keys = el('small', 'clashk');
+                    (data.entries[uid].key ?? []).forEach((k, i) => {
+                        if (i) keys.append(', ');
+                        keys.append(firesOn(g.word, k) ? el('mark', '', k) : String(k));
+                    });
+                    o.querySelector('.grow').append(keys);
+                    card.append(o);
+                }
+                sh.append(card);
             }
         }, { help: 'A key word fires every entry that has it, and a longer key fires the entries of the words inside it ("old mill" fires Mill too). Sometimes that is what you want.' });
     }

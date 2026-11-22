@@ -54,6 +54,13 @@ export function keywordClashes(data, skip = new Set()) {
     };
 }
 
+/** Whether the key `key` fires on the clash word `word`: the same word, or `word` inside it as whole words. */
+export function firesOn(word, key) {
+    if (typeof key !== 'string' || isRegex(key)) return false;
+    const k = norm(key);
+    return k === word || within(word, k);
+}
+
 /** Whether `word` sits inside the longer key `key` as whole words ("mill" in "old mill", not in "miller"). */
 function within(word, key) {
     if (key.length <= word.length) return false;
