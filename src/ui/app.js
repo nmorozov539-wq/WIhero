@@ -731,7 +731,7 @@ export function createApp(deps) {
         S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
         entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
-        bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet, newEntryFolder, sortNames: SORT_NAMES,
+        bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
     const panelState = () => panelView().panelState();
@@ -918,6 +918,10 @@ export function createApp(deps) {
         }
         switchRow(sh, 'Legend', H.legend, v => { H.legend = v; render(); });
         switchRow(sh, 'Show chat state', H.chatState, v => { H.chatState = v; render(); }, { sub: library.chatOpen() ? 'The open chat, at its latest message' : 'Open a chat to see it' });
+        if (!S.desk) {
+            sh.append(el('div', 'lbl', 'Entry list'));
+            menus().choiceRow(sh, 'Sort by', Object.entries(SORT_NAMES), sortBy(), k => { settings.sortBy = k; saveSettings(); render(); });
+        }
     }
 
     /** The entry's story logic as stored (extensions.wihero), read-only. */

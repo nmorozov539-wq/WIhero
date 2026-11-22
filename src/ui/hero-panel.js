@@ -20,7 +20,7 @@ export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
         createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
-        folderSheet, bulkEdit, clashCount, clashesSheet, newEntryFolder, sortNames,
+        folderSheet, bulkEdit, clashCount, clashesSheet,
     } = A;
     let panelState = () => {};
 
@@ -406,26 +406,27 @@ export function createHeroPanel(A) {
             panelState();
             return;
         }
-        // Phone: a tool row over the footer, as in Obsidian's file list: New entry · New folder · Sort · Select ·
-        // fold or unfold every folder.
+        // Phone: a tool row over the footer, as in Obsidian's file list: Select · New entry · fold or unfold every
+        // folder (only when the book has folders). New folder lives in Move's sheet, Sort by in the ☰ menu.
         const folders = () => {
-            const all = new Set(['\u0000greetings', '\u0000moments', ...(settings.books?.[book]?.folderList ?? [])]);
+            const all = new Set(settings.books?.[book]?.folderList ?? []);
             for (const e of entriesShown(book, data)) { const f = entryFolder(book, e); if (f) all.add(f); }
             for (const f of [...all]) { const parts = f.split('/'); for (let i = 1; i < parts.length; i++) all.add(parts.slice(0, i).join('/')); }
             return all;
         };
-        const anyOpen = () => [...folders()].some(f => !H.closedFolders.has(f));
         const tools = el('div', 'ptools');
-        const fold = btn('', ic(anyOpen() ? 'foldAll' : 'unfoldAll'), () => {
-            if (anyOpen()) for (const f of folders()) H.closedFolders.add(f); else H.closedFolders.clear();
-            fold.innerHTML = ic(anyOpen() ? 'foldAll' : 'unfoldAll');
-            fold.setAttribute('aria-label', anyOpen() ? 'Fold all folders' : 'Unfold all folders');
-            if (filled) fill();
-        }, anyOpen() ? 'Fold all folders' : 'Unfold all folders');
-        tools.append(plus, btn('', ic('folderPlus'), () => newEntryFolder(book), 'New folder'),
-            btn('', ic('sort'), () => layer.sheet('Sort by', sh => {
-                for (const [k, label] of Object.entries(sortNames)) sh.append(layer.opt(label, () => { layer.close(); settings.sortBy = k; saveSettings(); fill(); }, { cur: k === sortBy() }));
-            }), 'Sort by'), sb, fold);
+        tools.append(sb, plus);
+        if (folders().size) {
+            const anyOpen = () => [...folders()].some(f => !H.closedFolders.has(f));
+            const label = () => (anyOpen() ? 'Fold all folders' : 'Unfold all folders');
+            const fold = btn('', ic(anyOpen() ? 'foldAll' : 'unfoldAll'), () => {
+                if (anyOpen()) for (const f of folders()) H.closedFolders.add(f); else for (const f of folders()) H.closedFolders.delete(f);
+                fold.innerHTML = ic(anyOpen() ? 'foldAll' : 'unfoldAll');
+                fold.setAttribute('aria-label', label());
+                if (filled) fill();
+            }, label());
+            tools.append(fold);
+        }
         tools.addEventListener('contextmenu', e => { const b = e.target.closest('button'); if (b) { e.preventDefault(); layer.toast(b.getAttribute('aria-label')); } });
         p.append(tools);
         // The footer: the book's name opens the books menu, ⋮ this book's menu; a quiet line says where it is active.

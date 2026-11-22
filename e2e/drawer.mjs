@@ -118,7 +118,15 @@ async function phone() {
     assert.equal(await town.locator('small').innerText(), '2');
     assert.equal(await $(page, '.panel .pgrp .pgrp .prow').count(), 2, 'Town\'s two entries sit inside Places');
     await shot(page, 'folders');
-    ok('phone: folders nest in the entry panel (Places › Town), each counting what is inside it');
+    // The tool row: Select, New entry, and Fold all (there are folders now); Fold all closes both, Unfold all opens them.
+    assert.deepEqual(await $(page, '.panel .ptools button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label'))), ['Select entries', 'New entry', 'Fold all folders']);
+    await $(page, '.panel .ptools button[aria-label="Fold all folders"]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await $(page, '.panel .phdr.open').count(), 0, 'every folder folded');
+    await $(page, '.panel .ptools button[aria-label="Unfold all folders"]').click();
+    await page.waitForTimeout(200);
+    assert.equal(await $(page, '.panel .pgrp .pgrp .prow').count(), 2, 'unfolded again');
+    ok('phone: folders nest in the entry panel (Places › Town), each counting what is inside it; the tool row folds and unfolds them all');
 
     // Select, then Place (Features 1): pick two entries that aren't on the canvas.
     const off = await $(page, '.panel .prow:has(.dotc:not(.in))').evaluateAll(ns => ns.map(n => n.dataset.key));
