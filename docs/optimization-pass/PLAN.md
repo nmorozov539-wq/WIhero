@@ -86,6 +86,21 @@ The three earlier notes still contain valid work that #48 does not cover:
 - bounded loading, clean-book eviction, search indexing, and Home count cancellation;
 - lazy editor loading, phone blur removal, and animation readiness.
 
+### 2.3 Landed since the plan
+
+**H1 — clash scan (`src/ui/clashes.js`).** The W² pair scan is replaced by a token index, one cached whole-word pattern per distinct key, a per-uid group index for `of()`, and a per-book revision cache. `keyed()` now reads `rawConfig(e)?.moment` instead of normalizing the config. Call sites in `normal.js` and `menus.js` pass `library.version`; the cache also keys on the skip set so Undo invalidates it.
+
+Synthetic desktop Node, same shapes as the 0.47.0 audit:
+
+| Entries × keys | Before | Warm scan | Cached (same revision) |
+|---:|---:|---:|---:|
+| 150 × 3 | 43.5 ms | 2.0 ms | ~0.0 ms |
+| 500 × 4 | 576 ms | 6.9 ms | ~0.0 ms |
+| 1,000 × 4 | 1,151 ms | 12.9 ms | ~0.0 ms |
+| 2,000 × 4 | 14,177 ms | 22.4 ms | ~0.0 ms |
+
+The first call at 1,000 entries was 13.8 ms including JIT warm-up. At 6×, 12.9 ms native is roughly 77 ms, so the 50 ms e2e target is not yet verified; the merge gate (no > 100 ms at 6×) is expected to pass. Repeat entry-page and menu draws are free while the book revision is unchanged.
+
 ---
 
 ## 3. What is already good — preserve it
@@ -164,7 +179,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ☐ |
-| 1 Hangs + cheap wins | ☐ |
+| 1 Hangs + cheap wins | ◐ H1 landed; H2/A1/A2/C1–C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -178,7 +193,7 @@ Dependencies:
 | 1 | #48 engine hot paths (landed) |
 | 2 | This plan |
 | 3 | B0 baseline + harness |
-| 4 | H1 clash |
+| 4 | H1 clash (landed) |
 | 5 | H2 collator |
 | 6 | A1 + A2 blur/transform |
 | 7 | C2–C10 cheap per-draw batch |
@@ -252,6 +267,8 @@ Callers: `src/ui/normal.js:467` (every entry-page draw, Normal and Hero entry ta
 5. Memoize the result per book revision at the call sites, or attach it to the cached book model. Pass the revision explicitly; do not rely on a WeakMap keyed by a mutable object.
 
 **Done when.** `test/cheap.test.js` passes unchanged, including “mill is not a whole word of miller”, regex keys, Permanent entries, Moments, and pending deletes. A scale test at 1,000 entries with four unique multi-word keys has a generous bound so a regression is visible. Opening an entry or menu in that book produces no > 50 ms long task at 6×.
+
+**Status.** Landed. `test/cheap.test.js` gained punctuation/boundary and cache-invalidation cases. The warm native scan at 1,000 × 4 is 12.9 ms and repeat draws are free; the 6× e2e target is still to verify.
 
 **Risk.** Low if the index preserves the whole-word rule. Do not switch to plain substring matching; the tests exist precisely because “miller” must not clash with “mill”.
 
@@ -1057,3 +1074,4 @@ Measure before committing to these:
 |---|---|---|---|
 | 2026-11-22 | `f7f84e8` | #48 engine hot paths | 325 pass, 0 fail, 7 skipped; behavior hash identical |
 | 2026-11-22 | this commit | Plan | Replaces the three source notes; single source of truth |
+| 2026-11-22 | this commit | H1 clash scan | Token index + revision cache; 1,000 × 4: 1,151 ms → 12.9 ms warm, cached ~0; 327 pass, 0 fail, 7 skipped |

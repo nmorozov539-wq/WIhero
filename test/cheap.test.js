@@ -39,6 +39,40 @@ test('clashes: Permanent entries, Moments and entries pending delete are left ou
     assert.equal(keywordClashes(data, new Set([4])).groups.length, 0);
 });
 
+test('clashes: punctuation and word boundaries', () => {
+    const data = { entries: {
+        1: { uid: 1, comment: 'A', key: ['mill-wheel'] },
+        2: { uid: 2, comment: 'B', key: ['mill'] },
+        3: { uid: 3, comment: 'C', key: ['miller'] },
+        4: { uid: 4, comment: 'D', key: ["o'neill"] },
+        5: { uid: 5, comment: 'E', key: ['neill'] },
+        6: { uid: 6, comment: 'F', key: ['***'] },
+        7: { uid: 7, comment: 'G', key: ['x *** y'] },
+    } };
+    const c = keywordClashes(data);
+    const sorted = groups => Object.fromEntries(groups.map(g => [g.word, [...g.uids].sort((a, b) => a - b)]));
+    assert.deepEqual(sorted(c.groups), {
+        '***': [6, 7],
+        mill: [1, 2],
+        neill: [4, 5],
+    });
+});
+
+test('clashes: the revision cache follows edits and skips', () => {
+    const data = { entries: {
+        1: { uid: 1, comment: 'Mill', key: ['mill'] },
+        2: { uid: 2, comment: 'Old Mill', key: ['old mill'] },
+    } };
+    const first = keywordClashes(data, new Set(), 1);
+    assert.equal(keywordClashes(data, new Set(), 1), first, 'same revision reuses the result');
+    data.entries[3] = { uid: 3, comment: 'Miller', key: ['mill'] };
+    const second = keywordClashes(data, new Set(), 2);
+    const sorted = groups => Object.fromEntries(groups.map(g => [g.word, [...g.uids].sort((a, b) => a - b)]));
+    assert.notEqual(second, first, 'a new revision recomputes');
+    assert.deepEqual(sorted(second.groups), { mill: [1, 2, 3] });
+    assert.deepEqual(sorted(keywordClashes(data, new Set([3]), 2).groups), { mill: [1, 2] }, 'a changed skip recomputes');
+});
+
 // ---------------------------------------------------------------- dead branches
 
 test('dead branches: a row that needs both paths of one switch', () => {
