@@ -4,7 +4,7 @@
 // clash; ST's theme variables still come through.
 import { createHistory, withHistory } from './history.js';
 import { buildModel, isMoment } from '../engine/model.js';
-import { btn, html, createLayer, el, issueText, longPress } from './dom.js';
+import { btn, html, createLayer, el, issueText } from './dom.js';
 import { ic } from './icons.js';
 import {
     PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
@@ -576,7 +576,7 @@ export function createApp(deps) {
     }
 
     /** Import (LAYOUT "Home"): a lorebook file through ST's own import, then the book opens in a tab. */
-    function importBook() {
+    function importBook(opened = null) {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json,.png,application/json,image/png';
@@ -587,7 +587,7 @@ export function createApp(deps) {
                 const name = await library.importFile(file);
                 if (!name) return; // ST said why (or the overwrite was declined)
                 S.select = null;
-                openIn({ type: 'book', book: name }, { newTab: true });
+                if (opened) opened(name); else openIn({ type: 'book', book: name }, { newTab: true });
                 layer.toast(`Imported ${name}`);
             } catch (e) { layer.toast(`Could not import ${file.name}: ${e.message}`); }
         });
@@ -730,50 +730,64 @@ export function createApp(deps) {
     const panelView = () => (heroPanelView ??= createHeroPanel({
         S, H, main, root, layer, library, settings, saveSettings, render: () => render(), canvas: () => heroCanvas(),
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
-        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries, folderSheet,
+        entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
     const panelState = () => panelView().panelState();
 
+    /** Hero's books menu: pick a book, or make or import one. Managing a book is its own menu (heroBookMenu). */
     function bookPicker() {
-        layer.sheet('Switch book', sh => {
-            const open = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
-            // The actions sit on top as small icon buttons (#34); a long press (or hover) says what each does.
-            const acts = el('div', 'pkacts');
-            const act = (icon, label, fn) => {
-                const b = btn('pkact', ic(icon), fn, label);
-                b.title = label;
-                b.addEventListener('contextmenu', e => { e.preventDefault(); layer.toast(label); });
-                acts.append(b);
-            };
-            act('plus', 'New book', () => layer.askText({
+        const open = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
+        layer.sheet('Books', sh => {
+            sh.append(layer.opt('New book', () => layer.askText({
                 title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
                 done: async n => {
                     try { open(await library.create(n)); } catch (e) { layer.toast(`Could not make ${n}: ${e.message}`); }
                 },
-            }));
-            sh.append(acts);
+            }), { icon: 'plus' }));
+            sh.append(layer.opt('Import a file…', () => { layer.close(); importBook(n => open(n)); }, { icon: 'import' }));
+            sh.append(el('div', 'div'));
             for (const n of visibleNames()) {
-                const row = layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined });
-                const actions = () => layer.sheet(n, menu => {
-                    menu.append(layer.opt('Rename', () => renameBook(n), { icon: 'edit' }));
-                    menu.append(layer.opt('Duplicate', async () => {
-                        layer.close();
-                        let to;
-                        try { to = await library.duplicate(n); } catch (e) { layer.toast(`Could not duplicate ${n}: ${e.message}`); return; }
-                        copyBookSettings(settings, n, to);
-                        saveSettings();
-                        open(to);
-                        layer.toast(`Made ${to}`);
-                    }, { icon: 'copy' }));
-                    menu.append(layer.opt('Delete', () => { layer.close(); deleteBooks([n]); }, { icon: 'trash', danger: true }));
-                });
-                row.addEventListener('contextmenu', e => { e.preventDefault(); actions(); });
-                longPress(row, actions);
-                sh.append(row);
+                sh.append(layer.opt(n, () => { layer.close(); open(n); }, { cur: n === H.book, icon: 'book', val: library.isGlobal(n) ? 'Global' : linkText(n) || undefined }));
             }
-        }, { help: S.desk ? 'Right-click a book for Rename, Duplicate or Delete.' : 'Long press a book for Rename, Duplicate or Delete.' });
+        });
+    }
+
+    /** Hero's menu for the open book (the ⋮ by its name in the entry panel). */
+    function heroBookMenu(book) {
+        layer.sheet(book, sh => {
+            switchRow(sh, 'Active globally', library.isGlobal(book), v => {
+                library.setGlobal(book, v);
+                render();
+                layer.toast(v ? `${book} is active everywhere` : `${book} is no longer global`);
+            });
+            sh.append(layer.opt('Linked to', () => linksSheet(book), { icon: 'chain', val: `${linkText(book) || 'Nothing'} ›` }));
+            const data = library.peek(book);
+            if (data) {
+                const issues = modelOf(book, data).issues;
+                if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs' }));
+                menus().checkRows(sh, book, data);
+            }
+            sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›' }));
+            sh.append(el('div', 'div'));
+            sh.append(layer.opt('Rename', () => renameBook(book), { icon: 'edit' }));
+            sh.append(layer.opt('Duplicate', async () => {
+                layer.close();
+                let to;
+                try { to = await library.duplicate(book); } catch (e) { layer.toast(`Could not duplicate ${book}: ${e.message}`); return; }
+                copyBookSettings(settings, book, to);
+                saveSettings();
+                H.book = to; H.active = 'canvas'; H.insp = null; H.pick = [];
+                render();
+                layer.toast(`Made ${to}`);
+            }, { icon: 'copy' }));
+            sh.append(layer.opt('Delete', () => {
+                layer.close();
+                if (H.book === book) { H.book = null; H.panel = false; }
+                deleteBooks([book]);
+            }, { icon: 'trash', danger: true }));
+        });
     }
 
     /** Asks a pack's new name and renames it everywhere the book names it, and on the canvas (#21). */
@@ -868,7 +882,8 @@ export function createApp(deps) {
 
     function heroMenu(sh) {
         const book = H.book;
-        if (book) {
+        // On phones the book's rows live in the entry panel's book menu (⋮ by its name).
+        if (book && S.desk) {
             sh.append(el('div', 'lbl', 'Book'));
             switchRow(sh, 'Active globally', library.isGlobal(book), v => {
                 library.setGlobal(book, v);

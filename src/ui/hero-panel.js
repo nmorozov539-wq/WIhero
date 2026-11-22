@@ -19,7 +19,7 @@ import { resizer } from './desk.js';
 export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
-        createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, deleteEntries,
+        createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
         folderSheet, bulkEdit, clashCount, clashesSheet,
     } = A;
     let panelState = () => {};
@@ -386,7 +386,11 @@ export function createHeroPanel(A) {
             const picker = btn('panelbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
             picker.querySelector('span').textContent = book;
             picker.title = book;
-            p.append(picker);
+            const prow = el('div', 'panelbookrow');
+            const more = btn('panelmore', ic('more', 's'), () => heroBookMenu(book), 'Book actions');
+            more.title = 'Book actions';
+            prow.append(picker, more);
+            p.append(prow);
             const ft = el('div', 'pfoot');
             const lt = linkText(book);
             const g = library.isGlobal(book);
@@ -400,16 +404,15 @@ export function createHeroPanel(A) {
             panelState();
             return;
         }
+        // The footer: the book's name opens the books menu, ⋮ this book's menu; a quiet line says where it is active.
         const br = el('div', 'bookrow');
-        const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><span class="bchips"></span>`, () => bookPicker(), 'Switch book');
+        const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><small></small>`, () => bookPicker(), 'Books');
         bp.querySelector('b span').textContent = book;
-        const bc = bp.querySelector('.bchips');
-        const global = library.isGlobal(book);
         const lt = linkText(book);
-        if (global) bc.append(el('span', 'badge g', 'Global'));
-        if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); bc.append(l); }
-        if (!global && !lt) bc.append(el('span', 'badge o', 'Off'));
-        br.append(bp);
+        const listed = entriesShown(book, data);
+        const placed = listed.filter(e => (view?.ids ?? new Set()).has(cardKey(e))).length;
+        bp.querySelector('small').textContent = `${library.isGlobal(book) ? 'Global' : lt ? `Linked to ${lt}` : 'Not linked'} · ${placed} of ${listed.length} placed`;
+        br.append(bp, btn('round flat', ic('more'), () => heroBookMenu(book), 'Book actions'));
         p.append(br);
         panelState();
     }

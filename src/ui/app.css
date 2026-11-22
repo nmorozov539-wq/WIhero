@@ -436,11 +436,14 @@ svg.lk path.head { stroke-width: 0; }
 .pselacts button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: var(--t-xs); height: 48px; padding: 0 6px; border-radius: 8px; flex: 1; }
 .pselacts button svg { width: 18px; height: 18px; }
 .pselacts button:disabled { opacity: .4; }
-.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 4px; margin: 6px 8px 10px 12px; }
-.bookpick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 12px; border-radius: 14px; background: var(--surface); text-align: left; }
-.bookpick b { font-size: var(--t-m); display: flex; align-items: center; gap: 4px; max-width: 100%; }
+/* The phone panel's footer: the book's name (the books menu) with a quiet status line, and ⋮ (this book's menu). */
+.bookrow { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px 6px 8px 4px; border-top: 1px solid var(--line); }
+.bookpick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; border-radius: 10px; text-align: left; color: var(--fg); }
+.bookpick:active { background: var(--surface); }
+.bookpick b { font-size: var(--t-m); font-weight: 600; display: flex; align-items: center; gap: 4px; max-width: 100%; }
 .bookpick b span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bookpick .bchips { display: flex; gap: 6px; }
+.bookpick b svg { color: var(--muted); flex-shrink: 0; }
+.bookpick small { color: var(--muted); font-size: var(--t-xs); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Entry page bits that belong to Hero mode */
 .disc.fixed { cursor: default; }
@@ -1225,3 +1228,7 @@ svg.hd .hhit { fill: transparent; pointer-events: all; cursor: grab; touch-actio
 .content-h .ccopy { width: 32px; height: 32px; margin: -6px -6px -6px 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
 .content-h .ccopy:hover { color: var(--fg); background: var(--raised); }
 .content-h .ccopy svg { width: 18px; height: 18px; }
+[data-desk="1"] .panelbookrow { flex-shrink: 0; display: flex; align-items: stretch; border-top: 1px solid var(--line); background: var(--surface); }
+[data-desk="1"] .panelbookrow .panelbook { flex: 1; min-width: 0; width: auto; border-top: 0; background: none; }
+[data-desk="1"] .panelmore { width: 36px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+[data-desk="1"] .panelmore:hover { color: var(--fg); background: var(--hover); }

@@ -247,7 +247,9 @@ await run(async () => {
     await $('.insp .ihead button[aria-label="Close the inspector"]').click();
     await ev(b => wihero.library.change(b, d => { d.entries[9] = { ...d.entries[0], uid: 9, displayIndex: 9, comment: 'Tower', key: ['tower'], extensions: { wihero: { id: 'tower', gate: [['nowhere']] } } }; }), BOOK);
     await wait(300);
-    await $('.tabbar .iconbtn').click();
+    // On phones the book's rows (Problems among them) are in the book's ⋮ at the foot of the entry panel.
+    if (!(await $('.panel:not(.closed) .bookrow').count())) await $('.panelBtn').click();
+    await $('.bookrow button[aria-label="Book actions"]').click();
     await $('.opt.probs').click();
     await $('.sheet .opt:has(.lab:text-is("Tower"))').click();
     await $('.insp .ihead h2:text-is("Tower")').waitFor();
@@ -277,8 +279,9 @@ await run(async () => {
     const roadKey = `${SAMPLE}/road`;
     assert.ok(await ev(k => !!wihero.state.closed[k], roadKey), 'the mill closed the road');
     await page.click('#WI-SP-button .drawer-toggle');
-    await $('.tabbar .iconbtn').click();
-    await opt('Switch book').click();
+    // The books menu: the book's name at the foot of the entry panel.
+    if (!(await $('.panel:not(.closed) :is(.bookpick, .panelbook)').count())) await $('.panelBtn').click();
+    await $('.panel:not(.closed) :is(.bookpick, .panelbook)').first().click();
     await opt(SAMPLE).click();
     await inspect('Road: leaving the village');
     await $('.insp .ireopen:has-text("Mill: arrival")').waitFor();

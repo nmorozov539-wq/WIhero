@@ -44,23 +44,25 @@ const toHero = async (book = BOOK) => {
 };
 const menu = async () => { await $('button[aria-label="Menu"]').filter({ visible: true }).first().click(); await $('.sheet').filter({ hasText: 'Snapshots' }).last().waitFor(); };
 
-// 1. + New book and Duplicate in Hero's book picker: it sits in the entry list above its footer (LAYOUT "Tab row"),
-// + New book at the top of its list, and a right-click on a book offers Rename, Duplicate and Delete.
+// 1. Hero's books menu (the book's name in the entry list) has New book and Import on top; the ⋮ by it is this book's
+// menu, with Rename, Duplicate and Delete.
 await toHero();
 await $('.panelbook').click();
 const picker = $('.sheet').last();
-await picker.locator('.pkacts button[aria-label="New book"]').waitFor();
-await picker.locator('.opt').filter({ hasText: BOOK }).first().click({ button: 'right' });
+for (const name of ['New book', 'Import a file…']) await picker.locator('.opt').filter({ hasText: name }).first().waitFor();
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+await $('.panelmore').click();
 const bookActs = $('.sheet').filter({ hasText: 'Duplicate' }).last();
 await bookActs.waitFor();
-for (const name of ['Rename', 'Duplicate', 'Delete']) assert.ok(await bookActs.locator('.opt').filter({ hasText: name }).first().isVisible(), name);
+for (const name of ['Rename', 'Duplicate', 'Delete', 'Snapshots']) assert.ok(await bookActs.locator('.opt').filter({ hasText: name }).first().isVisible(), name);
 await bookActs.locator('.opt').filter({ hasText: 'Duplicate' }).first().click();
 await page.waitForFunction(b => wihero.app.state.hero.book !== b && wihero.library.names().includes(wihero.app.state.hero.book), BOOK);
 const copy = await page.evaluate(() => wihero.app.state.hero.book);
 assert.equal((await entries(copy)).length, (await entries()).length, 'the copy has every entry');
-ok(`Hero's book picker sits in the entry list; a right-click on a book duplicates it and opens the copy (${copy})`);
+ok(`Hero's books menu offers New book and Import; the book's ⋮ duplicates it and opens the copy (${copy})`);
 await $('.panelbook').click();
-await $('.sheet').last().locator('.pkacts button[aria-label="New book"]').click();
+await $('.sheet').last().locator('.opt').filter({ hasText: 'New book' }).first().click();
 await $('.dlg input').fill('Cheap New');
 await $('.dlg .pri').click();
 await page.waitForFunction(() => wihero.app.state.hero.book === 'Cheap New');
