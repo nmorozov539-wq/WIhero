@@ -112,6 +112,10 @@ The first call at 1,000 entries was 13.8 ms including JIT warm-up. At 6×, 12.9 
 
 Desktop Node, warm, synthetic titles. A relative timing test pins the win without relying on an absolute machine speed.
 
+**A1 — phone blur (`src/ui/app.css`).** Removed the live `backdrop-filter` from `.wih` and `.sheet, .dlg`; the tint is layered over its own opaque color, with the previous background kept as a fallback for engines without relative color syntax. The now-redundant desktop override and the unused `--blur` variable are gone. Paint verification on the weakest device is still to do.
+
+**A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
+
 ---
 
 ## 3. What is already good — preserve it
@@ -190,7 +194,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ☐ |
-| 1 Hangs + cheap wins | ◐ H1, H2 landed; A1/A2/C1–C10 pending |
+| 1 Hangs + cheap wins | ◐ H1, H2, A1, A2 landed; C1–C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -206,7 +210,7 @@ Dependencies:
 | 3 | B0 baseline + harness |
 | 4 | H1 clash (landed) |
 | 5 | H2 collator (landed) |
-| 6 | A1 + A2 blur/transform |
+| 6 | A1 + A2 blur/transform (landed) |
 | 7 | C2–C10 cheap per-draw batch |
 | 8 | T0 token count |
 | 9 | T1 + T2 save path and settings |
@@ -333,11 +337,13 @@ Decorate-sort-undecorate avoids repeated `titleOf` calls; the collator is the ma
 }
 ```
 
-Keep the existing `[data-desk="1"]` rules or fold them into the above. The visual delta is small because ST’s `--SmartThemeBlurTintColor` is mostly opaque.
+The desktop override is gone; the global rules now use the same opaque treatment, with the previous background kept as a fallback. The visual delta is small because ST’s `--SmartThemeBlurTintColor` is mostly opaque.
 
 **Done when.** Pan/pinch and sheet-open traces show no blur repaint; the low-end phone is subjectively smoother; the visual delta is accepted.
 
-**Risk.** Low. The weakest denominator may not support `rgb(from ...)`; use a plain opaque background fallback.
+**Status.** Landed. No native paint trace yet; verify on the weakest phone before calling the animation prerequisite complete.
+
+**Risk.** Low. The weakest denominator may not support `rgb(from ...)`; the previous opaque background remains as a fallback.
 
 **Source.** Qwen F2; DeepSeek #10; Astra animation prep.
 
@@ -355,6 +361,8 @@ Keep the existing `[data-desk="1"]` rules or fold them into the above. The visua
 Animate `.panelBtn` with `transform` if the move is a fixed delta; otherwise leave it as a low-priority item. Rule for the animation pass: transform and opacity only.
 
 **Done when.** Controls e2e passes; no visual regression; the switch no longer animates `left`.
+
+**Status.** Landed. `.switch::after` transitions `transform`; `.panelBtn` keeps `left` because its open position is not a fixed delta.
 
 **Risk.** Low.
 
@@ -1091,3 +1099,4 @@ Measure before committing to these:
 | 2026-11-22 | this commit | Plan | Replaces the three source notes; single source of truth |
 | 2026-11-22 | this commit | H1 clash scan | Token index + revision cache; 1,000 × 4: 1,151 ms → 12.9 ms warm, cached ~0; 327 pass, 0 fail, 7 skipped |
 | 2026-11-22 | this commit | H2 A–Z collator | Shared collator + decorate-sort; 1,000 entries: 61.8 ms → 3.0 ms; 328 pass, 0 fail, 7 skipped |
+| 2026-11-22 | this commit | A1 + A2 blur/transform | Removed live backdrop blur and the unused `--blur`; switch animates transform; paint trace pending |

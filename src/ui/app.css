@@ -20,7 +20,6 @@
   --fg: var(--SmartThemeBodyColor, #e4e2da);
   --tint: var(--SmartThemeBlurTintColor, #1d1e22);
   --accent: var(--SmartThemeQuoteColor, #e3913a);
-  --blur: var(--SmartThemeBlurStrength, 10px);
   --shadow: var(--SmartThemeShadowColor, rgba(0, 0, 0, .5));
   --bar: color-mix(in srgb, var(--fg) 4%, transparent);
   --surface: color-mix(in srgb, var(--fg) 8%, transparent);
@@ -39,7 +38,9 @@
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
   background: var(--tint); color: var(--fg);
-  -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+  /* No live backdrop blur: the tint is laid over its own opaque color instead. A blurred box as big as the
+     drawer or the window is re-blurred on every frame anything inside it moves (desktop had this right). */
+  background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b);
   font-family: var(--sans); font-size: var(--t-m); line-height: 1.35;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
 }
@@ -132,9 +133,9 @@ svg.i.s { width: 16px; height: 16px; }
 
 /* Toggle: a light knob; the On track is the accent mixed about half with the background */
 .switch { width: 40px; height: 24px; border-radius: 12px; background: var(--line); position: relative; flex-shrink: 0; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: left .15s, background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s, background .15s; }
 .switch.on { background: color-mix(in srgb, var(--accent) 50%, var(--tint)); }
-.switch.on::after { left: 19px; background: #fbfaf7; } /* the knob stays light on every theme */
+.switch.on::after { transform: translateX(16px); background: #fbfaf7; } /* the knob stays light on every theme */
 
 /* Book page */
 .bkname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
@@ -249,7 +250,7 @@ input.kbox:focus { border-color: var(--accent); }
 .layer > * { pointer-events: auto; }
 .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); }
 .scrim.clear { background: rgba(0, 0, 0, .2); }
-.sheet, .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); }
+.sheet, .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 18px 18px 0 0; padding: 6px 0 14px; max-height: 78%; overflow-y: auto; overscroll-behavior: contain; animation: up .18s ease-out; box-shadow: 0 -6px 24px var(--shadow); }
 @keyframes up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 8px; }
@@ -1069,13 +1070,6 @@ select.pgc option { background: var(--tint); color: var(--fg); }
   .tsearch span, .tsearch kbd { display: none; }
   .tbook { max-width: 150px; }
 }
-
-/* Desktop: no backdrop blur. Without a GPU (many laptops), a blurred box as big as the drawer or the window is blurred
-   again on every frame anything inside it moves: Hero's canvas fell to a few frames a second. The tint is laid over
-   its own opaque color instead. */
-.wih[data-desk="1"], [data-desk="1"] .sheet, [data-desk="1"] .dlg { -webkit-backdrop-filter: none; backdrop-filter: none; }
-.wih[data-desk="1"] { background: var(--tint); background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
-[data-desk="1"] .sheet, [data-desk="1"] .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
 
 /* Desktop piece bar: the fold arrow sits inside the bar, at its right end, so it never covers the canvas; on a
    narrow canvas (1366 × 768 with both columns) the hint goes first, then the key letters, so Wait is never cut. */
