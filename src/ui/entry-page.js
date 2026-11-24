@@ -9,6 +9,7 @@ import {
 import { FAMILY_COLOR, logicSummary } from './logic-text.js';
 import { slotsOf, valueLine } from './tracker-ui.js';
 import { rawConfig as configOf } from '../engine/model.js';
+import { perf } from './perf.js';
 
 const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
@@ -427,7 +428,10 @@ export function renderEntryPage(main, o) {
             en.append(box);
         }
     }
-    const count = text => o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
+    const count = text => {
+        perf.count('tokenCalls');
+        return o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
+    };
     let countTimer = null;
     const content = autoText(text0, 'Type here', text => {
         if (version) o.changeMask(version.name, text);

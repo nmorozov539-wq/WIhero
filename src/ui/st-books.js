@@ -4,6 +4,7 @@
 import { upgradeBook } from '../book.js';
 import { writeBook as persistBook } from './book-write.js';
 import { adoptUiFields, forgetReusedNames } from './data.js';
+import { perf } from './perf.js';
 
 const SAVE_DELAY = 350;
 /** A failed save is tried again after this, a few times, before the book is left unsaved until its next change. */
@@ -25,7 +26,12 @@ const SEED_RETRY = 60000;
  * @param {(name: string, error: unknown, final: boolean, what?: 'save' | 'export') => void} [deps.onSaveError] a save
  *   (or export) of `name` failed; `final` when it won't be tried again until the book changes.
  */
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const same = (a, b) => {
+    const sa = JSON.stringify(a);
+    const sb = JSON.stringify(b);
+    perf.count('serializedChars', (sa?.length ?? 0) + (sb?.length ?? 0));
+    return sa === sb;
+};
 
 /**
  * Merges an outside save into WI Hero's working copy, in place. `base` is the book as it was when WI Hero last
@@ -97,7 +103,7 @@ export function createLibrary({
 
     const names = () => ctx().getWorldInfoNames();
     /** A book was made under this name: a rename that left it behind no longer applies (forgetReusedNames). */
-    const reused = name => { if (forgetReusedNames(settings, [name])) saveSettings(); };
+    const reused = name => { if (forgetReusedNames(settings, [name])) { perf.count('settingsSaves'); saveSettings(); } };
     /** Goes up on every change to a working copy, so what is worked out from a book can be kept until then. */
     let version = 0;
 
@@ -154,7 +160,10 @@ export function createLibrary({
         if (inFlight.has(name)) return inFlight.get(name);
         const task = (async () => {
             while (isDirty(name) && copies.has(name)) {
-                if (await saveNow(name) === false) return false;
+                const saveAt = perf.begin('save');
+                let ok;
+                try { ok = await saveNow(name); } finally { perf.end(saveAt); }
+                if (ok === false) return false;
             }
             return true;
         })().finally(() => inFlight.delete(name));
@@ -163,6 +172,7 @@ export function createLibrary({
     }
 
     async function saveNow(name) {
+        perf.count('saveAttempts');
         clearTimeout(timers.get(name));
         timers.delete(name);
         const data = copies.get(name);
@@ -179,9 +189,10 @@ export function createLibrary({
             onMerged(name, conflicts);
         }
         const { ui } = upgradeBook(data);
-        if (Object.keys(ui).length) { adoptUiFields(settings, name, data, ui); saveSettings(); }
+        if (Object.keys(ui).length) { adoptUiFields(settings, name, data, ui); perf.count('settingsSaves'); saveSettings(); }
         // When it was last edited here, for Home's tiles and list (ST keeps no date of its own).
         (settings.books[name] ??= { defaults: {}, folders: {} }).edited = Date.now();
+        perf.count('settingsSaves');
         saveSettings();
         const sentRevision = revision(name).dirty;
         const copy = structuredClone(data);

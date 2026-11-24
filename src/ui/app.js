@@ -4,6 +4,7 @@
 // clash; ST's theme variables still come through.
 import { createHistory, withHistory } from './history.js';
 import { buildModel, isMoment } from '../engine/model.js';
+import { perf } from './perf.js';
 import { btn, html, createLayer, el, issueText } from './dom.js';
 import { ic } from './icons.js';
 import {
@@ -195,7 +196,10 @@ export function createApp(deps) {
         const kept = own ? models.get(data) : null;
         const greets = greetingSignature(openCharacter(), getStringHash);
         if (kept && kept.book === book && kept.version === library.version && kept.greets === greets) return kept.model;
+        const at = perf.begin('model');
         const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })));
+        perf.end(at);
+        perf.count('modelBuilds');
         if (own) models.set(data, { book, version: library.version, greets, model });
         return model;
     };
@@ -340,6 +344,8 @@ export function createApp(deps) {
     function render() {
         if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
+        // One app render pass, Normal or Hero: renderHero is reached from here.
+        perf.count('appRenders');
         undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
         root.dataset.tone = toneOf(root);

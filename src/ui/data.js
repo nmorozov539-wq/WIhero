@@ -3,6 +3,7 @@
 import { FIELD, normalize, rawConfig } from '../engine/model.js';
 import { slugify, uniqueId } from '../engine/util.js';
 import { writeConfig } from '../book.js';
+import { perf } from './perf.js';
 
 // ---------------------------------------------------------------- entries
 
@@ -358,19 +359,24 @@ const azCompare = (a, b) => AZ ? AZ.compare(a, b) : String(a).localeCompare(Stri
 export const compareText = (a, b) => PLAIN ? PLAIN.compare(a, b) : String(a).localeCompare(String(b));
 
 export function sortEntries(entries, by = 'order') {
-    const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
-    const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
-    // Decorate-sort-undecorate: titleOf runs once per entry, not twice per comparison.
-    if (by === 'az') {
-        const keyed = entries.map(e => [titleOf(e), e]);
-        keyed.sort(([ta, a], [tb, b]) => azCompare(ta, tb) || order(a, b));
-        return keyed.map(([, e]) => e);
+    const started = perf.begin('sort');
+    try {
+        const order = (a, b) => (a.displayIndex ?? a.uid) - (b.displayIndex ?? b.uid) || a.uid - b.uid;
+        const rank = e => { const s = strategyOf(e); return s === by ? 0 : s === 'off' ? 2 : 1; };
+        // Decorate-sort-undecorate: titleOf runs once per entry, not twice per comparison.
+        if (by === 'az') {
+            const keyed = entries.map(e => [titleOf(e), e]);
+            keyed.sort(([ta, a], [tb, b]) => azCompare(ta, tb) || order(a, b));
+            return keyed.map(([, e]) => e);
+        }
+        const cmp = by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
+            : by === 'size' ? (a, b) => tokenGuess(b.content) - tokenGuess(a.content) || order(a, b)
+            : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
+            : order;
+        return [...entries].sort(cmp);
+    } finally {
+        perf.end(started);
     }
-    const cmp = by === 'prompt' ? (a, b) => promptOrder(a) - promptOrder(b) || order(a, b)
-        : by === 'size' ? (a, b) => tokenGuess(b.content) - tokenGuess(a.content) || order(a, b)
-        : SORT_NAMES[by] && by !== 'order' ? (a, b) => rank(a) - rank(b) || order(a, b)
-        : order;
-    return [...entries].sort(cmp);
 }
 
 /**

@@ -11,6 +11,7 @@ import { ic } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
 import { keywordClashes } from './clashes.js';
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
+import { perf } from './perf.js';
 import { entryStatus } from '../engine/turn.js';
 import { isObject } from '../engine/util.js';
 
@@ -36,9 +37,16 @@ export function createNormal(A) {
         const names = visibleNames();
         const tiles = settings.homeView === 'tiles';
         const books = list => {
-            if (!tiles) { for (const n of list) v.append(bookRow(n)); return; }
+            if (!tiles) {
+                const rowAt = perf.begin('rowMount');
+                for (const n of list) v.append(bookRow(n));
+                perf.end(rowAt);
+                return;
+            }
             const g = el('div', 'ptiles');
+            const rowAt = perf.begin('rowMount');
             for (const n of list) g.append(bookTile(n));
+            perf.end(rowAt);
             if (list.length) v.append(g);
         };
         if (S.select) v.append(selHead(names, 'books'));
@@ -104,6 +112,7 @@ export function createNormal(A) {
         it.append(i, tx);
         if (!S.select) it.append(btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`));
         bookPress(it, name);
+        perf.count('rowMounts');
         return it;
     }
 
@@ -118,6 +127,7 @@ export function createNormal(A) {
         if (!S.select) top.append(btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`));
         t.append(top, el('div', 't', name), bookMeta(name));
         bookPress(t, name);
+        perf.count('rowMounts');
         return t;
     }
 
@@ -174,7 +184,9 @@ export function createNormal(A) {
             } else if (groups.length > 1) {
                 v.append(el('div', 'section', 'No folder'));
             }
+            const rowAt = perf.begin('rowMount');
             for (const e of list) v.append(entryRow(book, e, model));
+            perf.end(rowAt);
         }
         if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
     }
@@ -214,6 +226,7 @@ export function createNormal(A) {
             if (S.select) { toggleSel(e.uid); return; }
             openIn({ type: 'entry', book, uid: e.uid });
         }, S.select ? null : () => openIn({ type: 'entry', book, uid: e.uid }, { newTab: true, background: true }));
+        perf.count('rowMounts');
         return it;
     }
 
@@ -419,6 +432,7 @@ export function createNormal(A) {
                     else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); }
                 }, behind && (() => openIn(behind, { newTab: true, background: true })));
                 res.append(it);
+                perf.count('rowMounts');
             }
         };
         input.addEventListener('input', run);
@@ -455,6 +469,7 @@ export function createNormal(A) {
             }
         }
         S.ui.condition = !!p.condition;
+        const entryAt = perf.begin('entryPage');
         renderEntryPage(into, {
             entry: e,
             bookName: book,
@@ -507,6 +522,7 @@ export function createNormal(A) {
             ...extra,
             tokens: text => (ctx().getTokenCountAsync ? ctx().getTokenCountAsync(text) : Promise.resolve(null)),
         });
+        perf.end(entryAt);
     }
 
     return { applyParam, bottomBar, bulkEdit, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };

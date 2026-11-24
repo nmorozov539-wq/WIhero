@@ -12,6 +12,7 @@
 // - A change from outside WI Hero (ST's editor, a slash command) starts the book's history over, so Undo never
 //   writes over someone else's save.
 // No DOM, no SillyTavern imports.
+import { perf } from './perf.js';
 
 const LIMIT = 100;
 const MERGE_MS = 1000;
@@ -53,11 +54,14 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
     let armed = false;
     const task = () => { if (!armed) { armed = true; queueMicrotask(() => { armed = false; tick++; }); } return tick; };
 
-    const take = (book, d) => ({
-        entries: JSON.stringify(d.entries ?? {}),
-        original: d.originalData === undefined ? undefined : JSON.stringify(d.originalData),
-        settings: JSON.stringify(settingsOf(settings, book)),
-    });
+    const take = (book, d) => {
+        perf.count('historyCaptures');
+        return {
+            entries: JSON.stringify(d.entries ?? {}),
+            original: d.originalData === undefined ? undefined : JSON.stringify(d.originalData),
+            settings: JSON.stringify(settingsOf(settings, book)),
+        };
+    };
     const same = (a, b) => a.entries === b.entries && a.original === b.original && a.settings === b.settings;
 
     /**
@@ -66,7 +70,11 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
      * @param {{ quiet?: boolean, ours?: boolean, redraw?: boolean }} [o] `ours`: the change went through
      *   library.change just now. `redraw`: called from a redraw, which ends a run of typing.
      */
-    function touch(book, { quiet = false, ours = false, redraw = false } = {}) {
+    function touch(book, opts) {
+        const started = perf.begin('history');
+        try { return touchNow(book, opts); } finally { perf.end(started); }
+    }
+    function touchNow(book, { quiet = false, ours = false, redraw = false } = {}) {
         const d = book ? library.peek(book) : null;
         if (!d) return;
         let h = books.get(book);

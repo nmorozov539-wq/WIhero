@@ -8,6 +8,7 @@ import { createSnapshots } from './src/ui/snapshots.js';
 import { createApp } from './src/ui/app.js';
 import { mountPanel, renderNotice, renderWhenVisible } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
+import { perf } from './src/ui/perf.js';
 import { createCatchUpDialog } from './src/catch-up-dialog.js';
 import { createBubble } from './src/bubble.js';
 import { createChatHider } from './src/show-in-chat.js';
@@ -313,6 +314,7 @@ globalThis.wihero = {
     app,
     library,
     snapshots,
+    perf,
     get model() { return hooks.model; },
     get state() { return hooks.state(); },
     get pending() { return hooks.pending; },

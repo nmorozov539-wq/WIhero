@@ -9,6 +9,7 @@ import {
     bookTokens, promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf, tokenGuess, tokensText,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
+import { perf } from './perf.js';
 
 const LIST_W = { def: 270, min: 200, max: 460 };
 const NARROW = 640;
@@ -270,10 +271,15 @@ export function deskNormal(A) {
                 if (table) { const r = el('div', `drow dgroup${fh.classList.contains('dloose') ? ' dloose' : ''}`); r.append(fh); target.append(r); } else target.append(fh);
             }
             if (!open) continue;
-            if (table) for (const n of sorted(list)) target.append(bookRow(n, sel, order));
-            else {
+            if (table) {
+                const rowAt = perf.begin('rowMount');
+                for (const n of sorted(list)) target.append(bookRow(n, sel, order));
+                perf.end(rowAt);
+            } else {
                 const grid = el('div', 'dtiles');
+                const rowAt = perf.begin('rowMount');
                 for (const n of list) grid.append(bookTile(n, sel, order));
+                perf.end(rowAt);
                 if (!list.length) grid.append(el('div', `dempty${f ? '' : ' dloose'}`, f ? 'Drag books here.' : 'Drop here to take it out of its folder.'));
                 target.append(grid);
             }
@@ -371,6 +377,7 @@ export function deskNormal(A) {
         t.append(check(on, () => toggleBook(name), `Select ${name}`));
         t.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));
         bookGestures(t, name, sel, order);
+        perf.count('rowMounts');
         return t;
     }
     function bookRow(name, sel, order) {
@@ -393,6 +400,7 @@ export function deskNormal(A) {
         more.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));
         r.append(more);
         bookGestures(r, name, sel, order);
+        perf.count('rowMounts');
         return r;
     }
     function bookMenu(name, at) {
@@ -528,7 +536,9 @@ export function deskNormal(A) {
                     list.append(fh);
                     if (!open) continue;
                 }
+                const rowAt = perf.begin('rowMount');
                 for (const e of items) { order.push(e.uid); list.append(entryRow(p, book, e, model)); }
+                perf.end(rowAt);
             }
             if (!shown.length) list.append(el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'));
             // Drop on the empty list: No folder.
@@ -607,6 +617,7 @@ export function deskNormal(A) {
         });
         r.addEventListener('dragend', () => { dragEntries = null; });
         rowDrop(r, p, book, e);
+        perf.count('rowMounts');
         return r;
     }
     let dragEntries = null;
@@ -994,6 +1005,7 @@ export function deskNormal(A) {
             if (!input.value.trim()) { res.append(el('div', 'dsnone', cur ? 'Type to search every book. Entries of this book come first.' : 'Type to search every book. Books come first.')); return; }
             if (!hits.length) { res.append(el('div', 'dsnone', 'Nothing found.')); return; }
             S.search.at = Math.min(S.search.at ?? 0, hits.length - 1);
+            const rowAt = perf.begin('rowMount');
             hits.forEach((h, i) => {
                 const r = el('div', `dsr${h.kind === 'entry' ? ` st-${strategyOf(h.entry)}` : ''}`);
                 r.setAttribute('role', 'option');
@@ -1006,7 +1018,9 @@ export function deskNormal(A) {
                 r.addEventListener('click', e => open(h, e.ctrlKey || e.metaKey));
                 r.addEventListener('auxclick', e => { if (e.button === 1) open(h, true); });
                 res.append(r);
+                perf.count('rowMounts');
             });
+            perf.end(rowAt);
             mark();
         };
         input.addEventListener('input', () => { S.search.at = 0; run(); });

@@ -37,10 +37,10 @@ PR #48 has already landed the engine-side hot-path work:
 - hidden Extensions-panel deferral;
 - `stickyHeld` hashing only entries that have a sticky.
 
-The next five moves, in order:
+The next moves, in order:
 
-1. **Establish the baseline and the harness.** Disposable fixture, instrumentation, scale benchmarks, agreed budgets.
-2. **Remove the two measured hangs.** The keyword-clash scan and A–Z collation.
+1. **Establish the baseline and the harness.** Disposable fixture, instrumentation, scale benchmarks, agreed budgets. **Landed**; see §2.4.
+2. **Remove the measured hangs.** A–Z collation is done. The clash scan is not: the baseline found a third hang in its cold path (H3) — opening one entry in a 1,000-entry book with shared key vocabulary is a single ~17 s long task at 6×.
 3. **Remove the phone blur and cache the real token count.** Cheap, high-impact, and the blur is the prerequisite for compositor-only animation.
 4. **Fix the typing path.** Save-path clones and stringifies, `saveSettings` cadence, history transactions and a byte budget, chat-hider and textarea work.
 5. **Fix Hero per-draw work.** Per-book revisions, `canvasSig` projection, retained chrome, overlay and link-node indexes.
@@ -72,11 +72,13 @@ Behavior comparison against the base produced the same hash (`897800cddace9896`)
 
 The `view()` number is the important correction to the earlier notes: the 1.7 ms figure in the 0.47.0 audit did not include written masks. With 120 tracker slots the real path was **727 ms per view**. Treat any future `view()` measurement as incomplete unless it includes written masks.
 
+The #48 harness was not committed, so these numbers cannot be replayed from this repo. They are kept as history; §2.4 is the authoritative baseline from here on. The old behavior hash likewise cannot be re-verified — the new harness records a fresh fingerprint (`33c034aef964c242`) and does not claim parity.
+
 ### 2.2 What remains
 
 The three earlier notes still contain valid work that #48 does not cover:
 
-- the quadratic keyword-clash scan;
+- the clash scan's cold path on shared-vocabulary keys (H3, opened by the B0 baseline);
 - A–Z collation on every comparison;
 - the tokenizer call on every entry-page draw and every 500 ms of typing;
 - save-path cloning/stringifying and `saveSettings` cadence;
@@ -99,7 +101,9 @@ Synthetic desktop Node, same shapes as the 0.47.0 audit:
 | 1,000 × 4 | 1,151 ms | 12.9 ms | ~0.0 ms |
 | 2,000 × 4 | 14,177 ms | 22.4 ms | ~0.0 ms |
 
-The first call at 1,000 entries was 13.8 ms including JIT warm-up. At 6×, 12.9 ms native is roughly 77 ms, so the 50 ms e2e target is not yet verified; the merge gate (no > 100 ms at 6×) is expected to pass. Repeat entry-page and menu draws are free while the book revision is unchanged.
+The first call at 1,000 entries was 13.8 ms including JIT warm-up. Repeat entry-page and menu draws are free while the book revision is unchanged.
+
+**Correction from B0.** Those numbers hold only when the keys' tokens are mostly unique, which is what the original harness seeded. With a small shared vocabulary — what real lorebooks have — the warm scan is 147–159 ms at 1,000 × 4, and the **cold** first call is ~2.1 s native in a browser: 96% of the entry-open step, and one 16–17 s long task at 6×. The plan's H1 done condition is therefore not met in that shape. H3 (§6) is the follow-up; do not mark H1 fully done.
 
 **H2 — A–Z collation (`src/ui/data.js`).** One shared `Intl.Collator` for A–Z and one plain collator for folder/group names; `sortEntries` decorates with `titleOf` so it runs once per entry. `clashes.js`, `normal.js`, and `desk.js` use the shared text comparator.
 
@@ -115,6 +119,64 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 **A1 — phone blur (`src/ui/app.css`).** Removed the live `backdrop-filter` from `.wih` and `.sheet, .dlg`; the tint is layered over its own opaque color, with the previous background kept as a fallback for engines without relative color syntax. The now-redundant desktop override and the unused `--blur` variable are gone. Paint verification on the weakest device is still to do.
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
+
+### 2.4 B0 baseline (2026-11-24)
+
+**Environment.** AMD Ryzen 5 3500U, 8 cores, 5.7 GB, Node 26.13.0, Chromium 158, Linux x64. Browser runs are 390 × 844, touch and mobile emulation. Labels: **measured-native** for Node and unthrottled browser, **measured-at-6x** for the throttled browser. 6× is a comparison tool, not a phone prediction; no weakest-device evidence exists yet.
+
+**Fixtures.** Native: deterministic seeded books at 150/1,000/3,000/5,000 entries, plus 40/100-book libraries, long chats and placed-canvas shapes. Browser: 41 books (40 × 150 entries, and `Perf Big` with 1,000 entries), 4 shared-vocabulary keys per entry, 500 placed cards, a 100 KB entry, a 240-turn chat. Every artifact is synthetic and lives only in the harness page's memory and `localStorage`.
+
+Artifacts: `docs/optimization-pass/baseline/native.json` (52 measurements), `browser-native.json` and `browser-6x.json` (17 steps each). Runners: `npm run perf` (`tools/perf/`), `node e2e/perf-harness.mjs`.
+
+**Native Node (median, measured-native):**
+
+| Bench | 150 | 1,000 | 3,000 | 5,000 |
+|---|---:|---:|---:|---:|
+| `buildModel` | 2.4–2.6 ms | 9.1–9.7 ms | 32.2–33.5 ms | 54.9–55.5 ms |
+| one generation (12 activations) | 1.8–1.9 ms | 8.9–9.1 ms | 25.8–28.0 ms | 38.9–46.7 ms |
+| history edit (serialized size) | 0.38 ms (165 k chars) | 3.0–3.7 ms (1.14 M) | — | 12.4–13.5 ms (5.99 M) |
+| A–Z, old comparator | 8.2 ms | 65.2 ms | 374.2 ms | — |
+| A–Z, current `sortEntries` | 0.22 ms | 1.74 ms | 11.45 ms | — |
+
+- Tracker slots 20/60/120: `slotValues` 0.011 / 0.022 / 0.034 ms; `view()` 0.079 / 0.148 / 0.144 ms, written masks included.
+- Rebuilds across four generations plus `loadModel`: **0** at every size; entry hashes constant at 6 (greeting fingerprints only).
+- Clash, unique-key shape: warm 7.9 ms (500 × 4) and 16.9 ms (1,000 × 4). Clash, shared-vocabulary shape: warm 40.4–43.3 ms (500 × 4) and 147–159 ms (1,000 × 4); cold median 57.9–58.7 ms and 149–157 ms, but the cold p95 is 1.75 / 1.95 s (n = 3) — the first-call tail is the real user cost.
+- Behavior fingerprint: `33c034aef964c242` over plain gating, Moments, written values/masks, and closures/sticky.
+- `JSON.stringify` calls per generation: **1**, entry hashes: **1**. The plan's “6,002 → 2” counted a wider region; this harness counts one generation and says so.
+
+**Browser at 6× (three runs; median range, worst long task range):**
+
+| Step | Median | Worst task |
+|---|---:|---:|
+| cold Home → first row | 557–565 ms | 339–359 ms |
+| earliest tap on a book (no loading wait) | 560–599 ms | 403–434 ms |
+| warm Home | 794–851 ms | 240–260 ms |
+| Home settled (no redraw 1 s) | 1,018–1,024 ms | 0 |
+| open the 1,000-entry book | 1.65–2.07 s | 1.29–1.59 s |
+| scroll the book page | 1.62–1.76 s | 148–168 ms |
+| **open an entry** | **15.8–17.5 s** | **15.6–17.2 s** |
+| A–Z sort (through the menu) | 2.92–3.14 s | 1.39–1.57 s |
+| search typing | 3.57–3.79 s | 1.68–1.93 s |
+| Hero mode opening `Perf Big` | 3.81–4.36 s | 3.05–3.67 s |
+| tap a card | 1.48–1.61 s | 0.66–0.74 s |
+| pan | 6.99–7.50 s | 0.49–0.61 s |
+| inspector toggle, chat state off | 1.64–1.77 s | 0.37–0.52 s |
+| Show chat state on | 3.71–3.85 s | 2.48–2.54 s |
+| inspector toggle, chat state on | 3.44–3.87 s | 1.25–1.39 s |
+| type 50 chars in the 100 KB entry | 7.80–7.95 s | 0.27–0.29 s (50 tasks; 1 token call) |
+| leave and close | 45–185 ms | 0 |
+
+Unthrottled browser: 17 steps, median 728 ms, worst 2.16 s. Overall 6× long-task work is 45–46 s per run, stable within ~2%.
+
+**Attribution (instrumented, `wihero.perf.snapshot()`):**
+
+- **Opening an entry is the clash scan.** `clashScan` is 96.3–96.6% of the step at 6× (15.3–16.9 s of 15.8–17.5 s) and 2.10 s of 2.27 s native. `rowMounts` is 0 (phone layout replaces the list), `modelBuilds` is 0 (cached). The entry page outside the scan is ~20–40 ms. This is the H3 finding.
+- **Opening the 1,000-entry book is row mounting, not the model.** 980 rows mounted; `rowMount` is 0.38–0.42 s at 6× (~23–25% of the step), `model` 63–66 ms, from one build. About 1.2 s at 6× is still unattributed (`renderBook`: clearing `main`, header/chips, token count, layout/paint, click dispatch). N1 is the lever.
+- `routeComputes` is 0 in both steps: no canvas draw happens. Hero tap/pan/inspector counts are in the JSON and become the V-phase baseline.
+
+**Budget read (§4.2).** Gates are unchanged. Measured against them: A–Z passes its microbench gate (1.74 ms native ≈ 10 ms at 6×; the e2e step includes menu navigation and a full redraw, so it is not the gate signal). Entry open and book open fail both gate and target by an order of magnitude. Typing's worst task (0.27–0.29 s) fails the 100 ms gate; its 50 long tasks are the real signal. Hero card tap is 1.5 s end-to-end (inspector included), so it does not yet isolate the <16 ms JS/frame budget. **H3 is the next P0.** No target is relaxed on the strength of this baseline.
+
+**Known limits.** The browser harness has no SillyTavern engine, so it cannot measure generation with the editor closed, real chat badges, failed/overlapping saves, or a true “tap while counts load” (the in-memory library resolves immediately). It also has no paint/compositor traces or heap snapshots, and pan is wheel-based (no pinch). Those stay in the device-evidence work (§7.5).
 
 ---
 
@@ -164,6 +226,8 @@ Do not trade these for a smaller diff.
 
 These are proposals. Phase 0 sets the baseline and may adjust them.
 
+B0 recorded the baseline in §2.4 and left every gate and target in place: the gaps are large enough that adjusting budgets would hide the work, not describe it. The A–Z gate is a microbench gate — the e2e A–Z step includes menu navigation and a full redraw. Hero tap and typing gates need the attribution steps noted in §2.4 before they can be judged.
+
 ---
 
 ## 5. Roadmap
@@ -181,6 +245,7 @@ These are proposals. Phase 0 sets the baseline and may adjust them.
 Dependencies:
 
 - H1/H2 are independent and can land immediately.
+- H3 follows H1 and precedes the C batch; it needs the cold bench and the shared-vocabulary equivalence test.
 - T1/T2 depend on T0 only for measurement, not for code.
 - V1 is the enabler for V2, V3, V6, and the Phase 5 caches.
 - N1/N2/N3 must land before N4; do not virtualize first.
@@ -193,8 +258,8 @@ Dependencies:
 |---|---|
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
-| 0 Baseline | ☐ |
-| 1 Hangs + cheap wins | ◐ H1, H2, A1, A2 landed; C1 done in #48; C2–C10 pending |
+| 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
+| 1 Hangs + cheap wins | ◐ H1 landed but its done condition fails on shared-vocabulary keys (H3 opened); H2, A1, A2 landed; C1 done in #48; C2–C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -207,10 +272,11 @@ Dependencies:
 |---|---|
 | 1 | #48 engine hot paths (landed) |
 | 2 | This plan |
-| 3 | B0 baseline + harness |
-| 4 | H1 clash (landed) |
+| 3 | B0 baseline + harness (landed) |
+| 4 | H1 clash (landed; H3 follows) |
 | 5 | H2 collator (landed) |
 | 6 | A1 + A2 blur/transform (landed) |
+| 6b | H3 clash cold path (next) |
 | 7 | C2–C10 cheap per-draw batch |
 | 8 | T0 token count |
 | 9 | T1 + T2 save path and settings |
@@ -234,19 +300,21 @@ Every commit updates the status table and the measurement table in this document
 
 ### Phase 0 — B0 Baseline and instrumentation
 
-**Why.** Without a baseline, the budgets are guesses and the three earlier notes’ numbers cannot be compared. The existing `e2e/perf.mjs` creates 40 persistent Stress books and changes settings; it must not silently seed a real library.
+**Why.** Without a baseline, the budgets are guesses and the three earlier notes’ numbers cannot be compared. The existing `e2e/perf.mjs` created 40 persistent Stress books and changed settings; it must not silently seed a real library.
 
 **Change.**
 
 - Use a disposable ST profile or an in-memory harness. Never seed a real library.
-- Vendor the #48 benchmark harness into `tools/perf/` (or `e2e/perf/`) so the generation, tracker, rebuild, and behavior-comparison numbers are reproducible in-repo. Add clash and collator scale benchmarks.
-- Add temporary instrumentation: app renders, canvas renders, model builds, route computes, row mounts, serialized characters, save attempts; timings around history, model construction, `arrange`/routing, DOM commit, and status derivation. Record layout/paint and heap separately in browser traces.
-- Record scenarios: cold/warm Home; tap during loading; book selection; long-content typing; search during loading; pan/pinch; single/group drop; dot shaping; inspector toggles with chat state off/on; generation with the editor closed; repeated open/close and book switching; failed and overlapping saves.
-- Use multiple scales: 150, 1,000, 3,000 and 5,000-entry books; sparse and dense graphs; large pack overlap; 40- and 100-book libraries; short and long chats.
-- Collect device evidence: the weakest phone available, desktop, and throttled browser runs. Separate cold network from warm interaction. Report median and p95, long-task totals, worst task, frame gaps, DOM counts, and retained heap after settling.
-- Agree the budgets in §4.2 against the baseline.
+- `tools/perf/` replaces the lost #48 harness: generation, tracker reads, rebuilds, clash (both key shapes), collator, history, and the behavior fingerprint. `npm run perf`; the old numbers are history, not a comparison (§2.1).
+- `src/ui/perf.js` carries the instrumentation: counters always on, timing regions opt-in. `wihero.perf.snapshot()` is the attribution surface. Layout/paint and heap stay in browser traces.
+- `e2e/perf-harness.mjs` records the browser scenarios on the disposable `?perf=1` profile: cold/warm Home, earliest tap, book and entry open, scroll, A–Z, search typing, Hero open/card tap/pan, inspector toggles with chat state off and on, and 100 KB typing. ST-only scenarios (generation with the editor closed, failed/overlapping saves, real chat badges) remain for device evidence.
+- Scales recorded: 150/1,000/3,000/5,000-entry books; 40- and 100-book libraries; long chats; plaque and canvas shapes. Sparse/dense graph shapes exist in the native generator and still need a browser pass.
+- Device evidence is still outstanding: the weakest phone, real pinch, paint/compositor traces, and heap snapshots.
+- The budgets in §4.2 were read against the baseline and left unchanged (§2.4).
 
 **Done when.** Baseline JSON/traces exist; the harness is runnable from the repo; the budgets are written down; no behavior changed.
+
+**Status.** Landed for the repo-side harness: `tools/perf/` (52 native measurements, `npm run perf`, `npm run perf:smoke`), `e2e/perf-harness.mjs` (17 browser steps at 1× and 6× on the disposable `?perf=1` harness), `src/ui/perf.js` counters and opt-in timing regions, and the three baseline files under `docs/optimization-pass/baseline/`. `e2e/perf.mjs` now refuses to seed a real library without `PERF_ALLOW_SEED=1`. The baseline opened H3 (the clash cold path); see §2.4. **Not done:** device paint/compositor traces and heap snapshots (§7.5), which Phase 0's done condition includes. Instrumentation is cheap and stays for the later phases' done conditions — remove it after Phase 6 if it is no longer earning its counters.
 
 **Risk.** The fixture itself changes behavior or pollutes a real profile. Keep it isolated and disposable.
 
@@ -256,7 +324,7 @@ Every commit updates the status table and the measurement table in this document
 
 ### Phase 1 — Stop the hangs and take the cheap wins
 
-#### H1 — Replace the quadratic keyword-clash scan (P0)
+#### H1 — Replace the quadratic keyword-clash scan (P0; H3 fixes the shared-vocabulary case)
 
 **Why.** `src/ui/clashes.js:27–55` (`keywordClashes`) loops over every distinct key and, for each, loops over every other distinct key. `within` (`:65–68`) builds a new `RegExp` per pair. `keyed` (`:10–14`) calls `configOf`, which normalizes (deep-clones) each entry just to read the Moment flag. This is O(distinct keys²) with up to O(distinct keys²) regex allocations.
 
@@ -281,9 +349,9 @@ Callers: `src/ui/normal.js:467` (every entry-page draw, Normal and Hero entry ta
 4. Precompute `groupsByUid: Map<uid, group[]>` so `of(uid, key)` scans that entry’s groups, not all groups.
 5. Memoize the result per book revision at the call sites, or attach it to the cached book model. Pass the revision explicitly; do not rely on a WeakMap keyed by a mutable object.
 
-**Done when.** `test/cheap.test.js` passes unchanged, including “mill is not a whole word of miller”, regex keys, Permanent entries, Moments, and pending deletes. A scale test at 1,000 entries with four unique multi-word keys has a generous bound so a regression is visible. Opening an entry or menu in that book produces no > 50 ms long task at 6×.
+**Done when.** `test/cheap.test.js` passes unchanged, including “mill is not a whole word of miller”, regex keys, Permanent entries, Moments, and pending deletes. A scale test at 1,000 entries with four unique multi-word keys has a generous bound so a regression is visible. Opening an entry or menu in that book produces no > 50 ms long task at 6×. **The unique-key shape is H1's condition; the shared-vocabulary shape measured in B0 is H3's.**
 
-**Status.** Landed. `test/cheap.test.js` gained punctuation/boundary and cache-invalidation cases. The warm native scan at 1,000 × 4 is 12.9 ms and repeat draws are free; the 6× e2e target is still to verify.
+**Status.** Landed for unique-key books; **not done** for shared-vocabulary books. `test/cheap.test.js` gained punctuation/boundary and cache-invalidation cases. B0 re-measured: unique-key warm 16.9 ms at 1,000 × 4; shared-vocabulary warm 147–159 ms, cold ~2.1 s, entry open at 6× a 16–17 s long task. H3 is the follow-up and must land before the C batch is called “cheap wins”.
 
 **Risk.** Low if the index preserves the whole-word rule. Do not switch to plain substring matching; the tests exist precisely because “miller” must not clash with “mill”.
 
@@ -322,6 +390,33 @@ Decorate-sort-undecorate avoids repeated `titleOf` calls; the collator is the ma
 **Risk.** Very low. This is a pure comparator swap.
 
 **Source.** DeepSeek #2.
+
+#### H3 — Make the clash scan's cold path cheap on shared vocabulary (P0, opened by B0)
+
+**Why.** H1 builds a token index so only keys containing a word's first token are tested, and one RegExp per distinct key word. That wins when tokens are unique. Real books reuse vocabulary — “the”, place names, character names — so the candidate set collapses back toward all keys, and the first call runs millions of `RegExp.test` calls in V8's unoptimized tier.
+
+B0 measured it in the disposable browser harness (1,000 entries, 4 keys each, shared vocabulary, 4,000 distinct keys):
+
+- cold first `keywordClashes` in the page: **~2.1 s native**, **16.9 s at 6×** — 96% of the entry-open step, one 17 s long task;
+- warm on the same book: 147–159 ms native; the unique-key shape is 16.9 ms;
+- native Node cold median 149–157 ms with a 1.95 s p95: the tail, not the median, is what a reader feels on the first open.
+
+H1's done condition (“no > 50 ms at 6×”) is false in this shape. Marking H1 done without H3 would hide the worst measured interaction in the app.
+
+**Change.**
+
+1. Remove the per-word RegExp cache. Keep whole-word semantics exactly: at a hit, the character before and after must be absent or outside `\p{L}\p{N}`. `test/cheap.test.js` pins “miller” vs “mill”, regex keys, punctuation and Moments.
+2. Prefer one of these, in order of expected win:
+   - **Phrase enumeration.** Tokenize each key once, then emit every contiguous token span as a phrase, sliced from the normalized key so the original separators survive (`old-mill` must not equal `old mill`). Insert each phrase into `Map<phrase, Set<uid>>`. A clash is any phrase with two or more uids; `of(uid, key)` looks up the key's own spans. This is O(keys × tokens²), not O(words × candidates).
+   - **Boundary scan.** If enumeration is too clever for the call sites, keep candidate narrowing (choose the *rarest* token, not the first, and skip keys shorter than the word) and replace regex tests with `indexOf` plus a single cached `[\p{L}\p{N}]` check.
+3. Keep a fallback for words with no alphanumeric token (the old “fall back to all keys” path), and keep the per-revision result cache and the `skip` signature.
+4. Add a fresh-process cold bench and an equivalence test at 1,000 × 4 shared keys: the new result must equal the current implementation's groups and `of()` output exactly, including punctuation and case.
+
+**Done when.** `test/cheap.test.js` passes unchanged; the shared-vocabulary equivalence test passes; a fresh-process cold scan at 1,000 × 4 shared keys is under 50 ms native (from 149–157 ms median, 1.95 s p95); opening the first entry in that book produces no > 100 ms long task at 6× (merge gate) with the 50 ms target still the goal; repeat draws stay free per revision.
+
+**Risk.** Medium. Whole-word equivalence is the whole contract; a phrase map that joins tokens with spaces silently changes punctuation behavior. Test the exact groups, not just the count.
+
+**Source.** B0 baseline (§2.4); H1 follow-up.
 
 #### A1 — Remove the full-screen phone blur (P1, animation prerequisite)
 
@@ -932,17 +1027,18 @@ Practical rule: if a change needs a layout read (`getBoundingClientRect`, `scrol
 ### 7.1 Fixture and isolation
 
 - Use a disposable ST profile or an in-memory harness. Never seed a real library.
-- The existing `e2e/perf.mjs` creates 40 persistent Stress books and changes settings; keep performance runs isolated.
-- Vendor the #48 benchmark harness (generation, trackers, rebuild, behavior comparison) into `tools/perf/` and add clash/collator scale benchmarks.
+- `e2e/perf-harness.mjs` is the disposable fixture: `?perf=1` in `e2e/desktop/harness.html` seeds 41 synthetic books, a 1,000-entry book with a placed canvas, a 100 KB entry and a long chat in page memory and `localStorage` only. It needs no ST.
+- `e2e/perf.mjs` still targets a real ST and creates 40 persistent Stress books; it now refuses to run without `PERF_ALLOW_SEED=1`, which is the promise that the profile is throwaway.
+- The native harness is `tools/perf/`: generation, trackers, rebuild, clash (unique and shared vocabulary), collator, history and the behavior fingerprint. `npm run perf` / `npm run perf:smoke`.
 
 ### 7.2 Instrumentation
 
-Add temporary counters and timings, then remove or keep behind a flag:
+`src/ui/perf.js` is in place. Counters are always on and are plain integer increments; timing regions are opt-in via `perf.timing = true` and allocate nothing while off. Read them with `wihero.perf.snapshot()` / `reset()`.
 
-- app renders, canvas renders, model builds, route computes, row mounts;
-- serialized characters, save attempts, `saveSettings` calls;
-- history capture/commit time; model construction; `arrange`/routing; DOM commit; status derivation;
-- layout/paint and heap in browser traces.
+- Counters: app renders, canvas renders, model builds, route computes (the engine's changed-link count), row mounts, serialized characters, save attempts, `settingsSaves`, history captures, real tokenizer calls.
+- Timing regions: model, clash scan, sort, row mount, entry page, canvas draw, arrange, status, history, save.
+- Layout/paint and heap stay in browser traces and heap snapshots; the harness cannot see them.
+- Remove the instrumentation after Phase 6 if it is no longer earning its counters.
 
 ### 7.3 Scenario matrix
 
@@ -972,7 +1068,8 @@ Add temporary counters and timings, then remove or keep behind a flag:
 ### 7.6 Regression suites
 
 - `node --test` for logic and engine semantics.
-- `e2e/perf.mjs` for browser scenarios and long tasks.
+- `npm run perf:smoke` for the native harness's determinism/count assertions; `npm run perf` for the scale numbers.
+- `e2e/perf-harness.mjs` for browser scenarios and long tasks (no ST); `e2e/perf.mjs` for the same against a throwaway ST, with `PERF_ALLOW_SEED=1`.
 - `tools/link-bench.js` for routing.
 - `test/history.test.js`, `test/book-write.test.js`, `test/st-books.test.js`, `test/library-lifecycle.test.js` for save/history behavior.
 - `test/cheap.test.js` for clash semantics.
@@ -1050,12 +1147,12 @@ The three source notes are superseded by this document and have been removed.
 
 ### B. Measurement recipes
 
-- **Clash:** synthetic books with unique multi-word keys; 150/500/1,000/2,000 entries × 3–4 keys. Use `keywordClashes` directly; warm up once. Do not put scratch files in the repo.
-- **A–Z:** sort 150/500/1,000/3,000 synthetic titles with `localeCompare(..., options)` vs a shared `Intl.Collator`.
-- **History:** `createHistory`/`withHistory` with a mock library; append one character per change; discard warmup; report median and p95.
+- **Clash:** `tools/perf/bench-clash.mjs`. Two shapes: unique multi-word keys and shared vocabulary. Report cold (fresh process and fresh salt), warm, and cached. The cold tail is the user-visible number; a warm-only figure hides it.
+- **A–Z:** `tools/perf/bench-collator.mjs`, which runs the old comparator and `sortEntries` side by side on the same titles at 150/500/1,000/3,000.
+- **History:** `tools/perf/bench-history.mjs`; one character per change, median and p95 with the sample count, plus serialized size.
 - **Link routing:** `node tools/link-bench.js` and a fresh `createLinkEngine()` per sample; time `layout(defs)` after setting obstacles.
-- **Generation/trackers/rebuild:** the #48 harness (`bench-generation.mjs`, `bench-trackers.mjs`, `bench-rebuild.mjs`, `compare-behavior.mjs`) with `REPO=...`.
-- **Browser:** `e2e/perf.mjs` at 6× CPU, 390×844, 40 stress books; add multi-word-key entry open, ☰ menu, Hero entry panel, 100 KB typing, and book switching.
+- **Generation/trackers/rebuild/behavior:** `tools/perf/` (`bench-generation.mjs`, `bench-trackers.mjs`, `bench-rebuild.mjs`, `behavior.mjs`); `npm run perf`.
+- **Browser:** `e2e/perf-harness.mjs` at 6× CPU, 390×844, disposable profile; `--rate 1` for native. `e2e/perf.mjs` is the same shape against a throwaway ST when one is available. The entry-open step carries `wihero.perf` deltas, so an attribution is recorded with the timing.
 - **Device:** the weakest phone available; paint flashing/compositor traces; heap snapshots after settling.
 
 ### C. PR #48 summary
@@ -1086,6 +1183,7 @@ Measure before committing to these:
 ### E. Key files
 
 - Engine: `src/engine/model.js`, `src/engine/turn.js`, `src/engine/state.js`, `src/engine/written.js`, `src/engine/rows.js`, `src/timers.js`, `src/st-hooks.js`.
+- Perf: `src/ui/perf.js` (counters and timings), `tools/perf/` (native harness), `e2e/perf-harness.mjs` (disposable browser profile), `docs/optimization-pass/baseline/` (recorded JSON).
 - UI shell: `src/ui/app.js`, `src/ui/normal.js`, `src/ui/desk.js`, `src/ui/hero-shell.js`, `src/ui/canvas.js`, `src/ui/canvas-input.js`, `src/ui/link-engine/index.js`, `src/ui/entry-page.js`, `src/ui/history.js`, `src/ui/st-books.js`, `src/ui/book-write.js`, `src/ui/data.js`, `src/ui/clashes.js`, `src/ui/menus.js`, `src/ui/pieces.js`, `src/ui/show-in-chat.js`, `src/ui/icons.js`, `src/ui/dom.js`, `src/ui/preview.js`, `src/ui/canvas-graph.js`.
 - Entry/panel: `index.js`, `src/panel.js`, `src/bubble.js`.
 - Styles: `src/ui/app.css` (or the built `app.css`), `style.css`.
@@ -1100,3 +1198,6 @@ Measure before committing to these:
 | 2026-11-22 | this commit | H1 clash scan | Token index + revision cache; 1,000 × 4: 1,151 ms → 12.9 ms warm, cached ~0; 327 pass, 0 fail, 7 skipped |
 | 2026-11-22 | this commit | H2 A–Z collator | Shared collator + decorate-sort; 1,000 entries: 61.8 ms → 3.0 ms; 328 pass, 0 fail, 7 skipped |
 | 2026-11-22 | this commit | A1 + A2 blur/transform | Removed live backdrop blur and the unused `--blur`; switch animates transform; paint trace pending |
+| 2026-11-24 | this commit | B0 native harness | `tools/perf/` rebuilt from the recipes; 52 measurements; behaviorHash `33c034aef964c242`; shared-vocabulary clash measured |
+| 2026-11-24 | this commit | B0 browser fixture + instrumentation | `?perf=1` disposable profile; `e2e/perf-harness.mjs`; `src/ui/perf.js` counters/timings; `e2e/perf.mjs` seed guard |
+| 2026-11-24 | this commit | B0 baseline | 17 steps at 1× and 6×; entry open 15.8–17.5 s at 6×, 96% clash scan; H3 opened; budgets unchanged |

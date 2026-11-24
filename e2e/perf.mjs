@@ -1,6 +1,16 @@
 // Phone-speed profile of opening WI Hero (not a pass/fail check): CPU throttled 6x, 390 × 844, many books.
 // Makes 40 "Stress" books if they aren't there (and leaves them). Prints how long Home takes to settle, how many times it redraws, the long tasks, and whether a tap lands.
+//
+// It seeds a real library, so it must only ever run against a throwaway SillyTavern profile. Set
+// PERF_ALLOW_SEED=1 to say you have one; without it this exits before any request.
 import { chromium } from 'playwright';
+
+if (process.env.PERF_ALLOW_SEED !== '1') {
+    console.error('e2e/perf.mjs seeds 40 persistent "Stress" books and changes settings in a real SillyTavern profile.');
+    console.error('Run it only against a throwaway SillyTavern, never your own library. Set PERF_ALLOW_SEED=1 to allow it.');
+    process.exit(1);
+}
+console.error('Note: e2e/perf.mjs creates 40 persistent "Stress" books in a throwaway SillyTavern profile.');
 
 const ST_URL = process.env.ST_URL || 'http://127.0.0.1:8000';
 const RATE = Number(process.env.CPU_RATE || 6);

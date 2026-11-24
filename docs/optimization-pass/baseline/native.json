@@ -1,0 +1,1396 @@
+[
+  {
+    "bench": "bench-generation",
+    "metric": "model",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240
+    },
+    "samples": 15,
+    "median": 2.156,
+    "p95": 3.722,
+    "min": 1.617,
+    "max": 3.722,
+    "mean": 2.288
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "generation",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "samples": 15,
+    "median": 1.73,
+    "p95": 3.906,
+    "min": 1.166,
+    "max": 3.906,
+    "mean": 2.001
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "counts",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "jsonStringifyCalls": 1,
+    "entryHashes": 1
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "model",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240
+    },
+    "samples": 15,
+    "median": 8.782,
+    "p95": 15.381,
+    "min": 7.291,
+    "max": 15.381,
+    "mean": 9.61
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "generation",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "samples": 15,
+    "median": 8.524,
+    "p95": 10.649,
+    "min": 6.675,
+    "max": 10.649,
+    "mean": 8.524
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "counts",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "jsonStringifyCalls": 1,
+    "entryHashes": 1
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "model",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 3000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240
+    },
+    "samples": 15,
+    "median": 29.389,
+    "p95": 50.948,
+    "min": 25.016,
+    "max": 50.948,
+    "mean": 31.639
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "generation",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 3000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "samples": 15,
+    "median": 21.669,
+    "p95": 26.518,
+    "min": 19.404,
+    "max": 26.518,
+    "mean": 22.161
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "counts",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 3000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "jsonStringifyCalls": 1,
+    "entryHashes": 1
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "model",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 5000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240
+    },
+    "samples": 15,
+    "median": 46.236,
+    "p95": 51.507,
+    "min": 39.348,
+    "max": 51.507,
+    "mean": 45.648
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "generation",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 5000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "samples": 15,
+    "median": 37.508,
+    "p95": 44.414,
+    "min": 33.948,
+    "max": 44.414,
+    "mean": 38.691
+  },
+  {
+    "bench": "bench-generation",
+    "metric": "counts",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 5000,
+      "shape": "mixed",
+      "keys": "unique-multi-word",
+      "contentChars": 240,
+      "activations": 12
+    },
+    "jsonStringifyCalls": 1,
+    "entryHashes": 1
+  },
+  {
+    "bench": "bench-trackers",
+    "metric": "slotValues",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 10,
+      "slots": 20,
+      "masks": 10,
+      "values": 20
+    },
+    "samples": 60,
+    "median": 0.012,
+    "p95": 0.021,
+    "min": 0.011,
+    "max": 0.038,
+    "mean": 0.015
+  },
+  {
+    "bench": "bench-trackers",
+    "metric": "view",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 10,
+      "slots": 20,
+      "masks": 10,
+      "values": 20
+    },
+    "samples": 40,
+    "median": 0.087,
+    "p95": 0.179,
+    "min": 0.079,
+    "max": 0.263,
+    "mean": 0.105
+  },
+  {
+    "bench": "bench-trackers",
+    "metric": "slotValues",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 30,
+      "slots": 60,
+      "masks": 30,
+      "values": 60
+    },
+    "samples": 60,
+    "median": 0.017,
+    "p95": 0.019,
+    "min": 0.017,
+    "max": 0.02,
+    "mean": 0.018
+  },
+  {
+    "bench": "bench-trackers",
+    "metric": "view",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 30,
+      "slots": 60,
+      "masks": 30,
+      "values": 60
+    },
+    "samples": 40,
+    "median": 0.127,
+    "p95": 0.239,
+    "min": 0.123,
+    "max": 0.261,
+    "mean": 0.146
+  },
+  {
+    "bench": "bench-trackers",
+    "metric": "slotValues",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 60,
+      "slots": 120,
+      "masks": 60,
+      "values": 120
+    },
+    "samples": 60,
+    "median": 0.042,
+    "p95": 0.044,
+    "min": 0.041,
+    "max": 0.046,
+    "mean": 0.042
+  },
+  {
+    "bench": "bench-trackers",
+    "metric": "view",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 60,
+      "slots": 120,
+      "masks": 60,
+      "values": 120
+    },
+    "samples": 40,
+    "median": 0.2,
+    "p95": 0.288,
+    "min": 0.193,
+    "max": 0.292,
+    "mean": 0.232
+  },
+  {
+    "bench": "bench-rebuild",
+    "metric": "rebuilds",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "shape": "mixed",
+      "generations": 4,
+      "loadModel": 1
+    },
+    "rebuilds": 0,
+    "entryHashes": 6
+  },
+  {
+    "bench": "bench-rebuild",
+    "metric": "rebuilds",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "shape": "mixed",
+      "generations": 4,
+      "loadModel": 1
+    },
+    "rebuilds": 0,
+    "entryHashes": 6
+  },
+  {
+    "bench": "bench-rebuild",
+    "metric": "rebuilds",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 3000,
+      "shape": "mixed",
+      "generations": 4,
+      "loadModel": 1
+    },
+    "rebuilds": 0,
+    "entryHashes": 6
+  },
+  {
+    "bench": "bench-rebuild",
+    "metric": "rebuilds",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 5000,
+      "shape": "mixed",
+      "generations": 4,
+      "loadModel": 1
+    },
+    "rebuilds": 0,
+    "entryHashes": 6
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cold",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "keys": 3,
+      "distinctKeys": 450,
+      "keyShape": "unique multi-word, no shared tokens"
+    },
+    "samples": 3,
+    "median": 2.494,
+    "p95": 3.99,
+    "min": 2.234,
+    "max": 3.99,
+    "mean": 2.906
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "warm",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "keys": 3,
+      "distinctKeys": 450,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 10,
+    "median": 1.264,
+    "p95": 8.257,
+    "min": 1.149,
+    "max": 8.257,
+    "mean": 2.028
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cached",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "keys": 3,
+      "distinctKeys": 450,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 30,
+    "median": 0.001,
+    "p95": 0.003,
+    "min": 0.001,
+    "max": 0.005,
+    "mean": 0.001
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cold",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "keys": 4,
+      "distinctKeys": 2000,
+      "keyShape": "unique multi-word, no shared tokens"
+    },
+    "samples": 3,
+    "median": 11.322,
+    "p95": 14.577,
+    "min": 11.115,
+    "max": 14.577,
+    "mean": 12.338
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "warm",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "keys": 4,
+      "distinctKeys": 2000,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 10,
+    "median": 6.75,
+    "p95": 8.465,
+    "min": 6.269,
+    "max": 8.465,
+    "mean": 7.062
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cached",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "keys": 4,
+      "distinctKeys": 2000,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 30,
+    "median": 0.001,
+    "p95": 0.001,
+    "min": 0.001,
+    "max": 0.006,
+    "mean": 0.001
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cold",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "keys": 4,
+      "distinctKeys": 4000,
+      "keyShape": "unique multi-word, no shared tokens"
+    },
+    "samples": 3,
+    "median": 18.891,
+    "p95": 30.957,
+    "min": 18.594,
+    "max": 30.957,
+    "mean": 22.814
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "warm",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "keys": 4,
+      "distinctKeys": 4000,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 10,
+    "median": 15.057,
+    "p95": 18.121,
+    "min": 13.643,
+    "max": 18.121,
+    "mean": 15.494
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cached",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "keys": 4,
+      "distinctKeys": 4000,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 30,
+    "median": 0.001,
+    "p95": 0.003,
+    "min": 0.001,
+    "max": 0.003,
+    "mean": 0.001
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cold",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 2000,
+      "keys": 4,
+      "distinctKeys": 8000,
+      "keyShape": "unique multi-word, no shared tokens"
+    },
+    "samples": 3,
+    "median": 41.39,
+    "p95": 48.44,
+    "min": 36.715,
+    "max": 48.44,
+    "mean": 42.182
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "warm",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 2000,
+      "keys": 4,
+      "distinctKeys": 8000,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 8,
+    "median": 27.452,
+    "p95": 29.132,
+    "min": 25.076,
+    "max": 29.132,
+    "mean": 27.542
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cached",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 2000,
+      "keys": 4,
+      "distinctKeys": 8000,
+      "keyShape": "unique multi-word, no shared tokens",
+      "groups": 0
+    },
+    "samples": 30,
+    "median": 0,
+    "p95": 0,
+    "min": 0,
+    "max": 0.002,
+    "mean": 0
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cold",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "keys": 4,
+      "distinctKeys": 2000,
+      "keyShape": "shared vocabulary"
+    },
+    "samples": 3,
+    "median": 59.789,
+    "p95": 1546.167,
+    "min": 32.517,
+    "max": 1546.167,
+    "mean": 546.158
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "warm",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "keys": 4,
+      "distinctKeys": 2000,
+      "keyShape": "shared vocabulary",
+      "groups": 0
+    },
+    "samples": 5,
+    "median": 38.153,
+    "p95": 39.19,
+    "min": 38.012,
+    "max": 39.19,
+    "mean": 38.345
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cached",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "keys": 4,
+      "distinctKeys": 2000,
+      "keyShape": "shared vocabulary",
+      "groups": 0
+    },
+    "samples": 30,
+    "median": 0,
+    "p95": 0,
+    "min": 0,
+    "max": 0.002,
+    "mean": 0
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cold",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "keys": 4,
+      "distinctKeys": 4000,
+      "keyShape": "shared vocabulary"
+    },
+    "samples": 3,
+    "median": 138.896,
+    "p95": 1666.324,
+    "min": 138.712,
+    "max": 1666.324,
+    "mean": 647.977
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "warm",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "keys": 4,
+      "distinctKeys": 4000,
+      "keyShape": "shared vocabulary",
+      "groups": 0
+    },
+    "samples": 3,
+    "median": 146.684,
+    "p95": 148.476,
+    "min": 140.967,
+    "max": 148.476,
+    "mean": 145.376
+  },
+  {
+    "bench": "bench-clash",
+    "metric": "cached",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "keys": 4,
+      "distinctKeys": 4000,
+      "keyShape": "shared vocabulary",
+      "groups": 0
+    },
+    "samples": 30,
+    "median": 0,
+    "p95": 0,
+    "min": 0,
+    "max": 0.001,
+    "mean": 0
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "localeCompare",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "localeCompare(..., options) per comparison"
+    },
+    "samples": 20,
+    "median": 6.867,
+    "p95": 7.086,
+    "min": 6.627,
+    "max": 7.204,
+    "mean": 6.871
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "collator",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "shared Intl.Collator, decorate-sort"
+    },
+    "samples": 40,
+    "median": 0.19,
+    "p95": 0.271,
+    "min": 0.181,
+    "max": 4.283,
+    "mean": 0.303
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "localeCompare",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "localeCompare(..., options) per comparison"
+    },
+    "samples": 5,
+    "median": 30.289,
+    "p95": 31.062,
+    "min": 29.651,
+    "max": 31.062,
+    "mean": 30.388
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "collator",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 500,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "shared Intl.Collator, decorate-sort"
+    },
+    "samples": 40,
+    "median": 0.8,
+    "p95": 0.95,
+    "min": 0.778,
+    "max": 1.059,
+    "mean": 0.818
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "localeCompare",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "localeCompare(..., options) per comparison"
+    },
+    "samples": 5,
+    "median": 67.877,
+    "p95": 68.856,
+    "min": 67.713,
+    "max": 68.856,
+    "mean": 68.089
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "collator",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "shared Intl.Collator, decorate-sort"
+    },
+    "samples": 40,
+    "median": 1.931,
+    "p95": 2.224,
+    "min": 1.827,
+    "max": 2.557,
+    "mean": 1.956
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "localeCompare",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 3000,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "localeCompare(..., options) per comparison"
+    },
+    "samples": 5,
+    "median": 234.821,
+    "p95": 238.996,
+    "min": 234.073,
+    "max": 238.996,
+    "mean": 235.787
+  },
+  {
+    "bench": "bench-collator",
+    "metric": "collator",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 3000,
+      "titles": "synthetic multi-word + numeric",
+      "sameOrder": true,
+      "impl": "shared Intl.Collator, decorate-sort"
+    },
+    "samples": 13,
+    "median": 6.954,
+    "p95": 69.153,
+    "min": 5.617,
+    "max": 69.153,
+    "mean": 11.674
+  },
+  {
+    "bench": "bench-history",
+    "metric": "edit",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 150,
+      "contentChars": "about 1,150 per entry",
+      "change": "one character appended",
+      "quiet": true
+    },
+    "serializedChars": 164934,
+    "samples": 15,
+    "median": 0.337,
+    "p95": 0.811,
+    "min": 0.316,
+    "max": 0.811,
+    "mean": 0.377
+  },
+  {
+    "bench": "bench-history",
+    "metric": "edit",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 1000,
+      "contentChars": "about 1,150 per entry",
+      "change": "one character appended",
+      "quiet": true
+    },
+    "serializedChars": 1141169,
+    "samples": 15,
+    "median": 3.042,
+    "p95": 4.595,
+    "min": 2.641,
+    "max": 4.595,
+    "mean": 3.09
+  },
+  {
+    "bench": "bench-history",
+    "metric": "edit",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "entries": 5000,
+      "contentChars": "about 1,150 per entry",
+      "change": "one character appended",
+      "quiet": true
+    },
+    "serializedChars": 5991331,
+    "samples": 15,
+    "median": 11.833,
+    "p95": 20.067,
+    "min": 10.525,
+    "max": 20.067,
+    "mean": 12.442
+  },
+  {
+    "bench": "behavior",
+    "metric": "hash",
+    "label": "measured-native",
+    "machine": {
+      "label": "measured-native",
+      "note": "native desktop Node; no CPU throttle; not a phone prediction",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v26.13.0",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "cores": 8,
+      "memoryGB": 5.7
+    },
+    "fixture": {
+      "scenarios": 4,
+      "names": [
+        "plain-gating",
+        "moments",
+        "written-masks",
+        "closures-sticky"
+      ],
+      "turns": "plain, Moments, written/masks, closures/sticky"
+    },
+    "behaviorHash": "33c034aef964c242"
+  }
+]

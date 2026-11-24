@@ -7,6 +7,7 @@ import { addDot, moveDot, normalize, removeDot, setSegment, toCanvas } from '../
 import { btn, el } from './dom.js';
 import { explainNode } from './explain-meta.js';
 import { ic } from './icons.js';
+import { perf } from './perf.js';
 import { wireInput } from './canvas-input.js';
 
 const FAMILY_VAR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)' };
@@ -158,10 +159,14 @@ export function mountCanvas(vp, d) {
     }
 
     function render() {
+        perf.count('canvasRenders');
+        const drawAt = perf.begin('canvasDraw');
         const { m, problems = new Set(), status = () => null, chatState = false } = d.book();
         const mem = memory();
         const before = JSON.stringify(mem);
+        const arrangeAt = perf.begin('arrange');
         const { g, ids, R, P } = arrange(m, mem, viewCenter(), d.dir ?? TB);
+        perf.end(arrangeAt);
         if (JSON.stringify(mem) !== before) d.save();
         CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [] };
         world.innerHTML = '';
@@ -246,7 +251,9 @@ export function mountCanvas(vp, d) {
             if (e.moment) {
                 // A Moment (VISUAL 7.5): a short card with a spark, MOMENT over its name, its phrases in quotes in the
                 // content font. No strategy stripe. With chat state on: happened, or not yet.
+                const statusAt = chatState ? perf.begin('status') : null;
                 const st = chatState ? status(e.id) : null;
+                perf.end(statusAt);
                 const c = el('div', `card moment${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}${picked.has(e.id) ? ' picked' : ''}${st?.happened ? ' happened' : ''}`);
                 c.dataset.id = e.id;
                 Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
@@ -263,7 +270,9 @@ export function mountCanvas(vp, d) {
                 continue;
             }
             const si = layerOf(e);
+            const statusAt = chatState ? perf.begin('status') : null;
             const st = chatState ? status(e.id) : null;
+            perf.end(statusAt);
             for (let i = Math.min(2, e.masks.length); i >= 1; i--) {
                 const b = el('div', 'layercard');
                 Object.assign(b.style, { left: `${r.x + 6 * i}px`, top: `${r.y - 6 * i}px` });
@@ -398,7 +407,8 @@ export function mountCanvas(vp, d) {
             return pts;
         };
         const drawQueued = () => {
-            LINKS.layout(queue.map(q => q.def));
+            const routed = LINKS.layout(queue.map(q => q.def));
+            perf.count('routeComputes', routed.changed.length);
             for (const q of queue) {
                 const { x, a, then, def } = q;
                 owning(`${x.from} ${x.to}`, () => {
@@ -598,6 +608,7 @@ export function mountCanvas(vp, d) {
         // Phones have no hover: the card whose inspector is open is the focused one, and the rest dims as on desktop.
         if (!d.desk) phoneFocus();
         drawShaping();
+        perf.end(drawAt);
     }
 
     // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
@@ -846,6 +857,7 @@ export function mountCanvas(vp, d) {
         liveRaf = 0;
         if (!SH) return;
         const { changed } = LINKS.layout(CV.queue.map(q => q.def));
+        perf.count('routeComputes', changed.length);
         CV.relink(new Set([...changed, SH.l.id]));
         drawHandles();
     }
