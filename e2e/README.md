@@ -62,6 +62,8 @@ delete, on/off and parameter edits keep the entry open without adding tabs after
 stub fires the same book-open callback as ST's dropdown unless the library suppresses it. Run
 `node e2e/mobile-edit.mjs`; it uses only made-up harness data.
 
+`sizing.mjs` checks the entry textarea's autosize fallback in the same harness: it disables `field-sizing` before page scripts load, opens the 100 KB entry, and checks that the box has a measured height on the first frame and grows when more text is typed. Run `node e2e/sizing.mjs`; no SillyTavern needed.
+
 `lifecycle.mjs` uses the real library in the same browser harness to check the waiting state during rename and
 that a failed delayed book deletion returns the book to the list with an error, retaining its snapshots and
 settings. Run `node e2e/lifecycle.mjs`; no real SillyTavern data is used.

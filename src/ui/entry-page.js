@@ -454,14 +454,23 @@ export function renderEntryPage(main, o) {
     return v;
 }
 
+const FIELD_SIZING = typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('field-sizing', 'content');
+
 function autoText(value, placeholder, onInput) {
     const ta = el('textarea');
     ta.value = value;
     ta.placeholder = placeholder;
     ta.setAttribute('aria-label', 'Content');
-    const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.max(ta.scrollHeight, 200)}px`; };
-    ta.addEventListener('input', () => { onInput(ta.value); fit(); });
-    requestAnimationFrame(fit);
+    if (!FIELD_SIZING) {
+        // The browser cannot size the box from its content: fit it, at most once per frame.
+        let frame = 0;
+        const fit = () => { frame = 0; ta.style.height = 'auto'; ta.style.height = `${Math.max(ta.scrollHeight, 200)}px`; };
+        const fitSoon = () => { if (!frame) frame = requestAnimationFrame(fit); };
+        ta.addEventListener('input', () => { onInput(ta.value); fitSoon(); });
+        frame = requestAnimationFrame(fit);
+    } else {
+        ta.addEventListener('input', () => onInput(ta.value));
+    }
     return ta;
 }
 

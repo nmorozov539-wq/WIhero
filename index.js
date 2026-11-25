@@ -11,7 +11,7 @@ import { createHooks } from './src/st-hooks.js';
 import { perf } from './src/ui/perf.js';
 import { createCatchUpDialog } from './src/catch-up-dialog.js';
 import { createBubble } from './src/bubble.js';
-import { createChatHider } from './src/show-in-chat.js';
+import { createChatHider, createQueue } from './src/show-in-chat.js';
 import { checkHealth, createHealth, EVENTS, standDownText, stVersion } from './src/compat.js';
 import * as st from './src/st.js';
 
@@ -160,11 +160,17 @@ on('MESSAGE_RECEIVED', hooks.onMessageReceived);
 on('MESSAGE_EDITED', hooks.onMessageEdited);
 // Show in chat (TRACKERS 4): hidden trackers' lines come out of the messages on screen.
 const hider = createChatHider({ ctx, model: () => hooks.model, active: () => hooks.active() });
-for (const type of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED']) on(type, id => setTimeout(() => hider.hide(id), 0));
+// One render per message per task: a turn can send several of these events for the same id.
+const hideQueue = createQueue(ids => { for (const id of ids) hider.hide(id); });
+for (const type of ['CHARACTER_MESSAGE_RENDERED', 'USER_MESSAGE_RENDERED', 'MESSAGE_UPDATED', 'MESSAGE_SWIPED', 'MESSAGE_EDITED']) on(type, id => hideQueue.add(id));
 let rehideTimer = null;
-const rehide = () => { clearTimeout(rehideTimer); rehideTimer = setTimeout(() => hooks.loadModel().then(hider.all, () => {}), 400); };
+// A chat or book change reloads the model: the memo's rendered text may no longer be what it would produce.
+const rehide = () => { clearTimeout(rehideTimer); hider.clear(); hideQueue.clear(); rehideTimer = setTimeout(() => hooks.loadModel().then(hider.all, () => {}), 400); };
 on('CHAT_CHANGED', rehide);
 on('WORLDINFO_UPDATED', rehide);
+// ST's formatting settings can change how a message renders without changing its text. Drop the memo so the next
+// render rewrites the box; do not re-render every message on every settings save. Optional: older ST may lack it.
+if (eventTypes.SETTINGS_UPDATED) eventSource.on(eventTypes.SETTINGS_UPDATED, () => hider.clear());
 // ST's generate interceptor (manifest.json): tracker lines out of the prompt in WI Hero's own mode (TRACKERS 3.3).
 globalThis.wiheroInterceptor = (chat, _size, _abort, type) => hooks.stripPrompt(chat, type);
 on('GENERATION_STOPPED', hooks.dropPending);

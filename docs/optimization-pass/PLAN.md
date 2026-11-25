@@ -120,6 +120,10 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**T4 — chat hider (`src/show-in-chat.js`, `index.js`).** A per-box memo stores the message text, WI Hero on/off, model identity, author fields and rendered output; an unchanged box is not reformatted. The five render events share one pending-id queue and one timeout. `all()` reads the model and flag once. The memo clears on chat/book changes, drops pending hides, and clears on ST's `SETTINGS_UPDATED` so a formatting change cannot stale it.
+
+**T5 — textarea sizing (`src/ui/entry-page.js`, `src/ui/app.css`).** `.en textarea` uses `field-sizing: content`; when `CSS.supports` says no, the measured fit is coalesced to one rAF per frame. `e2e/sizing.mjs` forces the fallback before page scripts load, opens the 100 KB entry, and checks the first-frame height and growth on input.
+
 **T3 — history runs and a byte budget (`src/ui/history.js`).** A quiet run captures the pre-edit state once and the final state once at its boundary; the keystrokes between them cost a timestamp update, not a whole-book stringify. A pause of 1 s, a non-quiet edit, a redraw, `settle`, or undo/redo ends the run. Captured states carry an estimated size; a global 12 MiB budget evicts the oldest state across every book's undo and redo stacks (per-book 100-step cap kept), and `stats()` exposes bytes/steps for tests. `held`, external resets, camera exclusion and redo clearing are unchanged.
 
 | Entries | Per-keystroke edit before | After (run continuation) | p95 after |
@@ -320,7 +324,7 @@ Dependencies:
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
-| 2 Typing path | ◐ T0–T3 landed; T4, T5 pending |
+| 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
@@ -345,7 +349,7 @@ Dependencies:
 | 8 | T0 token count (landed) |
 | 9 | T1 + T2 save path and settings (landed) |
 | 10 | T3 history (landed) |
-| 11 | T4 + T5 chat hider and autosize |
+| 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions |
 | 13 | V2 + V3 `canvasSig` and Hero chrome |
 | 14 | V4 + V5 + V6 overlay, links, status |
@@ -806,6 +810,8 @@ Measured edit cost (history wrapper + mutation, excluding rendering/persistence/
 
 **Done when.** Trackers show-in-chat tests and `e2e/trackers-real.mjs` pass; unchanged messages are not reformatted.
 
+**Status.** Landed. `test/show-in-chat.test.js` covers the memo key (text, active, model, author, output), clear, queue bursts/duplicates and `clear()`. `shownText` is unchanged. The in-ST hider and `e2e/trackers-real.mjs` still need a throwaway ST.
+
 **Risk.** Low–medium. The memo can stale if ST formatting changes without an event; clear on chat change and settings events.
 
 **Source.** Qwen F10; DeepSeek #12.
@@ -823,6 +829,8 @@ textarea.auto { field-sizing: content; min-height: 200px; }
 If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce it into rAF (one fit per frame, not per key). Preserve caret/composition behavior.
 
 **Done when.** Long-entry typing on a throttled phone is smooth; `e2e/mobile-edit.mjs` passes; the fallback path is tested.
+
+**Status.** Landed. `e2e/sizing.mjs` forces `CSS.supports('field-sizing', …)` false before page scripts, opens the 100 KB entry, and checks a measured first-frame height and growth on input; `e2e/mobile-edit.mjs` passes on the native path. A throttled-phone typing trace is still outstanding.
 
 **Risk.** Low.
 
@@ -1166,7 +1174,7 @@ Practical rule: if a change needs a layout read (`getBoundingClientRect`, `scrol
 - `test/history.test.js`, `test/book-write.test.js`, `test/st-books.test.js`, `test/library-lifecycle.test.js` for save/history behavior.
 - `test/cheap.test.js` for clash semantics.
 - `test/ui.test.js`, `test/html.test.js`, `test/pieces.test.js`, `test/engine.test.js`, `test/trackers.test.js` for UI/engine changes.
-- `e2e/n2.mjs`, `e2e/tiles.mjs`, `e2e/polish.mjs`, `e2e/mobile-edit.mjs`, `e2e/host-saves.mjs`, `e2e/drawer.mjs`, `e2e/lifecycle.mjs`, `e2e/trackers-real.mjs`, `e2e/explain` for the relevant surfaces.
+- `e2e/n2.mjs`, `e2e/tiles.mjs`, `e2e/polish.mjs`, `e2e/mobile-edit.mjs`, `e2e/sizing.mjs`, `e2e/host-saves.mjs`, `e2e/drawer.mjs`, `e2e/lifecycle.mjs`, `e2e/trackers-real.mjs`, `e2e/explain` for the relevant surfaces.
 - `tools/st-drift.mjs` is unaffected.
 
 ### 7.7 PR reporting
@@ -1302,3 +1310,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | T0 | Token count cached per text, deferred 1200 ms or flushed on blur, skipped when hidden/dead; 358 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | T1 + T2 | Save bases as JSON, one payload clone, adaptive 350→1000 ms; one settings save per save; 5,000-entry save 157 → 91 ms; 363 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | T3 | Quiet runs capture at the ends only; 1,000-entry keystroke 2.83 → 0.01 ms; 12 MiB global budget; 368 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | T4 + T5 | Hider memo + one queue per task; field-sizing with a tested rAF fallback; 371 pass, 0 fail, 7 skipped |
