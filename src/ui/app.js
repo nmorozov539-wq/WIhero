@@ -5,7 +5,7 @@
 import { createHistory, withHistory } from './history.js';
 import { buildModel, isMoment } from '../engine/model.js';
 import { perf } from './perf.js';
-import { btn, html, createLayer, el, issueText } from './dom.js';
+import { btn, html, createLayer, el, issueText, keyed } from './dom.js';
 import { ic } from './icons.js';
 import {
     PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
@@ -410,39 +410,88 @@ export function createApp(deps) {
         return e ? (e.comment || 'New entry') : 'Entry';
     }
 
-    function renderTabs() {
-        strip.innerHTML = '';
-        tabbar.querySelector('.tright')?.remove();
-        if (S.mode === 'hero') { renderHeroTabs(); return; }
-        if (S.desk) { deskN.renderTabs(strip, tabbar); revealActiveTab(); return; }
-        for (const t of S.tabs) {
-            const p = page(t);
-            const active = t.id === S.active;
-            const b = el('button', `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`);
+    // The tab row is keyed: Home, a book tab by its book, and an entry tab by the entry it opened. A tab keeps its
+    // key while it walks its history, so going into an entry and Back keeps the same node.
+    function tabBaseKey(t) {
+        if (t.home) return 'home';
+        const root = t.history[0] ?? page(t);
+        if (root.type === 'book') return `book:${root.book}`;
+        if (root.type === 'entry') return `entry:${root.book}:${root.uid}`;
+        return `tab:${t.id}`;
+    }
+    /** Keys in tab order: a second tab with the same book or entry gets a suffix, so each node is still unique. */
+    function keyedTabs() {
+        const seen = new Map();
+        return S.tabs.map(t => {
+            const base = tabBaseKey(t);
+            const n = (seen.get(base) ?? 0) + 1;
+            seen.set(base, n);
+            return { key: n === 1 ? base : `${base}#${n}`, tab: t };
+        });
+    }
+    function tabByKey(key) {
+        for (const item of keyedTabs()) if (item.key === key) return item.tab;
+        return null;
+    }
+    function paintPhoneTab(b, t, item, active) {
+        const p = page(t);
+        b.className = `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`;
+        if (t.home) return;
+        const e = p.type === 'entry' ? library.peek(p.book)?.entries[p.uid] : null;
+        let dot = b.querySelector(':scope > .sd');
+        if (e) {
+            if (!dot) { dot = el('i', 'sd'); b.prepend(dot); }
+            dot.style.background = strategyColor(e);
+        } else dot?.remove();
+        let name = b.querySelector(':scope > .name');
+        if (!name) { name = el('span', 'name'); b.insertBefore(name, b.querySelector(':scope > .x')); }
+        name.textContent = pageTitle(p);
+        const x = b.querySelector(':scope > .x');
+        if (active && !x) {
+            const close = el('span', 'x');
+            close.innerHTML = ic('x');
+            close.setAttribute('role', 'button');
+            close.setAttribute('aria-label', 'Close tab');
+            close.addEventListener('click', ev => {
+                ev.stopPropagation();
+                const now = tabByKey(item.key);
+                if (now) closeTab(now.id);
+            });
+            b.append(close);
+        } else if (!active) x?.remove();
+    }
+    function renderPhoneTabs() {
+        keyed(strip, keyedTabs().map(item => ({
+            key: item.key,
+            update: b => paintPhoneTab(b, item.tab, item, item.tab.id === S.active),
+        })), item => {
+            const b = el('button', 'tab');
             b.type = 'button';
-            if (t.home) {
+            if (tabByKey(item.key)?.home) {
                 b.innerHTML = ic('home');
                 b.setAttribute('aria-label', 'Home');
-                b.addEventListener('click', () => { leave(); S.active = t.id; t.history = [{ type: 'home' }]; S.select = null; S.search = null; render(); });
+                b.addEventListener('click', () => {
+                    const now = tabByKey(item.key);
+                    if (!now) return;
+                    leave(); S.active = now.id; now.history = [{ type: 'home' }]; S.select = null; S.search = null; render();
+                });
             } else {
-                if (p.type === 'entry') {
-                    const e = library.peek(p.book)?.entries[p.uid];
-                    if (e) { const d = el('i', 'sd'); d.style.background = strategyColor(e); b.append(d); }
-                }
-                b.append(el('span', 'name', pageTitle(p)));
-                b.addEventListener('click', () => { if (S.active !== t.id) { S.active = t.id; S.select = null; S.search = null; render(); } });
-                if (active) {
-                    const x = el('span', 'x');
-                    x.innerHTML = ic('x');
-                    x.setAttribute('role', 'button');
-                    x.setAttribute('aria-label', 'Close tab');
-                    x.addEventListener('click', e => { e.stopPropagation(); closeTab(t.id); });
-                    b.append(x);
-                }
+                b.addEventListener('click', () => {
+                    const now = tabByKey(item.key);
+                    if (!now || S.active === now.id) return;
+                    S.active = now.id; S.select = null; S.search = null; render();
+                });
             }
-            strip.append(b);
-        }
+            return b;
+        });
         revealActiveTab();
+    }
+
+    function renderTabs() {
+        if (S.mode === 'hero') { renderHeroTabs(); return; }
+        if (S.desk) { deskN.renderTabs(strip, tabbar); revealActiveTab(); return; }
+        tabbar.querySelector(':scope > .tright')?.remove();
+        renderPhoneTabs();
     }
 
     /** Scrolls the active tab into view, only when it changed: on every draw it forced a layout each time. */

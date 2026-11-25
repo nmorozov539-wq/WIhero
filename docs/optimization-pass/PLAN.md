@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V3a — retained tab row (`src/ui/dom.js`, `app.js`, `desk.js`, `hero-shell.js`).** A small `keyed(box, items, make)` reconciler keeps tab nodes and listeners: Home, book tabs by book, entry tabs by book+uid (desk/phone) or tab object (Hero), with a suffix for duplicates. Labels, active/fixed classes, strategy dots, book icons, unsaved badges, close buttons and explain metadata update in place; handlers resolve the current tab by key at click time. `.tright` is retained and reconciled too. Panel, piece bar and inspector shells are V3b.
+
 **V4 — overlay no-op (`src/ui/canvas.js`).** `overlay(null)` on an already-clear canvas returns before touching any card. When an overlay was applied, only the nodes it classed are cleaned; a full draw resets that node set. Actual overlays still walk the cards once, as before.
 
 **V5 — link node indexes (`src/ui/canvas.js`).** A draw records `linkId → line nodes` and `linkId → hit path`, plus a queue-by-id map. `relink` now removes and redraws only the changed link's own nodes instead of scanning every `.ln`/`.lhit`. The double `JSON.stringify(mem)` around `arrange` stays deferred (§10.D).
@@ -333,7 +335,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ◐ V1, V2, V4, V5 landed; V3 retained chrome and V6 badge patching pending |
+| 3 Hero per-draw | ◐ V1, V2, V3a, V4, V5 landed; V3b panel/piece-bar/inspector and V6 badge patching pending |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -359,7 +361,7 @@ Dependencies:
 | 10 | T3 history (landed) |
 | 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions (landed) |
-| 13 | V2 `canvasSig` (landed); V3 Hero chrome pending |
+| 13 | V2 `canvasSig` (landed); V3a tab row (landed); V3b chrome shells pending |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching pending |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
 | 16 | N4 + N5 windowing and `content-visibility` |
@@ -884,6 +886,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** A Hero draw with no state change does not recreate the chrome; opening the inspector or switching a strip keeps DOM identity; labels and classes still update.
 
+**Status.** ◐ Tab row landed (V3a): `e2e/tabs.mjs` keeps Hero phone/desktop, Normal phone and desktop tab nodes and `.tright` across refresh, entry open/Back, switches, close and rename; desktop/controls/cheap pass. The entry panel, piece bar and inspector shells are still rebuilt per draw (V3b).
+
 **Risk.** Medium. Keep event listeners stable; avoid stale closures over book/state.
 
 **Source.** DeepSeek #3c; Qwen’s retained-canvas note.
@@ -1330,3 +1334,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | V1 | Per-book revisions for model, clash, Moments, canvasSig and checks; history stays global; 376 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V2 | Entry-side signature built with the model, 0.58–0.90 ms per Hero draw; content edits keep the canvas; 382 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V4 + V5 | Overlay(null) no-op; relink uses per-link node maps; 382 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | V3a | Keyed tab reconciliation, late-bound handlers, retained `.tright`; e2e tabs 5 ok |

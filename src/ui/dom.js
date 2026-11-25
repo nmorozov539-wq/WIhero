@@ -28,6 +28,39 @@ export function btn(cls, content, fn, label) {
     return b;
 }
 
+/**
+ * Keeps `box`'s keyed children in step with `items`: an existing key keeps its node and its listeners and is
+ * updated in place, a new key gets a node from `make`, and a key no longer listed is removed. Order follows
+ * `items`; the key is kept on the node's dataset.
+ * @param {HTMLElement} box
+ * @param {Array<{ key: string, update?: (node: HTMLElement) => void }>} items
+ * @param {(item: object) => HTMLElement} make
+ */
+export function keyed(box, items, make) {
+    const old = new Map();
+    for (const node of [...box.children]) {
+        const key = node.dataset.key;
+        if (key === undefined) { node.remove(); continue; }
+        if (old.has(key)) node.remove();
+        else old.set(key, node);
+    }
+    let at = box.firstChild;
+    const used = new Set();
+    for (const item of items) {
+        const key = String(item.key);
+        used.add(key);
+        let node = old.get(key);
+        if (!node) {
+            node = make(item);
+            node.dataset.key = key;
+        }
+        if (node === at) at = at.nextSibling;
+        else box.insertBefore(node, at);
+        item.update?.(node);
+    }
+    for (const [key, node] of old) if (!used.has(key)) node.remove();
+}
+
 /** An on/off switch. `fn(next)` is called with the new value; the caller redraws. */
 /**
  * Scrolls `node` to the top of the nearest scrolling box that holds it, and only that box. scrollIntoView also

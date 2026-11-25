@@ -2,7 +2,7 @@
 // a list, a book as two panes (its entries on the left, one entry, the bulk pane or Book settings on the right),
 // Ctrl/Shift-click selection instead of a selection mode, the search overlay and the keys. Phones never get here.
 // Everything it needs from the app comes in `A` (see app.js deskApi).
-import { btn, html, el, issueText, swEl } from './dom.js';
+import { btn, html, el, issueText, keyed, swEl } from './dom.js';
 import { ic, icNode, setIcon } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, compareText, duplicateEntry, entriesOf, groupEntries, paramValue, search,
@@ -100,65 +100,158 @@ export function deskNormal(A) {
         openBook(book, { sel: uid });
     }
 
+    // Keyed by what opened the tab: Home, a book tab by its book, an entry tab by its entry. The key survives walking
+    // that tab's history, so entering a book and going back to the list keeps the same node and listeners.
+    const tabBaseKey = t => {
+        if (t.home) return 'home';
+        const root = t.history[0] ?? pageOf(t);
+        if (root.type === 'book') return `book:${root.book}`;
+        if (root.type === 'entry') return `entry:${root.book}:${root.uid}`;
+        return `tab:${t.id}`;
+    };
+    function keyedTabs() {
+        const seen = new Map();
+        return S.tabs.map(t => {
+            const base = tabBaseKey(t);
+            const n = (seen.get(base) ?? 0) + 1;
+            seen.set(base, n);
+            return { key: n === 1 ? base : `${base}#${n}`, tab: t };
+        });
+    }
+    const tabByKey = key => keyedTabs().find(x => x.key === key)?.tab ?? null;
+
+    function paintTab(b, t, active) {
+        const p = pageOf(t);
+        const label = tabLabel(p);
+        b.className = `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`;
+        b.dataset.tab = t.id;
+        if (t.home) { b.title = 'Home'; return; }
+        const e = p.type === 'entry' ? library.peek(p.book)?.entries[p.uid] : null;
+        let dot = b.querySelector(':scope > .sd');
+        if (e) {
+            if (!dot) { dot = el('i', 'sd'); b.prepend(dot); }
+            dot.style.background = strategyColor(e);
+        } else dot?.remove();
+        let bookIcon = b.querySelector(':scope > .tbi');
+        if (p.type === 'book') {
+            if (!bookIcon) b.insertAdjacentHTML('afterbegin', ic('book', 's tbi'));
+        } else bookIcon?.remove();
+        const x = b.querySelector(':scope > .x');
+        let name = b.querySelector(':scope > .name');
+        if (!name) { name = el('span', 'name'); b.insertBefore(name, x); }
+        name.textContent = label;
+        let badge = b.querySelector(':scope > .badge.u');
+        if (p.book && library.unsaved?.(p.book)) {
+            if (!badge) { badge = el('span', 'badge u', 'Not saved'); b.insertBefore(badge, x); }
+        } else badge?.remove();
+        b.title = label;
+    }
+
+    function renderTabsRight(tabbar) {
+        let right = tabbar.querySelector(':scope > .tright');
+        if (!right) { right = el('div', 'tright'); tabbar.append(right); }
+        const wide = desk().normalWide === true;
+        keyed(right, [
+            { key: 'desk-search' },
+            {
+                key: 'desk-widen',
+                update: b => {
+                    setIcon(b, wide ? 'restore' : 'expand');
+                    const label = wide ? 'Drawer size' : 'Widen';
+                    b.title = label;
+                    b.setAttribute('aria-label', label);
+                },
+            },
+        ], item => {
+            if (item.key === 'desk-search') return btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
+            // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
+            return btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => {
+                const now = desk().normalWide === true;
+                desk().normalWide = !now;
+                save();
+                A.render();
+            }, wide ? 'Drawer size' : 'Widen');
+        });
+    }
+
     let dragTab = null;
     function renderTabs(strip, tabbar) {
-        for (const t of S.tabs) {
-            const p = pageOf(t);
-            const active = t.id === S.active;
-            const b = el('button', `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`);
+        keyed(strip, keyedTabs().map(item => ({
+            key: item.key,
+            update: b => paintTab(b, item.tab, item.tab.id === S.active),
+        })), item => {
+            const b = el('button', 'tab');
             b.type = 'button';
-            b.dataset.tab = t.id;
-            if (t.home) {
+            if (item.key === 'home') {
                 b.innerHTML = ic('home');
                 b.setAttribute('aria-label', 'Home');
-                b.title = 'Home';
-            } else {
-                if (p.type === 'entry') {
-                    const e = library.peek(p.book)?.entries[p.uid];
-                    if (e) { const d = el('i', 'sd'); d.style.background = strategyColor(e); b.append(d); }
-                } else if (p.type === 'book') b.insertAdjacentHTML('beforeend', ic('book', 's tbi'));
-                b.append(el('span', 'name', tabLabel(p)));
-                if (p.book && library.unsaved?.(p.book)) b.append(el('span', 'badge u', 'Not saved'));
-                b.title = tabLabel(p);
-                const x = el('span', 'x');
-                x.innerHTML = ic('x');
-                x.setAttribute('role', 'button');
-                x.setAttribute('aria-label', 'Close tab');
-                x.addEventListener('click', e => { e.stopPropagation(); A.closeTab(t.id); });
-                b.append(x);
-                b.draggable = true;
-                b.addEventListener('dragstart', e => { dragTab = t.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', tabLabel(p)); });
-                b.addEventListener('dragend', () => { dragTab = null; });
-                b.addEventListener('dragover', e => { if (dragTab && dragTab !== t.id) { e.preventDefault(); b.classList.add('dropping'); } });
-                b.addEventListener('dragleave', () => b.classList.remove('dropping'));
-                b.addEventListener('drop', e => {
-                    e.preventDefault();
-                    const from = S.tabs.findIndex(x => x.id === dragTab);
-                    if (from < 0) return;
-                    const [moved] = S.tabs.splice(from, 1);
-                    S.tabs.splice(S.tabs.findIndex(x => x.id === t.id) + (from <= S.tabs.findIndex(x => x.id === t.id) ? 1 : 0), 0, moved);
-                    A.renderTabs();
+                b.addEventListener('click', () => {
+                    const now = tabByKey(item.key);
+                    if (!now || S.active === now.id) return;
+                    now.history = [{ type: 'home' }];
+                    A.leave(); S.active = now.id; S.select = null; S.search = null; A.render();
                 });
-                // Middle-click closes.
-                b.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); A.closeTab(t.id); } });
-                b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-                b.addEventListener('contextmenu', e => { e.preventDefault(); tabMenu(t); });
+                return b;
             }
-            b.addEventListener('click', () => {
-                if (t.home && active) return;
-                if (t.home) t.history = [{ type: 'home' }];
-                if (S.active !== t.id) { A.leave(); S.active = t.id; S.select = null; S.search = null; A.render(); }
+            b.draggable = true;
+            const x = el('span', 'x');
+            x.innerHTML = ic('x');
+            x.setAttribute('role', 'button');
+            x.setAttribute('aria-label', 'Close tab');
+            x.addEventListener('click', e => {
+                e.stopPropagation();
+                const now = tabByKey(item.key);
+                if (now) A.closeTab(now.id);
             });
-            strip.append(b);
-        }
-        const right = el('div', 'tright');
-        const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
-        // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
-        const wide = desk().normalWide === true;
-        const wb = btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => { desk().normalWide = !wide; save(); A.render(); }, wide ? 'Drawer size' : 'Widen');
-        wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(sb, wb);
-        tabbar.append(right);
+            b.append(x);
+            b.addEventListener('click', () => {
+                const now = tabByKey(item.key);
+                if (!now || S.active === now.id) return;
+                A.leave(); S.active = now.id; S.select = null; S.search = null; A.render();
+            });
+            b.addEventListener('dragstart', e => {
+                const now = tabByKey(item.key);
+                if (!now) return;
+                dragTab = now.id;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', tabLabel(pageOf(now)));
+            });
+            b.addEventListener('dragend', () => {
+                dragTab = null;
+                for (const n of strip.querySelectorAll('.dropping')) n.classList.remove('dropping');
+            });
+            b.addEventListener('dragover', e => {
+                const now = tabByKey(item.key);
+                if (dragTab && now && dragTab !== now.id) { e.preventDefault(); b.classList.add('dropping'); }
+            });
+            b.addEventListener('dragleave', () => b.classList.remove('dropping'));
+            b.addEventListener('drop', e => {
+                e.preventDefault();
+                b.classList.remove('dropping');
+                const now = tabByKey(item.key);
+                const from = S.tabs.findIndex(t => t.id === dragTab);
+                const to = now ? S.tabs.findIndex(t => t.id === now.id) : -1;
+                if (from < 0 || to < 0) return;
+                const [moved] = S.tabs.splice(from, 1);
+                S.tabs.splice(S.tabs.findIndex(t => t.id === now.id) + (from <= to ? 1 : 0), 0, moved);
+                A.renderTabs();
+            });
+            // Middle-click closes.
+            b.addEventListener('auxclick', e => {
+                if (e.button !== 1) return;
+                e.preventDefault();
+                const now = tabByKey(item.key);
+                if (now) A.closeTab(now.id);
+            });
+            b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+            b.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                const now = tabByKey(item.key);
+                if (now) tabMenu(now);
+            });
+            return b;
+        });
+        renderTabsRight(tabbar);
     }
     function tabMenu(t) {
         layer.sheet(null, sh => {
