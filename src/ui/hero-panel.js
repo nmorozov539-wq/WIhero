@@ -559,5 +559,14 @@ export function createHeroPanel(A) {
         paint(shell, book, data);
     }
 
-    return { heroPanel, panelState: () => panelState() };
+    /** Terminal teardown: drops the retained panel button and aside. */
+    function dispose() {
+        if (shell) {
+            shell.pb.remove();
+            shell.p.remove();
+            shell = null;
+        }
+    }
+
+    return { heroPanel, panelState: () => panelState(), dispose };
 }

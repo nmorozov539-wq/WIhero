@@ -286,6 +286,13 @@ export function deskNormal(A) {
     /** The book page kept between draws: { page, book, data, model, sig, wrap, left, right, listWin }. */
     let bookMount = null;
 
+    /** Terminal teardown (A4): the retained desktop list's window observer and scroll work. */
+    function dispose() {
+        bookMount?.listWin?.dispose();
+        bookMount = null;
+        main.innerHTML = '';
+    }
+
     function render() {
         const p = A.page();
         // The page's name: Hero's three-column grid (and anything else keyed on it) must not outlive Hero.
@@ -1547,5 +1554,5 @@ export function deskNormal(A) {
         return false;
     }
 
-    return { render, renderTabs, back, key, openBook, openEntryTab, showInBook, openSearch, renderSearch };
+    return { render, renderTabs, back, key, openBook, openEntryTab, showInBook, openSearch, renderSearch, dispose };
 }

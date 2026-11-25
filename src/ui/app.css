@@ -314,6 +314,9 @@ input.kbox:focus { border-color: var(--accent); }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 /* While a finger pans or pinches, the world is its own GPU layer (canvas.js gesture) */
 .vp.gesture .world { will-change: transform; }
+/* A parked editor (hidden page or hidden host) keeps no promotion, even if a class is left over (A4). */
+.wih[data-paused] .vp.gesture .world,
+.wih[data-paused] .card.moving { will-change: auto; }
 svg.lk, svg.pt { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 svg.pt { z-index: 3; }
 svg.pt .port { pointer-events: all; cursor: pointer; }

@@ -196,14 +196,24 @@ export function mountCanvas(vp, d) {
     zl.addEventListener('click', () => zoomTo(1));
     vp.append(tools, zl);
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
-    vp.addEventListener('scroll', () => { vp.scrollTop = 0; vp.scrollLeft = 0; });
+    const keepScroll = () => { vp.scrollTop = 0; vp.scrollLeft = 0; };
+    vp.addEventListener('scroll', keepScroll);
     let CV = null;
     let drawn = 0; // full draws so far: a card drag notices one made under it
     let paused = false; // the page (or the editor host) is hidden: frames and timers are parked (A3)
+    let disposed = false;
     let moving = null;
     let hit = null;
     let flashTimer = null;
+    let handlesRaf = 0;
     let cam = null;
+    // Transient overlays that add document-level away listeners (Place an entry here, the pack-name box). Each one
+    // registers its own removal, so pause()/dispose() can drop it even when its own click never came.
+    const transients = new Set();
+    function dropTransients() {
+        for (const drop of [...transients]) drop();
+        transients.clear();
+    }
     /** Desktop: the cards selected on the canvas (click, Shift/Ctrl-click, a drag on empty canvas). */
     let picked = new Set();
 
@@ -233,6 +243,7 @@ export function mountCanvas(vp, d) {
     }
 
     function render() {
+        if (disposed) return;
         perf.count('canvasRenders');
         const drawAt = perf.begin('canvasDraw');
         const { m, problems = new Set(), status = () => null, chatState = false } = d.book();
@@ -909,7 +920,10 @@ export function mountCanvas(vp, d) {
         drawHandles();
         // Phones: a line just picked has its ghost dots brought into view once the strip has taken its room (half
         // the screen). A mouse has room to spare, and moving the view under it would be a surprise.
-        if (!d.desk && was !== SH.l.id) requestAnimationFrame(() => showHandlesOf(SH?.l.id));
+        if (!d.desk && was !== SH.l.id) {
+            if (handlesRaf) cancelAnimationFrame(handlesRaf);
+            handlesRaf = requestAnimationFrame(() => { handlesRaf = 0; showHandlesOf(SH?.l.id); });
+        }
     }
     function showHandlesOf(id) {
         const v = camera();
@@ -1077,11 +1091,18 @@ export function mountCanvas(vp, d) {
         b.innerHTML = ic('plus', 's');
         b.append('Place an entry here');
         Object.assign(b.style, { left: `${Math.min(Math.max(at.x - r.left, 90), r.width - 90)}px`, top: `${at.y - r.top}px` });
-        const drop = () => { b.remove(); vp.removeEventListener('pointerdown', away, true); };
+        let timer = 0;
+        const drop = () => {
+            clearTimeout(timer);
+            transients.delete(drop);
+            b.remove();
+            vp.removeEventListener('pointerdown', away, true);
+        };
         const away = ev => { if (!b.contains(ev.target)) drop(); };
         b.addEventListener('click', () => { drop(); then(pointAt(at.x, at.y)); });
         vp.append(b);
-        setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
+        transients.add(drop);
+        timer = setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
     }
     /** P with several cards picked (desktop): the pack-name box under them, as after a phone's lasso. */
     function packPrompt() {
@@ -1118,7 +1139,13 @@ export function mountCanvas(vp, d) {
         box.style.left = `${Math.max(8, Math.min(x, r.width - 300))}px`;
         box.style.top = `${Math.min(y + 8, r.height - 44)}px`;
         vp.append(box);
-        const done = () => { box.remove(); document.removeEventListener('pointerdown', away, true); };
+        let timer = 0;
+        const done = () => {
+            clearTimeout(timer);
+            transients.delete(done);
+            box.remove();
+            document.removeEventListener('pointerdown', away, true);
+        };
         const away = ev => { if (!ev.composedPath().includes(box)) done(); };
         input.addEventListener('keydown', ev => {
             ev.stopPropagation();
@@ -1139,7 +1166,8 @@ export function mountCanvas(vp, d) {
             input.placeholder = `Pack these ${uids.length}, or drag one to move them all`;
             box.classList.add('phone');
         }
-        setTimeout(() => { document.addEventListener('pointerdown', away, true); if (d.desk) input.focus(); }, 0);
+        transients.add(done);
+        timer = setTimeout(() => { document.addEventListener('pointerdown', away, true); if (d.desk) input.focus(); }, 0);
     }
 
     /** Desktop selection; `quiet` leaves telling the app to the tap that follows. */
@@ -1329,9 +1357,12 @@ export function mountCanvas(vp, d) {
         const flashed = hit != null;
         if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); }
         if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
+        if (handlesRaf) { cancelAnimationFrame(handlesRaf); handlesRaf = 0; }
         if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
         if (gestureTimer) { clearTimeout(gestureTimer); gestureTimer = null; }
         vp.classList.remove('gesture');
+        // A Place button or pack-name box adds its own document listener: it goes with the transient state.
+        dropTransients();
         const interrupted = input.pause();
         // A camera pan writes memory through saveCamera and leaves only its delayed save: flush that now.
         if (camTimer) { clearTimeout(camTimer); camTimer = null; d.save(); }
@@ -1345,10 +1376,29 @@ export function mountCanvas(vp, d) {
         return true;
     }
 
+    /** Terminal teardown (A4): all of pause(), then every listener and reference this mount owns. */
+    function dispose() {
+        if (disposed) return;
+        pause();
+        disposed = true;
+        dropTransients();
+        input.dispose();
+        vp.removeEventListener('scroll', keepScroll);
+        world.innerHTML = '';
+        CV = null;
+        OV = null;
+        OV_NODES = null;
+        SH = null;
+        hit = null;
+        moving = null;
+        cam = null;
+        picked = new Set();
+    }
+
     return {
         render, fit, centerOn, reveal, tidy, flip, pointAt, screenRect, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
         shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(), patchStatus,
-        picked: () => [...picked], setPicked, phoneFocus, pause, resume,
+        picked: () => [...picked], setPicked, phoneFocus, pause, resume, dispose,
         /** Diagnostics for the motion harness: what the canvas still has running or parked. */
         pending: () => ({ paused, view: !!viewRaf, live: !!liveRaf, ...input.pending() }),
         get view() { return CV; }, get camera() { return camera(); },

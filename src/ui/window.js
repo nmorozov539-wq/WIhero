@@ -31,16 +31,21 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
     // removed items' height to scrollTop a second time; fixGaps() is the one anchor that keeps the content still.
     host.style.overflowAnchor = 'none';
     // Scroll work is coalesced to one rAF; the handler itself only schedules.
-    host.addEventListener('scroll', () => { if (s.windowed) schedule(); }, { passive: true });
-    host.addEventListener('focusout', () => {
-        setTimeout(() => {
+    const onScroll = () => { if (s.windowed) schedule(); };
+    let focusTimer = 0;
+    const onFocusOut = () => {
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+            focusTimer = 0;
             // A hidden list is waiting for Back (N3b): keep its focused row pinned until it is shown again.
             if (host.hidden) return;
             const a = activeOf();
             if (a && host.contains(a)) return;
             if (s.focusKey !== null) { s.focusKey = null; if (s.windowed) schedule(); }
         }, 0);
-    });
+    };
+    host.addEventListener('scroll', onScroll, { passive: true });
+    host.addEventListener('focusout', onFocusOut);
     if (globalThis.ResizeObserver) {
         s.ro = new ResizeObserver(entries => {
             let changed = false;
@@ -259,6 +264,10 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
     function dispose() {
         if (s.raf) cancelAnimationFrame(s.raf);
         s.raf = 0;
+        clearTimeout(focusTimer);
+        focusTimer = 0;
+        host.removeEventListener('scroll', onScroll);
+        host.removeEventListener('focusout', onFocusOut);
         s.ro?.disconnect();
         s.ro = null;
         s.mounted.clear();

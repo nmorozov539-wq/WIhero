@@ -80,7 +80,7 @@ export function mountPieceBar(x) {
     if (!B.edit) { mountBar(x); return; }
 
     // Edit mode keeps a temporary strip of its own, rebuilt on each draw; it is the piece's form, not the bar.
-    B.pbar = null;
+    disposePieceBar(B);
     for (const n of x.main.querySelectorAll(':scope > .pbar')) n.remove();
     const bottom = el('div', 'pbar');
     x.main.append(bottom);
@@ -721,7 +721,7 @@ function mountBar(x) {
     const B = x.B;
     let shell = B.pbar;
     if (shell && (shell.book !== x.book || shell.root !== x.root || shell.desk !== !!x.desk)) {
-        shell.node.remove();
+        disposeBarShell(shell);
         shell = null;
     }
     if (!shell) shell = buildBar(x);
@@ -733,10 +733,27 @@ function mountBar(x) {
     updateBar(shell);
 }
 
+/** Lets go of a retained bar's observer and pending edge frame; the node itself goes with its parent. */
+function disposeBarShell(shell) {
+    if (!shell) return;
+    if (shell.raf) cancelAnimationFrame(shell.raf);
+    shell.raf = 0;
+    shell.ro?.disconnect();
+    shell.ro = null;
+    shell.node?.remove();
+}
+
+/** Drops the retained non-edit bar (the strip replaces it, or the editor is tearing down). */
+export function disposePieceBar(B) {
+    const shell = B?.pbar;
+    if (B) B.pbar = null;
+    disposeBarShell(shell);
+}
+
 /** Builds the bar once: the BAR list is static, so its chips and their listeners never need remaking. */
 function buildBar(x) {
     const bottom = el('div', 'pbar');
-    const shell = { book: x.book, desk: !!x.desk, root: x.root, node: bottom, api: x, armed: null, chips: new Map() };
+    const shell = { book: x.book, desk: !!x.desk, root: x.root, node: bottom, api: x, armed: null, chips: new Map(), ro: null, raf: 0 };
     const fold = btn('pfold', ic('down', 's'), () => {
         const a = shell.api;
         a.setFolded(!a.folded());
@@ -766,7 +783,10 @@ function buildBar(x) {
     const more = btn('pmore', ic('right', 's'), () => bar.scrollBy({ left: bar.clientWidth * 0.7, behavior: 'smooth' }), 'More pieces');
     explainNode(more, 'shell.morePieces', { title: 'More pieces' });
     bar.addEventListener('scroll', () => edges(shell), { passive: true });
-    if (typeof ResizeObserver === 'function') new ResizeObserver(() => edges(shell)).observe(bar);
+    if (typeof ResizeObserver === 'function') {
+        shell.ro = new ResizeObserver(() => edges(shell));
+        shell.ro.observe(bar);
+    }
     Object.assign(shell, { fold, bar, more });
     bottom.append(fold, bar, more);
     return shell;
@@ -794,7 +814,8 @@ function updateBar(shell) {
     if (shell.more.parentNode !== shell.node) shell.bar.after(shell.more);
     armOverlay(shell);
     syncBanner(shell);
-    requestAnimationFrame(() => edges(shell));
+    if (shell.raf) cancelAnimationFrame(shell.raf);
+    shell.raf = requestAnimationFrame(() => { shell.raf = 0; edges(shell); });
 }
 
 /** The fade/arrow state at the bar's cut edges. */

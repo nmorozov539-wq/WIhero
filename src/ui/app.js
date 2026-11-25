@@ -14,6 +14,7 @@ import {
 } from './data.js';
 import { createSearchCache } from './search.js';
 import { createPageMotion } from './page-motion.js';
+import { createDisposer } from './lifecycle.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook, offCanvasMoments } from './canvas-graph.js';
 import { canvasElementSig, canvasElements } from './canvas-sig.js';
@@ -122,14 +123,19 @@ export function createApp(deps) {
     shadow.append(link, root);
     document.body.append(host);
     const layer = createLayer(layerBox, toastBox);
+    // Everything the editor owns outside its retained DOM: page-motion and window listeners, the theme and width
+    // observers, and a pending focus/redraw timer. `destroy()` runs it once (A4); `hide()` stays non-destructive.
+    const life = createDisposer();
+    let destroyed = false;
 
     // Optional motion and background draws pause while the page is hidden (A3). The listener belongs to the editor
     // chunk, so a never-opened editor pays nothing; a missing visibility API is the visible path. The same attribute
     // also parks CSS motion, and `hide()` keeps it on while the host itself is hidden.
     const pageMotion = createPageMotion();
+    let themeWatch = null;
     function syncPaused() { root.toggleAttribute('data-paused', pageMotion.hidden() || host.hidden); }
     syncPaused();
-    pageMotion.listen(() => onPageChange());
+    life.add(pageMotion.listen(() => onPageChange()));
 
     // The tone is read once per theme change, not on every draw. The cache lives here so two apps never share it.
     let tone = null;
@@ -137,10 +143,11 @@ export function createApp(deps) {
     link.addEventListener('load', () => { tone = null; if (!host.hidden) render(); });
     if (globalThis.MutationObserver) {
         const clearTone = () => { tone = null; };
-        const themeWatch = new MutationObserver(clearTone);
+        themeWatch = new MutationObserver(clearTone);
         const themeAttrs = { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] };
         themeWatch.observe(document.documentElement, themeAttrs);
         if (document.body) themeWatch.observe(document.body, themeAttrs);
+        life.add(() => themeWatch?.disconnect());
     }
     function toneNow() {
         return (tone ??= toneOf(root));
@@ -150,14 +157,16 @@ export function createApp(deps) {
     for (const type of ['keydown', 'keyup', 'keypress']) {
         host.addEventListener(type, e => e.stopPropagation());
         // An inert transaction view can leave focus on the page body; keep its keys out of ST too.
-        window.addEventListener(type, e => {
+        const keepKeys = e => {
             if (!host.hidden && library.operationText?.()) { e.preventDefault(); e.stopImmediatePropagation(); }
-        }, true);
+        };
+        window.addEventListener(type, keepKeys, true);
+        life.add(() => window.removeEventListener(type, keepKeys, true));
     }
     // Escape is Back while WI Hero is open, wherever the focus is (LAYOUT "Back").
     // Desktop keys (LAYOUT "Keys"): Ctrl K anywhere while WI Hero is open, the rest inside it.
-    window.addEventListener('keydown', e => {
-        if (library.operationText?.() || !S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
+    const onWindowKeys = e => {
+        if (destroyed || library.operationText?.() || !S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
         if (document.querySelector('.popup[open], dialog[open]')) return;
         // In Hero mode a click on the list or the canvas can leave the focus on the page itself.
         const inside = e.composedPath().includes(host) || (S.mode === 'hero' && document.activeElement === document.body);
@@ -179,9 +188,11 @@ export function createApp(deps) {
         if (!inside && !ctrlK) return;
         const took = S.mode === 'hero' ? heroKey(e) : deskN.key(e);
         if (took) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
-    window.addEventListener('keydown', e => {
-        if (library.operationText?.() || e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
+    };
+    window.addEventListener('keydown', onWindowKeys, true);
+    life.add(() => window.removeEventListener('keydown', onWindowKeys, true));
+    const onWindowEscape = e => {
+        if (destroyed || library.operationText?.() || e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
         if (e.composedPath()[0]?.dataset?.ownEscape) return; // a field that cancels its own edit with Escape
         // Escape ends explain mode by itself, and never closes WI Hero.
@@ -194,7 +205,9 @@ export function createApp(deps) {
         e.preventDefault();
         e.stopPropagation();
         back();
-    }, true);
+    };
+    window.addEventListener('keydown', onWindowEscape, true);
+    life.add(() => window.removeEventListener('keydown', onWindowEscape, true));
 
     // ---------------------------------------------------------------- state (nothing here is saved, D6)
     let tabUid = 0;
@@ -216,7 +229,14 @@ export function createApp(deps) {
     };
     const deskQuery = window.matchMedia?.('(min-width: 1001px)');
     S.desk = !!deskQuery?.matches;
-    deskQuery?.addEventListener?.('change', () => { S.desk = deskQuery.matches; layer.close(); if (!host.hidden) render(); else pendingRender = true; });
+    const onDeskWidth = () => {
+        S.desk = deskQuery.matches;
+        layer.close();
+        if (!host.hidden) render();
+        else pendingRender = true;
+    };
+    deskQuery?.addEventListener?.('change', onDeskWidth);
+    if (deskQuery?.addEventListener) life.add(() => deskQuery.removeEventListener('change', onDeskWidth));
     const deskSettings = () => (settings.desk ??= {});
     const tab = () => S.tabs.find(t => t.id === S.active) ?? S.tabs[0];
     const page = (t = tab()) => t.history.at(-1);
@@ -373,7 +393,7 @@ export function createApp(deps) {
     let renderQueued = false;
     let renderFrame = 0;
     function scheduleRender() {
-        if (renderQueued) return;
+        if (destroyed || renderQueued) return;
         if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         renderQueued = true;
         renderFrame = requestAnimationFrame(() => { renderFrame = 0; renderQueued = false; refresh(); });
@@ -411,6 +431,7 @@ export function createApp(deps) {
         return !!text;
     }
     function refresh() {
+        if (destroyed) return;
         if (syncOperation()) { pendingRender = true; return; }
         if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         if (typing()) { pendingRender = true; renderTabs(); return; }
@@ -419,12 +440,26 @@ export function createApp(deps) {
     // A narrow drawer (desk.js) lays the book out as list then entry: crossing that width (Chat width, a side panel
     // beside a widened drawer) draws again.
     let wasNarrow = null;
-    if (globalThis.ResizeObserver) new ResizeObserver(() => {
-        const n = root.clientWidth > 0 && root.clientWidth < 640;
-        if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
-        wasNarrow = n;
-    }).observe(root);
-    root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) refresh(); }, 0));
+    let appRO = null;
+    if (globalThis.ResizeObserver) {
+        appRO = new ResizeObserver(() => {
+            const n = root.clientWidth > 0 && root.clientWidth < 640;
+            if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
+            wasNarrow = n;
+        });
+        appRO.observe(root);
+        life.add(() => appRO?.disconnect());
+    }
+    let focusTimer = 0;
+    root.addEventListener('focusout', () => {
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+            focusTimer = 0;
+            if (destroyed) return;
+            if (pendingRender && !typing()) refresh();
+        }, 0);
+    });
+    life.add(() => clearTimeout(focusTimer));
 
     /** The book on screen: Hero's, or the page's in Normal mode. */
     const currentBook = () => (S.mode === 'hero' ? S.hero.book : page()?.book) ?? null;
@@ -445,6 +480,7 @@ export function createApp(deps) {
     let listPane = null; // { id, page, node, focus }
 
     function render() {
+        if (destroyed) return;
         if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
@@ -718,7 +754,7 @@ export function createApp(deps) {
 
     // ---------------------------------------------------------------- open and close (D6)
     function show() {
-        if (!host.hidden) return;
+        if (destroyed || !host.hidden) return;
         host.hidden = false;
         syncPaused();
         tone = null;
@@ -728,7 +764,7 @@ export function createApp(deps) {
         deps.onVisible?.(true);
     }
     function hide() {
-        if (host.hidden) return;
+        if (destroyed || host.hidden) return;
         leave();
         cancelCounts();
         layer.close();
@@ -761,11 +797,14 @@ export function createApp(deps) {
     // Android's Back arrives as popstate: one history entry is pushed while the editor is open.
     let ignorePop = false;
     function pushBackState() { if (!history.state?.wihero) history.pushState({ wihero: true }, ''); }
-    window.addEventListener('popstate', () => {
+    const onPopState = () => {
+        if (destroyed) return;
         if (ignorePop) { ignorePop = false; return; }
         if (host.hidden) return;
         if (back() && !host.hidden) pushBackState();
-    });
+    };
+    window.addEventListener('popstate', onPopState);
+    life.add(() => window.removeEventListener('popstate', onPopState));
 
     // ---------------------------------------------------------------- Normal mode's views (normal.js)
     // Built on first use: some of what they use is defined further down this closure. The wrappers keep the names
@@ -951,7 +990,7 @@ export function createApp(deps) {
     const heroCanvas = () => heroShellView?.canvas() ?? null;
 
     // ---------------------------------------------------------------- the Guide and explain mode (explain.js)
-    const { openGuide, startExplain, stopExplain, renderGuideTab, afterRender: explainDrawn } = createExplain({
+    const { openGuide, startExplain, stopExplain, renderGuideTab, afterRender: explainDrawn, dispose: explainDispose } = createExplain({
         S, H, root, layer, library, render: () => render(),
         showMe: key => { showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
     });
@@ -1286,8 +1325,42 @@ export function createApp(deps) {
         },
     });
 
+    /**
+     * Gives the editor back everything it owns (A4): every retained shell/list window, the canvas (frames, timers,
+     * observers, document-level away listeners, node indexes), the layer, page/window listeners and the host itself.
+     * It is terminal: later `show()`/`render()` calls do nothing, so a stale node cannot come back. `wihero.app` stays
+     * readable after it; only a fresh page makes a new editor.
+     */
+    function destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        if (!host.hidden) deps.onVisible?.(false);
+        if (renderFrame) cancelAnimationFrame(renderFrame);
+        renderFrame = 0;
+        renderQueued = false;
+        pendingRender = false;
+        cancelCounts();
+        loader.cancel();
+        life.dispose();
+        try { layer.close(); } catch { /* a closing layer has nothing left to do */ }
+        layer.dispose?.();
+        heroShellView?.dispose?.();
+        explainDispose?.();
+        heroBarView?.dispose?.();
+        heroPanelView?.dispose?.();
+        heroInspView?.dispose?.();
+        heroDeskView?.dispose?.();
+        deskN.dispose?.();
+        normalView?.dispose?.();
+        if (history.state?.wihero) { ignorePop = true; try { history.back(); } catch { /* no history to step */ } }
+        listPane = null;
+        themeWatch = null;
+        appRO = null;
+        host.remove();
+    }
+
     return {
-        show, hide, toggle, isOpen, refresh, host, back, openBook,
+        show, hide, toggle, isOpen, refresh, host, back, openBook, destroy,
         /** For the library (M2): Home's count from a summary, and the books it may not evict. */
         summarizeBook, pinnedBooks,
         /** For the in-ST checks. */

@@ -10,13 +10,23 @@
  */
 let SPACE = false;
 let spaceVp = null;
+let spaceHolders = 0;
+const onSpaceUp = e => { if (e.key === ' ' && SPACE) holdSpace(false); };
+const onSpaceBlur = () => { if (SPACE) holdSpace(false); };
+/** The page-level Space release is shared by every mounted canvas and goes when the last one does. */
+function retainSpace() {
+    if (spaceHolders++) return;
+    window.addEventListener('keyup', onSpaceUp, true);
+    window.addEventListener('blur', onSpaceBlur);
+}
+function releaseSpace() {
+    if (!spaceHolders || --spaceHolders) return;
+    window.removeEventListener('keyup', onSpaceUp, true);
+    window.removeEventListener('blur', onSpaceBlur);
+}
 export function holdSpace(on) {
     SPACE = on;
     spaceVp?.classList.toggle('spacepan', on);
-}
-if (typeof window !== 'undefined') {
-    window.addEventListener('keyup', e => { if (e.key === ' ' && SPACE) holdSpace(false); }, true);
-    window.addEventListener('blur', () => { if (SPACE) holdSpace(false); });
 }
 
 /**
@@ -68,7 +78,9 @@ export function mouseInput(C, I) {
     }
 
     function wire() {
-        vp.addEventListener('wheel', e => {
+        retainSpace();
+        spaceVp = vp;
+        const onWheel = e => {
             e.preventDefault();
             const v = C.camera();
             if (!v) return;
@@ -80,12 +92,16 @@ export function mouseInput(C, I) {
             v.ty += step.pan[1];
             C.viewLater();
             C.saveCamera();
-        }, { passive: false });
+        };
         // The middle button pans: no autoscroll (Windows) and no paste (Linux) on the canvas.
-        vp.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-        vp.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+        const onDown = e => { if (e.button === 1) e.preventDefault(); };
+        const onAux = e => { if (e.button === 1) e.preventDefault(); };
+        vp.addEventListener('wheel', onWheel, { passive: false });
+        vp.addEventListener('mousedown', onDown);
+        vp.addEventListener('auxclick', onAux);
+        wire.handlers = { onWheel, onDown, onAux };
         if (!d.desk) return;
-        vp.addEventListener('pointermove', e => {
+        const onMove = e => {
             if (I.pts.size || e.buttons || e.pointerType === 'touch') return;
             const c = e.target.closest?.('.card[data-id]');
             const onHandles = e.target.closest?.('.hhandles');
@@ -119,9 +135,9 @@ export function mouseInput(C, I) {
             if (C.focusKey) C.clearFocus();
             clearTimeout(leaveTimer);
             leaveTimer = setTimeout(() => { C.hoverKey = null; litKey = null; clearTimeout(focusTimer); C.hideHandles(); }, 160);
-        });
-        vp.addEventListener('pointerleave', () => { clearTimeout(focusTimer); C.hoverKey = null; C.hideHandles(); unlightLine(); C.clearFocus(); });
-        vp.addEventListener('dblclick', e => {
+        };
+        const onLeave = () => { clearTimeout(focusTimer); C.hoverKey = null; C.hideHandles(); unlightLine(); C.clearFocus(); };
+        const onDbl = e => {
             if (e.target.closest?.('button, input, .lasso, .placeoffer')) return;
             // The press captured the pointer, so the event's target is the view: look under the pointer instead.
             const SH = C.SH;
@@ -135,27 +151,52 @@ export function mouseInput(C, I) {
             if (key && (key.startsWith('id:') || key.startsWith('uid:'))) d.openText?.(key);
             // Double-click empty canvas: Add to canvas here, at that spot (#10).
             else if (!h && !C.OV && !SH && !e.target.closest?.('.hhandles')) d.addHere?.(C.pointAt(e.clientX, e.clientY));
-        });
+        };
         // The right button only moves the view: no menu on the canvas, the browser's or ours.
-        vp.addEventListener('contextmenu', e => {
+        const onMenu = e => {
             if (e.target.closest('.canvas-tools, .panelBtn, .lasso input')) return;
             e.preventDefault();
-        });
+        };
+        vp.addEventListener('pointermove', onMove);
+        vp.addEventListener('pointerleave', onLeave);
+        vp.addEventListener('dblclick', onDbl);
+        vp.addEventListener('contextmenu', onMenu);
+        wire.handlers = { ...wire.handlers, onMove, onLeave, onDbl, onMenu };
+    }
+
+    function dispose() {
+        pause();
+        const h = wire.handlers;
+        if (h) {
+            vp.removeEventListener('wheel', h.onWheel);
+            vp.removeEventListener('mousedown', h.onDown);
+            vp.removeEventListener('auxclick', h.onAux);
+            if (h.onMove) vp.removeEventListener('pointermove', h.onMove);
+            if (h.onLeave) vp.removeEventListener('pointerleave', h.onLeave);
+            if (h.onDbl) vp.removeEventListener('dblclick', h.onDbl);
+            if (h.onMenu) vp.removeEventListener('contextmenu', h.onMenu);
+        }
+        wire.handlers = null;
+        if (spaceVp === vp) spaceVp = null;
+        releaseSpace();
+    }
+
+    /** Hover timers do not run while the page is hidden (A3). */
+    function pause() {
+        clearTimeout(focusTimer);
+        clearTimeout(lineTimer);
+        clearTimeout(leaveTimer);
+        C.hoverKey = null;
+        litKey = null;
+        litLine = null;
+        C.hideHandles?.();
+        unlightLine();
     }
 
     return {
         wire,
-        /** Hover timers do not run while the page is hidden (A3). */
-        pause() {
-            clearTimeout(focusTimer);
-            clearTimeout(lineTimer);
-            clearTimeout(leaveTimer);
-            C.hoverKey = null;
-            litKey = null;
-            litLine = null;
-            C.hideHandles?.();
-            unlightLine();
-        },
+        dispose,
+        pause,
         /** A press: the right and middle buttons (and Space with the left) start a camera drag; others are ignored. */
         down(e) {
             if (e.button === 0 || e.button === 1 || e.button === 2) return I.pts.size > 0; // one pointer at a time

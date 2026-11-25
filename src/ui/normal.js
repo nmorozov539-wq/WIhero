@@ -377,6 +377,7 @@ export function createNormal(A) {
     // maths, the height cache and the focused-row pin; the estimates here are a 54 px entry row (the CSS min-height),
     // a 44 px folder head and a 96 px note. Books of 200 shown entries or fewer keep every row, as before.
     const bookWindows = new WeakMap();
+    const windowRefs = [];
 
     /** The mounted-height cache and window state for one retained book `.view`. */
     function bookWindow(v) {
@@ -384,8 +385,15 @@ export function createNormal(A) {
         if (!win) {
             win = createListWindow(v, { defaultHeight: 54 });
             bookWindows.set(v, win);
+            windowRefs.push(typeof WeakRef === 'function' ? new WeakRef(win) : { deref: () => win });
         }
         return win;
+    }
+
+    /** Terminal teardown (A4): every retained phone window's scroll/focus listener and ResizeObserver. */
+    function dispose() {
+        for (const ref of windowRefs) ref.deref()?.dispose();
+        windowRefs.length = 0;
     }
 
     /** Forgets the window (a loading/empty page): the next book list starts from the whole body again. */
@@ -1024,5 +1032,5 @@ export function createNormal(A) {
         perf.end(entryAt);
     }
 
-    return { applyParam, bottomBar, bulkEdit, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };
+    return { applyParam, bottomBar, bulkEdit, check, defaultsSheet, defaultsSummary, dispose, renderBook, renderEntry, renderHome, renderSearch, selBar };
 }

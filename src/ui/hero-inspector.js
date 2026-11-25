@@ -37,6 +37,9 @@ export function createHeroInspector(A) {
         inspShell = null;
     }
 
+    /** Terminal teardown: the retained inspector shell goes. */
+    const dispose = dropInspector;
+
     /**
      * The inspector's "Take off canvas": a card placed by hand comes off; a linked card stays while it has links, and
      * the button says why (`why`: what to remove first) instead of hiding.
@@ -288,5 +291,5 @@ export function createHeroInspector(A) {
         canvas()?.centerOn(key);
     }
 
-    return { chatGreetings, dropInspector, inspect, inspectorFor, onCanvas, showOnCanvas };
+    return { chatGreetings, dropInspector, dispose, inspect, inspectorFor, onCanvas, showOnCanvas };
 }

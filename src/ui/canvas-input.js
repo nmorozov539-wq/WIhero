@@ -199,7 +199,7 @@ export function wireInput(C) {
         return true;
     }
 
-    vp.addEventListener('pointerdown', e => {
+    const onDown = e => {
         if (e.target.closest('.canvas-tools, .panelBtn, .panel, .legend-box, .cvbanner, .placeoffer, .zlabel, .lasso')) return;
         if (!C.camera()) return;
         const R = rules(e);
@@ -213,9 +213,9 @@ export function wireInput(C) {
         if (R.press?.(e)) return; // before anything else under it (a mouse's ⋯, Space or the right button)
         if (grab(e, R === mouse)) return;
         R.empty(e); // empty canvas, a line, a pill: a mouse box-selects, a finger pans (or holds)
-    });
+    };
 
-    vp.addEventListener('pointermove', e => {
+    const onMove = e => {
         if (!I.pts.has(e.pointerId)) return;
         I.pts.set(e.pointerId, [e.clientX, e.clientY]);
         const R = rules(e);
@@ -259,7 +259,7 @@ export function wireInput(C) {
             const k = C.hitAt(e.clientX, e.clientY)?.card ?? I.magnetAt(e.clientX, e.clientY, e.pointerType);
             C.markTarget(k && k !== OV.loose.from && !OV.dim?.(k) ? { card: k } : null);
         }
-    });
+    };
 
     const end = e => {
         clearTimeout(I.holdTimer);
@@ -377,10 +377,13 @@ export function wireInput(C) {
         C.moving = null;
         I.reset();
     };
+    vp.addEventListener('pointerdown', onDown);
+    vp.addEventListener('pointermove', onMove);
     vp.addEventListener('pointerup', end);
     vp.addEventListener('pointercancel', end);
     // Keyboard: the canvas tools are buttons; a focused card opens with Enter.
-    vp.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset?.id) d.open(e.target.dataset.id); });
+    const onKey = e => { if (e.key === 'Enter' && e.target.dataset?.id) d.open(e.target.dataset.id); };
+    vp.addEventListener('keydown', onKey);
 
     mouse.wire?.();
     touch.wire?.();
@@ -412,13 +415,23 @@ export function wireInput(C) {
         I.reset();
         C.gesture(false);
         if (panned || owed) C.saveCamera();
-        if (owed) {
-            for (const n of world.querySelectorAll('.card.moving')) n.classList.remove('moving');
-            d.save();
-        }
+        // A parked editor keeps no card promotion, even when no drag state was left to save.
+        for (const n of world.querySelectorAll('.card.moving')) n.classList.remove('moving');
+        if (owed) d.save();
         return owed;
     }
 
+    /** Terminal teardown (A4): the pause cleanup, then every listener this input put on the view. */
+    function dispose() {
+        pause();
+        vp.removeEventListener('pointerdown', onDown);
+        vp.removeEventListener('pointermove', onMove);
+        vp.removeEventListener('pointerup', end);
+        vp.removeEventListener('pointercancel', end);
+        vp.removeEventListener('keydown', onKey);
+        mouse.dispose?.();
+    }
+
     /** What the canvas asks of its input: the mouse's hover state, which a draw puts back. */
-    return { mouse, touch, pause, pending: () => ({ mode: I.mode, points: I.pts.size, drag: !!dragRaf, edge: !!edgeRaf }), get mode() { return I.mode; } };
+    return { mouse, touch, pause, dispose, pending: () => ({ mode: I.mode, points: I.pts.size, drag: !!dragRaf, edge: !!edgeRaf }), get mode() { return I.mode; } };
 }

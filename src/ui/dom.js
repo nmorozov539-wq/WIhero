@@ -362,6 +362,19 @@ export function createLayer(layer, toastBox) {
     const flushToast = () => { if (current) endToast(false); };
 
     const api = { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop, onClose: null, explainActive: () => false };
+    /** Terminal teardown: drops the open layer, its waiting toast and the two page-level remember listeners. */
+    function dispose() {
+        clearTimeout(timer);
+        timer = null;
+        current = null;
+        closers.length = 0;
+        layer.innerHTML = '';
+        toastBox.innerHTML = '';
+        root.removeEventListener('pointerdown', remember, true);
+        root.removeEventListener('contextmenu', remember, true);
+        api.onClose = null;
+    }
+    api.dispose = dispose;
     return api;
 }
 

@@ -401,6 +401,8 @@ globalThis.wihero = {
     get app() { return app; },
     /** Resolves with the editor; rejects if the first open's import or wiring failed. */
     ready: editor.ready,
+    /** Terminal teardown for tests and host page unload: the editor's listeners, observers, timers and host go. */
+    dispose: () => app?.destroy?.(),
     library,
     snapshots,
     perf,

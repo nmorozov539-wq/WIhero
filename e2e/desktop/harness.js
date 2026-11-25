@@ -229,7 +229,7 @@ app = createApp({
     onVisible: open => document.getElementById('wi-button').classList.toggle('lit', open),
 });
 document.getElementById('wi-button').addEventListener('click', () => app.toggle());
-globalThis.wihero = { app, ready: Promise.resolve(app), library, settings, perf: perfCounters, ...(harnessState ? { hooks } : {}) };
+globalThis.wihero = { app, ready: Promise.resolve(app), library, settings, perf: perfCounters, dispose: () => app?.destroy?.(), ...(harnessState ? { hooks } : {}) };
 if (loadState) globalThis.wiheroHarnessLoads = loadState;
 if (perf) {
     // Left closed so the runner can time the page's first tab; the profile it actually seeded is reported with each

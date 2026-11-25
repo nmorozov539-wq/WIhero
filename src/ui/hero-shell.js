@@ -366,6 +366,7 @@ export function createHeroShell(A) {
             return;
         }
         main.innerHTML = '';
+        heroCanvas?.dispose?.();
         heroCanvas = null;
         heroMount = null;
         if (typeof H.active === 'number') {
@@ -520,8 +521,15 @@ export function createHeroShell(A) {
         return lg;
     }
 
+    /** Terminal teardown (A4): the mounted canvas, its gestures, timers, observers and indexes. */
+    function dispose() {
+        heroCanvas?.dispose?.();
+        heroCanvas = null;
+        heroMount = null;
+    }
+
     return {
         canvas: () => heroCanvas,
-        chatStatus, heroBack, heroBook, heroData, openHeroTab, renderHero, renderHeroTabs, closeHeroTab,
+        chatStatus, heroBack, heroBook, heroData, openHeroTab, renderHero, renderHeroTabs, closeHeroTab, dispose,
     };
 }
