@@ -3,6 +3,7 @@
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
 import { createHistory, withHistory } from './history.js';
+import { createLoader } from './loader.js';
 import { buildModel, isMoment } from '../engine/model.js';
 import { perf } from './perf.js';
 import { btn, html, createLayer, el, issueText, keyed } from './dom.js';
@@ -64,6 +65,9 @@ export function createApp(deps) {
     // canvas's arrows step through it.
     const undoHistory = createHistory({ library: deps.library, settings, saveSettings, held: () => !!S.hero.bar.edit });
     const library = withHistory(deps.library, undoHistory);
+    // Every book read goes through here: counts are background work, the book being opened is foreground work (M1).
+    // The library's own `get`/`loading` remains the single read path and still dedupes in-flight reads.
+    const loader = createLoader({ load: name => library.get(name) });
     // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
     filterChoices.setProvider(() => {
         const c = ctx();
@@ -273,7 +277,7 @@ export function createApp(deps) {
                 if (open) layer.toast(`Could not load ${book}: ${why}`);
                 scheduleRender();
             };
-            library.get(book).then(d => {
+            loader.enqueue(book, { foreground: true }).then(d => {
                 if (!d) { if (library.names().includes(book)) fail('it came back empty'); else waiting.delete(book); return; }
                 waiting.delete(book);
                 scheduleRender();
@@ -286,26 +290,27 @@ export function createApp(deps) {
 
     /**
      * Home's entry counts: books load in the background, a few at a time, and each count is written into its row
-     * as it comes in. Nothing is redrawn, so the list scrolls and taps while books are still loading.
+     * as it comes in. Nothing is redrawn, so the list scrolls and taps while books are still loading. The loader
+     * starts an open book ahead of this queue (M1), and leaving Home or replacing the list cancels what has not
+     * started yet and makes running count results stale (M3).
      */
-    const counting = [];
-    let countsRunning = 0;
     const countSpans = new Map(); // book → the span showing its count now
     function countInto(name, span, fmt = null) {
         if (fmt) span.dataset.bare = '1';
         countSpans.set(name, span);
-        if (!counting.includes(name)) counting.push(name);
-        pumpCounts();
+        const generation = loader.generation();
+        loader.enqueue(name).then(d => {
+            // A draw after leaving Home or replacing its list starts a new generation: an older count must not
+            // write into a detached row or a row that now belongs to another draw.
+            if (generation !== loader.generation()) return;
+            const current = countSpans.get(name);
+            if (d && current?.isConnected) current.textContent = current.dataset.bare ? String(entriesShown(name, d).length) : (n => `${n} ${n === 1 ? 'entry' : 'entries'}`)(entriesShown(name, d).length);
+        }, () => {});
     }
-    function pumpCounts() {
-        while (countsRunning < 3 && counting.length) {
-            const name = counting.shift();
-            countsRunning++;
-            library.get(name).then(d => {
-                const span = countSpans.get(name);
-                if (d && span?.isConnected) span.textContent = span.dataset.bare ? String(entriesShown(name, d).length) : (n => `${n} ${n === 1 ? 'entry' : 'entries'}`)(entriesShown(name, d).length);
-            }, () => {}).finally(() => { countsRunning--; pumpCounts(); });
-        }
+    /** Drops queued counts, forgets their spans and makes in-flight count results stale. */
+    function cancelCounts() {
+        countSpans.clear();
+        loader.cancel();
     }
 
     /** One redraw on the next frame, however many things asked for it. */
@@ -376,10 +381,12 @@ export function createApp(deps) {
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
         shape();
-        if (S.mode === 'hero') { renderHero(); return; }
-        if (S.desk) { renderTabs(); deskN.render(); return; }
+        if (S.mode === 'hero') { cancelCounts(); renderHero(); return; }
+        if (S.desk) { cancelCounts(); renderTabs(); deskN.render(); return; }
         renderTabs();
         const p = page();
+        // Outside Home the count spans are gone or about to go: no queued count should keep loading books (M3).
+        if (p.type !== 'home') cancelCounts();
         const id = pageId(p);
         const entry = p.type === 'entry';
         // An entry opened from a book page keeps that page's list while the entry is shown. The list belongs to the
@@ -428,7 +435,11 @@ export function createApp(deps) {
             const bar = S.select ? selBar(p) : bottomBar(p);
             main.append(bar);
             if (p.type === 'book') renderBook(p, keepList ? retained.node : null);
-            else renderHome(keepList ? retained.node : null);
+            else {
+                // A fresh Home draw replaces the previous list; its queued counts belong to detached rows.
+                if (!keepList) cancelCounts();
+                renderHome(keepList ? retained.node : null);
+            }
             const node = [...main.children].find(n => n.classList?.contains('view')) ?? null;
             if (node) { node.dataset.pane = 'list'; node.dataset.page = id; }
             listPane = { id, page: p, node, focus: null };
@@ -641,6 +652,7 @@ export function createApp(deps) {
     function hide() {
         if (host.hidden) return;
         leave();
+        cancelCounts();
         layer.close();
         layer.flushToast();
         host.hidden = true;

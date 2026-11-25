@@ -235,6 +235,10 @@ The harness step changed with this work: B0's entry-open step clicked `nth(3)` a
 
 **Tests.** `test/clash-cold.test.js` runs the old pair scan as an oracle beside the new one at 1,000 × 4 shared keys, with punctuation, case changes, regex keys, Moments, permanent entries and a tokenless key; groups and every `of()` answer must match. Full suite: 337 tests, 330 pass, 0 fail, 7 skipped. `tools/perf/bench-clash-cold.mjs` records both cold shapes in a fresh process on every `npm run perf`.
 
+**M1 + M3 — shared loader and leaving Home (`src/ui/loader.js`, `src/ui/app.js`).** Every book read now goes through one loader over `library.get`, which stays the only read path and still dedupes an in-flight read. Home counts are background work with the old concurrency of three; `need(book)` is foreground work, starts at once even with three count reads running, and promotes a queued count for the same book instead of queueing it again. `cancel()` drops queued background items and bumps a generation; a count callback captures `loader.generation()` and writes its span only while `loader.isCurrent(gen)` and the span is still connected. The app clears `countSpans` and cancels when the page leaves Home (book, entry, Hero, hide) and when a fresh Home draw replaces the list; a retained Home draw does not cancel, so a count that lands while Home is up still writes its row (N1b). In-flight reads cannot be aborted, so they finish, free their slot and start nothing: the queue is empty and their callbacks are stale.
+
+Harness evidence (`e2e/load-priority.mjs`, 13 books, every read delayed 400 ms, no ST): Home starts **3** reads (max **3** at once) and leaves **10** queued; tapping a queued book makes its read the next start and the book opens while **9** books are still uncounted; **0** count reads start after leaving Home and only the three in-flight reads finish; returning Home reads the **9** uncounted books again and every visible count lands — **13** reads for **13** books, no duplicate read, max **4** at once (three background plus the opened book). Unit tests (`test/loader.test.js`, 7) pin foreground ahead of queued background, the three background slots, a cancelled name never reaching `load()`, a stale generation writing nothing, same-name dedupe, promotion of a queued load, and a failed read freeing its slot.
+
 ### 2.4 B0 baseline (2026-11-24)
 
 **Environment.** AMD Ryzen 5 3500U, 8 cores, 5.7 GB, Node 26.13.0, Chromium 158, Linux x64. Browser runs are 390 × 844, touch and mobile emulation. Labels: **measured-native** for Node and unthrottled browser, **measured-at-6x** for the throttled browser. 6× is a comparison tool, not a phone prediction; no weakest-device evidence exists yet.
@@ -378,7 +382,7 @@ Dependencies:
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
 | 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
 | 4 Normal retention | ◐ N1a/N1b keyed rows, N2a/N2b delegation, N3a desktop pane, N3b phone entry pane, N4a phone windowing and N4b desktop windowing landed; N5 `content-visibility` tested and rejected (no net win; reverted; `e2e/paint.mjs` kept). Paint/memory and in-page find/anchoring evidence: the paint recorder now exists; windowed-away find remains an N4 limit; device traces outstanding |
-| 5 Memory/loading/search | ☐ |
+| 5 Memory/loading/search | ◐ M1 loader/cancellation and M3 Home-count cancellation landed (foreground read ahead of three background reads; leaving Home drops queued counts); M2 summaries/LRU/pinning and M4 search pending |
 | 6 Launch/animation readiness | ☐ |
 
 ### 5.2 Commit slices
@@ -406,7 +410,7 @@ Dependencies:
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching (landed) |
 | 15 | N1 keyed rows, N2a/N2b phone and desktop delegation, N3a desktop pane, N3b phone entry pane (landed); N4 pending |
 | 16 | N4a phone windowing and N4b desktop `.bllist` windowing (landed); N5 `content-visibility` tested and rejected — `e2e/paint.mjs` added, no CSS kept |
-| 17 | M1 + M2 + M3 loader, eviction, counts |
+| 17 | M1 + M3 loader and Home counts (landed); M2 summaries/LRU and M4 search later |
 | 18 | M4 search |
 | 19 | L1 lazy editor |
 | 20 | A3 + A4 + A5 animation readiness |
@@ -1066,6 +1070,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Opening a large library then leaving Home stops unnecessary queued work; the current book loads ahead; memory reaches a bounded plateau across repeated navigation.
 
+**Status.** ◐ Loader half landed with M3, in `src/ui/loader.js`; the app enqueues Home counts as background work through it and `need(book)` as foreground work. `e2e/load-priority.mjs` shows three background reads, a tapped book starting ahead of ten queued counts and opening while nine books remain uncounted, and no count read starting after Home is left. The summary/eviction/pinning half is M2 and is not done; the memory-plateau part of this done condition waits for it.
+
 **Risk.** Medium. Pin open books, dirty/failed saves, in-flight operations, and any state needed for undo.
 
 **Source.** Astra #5; DeepSeek #8/#9.
@@ -1089,6 +1095,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 **Change.** Check the current view before each queued count; cancel obsolete work. Clear the retained span references.
 
 **Done when.** Leaving Home stops queued count work; the current book’s count still loads.
+
+**Status.** ✅ Landed with M1. Leaving Home (a book, an entry, Hero, hide) clears `countSpans` and drops queued count reads; a fresh Home draw that replaces the list does the same. A count already in flight still lands in a connected row while Home is showing, and opening the current book promotes its queued count read to foreground. `e2e/load-priority.mjs` checks the queue, the tap, the stop after leaving and the return Home with every visible count shown; `test/loader.test.js` pins the cancel/generation behaviour.
 
 **Risk.** Low.
 
@@ -1401,3 +1409,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | N4a | Phone book list windowed: 33 rows at the top, 51 mid, 33 at the bottom (980 before), 369 DOM nodes in the view, full 53,186 px scroll; refresh and Back 0 new row mounts; focused off-screen row pinned until blur; folder fold 31 → 0 → 31; 389 pass, 0 fail, 7 skipped; e2e window 12, normal-rows 7, entry-pane 6, delegate 11, delegate-desktop 19, home-rows 6, desk-pane 7, desktop 51, tabs 5, polish 10, cheap 12 |
 | 2026-11-25 | this commit | N4b | Window code shared (`src/ui/window.js`); desktop `.bllist` mounts 31 rows / 237 list nodes / 31 rowMounts (980 before) with 31,376 px scroll; bottom 28, middle around 490; `aria-setsize` 980 / `aria-posinset`; Arrow across an unmounted selection; focused Order input pinned (47 rows); settled refresh 0 rowMounts (45 rows at 600 px); filter 1 → rebuilt 1 → cleared 28; folder 29 → 0 → 26; drag reorder and drop on a visible folder head; N3a identity kept (34 rows); 389 pass, 0 fail, 7 skipped; e2e window-desktop 14, window 12, desk-pane 7, delegate-desktop 19, desktop 51, normal-rows 7, entry-pane 6, home-rows 6, tabs 5, cheap 12, polish 10, drawer 10 |
 | 2026-11-25 | this commit | N5 | `e2e/paint.mjs` CDP recorder; `content-visibility` on `.item.ent`/`.brow` and `.prow` trialled and rejected (desktop Paint 974 → 497 but layouts 31 → 41; 6× scroll task 1,408 → 1,594 ms phone and 989 → 1,128 ms desktop; `.prow` scroll Paint 22 → 286, task 312 → 391 ms); CSS reverted; 382 pass, 0 fail, 7 skipped; e2e window 12, window-desktop 14, explain 26, desktop 51, normal-rows 7, home-rows 6, entry-pane 6, desk-pane 7 |
+| 2026-11-25 | this commit | M1 + M3 | Shared loader (`src/ui/loader.js`) over `library.get`: foreground ahead of three background reads, queued promotion, cancel drops queued counts and bumps a generation; Home spans cleared on leave/replace; 13-book slow-read harness: 3 started / 10 queued, tap starts next and opens with 9 uncounted, 0 counts start after leaving, return reloads all 13 with no duplicate read; 396 pass, 0 fail, 7 skipped; e2e load-priority 5, home-rows 6, desktop 51, tiles 6, normal-rows 7, window 12, window-desktop 14, desk-pane 7, delegate 11, perf-harness 17 at 1× |

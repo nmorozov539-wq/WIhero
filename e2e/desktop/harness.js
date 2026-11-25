@@ -28,6 +28,11 @@ const count = (name, fallback) => {
     return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
+// `?slow=1` (or `?slow=<ms>`) delays every library read so the loader's queue and priority can be observed; any value
+// above 1 is taken as milliseconds, and 1 means the default. Without `slow` the harness reads resolve immediately.
+const slowRaw = params.get('slow');
+const slowMs = slowRaw === null ? 0 : (Number(slowRaw) > 1 ? Math.floor(Number(slowRaw)) : 120);
+
 // The disposable profile. Everything here is synthetic, like tools/perf/fixture.mjs: no real book, no ST.
 const perf = params.get('perf') === '1' ? {
     books: count('books', 40),
@@ -96,11 +101,30 @@ async function loadBooks() {
 let app = null;
 const copies = new Map();
 let version = 0;
+// The `?slow` observability hook: writes only the harness page memory. Each read records its start and how many run
+// at once; `peek` answers null until that read has finished, as SillyTavern's own cache does before a book is loaded.
+const loadState = slowMs ? { log: [], loaded: new Set(), active: 0, maxActive: 0, activeByName: new Set(), duplicate: false } : null;
 let library = {
     names: () => [...books.keys()].sort((a, b) => a.localeCompare(b)),
-    get: async name => library.peek(name),
+    get: async name => {
+        if (!loadState) return library.peek(name);
+        loadState.log.push({ name, at: performance.now() });
+        if (loadState.activeByName.has(name)) loadState.duplicate = true;
+        loadState.activeByName.add(name);
+        loadState.active++;
+        loadState.maxActive = Math.max(loadState.maxActive, loadState.active);
+        try {
+            await new Promise(resolve => setTimeout(resolve, slowMs));
+            loadState.loaded.add(name);
+            return library.peek(name);
+        } finally {
+            loadState.active--;
+            loadState.activeByName.delete(name);
+        }
+    },
     peek: name => {
         if (!books.has(name)) return null;
+        if (loadState && !loadState.loaded.has(name)) return null;
         if (!copies.has(name)) copies.set(name, structuredClone(books.get(name)));
         return copies.get(name);
     },
@@ -200,6 +224,7 @@ app = createApp({
 });
 document.getElementById('wi-button').addEventListener('click', () => app.toggle());
 globalThis.wihero = { app, library, settings, perf: perfCounters, ...(harnessState ? { hooks } : {}) };
+if (loadState) globalThis.wiheroHarnessLoads = loadState;
 if (perf) {
     // Left closed so the runner can time the page's first tab; the profile it actually seeded is reported with each
     // measurement.
