@@ -211,7 +211,7 @@ export function createHeroShell(A) {
         const { camera, ...canvas } = bs.canvas ?? {};
         const top = Object.entries(settings).filter(([k, v]) => k !== 'books' && (v === null || typeof v !== 'object'));
         const c = ctx();
-        return JSON.stringify([library.version, { ...bs, canvas }, top, [...hiddenIn(book)], c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null]);
+        return JSON.stringify([library.bookVersion(book), { ...bs, canvas }, top, [...hiddenIn(book)], c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null]);
     }
     /** The canvas kept between Hero draws of the same book: { book, data, vp, sig, data() cache }. */
     let heroMount = null;
@@ -354,8 +354,8 @@ export function createHeroShell(A) {
      * instead (Features 8); the ☰ menu keeps both rows. Nothing when no branch is dead.
      */
     function checksChip(book, data) {
-        // Counted again only when a book changed (library.version), or its pending deletes did.
-        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}`;
+        // Counted again only when a book changed (library.bookVersion(book)), or its pending deletes did.
+        const sig = `${book}|${library.bookVersion(book)}|${[...hiddenIn(book)].join(',')}`;
         if (checksMemo?.data !== data || checksMemo.sig !== sig) checksMemo = { data, sig, n: deadCount(book, data) };
         const dead = checksMemo.n;
         if (!dead) return [];

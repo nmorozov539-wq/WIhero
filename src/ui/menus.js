@@ -154,7 +154,7 @@ export function createMenus(A) {
 
     /** The ☰ menu's "Keyword clashes (n) ›" and "Dead branches (n) ›" rows, when the book has any. */
     function checkRows(sh, book, data) {
-        const n = keywordClashes(data, hiddenIn(book), library.version).groups.length;
+        const n = keywordClashes(data, hiddenIn(book), library.bookVersion(book)).groups.length;
         if (n) sh.append(layer.opt(`Keyword clashes (${n})`, () => clashesSheet(book), { val: '›', explain: { key: 'menu.clashes' } }));
         const d = deadOf(book, data).length;
         if (d) sh.append(layer.opt(`Dead branches (${d})`, () => deadSheet(book), { val: '›', explain: { key: 'menu.dead' } }));
@@ -169,7 +169,7 @@ export function createMenus(A) {
     function checkCounts(book, data) {
         return {
             dead: deadOf(book, data).length,
-            clashes: settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book), library.version).groups.length,
+            clashes: settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book), library.bookVersion(book)).groups.length,
         };
     }
 
@@ -208,7 +208,7 @@ export function createMenus(A) {
     function clashesSheet(book) {
         const data = library.peek(book);
         if (!data) return;
-        const { groups } = keywordClashes(data, hiddenIn(book), library.version);
+        const { groups } = keywordClashes(data, hiddenIn(book), library.bookVersion(book));
         const open = uid => {
             layer.close();
             const e = data.entries[uid];
@@ -544,5 +544,5 @@ export function createMenus(A) {
     }
 
     return { bookFolderSheet, bookMenu, choiceRow, checkCounts, deadCount: (book, data) => deadOf(book, data).length,
-        clashCount: (book, data) => (settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book), library.version).groups.length), checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
+        clashCount: (book, data) => (settings.markClashes === false ? 0 : keywordClashes(data, hiddenIn(book), library.bookVersion(book)).groups.length), checkRows, checksSheet, clashesSheet, deadSheet, duplicateBook, entryMenu, folderSheet, linksSheet, moveToBookSheet, newEntryFolder, openMenu, problemsSheet, renameBook, snapshotsSheet, switchRow, wiSettingsSheet };
 }

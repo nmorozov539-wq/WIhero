@@ -173,7 +173,7 @@ function momentsOf(data, revision) {
 
 /**
  * Moments only exist on the canvas: retain explicit placements and cards pulled in by story links/packs.
- * `revision` is the library's version; null computes uncached (tests and other callers). Placed Moments are
+ * `revision` is the book's revision; null computes uncached (tests and other callers). Placed Moments are
  * filtered per call, so the canvas model is only built when an unplaced one is left.
  */
 export function offCanvasMoments(data, memory, revision = null) {

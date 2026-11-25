@@ -90,6 +90,15 @@ export function createLibrary({
     const reserved = new Set();
     // A timer requests a write; only a confirmed revision makes a book clean.
     const revisions = new Map();
+    /**
+     * name → the book's revision: bumped whenever its content can change, so what is worked out from that book can
+     * be kept until its next change. A name that was never seen (or was removed) answers 0. The numbers come from
+     * one counter, so a book removed and made again never answers with its old revision.
+     */
+    const bookVersions = new Map();
+    let bookRevision = 0;
+    const bookVersion = name => bookVersions.get(name) ?? 0;
+    const bumpBook = name => bookVersions.set(name, ++bookRevision);
     const external = new Map();
     const operations = new Map();
     const revision = name => revisions.get(name) ?? { dirty: 0, saved: 0 };
@@ -97,6 +106,7 @@ export function createLibrary({
     function dirty(name) {
         const r = revision(name);
         revisions.set(name, { ...r, dirty: r.dirty + 1 });
+        bumpBook(name);
         version++;
     }
     function editable(name) {
@@ -122,7 +132,10 @@ export function createLibrary({
     const names = () => ctx().getWorldInfoNames();
     /** A book was made under this name: a rename that left it behind no longer applies (forgetReusedNames). */
     const reused = name => { if (forgetReusedNames(settings, [name])) { perf.count('settingsSaves'); saveSettings(); } };
-    /** Goes up on every change to a working copy, so what is worked out from a book can be kept until then. */
+    /**
+     * Goes up on every change to any working copy, so Home and the book list are drawn again. Caches kept for one
+     * book key on bookVersion, not this: a change to another book must not invalidate them.
+     */
     let version = 0;
 
     async function get(name) {
@@ -290,6 +303,7 @@ export function createLibrary({
             return;
         }
         external.set(name, (external.get(name) ?? 0) + 1);
+        bumpBook(name);
         version++;
         if (!isDirty(name) && !inFlight.has(name)) {
             copies.delete(name);
@@ -357,6 +371,7 @@ export function createLibrary({
         failures.delete(name);
         unsavedSet.delete(name);
         external.set(name, (external.get(name) ?? 0) + 1);
+        bumpBook(name);
         version++;
     }
 
@@ -424,6 +439,7 @@ export function createLibrary({
         cacheSeen.delete(name);
         unsavedSet.delete(name);
         revisions.delete(name);
+        bookVersions.delete(name);
         failures.delete(name);
         return result;
     }
@@ -457,11 +473,14 @@ export function createLibrary({
         try {
             if (target === from) return from;
             await flush();
+            const fromRevision = bookVersion(from);
             const data = structuredClone(await get(from));
             const wasGlobal = isGlobal(from);
             checkDestination(target, from);
             await writeOwn(target, data);
             newCopy(target);
+            // The renamed book is the same book: what was worked out for the old name carries over to the new one.
+            bookVersions.set(target, fromRevision);
             // Primary links first, so ST's delete doesn't unlink the open character.
             const $ = globalThis.jQuery;
             if ($ && $('#character_world').val() === from) $('#character_world').val(target);
@@ -476,6 +495,7 @@ export function createLibrary({
             bases.delete(from);
             cacheSeen.delete(from);
             revisions.delete(from);
+            bookVersions.delete(from);
             failures.delete(from);
             unsavedSet.delete(from);
             for (const lore of WI.world_info.charLore ?? []) {
@@ -652,7 +672,7 @@ export function createLibrary({
     return {
         unsaved: name => unsavedSet.has(name),
         operationText, externalRevision: name => external.get(name) ?? 0,
-        edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
+        edited, names, get, peek, seen, change, bookVersion, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
         exportBook, isGlobal, setGlobal, links, invalidateLinks, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }

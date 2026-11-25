@@ -479,7 +479,7 @@ export function createNormal(A) {
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             // Keyword clash marking can be turned off (☰ menu, Display); the ☰ menu's Keyword clashes row stays.
-            clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book), library.version)),
+            clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book), library.bookVersion(book))),
             lines,
             incoming: [...incoming],
             closed,

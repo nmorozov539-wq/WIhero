@@ -209,13 +209,13 @@ export function createApp(deps) {
         const own = library.peek(book) === data;
         const kept = own ? models.get(data) : null;
         const greets = greetingSignature(openCharacter(), getStringHash);
-        if (kept && kept.book === book && kept.version === library.version && kept.greets === greets) return kept.model;
+        if (kept && kept.book === book && kept.version === library.bookVersion(book) && kept.greets === greets) return kept.model;
         const at = perf.begin('model');
         const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })));
         perf.end(at);
         perf.count('modelBuilds');
         model.issuesByStKey = groupIssues(model.issues);
-        if (own) models.set(data, { book, version: library.version, greets, model });
+        if (own) models.set(data, { book, version: library.bookVersion(book), greets, model });
         return model;
     };
     /**
@@ -243,7 +243,7 @@ export function createApp(deps) {
             if (open) library.seen(book);
             const record = bookSettings(settings, book);
             const mem = canvasMemory(record);
-            const orphaned = offCanvasMoments(data, mem, library.version);
+            const orphaned = offCanvasMoments(data, mem, library.bookVersion(book));
             if (orphaned.length) {
                 library.change(book, d => {
                     for (const e of orphaned) {
@@ -1008,7 +1008,7 @@ export function createApp(deps) {
     let clashMemo = null;
     /** The book's keyword clashes for the entry panel, counted again only when a book or the setting changed. */
     function clashCount(book, data) {
-        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
+        const sig = `${book}|${library.bookVersion(book)}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
         if (clashMemo?.data !== data || clashMemo.sig !== sig) clashMemo = { data, sig, n: menus().clashCount(book, data) };
         return clashMemo.n;
     }

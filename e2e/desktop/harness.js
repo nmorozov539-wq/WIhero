@@ -114,6 +114,8 @@ let library = {
         return out;
     },
     get version() { return version; },
+    // The harness has one revision: the layout checks do not exercise per-book cache invalidation.
+    bookVersion: () => version,
     edited: name => edited.get(name) ?? null,
     save: async () => {},
     flush: async () => {},

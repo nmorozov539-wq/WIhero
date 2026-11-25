@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V1 — per-book revisions (`src/ui/st-books.js` and cache keys).** The library now keeps a monotonic per-book revision (`bookVersion(name)`, 0 when unknown) beside the global one. `dirty`, external updates, `newCopy`, remove and rename maintain it; saves that only confirm do not bump. The model cache, clash count/marking, Moments cache, Hero `canvasSig` and checks signature key the book revision, so editing B no longer invalidates A. History still uses the global version deliberately: it only looks at the open book, and a global bump forces a compare, not a lost edit.
+
 **T4 — chat hider (`src/show-in-chat.js`, `index.js`).** A per-box memo stores the message text, WI Hero on/off, model identity, author fields and rendered output; an unchanged box is not reformatted. The five render events share one pending-id queue and one timeout. `all()` reads the model and flag once. The memo clears on chat/book changes, drops pending hides, and clears on ST's `SETTINGS_UPDATED` so a formatting change cannot stale it.
 
 **T5 — textarea sizing (`src/ui/entry-page.js`, `src/ui/app.css`).** `.en textarea` uses `field-sizing: content`; when `CSS.supports` says no, the measured fit is coalesced to one rAF per frame. `e2e/sizing.mjs` forces the fallback before page scripts load, opens the 100 KB entry, and checks the first-frame height and growth on input.
@@ -325,7 +327,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ☐ |
+| 3 Hero per-draw | ◐ V1 landed; V2–V6 pending |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -350,7 +352,7 @@ Dependencies:
 | 9 | T1 + T2 save path and settings (landed) |
 | 10 | T3 history (landed) |
 | 11 | T4 + T5 chat hider and autosize (landed) |
-| 12 | V1 per-book revisions |
+| 12 | V1 per-book revisions (landed) |
 | 13 | V2 + V3 `canvasSig` and Hero chrome |
 | 14 | V4 + V5 + V6 overlay, links, status |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
@@ -848,6 +850,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Editing book B does not rebuild A; a changed gate, pack, or greeting still refreshes every affected view; chat-state changes patch badges without rerouting.
 
+**Status.** Landed for the revision and cache keys. `test/book-revisions.test.js` pins: A's edit bumps A only; two edits bump twice; a confirm-save does not bump; an external B update bumps B; remove + recreate gets a fresh number; rename carries the revision to the new name. Chat-state patching is V6, not here.
+
 **Risk.** Medium — invalidation correctness. Do not drop greeting fingerprints or ordinary ST fields from model inputs merely to improve cache hits.
 
 **Source.** Astra #2; DeepSeek #3; Qwen F3.
@@ -1311,3 +1315,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | T1 + T2 | Save bases as JSON, one payload clone, adaptive 350→1000 ms; one settings save per save; 5,000-entry save 157 → 91 ms; 363 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | T3 | Quiet runs capture at the ends only; 1,000-entry keystroke 2.83 → 0.01 ms; 12 MiB global budget; 368 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | T4 + T5 | Hider memo + one queue per task; field-sizing with a tested rAF fallback; 371 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | V1 | Per-book revisions for model, clash, Moments, canvasSig and checks; history stays global; 376 pass, 0 fail, 7 skipped |
