@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
-import { btn, delegatePress, el, html, keyed, longPress, pressable, swEl } from './dom.js';
+import { btn, delegatePress, el, html, keyed, longPress, swEl } from './dom.js';
 import { ic, setIcon } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
 import { keywordClashes } from './clashes.js';
@@ -68,6 +68,35 @@ export function createNormal(A) {
                     openIn({ type: 'entry', book, uid }, { newTab: true, background: true });
                 },
             };
+        }
+        if (node.dataset.press === 'search') {
+            const kind = node.dataset.kind;
+            const book = node.dataset.book;
+            const uid = Number(node.dataset.uid);
+            const folder = node.dataset.folder;
+            if (kind === 'entry' && book && Number.isFinite(uid)) {
+                return {
+                    onTap: () => openIn({ type: 'entry', book, uid }, { newTab: true }),
+                    onLong: () => openIn({ type: 'entry', book, uid }, { newTab: true, background: true }),
+                };
+            }
+            if (kind === 'book' && book) {
+                return {
+                    onTap: () => openIn({ type: 'book', book }, { newTab: true }),
+                    onLong: () => openIn({ type: 'book', book }, { newTab: true, background: true }),
+                };
+            }
+            if (kind === 'folder' && book && folder) {
+                return {
+                    onTap: () => { S.collapsed.delete(`${book}:folder:${folder}`); openIn({ type: 'book', book }, { newTab: true }); },
+                };
+            }
+            if (kind === 'folder' && !book && folder) {
+                return {
+                    onTap: () => { S.collapsed.delete(`home:${folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); },
+                };
+            }
+            return null;
         }
         return null;
     }
@@ -799,13 +828,11 @@ export function createNormal(A) {
                     : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
                 tx.append(el('div', 't', title), el('div', 'm', meta));
                 it.append(i, tx);
-                const behind = h.kind === 'entry' ? { type: 'entry', book: h.book, uid: h.entry.uid } : h.kind === 'book' ? { type: 'book', book: h.book } : null;
-                pressable(it, () => {
-                    if (h.kind === 'entry') openIn({ type: 'entry', book: h.book, uid: h.entry.uid }, { newTab: true });
-                    else if (h.kind === 'book') openIn({ type: 'book', book: h.book }, { newTab: true });
-                    else if (h.book) { S.collapsed.delete(`${h.book}:folder:${h.folder}`); openIn({ type: 'book', book: h.book }, { newTab: true }); }
-                    else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); }
-                }, behind && (() => openIn(behind, { newTab: true, background: true })));
+                it.dataset.press = 'search';
+                it.dataset.kind = h.kind;
+                if (h.book) it.dataset.book = h.book;
+                if (h.kind === 'entry') it.dataset.uid = h.entry.uid;
+                if (h.folder) it.dataset.folder = h.folder;
                 res.append(it);
                 perf.count('rowMounts');
             }

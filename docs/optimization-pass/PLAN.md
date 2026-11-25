@@ -124,6 +124,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **N2a — phone row delegation (`src/ui/dom.js`, `src/ui/normal.js`).** One `delegatePress(root, resolve)` on `main` replaces `pressable` on Home rows/tiles and Normal entry rows: 480 ms long press, 8 px cancel, `pressing`, button/check skip, click swallow and contextmenu, resolving the row's live book/uid at event time. Switch/more/order buttons keep their own listeners. Desktop `.drow`, search results and sheet rows stay on `pressable` for now.
 
+**N2b — desktop list and search delegation (`src/ui/desk.js`, `src/ui/normal.js`).** Desktop Home rows/tiles, book-list `.brow` rows, folder drop heads and both search lists no longer allocate row listeners. `desk.js` puts one set on the draw's `.dhome` (click, Ctrl/Shift, middle-click, Enter/Space, contextmenu, drag to a folder), on the retained `.bllist` (select, Ctrl/Shift, double-click, middle-click, contextmenu, reorder and folder drops) and on each search result box (hover, click, middle-click); events resolve the live row from `data-book`/`data-uid`/`data-folder` or the result's index. Phone search rows join N2a's `delegatePress` on `main` and keep the 480 ms long press, 8 px cancel and prevented contextmenu. Switch, ⋯, Order, folder fold/add and tab buttons keep their own listeners. `e2e/delegate-desktop.mjs` covers every surface; CDP `DOMDebugger.getEventListeners` reports 0 listeners on the Home row, one `.brow`, one desktop result and one phone result, with the delegated set on `.dhome` (10), `.bllist` (11), `.dsres` (3) and `main` (7).
+
 **N1b — keyed Home rows (`src/ui/normal.js`).** Home now keeps its `.view` too: book rows/tiles key by name, folders by folder, the header and notes by stable keys. Selection, badges, open/closed folders and labels update in place; the count span is never overwritten while a book is still loading, so an arriving count survives; scroll and focus persist. List/tiles switch keeps the view but replaces the rows.
 
 **N1a — keyed Normal book rows (`src/ui/app.js`, `src/ui/normal.js`).** A book page keeps its `.view` across a draw for the same `pageId`; the header, chips, off hint, group heads and entry rows are reconciled instead of rebuilt. Rows key by uid, group heads by book+folder, and selection/order/size/switch/problem/logic state update in place. Handlers late-bind the current entry by uid; scroll and focus survive. Home rows, the bars, the entry page and desktop panes still rebuild (N1b/N2/N3).
@@ -350,7 +352,7 @@ Dependencies:
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
 | 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
-| 4 Normal retention | ◐ N1a/N1b keyed rows, N2a phone delegation, N3a desktop pane landed; N2b, N3b–N5 pending |
+| 4 Normal retention | ◐ N1a/N1b keyed rows, N2a/N2b delegation, N3a desktop pane landed; N3b–N5 pending |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
 
@@ -377,7 +379,7 @@ Dependencies:
 | 12 | V1 per-book revisions (landed) |
 | 13 | V2 `canvasSig` (landed); V3 retained chrome (landed) |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching (landed) |
-| 15 | N1 keyed rows, N2a phone delegation, N3a desktop pane (landed); N2b/N3b pending |
+| 15 | N1 keyed rows, N2a/N2b phone and desktop delegation, N3a desktop pane (landed); N3b pending |
 | 16 | N4 + N5 windowing and `content-visibility` |
 | 17 | M1 + M2 + M3 loader, eviction, counts |
 | 18 | M4 search |
@@ -979,7 +981,7 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Long press, select mode, `swEl` stopPropagation, and taps on `button, .check` behave as before; row creation allocates no listeners.
 
-**Status.** ◐ N2a landed for the phone Home/book lists: `e2e/delegate.mjs` covers tap-open, long-press background tab with click swallowed, 8 px cancel, `.more`, switch-not-opening, select mode and the 1,000-entry book. Desktop `.drow` and search results still allocate per-row listeners (N2b).
+**Status.** ✅ N2a/N2b landed. `e2e/delegate.mjs` covers the phone Home/book lists: tap-open, long-press background tab with the click swallowed, 8 px cancel, `.more`, switch-not-opening, select mode and the 1,000-entry book. `e2e/delegate-desktop.mjs` covers desktop Home rows/tiles (tap, Ctrl-click, right-click, Enter/Space, drag to a folder, folder heads), `.brow` rows (select, Ctrl/Shift, double-click, middle-click, right-click, reorder, folder drops) and both search lists (hover, tap, middle-click, phone long press and prevented contextmenu); CDP shows no per-row listeners. Sheet and Hero panel rows keep `pressable` as agreed.
 
 **Risk.** Medium. Migrate one surface at a time (book list first); keep `pressable` for sheets/menus until proven.
 
@@ -1364,3 +1366,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | N1b | Home view and rows/tiles keyed; counts survive; e2e home-rows 6 |
 | 2026-11-25 | this commit | N2a | Phone row gestures delegated to main; e2e delegate 11 |
 | 2026-11-25 | this commit | N3a | Desktop list kept across selection/pane changes; e2e desk-pane 7 |
+| 2026-11-25 | this commit | N2b | Desktop Home rows/tiles, .brow rows, folder heads and both search lists delegated; CDP 0 per row, 10 `.dhome`, 11 `.bllist`, 3 `.dsres`, 7 `main`; 382 pass, 0 fail, 7 skipped; e2e delegate-desktop 19 |

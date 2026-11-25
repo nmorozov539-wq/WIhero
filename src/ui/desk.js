@@ -344,6 +344,8 @@ export function deskNormal(A) {
         const loose = shown.filter(n => !bookFolderOf(settings, n));
         if (groups.length) groups.push(['', loose]); else groups.push([null, loose]);
         const order = shown; // for Shift ranges
+        // One set of gesture listeners for the rows, tiles and folder drop targets in this Home draw (N2b).
+        homeGestures(v, sel, order);
         const body = el('div', view === 'list' ? 'dlist' : 'dtiles-wrap');
         v.append(body);
         let table = null;
@@ -379,18 +381,18 @@ export function deskNormal(A) {
                 if (!f && !list.length) fh.classList.add('dloose');
                 fh.querySelector('small').textContent = list.length;
                 fh.setAttribute('aria-expanded', String(open));
-                dropTarget(fh, name => { setBookFolder(settings, name, f); save(); A.render(); layer.toast(f ? `Moved to ${f}` : 'Taken out of its folder'); });
+                fh.dataset.folder = f ?? '';
                 if (table) { const r = el('div', `drow dgroup${fh.classList.contains('dloose') ? ' dloose' : ''}`); r.append(fh); target.append(r); } else target.append(fh);
             }
             if (!open) continue;
             if (table) {
                 const rowAt = perf.begin('rowMount');
-                for (const n of sorted(list)) target.append(bookRow(n, sel, order));
+                for (const n of sorted(list)) target.append(bookRow(n, sel));
                 perf.end(rowAt);
             } else {
                 const grid = el('div', 'dtiles');
                 const rowAt = perf.begin('rowMount');
-                for (const n of list) grid.append(bookTile(n, sel, order));
+                for (const n of list) grid.append(bookTile(n, sel));
                 perf.end(rowAt);
                 if (!list.length) grid.append(el('div', `dempty${f ? '' : ' dloose'}`, f ? 'Drag books here.' : 'Drop here to take it out of its folder.'));
                 target.append(grid);
@@ -406,31 +408,93 @@ export function deskNormal(A) {
             done: n => { settings.bookFolders[n] = []; save(); A.render(); },
         });
     }
-    function dropTarget(node, drop) {
-        node.addEventListener('dragover', e => { if (dragBooks) { e.preventDefault(); node.classList.add('dropping'); } });
-        node.addEventListener('dragleave', () => node.classList.remove('dropping'));
-        node.addEventListener('drop', e => { e.preventDefault(); node.classList.remove('dropping'); const list = dragBooks; dragBooks = null; for (const n of list ?? []) drop(n); });
-    }
     let dragBooks = null;
-    /** Click, Ctrl/middle-click, Shift-click, right-click and drag on a book (tile or row). */
-    function bookGestures(node, name, sel, order) {
+    /** Marks a Home book row or tile for the delegated gestures (N2b). */
+    function bookPress(node, name) {
+        node.dataset.dpress = 'book';
         node.dataset.book = name;
         node.tabIndex = 0;
         node.draggable = true;
-        node.addEventListener('dragstart', e => { dragBooks = sel?.has(name) ? [...sel] : [name]; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', name); main.querySelector('.dhome')?.classList.add('dragging'); });
-        node.addEventListener('dragend', () => { dragBooks = null; main.querySelector('.dhome')?.classList.remove('dragging'); });
-        node.addEventListener('click', e => {
-            if (e.target.closest('.dcheck, .more')) return;
+    }
+    /**
+     * One set of gesture listeners for Home's book rows and tiles, and the folder heads they drop on. Each event
+     * resolves the live row from `[data-dpress]` and the book name from its dataset.
+     */
+    function homeGestures(v, sel, order) {
+        const bookOf = e => {
+            const node = e.target.closest('[data-dpress="book"]');
+            return node && v.contains(node) ? node.dataset.book : null;
+        };
+        const folderOf = e => {
+            const fh = e.target.closest('.dfolder');
+            return fh && v.contains(fh) ? fh : null;
+        };
+        v.addEventListener('click', e => {
+            const name = bookOf(e);
+            if (!name || e.target.closest('.dcheck, .more')) return;
             if (e.shiftKey && sel?.size) { rangeSelect(name, order); return; }
             if (e.shiftKey) { toggleBook(name); return; }
             if (e.ctrlKey || e.metaKey) { openFromHome(name, true); return; }
             if (sel?.size) { toggleBook(name); return; }
             openFromHome(name, false);
         });
-        node.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); openFromHome(name, true); } });
-        node.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-        node.addEventListener('keydown', e => { if (e.key === 'Enter') openFromHome(name, e.ctrlKey); else if (e.key === ' ') { e.preventDefault(); toggleBook(name); } });
-        node.addEventListener('contextmenu', e => { e.preventDefault(); bookMenu(name); });
+        v.addEventListener('auxclick', e => {
+            if (e.button !== 1) return;
+            const name = bookOf(e);
+            if (name) { e.preventDefault(); openFromHome(name, true); }
+        });
+        v.addEventListener('mousedown', e => { if (e.button === 1 && bookOf(e)) e.preventDefault(); });
+        v.addEventListener('keydown', e => {
+            const name = bookOf(e);
+            if (!name) return;
+            if (e.key === 'Enter') openFromHome(name, e.ctrlKey);
+            else if (e.key === ' ') { e.preventDefault(); toggleBook(name); }
+        });
+        v.addEventListener('contextmenu', e => {
+            const name = bookOf(e);
+            if (!name) return;
+            e.preventDefault();
+            bookMenu(name);
+        });
+        v.addEventListener('dragstart', e => {
+            const name = bookOf(e);
+            if (!name) return;
+            dragBooks = sel?.has(name) ? [...sel] : [name];
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', name);
+            main.querySelector('.dhome')?.classList.add('dragging');
+        });
+        v.addEventListener('dragend', () => {
+            dragBooks = null;
+            main.querySelector('.dhome')?.classList.remove('dragging');
+            for (const n of v.querySelectorAll('.dfolder.dropping')) n.classList.remove('dropping');
+        });
+        // Folder heads take a dragged book: dragover and drop bubble here from the head the pointer is over.
+        v.addEventListener('dragover', e => {
+            const fh = folderOf(e);
+            if (!fh || !dragBooks) return;
+            e.preventDefault();
+            fh.classList.add('dropping');
+        });
+        v.addEventListener('dragleave', e => {
+            const fh = folderOf(e);
+            if (fh && !fh.contains(e.relatedTarget)) fh.classList.remove('dropping');
+        });
+        v.addEventListener('drop', e => {
+            const fh = folderOf(e);
+            if (!fh) return;
+            e.preventDefault();
+            fh.classList.remove('dropping');
+            const list = dragBooks;
+            dragBooks = null;
+            const folder = fh.dataset.folder ?? '';
+            for (const n of list ?? []) {
+                setBookFolder(settings, n, folder);
+                save();
+                A.render();
+                layer.toast(folder ? `Moved to ${folder}` : 'Taken out of its folder');
+            }
+        });
     }
     function openFromHome(name, background) {
         if (settings.openInHero && !background) { A.openHero(name); return; }
@@ -470,7 +534,7 @@ export function deskNormal(A) {
         if (!data) A.countInto(name, s);
         return s;
     }
-    function bookTile(name, sel, order) {
+    function bookTile(name, sel) {
         const on = !!sel?.has(name);
         const t = el('div', `tile${on ? ' sel' : ''}`);
         t.setAttribute('role', 'button');
@@ -488,11 +552,11 @@ export function deskNormal(A) {
         t.append(m);
         t.append(check(on, () => toggleBook(name), `Select ${name}`));
         t.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));
-        bookGestures(t, name, sel, order);
+        bookPress(t, name);
         perf.count('rowMounts');
         return t;
     }
-    function bookRow(name, sel, order) {
+    function bookRow(name, sel) {
         const on = !!sel?.has(name);
         const r = el('div', `drow dbook${on ? ' sel' : ''}`);
         r.setAttribute('role', 'row');
@@ -511,7 +575,7 @@ export function deskNormal(A) {
         const more = el('span', 'c-more');
         more.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));
         r.append(more);
-        bookGestures(r, name, sel, order);
+        bookPress(r, name);
         perf.count('rowMounts');
         return r;
     }
@@ -695,6 +759,7 @@ export function deskNormal(A) {
         list.setAttribute('aria-label', `Entries of ${book}`);
         list.setAttribute('aria-multiselectable', 'true');
         left.append(list);
+        listGestures(list, p, book);
         let order = [];
         const shownNow = () => {
             const q = (p.q ?? '').trim().toLowerCase();
@@ -717,7 +782,7 @@ export function deskNormal(A) {
                     t.querySelector('small').textContent = items.length;
                     t.setAttribute('aria-expanded', String(open));
                     fh.append(t, btn('fadd', ic('plus', 's'), () => newEntry(p, book, grp), `New entry in ${grp}`));
-                    entryDrop(fh, book, grp, p);
+                    fh.dataset.folder = grp;
                     list.append(fh);
                     if (!open) continue;
                 }
@@ -726,8 +791,6 @@ export function deskNormal(A) {
                 perf.end(rowAt);
             }
             if (!shown.length) list.append(el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'));
-            // Drop on the empty list: No folder.
-            entryDrop(list, book, '', p, true);
         }
         fill();
         list.addEventListener('keydown', e => listKeys(e, p, book, () => order));
@@ -785,56 +848,153 @@ export function deskNormal(A) {
         const sw = swEl(!e.disable, v => library.change(book, d => { d.entries[e.uid].disable = !v; }), `${titleOf(e)} on`);
         sw.classList.add('sm');
         r.append(sw, btn('more', ic('more', 's'), ev => { ev.stopPropagation(); entryMenu(p, book, e.uid, ev.currentTarget); }, `${titleOf(e)} actions`));
-        r.addEventListener('click', ev => {
-            if (ev.target.closest('button')) return;
-            if (ev.ctrlKey || ev.metaKey) { toggleSel(p, e.uid); return; }
-            if (ev.shiftKey) { rangeSel(p, book, e.uid); return; }
-            select(p, e.uid);
-        });
-        r.addEventListener('dblclick', ev => { if (!ev.target.closest('button')) openEntryTab(book, e.uid); });
-        r.addEventListener('auxclick', ev => { if (ev.button === 1) { ev.preventDefault(); openEntryTab(book, e.uid, { background: true }); } });
-        r.addEventListener('mousedown', ev => { if (ev.button === 1) ev.preventDefault(); });
-        r.addEventListener('contextmenu', ev => { ev.preventDefault(); entryMenu(p, book, e.uid); });
-        r.addEventListener('dragstart', ev => {
-            dragEntries = { book, uids: p.select?.has(e.uid) ? [...p.select] : [e.uid] };
-            ev.dataTransfer.effectAllowed = 'move';
-            ev.dataTransfer.setData('text/plain', titleOf(e));
-        });
-        r.addEventListener('dragend', () => { dragEntries = null; });
-        rowDrop(r, p, book, e);
         perf.count('rowMounts');
         return r;
     }
     let dragEntries = null;
+    let dropRow = null;
+    const clearDropRow = () => { dropRow?.classList.remove('dropbefore', 'dropafter'); dropRow = null; };
+    const overHalf = (r, ev) => { const b = r.getBoundingClientRect(); return ev.clientY > b.top + b.height / 2; };
 
     /**
+     * One set of gesture listeners for the desktop book list's entry rows and its folder drop targets (N2b). The row
+     * is resolved from `.brow`/`data-uid` at event time; the switch, ⋯ and Order box keep their own listeners.
+     *
      * Drag to reorder (#42): dropping on a row puts the dragged entries just above or below it. Only in the Order
      * sort, where the list shows ST's order; it writes displayIndex, never the Order parameter. A row in another
      * folder takes them into that folder too. Ctrl+Z puts both back.
      */
-    function rowDrop(r, p, book, e) {
-        const ok = () => !!dragEntries && dragEntries.book === book && A.sortBy() === 'order' && !dragEntries.uids.includes(e.uid);
-        const below = ev => { const b = r.getBoundingClientRect(); return ev.clientY > b.top + b.height / 2; };
-        const clear = () => r.classList.remove('dropbefore', 'dropafter');
-        r.addEventListener('dragover', ev => {
-            if (!ok()) return;
+    function listGestures(list, p, book) {
+        const rowOf = e => {
+            const r = e.target.closest('.brow');
+            return r && list.contains(r) ? r : null;
+        };
+        const folderHeadOf = e => {
+            const fh = e.target.closest('.blfold');
+            return fh && list.contains(fh) ? fh : null;
+        };
+        const uidOf = r => Number(r?.dataset.uid);
+        list.addEventListener('click', e => {
+            const r = rowOf(e);
+            if (!r || e.target.closest('button')) return;
+            const uid = uidOf(r);
+            if (!Number.isFinite(uid)) return;
+            if (e.ctrlKey || e.metaKey) { toggleSel(p, uid); return; }
+            if (e.shiftKey) { rangeSel(p, book, uid); return; }
+            select(p, uid);
+        });
+        list.addEventListener('dblclick', e => {
+            const r = rowOf(e);
+            if (!r || e.target.closest('button')) return;
+            const uid = uidOf(r);
+            if (Number.isFinite(uid)) openEntryTab(book, uid);
+        });
+        list.addEventListener('auxclick', e => {
+            if (e.button !== 1) return;
+            const r = rowOf(e);
+            if (!r) return;
+            e.preventDefault();
+            const uid = uidOf(r);
+            if (Number.isFinite(uid)) openEntryTab(book, uid, { background: true });
+        });
+        list.addEventListener('mousedown', e => { if (e.button === 1 && rowOf(e)) e.preventDefault(); });
+        list.addEventListener('contextmenu', e => {
+            const r = rowOf(e);
+            if (!r) return;
+            e.preventDefault();
+            const uid = uidOf(r);
+            if (Number.isFinite(uid)) entryMenu(p, book, uid);
+        });
+        list.addEventListener('dragstart', e => {
+            const r = rowOf(e);
+            if (!r) return;
+            const uid = uidOf(r);
+            const entry = library.peek(book)?.entries?.[uid];
+            if (!entry) return;
+            dragEntries = { book, uids: p.select?.has(uid) ? [...p.select] : [uid] };
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', titleOf(entry));
+        });
+        list.addEventListener('dragend', () => {
+            dragEntries = null;
+            clearDropRow();
+            list.classList.remove('dropping');
+            for (const n of list.querySelectorAll('.blfold.dropping')) n.classList.remove('dropping');
+        });
+        const dropInFolder = (folder, ev) => {
             ev.preventDefault();
             ev.stopPropagation();
-            const after = below(ev);
+            const data = library.peek(book);
+            for (const u of dragEntries.uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], folder);
+            dragEntries = null;
+            save();
+            A.render();
+            layer.toast(folder ? `Moved to ${folder}` : 'Moved to No folder');
+        };
+        list.addEventListener('dragover', e => {
+            if (!dragEntries || dragEntries.book !== book) return;
+            const fh = folderHeadOf(e);
+            if (fh) {
+                e.preventDefault();
+                list.classList.remove('dropping');
+                clearDropRow();
+                fh.classList.add('dropping');
+                return;
+            }
+            const r = rowOf(e);
+            if (!r) {
+                clearDropRow();
+                // The empty list (or its note) is the No folder target.
+                if (e.target === list || e.target.closest('.blnone')) {
+                    e.preventDefault();
+                    list.classList.add('dropping');
+                }
+                return;
+            }
+            const uid = uidOf(r);
+            if (A.sortBy() !== 'order' || !Number.isFinite(uid) || dragEntries.uids.includes(uid)) { clearDropRow(); return; }
+            e.preventDefault();
+            e.stopPropagation();
+            const after = overHalf(r, e);
+            if (dropRow && dropRow !== r) clearDropRow();
+            dropRow = r;
             r.classList.toggle('dropafter', after);
             r.classList.toggle('dropbefore', !after);
         });
-        r.addEventListener('dragleave', clear);
-        r.addEventListener('drop', ev => {
-            clear();
-            if (!ok()) return;
-            ev.preventDefault();
-            ev.stopPropagation();
-            const after = below(ev);
+        list.addEventListener('dragleave', e => {
+            const fh = folderHeadOf(e);
+            if (fh && !fh.contains(e.relatedTarget)) fh.classList.remove('dropping');
+            if (!list.contains(e.relatedTarget)) { list.classList.remove('dropping'); clearDropRow(); }
+        });
+        list.addEventListener('drop', e => {
+            const fh = folderHeadOf(e);
+            if (fh) {
+                fh.classList.remove('dropping');
+                list.classList.remove('dropping');
+                if (!dragEntries || dragEntries.book !== book) return;
+                dropInFolder(fh.dataset.folder ?? '', e);
+                return;
+            }
+            clearDropRow();
+            const r = rowOf(e);
+            if (!r) {
+                list.classList.remove('dropping');
+                // Dropped on the empty list or its note: No folder.
+                if ((e.target === list || e.target.closest('.blnone')) && dragEntries?.book === book) dropInFolder('', e);
+                return;
+            }
+            if (!dragEntries || dragEntries.book !== book || A.sortBy() !== 'order') return;
+            const uid = uidOf(r);
+            if (!Number.isFinite(uid) || dragEntries.uids.includes(uid)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const after = overHalf(r, e);
             const { uids } = dragEntries;
             dragEntries = null;
             const data = library.peek(book);
-            const folder = A.entryFolder(book, e);
+            const entry = data.entries[uid];
+            if (!entry) return;
+            const folder = A.entryFolder(book, entry);
             const oldFolders = new Map();
             for (const u of uids) {
                 const x = data.entries[u];
@@ -844,31 +1004,11 @@ export function deskNormal(A) {
             }
             if (oldFolders.size) save();
             let moved = null;
-            library.change(book, d => { moved = reorderEntries(d, uids, e.uid, after); }, { quiet: true });
+            library.change(book, d => { moved = reorderEntries(d, uids, uid, after); }, { quiet: true });
             A.render();
             if (!moved && !oldFolders.size) return;
             const n = uids.length;
             layer.toast(n === 1 ? `Moved ${titleOf(data.entries[uids[0]] ?? {})}` : `Moved ${n} entries`);
-        });
-    }
-    function entryDrop(node, book, folder, p, onlySelf = false) {
-        node.addEventListener('dragover', e => {
-            if (!dragEntries || dragEntries.book !== book || (onlySelf && e.target !== node && !e.target.classList?.contains('blnone'))) return;
-            e.preventDefault();
-            node.classList.add('dropping');
-        });
-        node.addEventListener('dragleave', () => node.classList.remove('dropping'));
-        node.addEventListener('drop', e => {
-            node.classList.remove('dropping');
-            if (!dragEntries || dragEntries.book !== book) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const data = library.peek(book);
-            for (const u of dragEntries.uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], folder);
-            dragEntries = null;
-            save();
-            A.render();
-            layer.toast(folder ? `Moved to ${folder}` : 'Moved to No folder');
         });
     }
 
@@ -1182,6 +1322,25 @@ export function deskNormal(A) {
             } else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; A.render(); }
         };
         const mark = () => res.querySelectorAll('.dsr').forEach((n, i) => { n.classList.toggle('at', i === S.search.at); if (i === S.search.at) n.scrollIntoView({ block: 'nearest' }); });
+        // One set of listeners for every result row (N2b); the hit is read from the row's index at event time.
+        const hitAt = node => {
+            const r = node.closest?.('.dsr');
+            if (!r || !res.contains(r)) return null;
+            const i = Number(r.dataset.i);
+            return Number.isFinite(i) ? hits[i] ?? null : null;
+        };
+        res.addEventListener('mousemove', e => {
+            const r = e.target.closest('.dsr');
+            if (!r) return;
+            const i = Number(r.dataset.i);
+            if (S.search.at !== i) { S.search.at = i; mark(); }
+        });
+        res.addEventListener('click', e => { const h = hitAt(e.target); if (h) open(h, e.ctrlKey || e.metaKey); });
+        res.addEventListener('auxclick', e => {
+            if (e.button !== 1) return;
+            const h = hitAt(e.target);
+            if (h) open(h, true);
+        });
         const run = () => {
             S.search.query = input.value;
             res.innerHTML = '';
@@ -1199,9 +1358,7 @@ export function deskNormal(A) {
                 const meta = h.kind === 'entry' ? `${h.book}${A.entryFolder(h.book, h.entry) ? ` · ${A.entryFolder(h.book, h.entry)}` : ''}${h.entry.key?.length ? ` · ${h.entry.key.join(', ')}` : ''}`
                     : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
                 r.append(el('b', '', title), el('small', '', meta));
-                r.addEventListener('mousemove', () => { if (S.search.at !== i) { S.search.at = i; mark(); } });
-                r.addEventListener('click', e => open(h, e.ctrlKey || e.metaKey));
-                r.addEventListener('auxclick', e => { if (e.button === 1) open(h, true); });
+                r.dataset.i = String(i);
                 res.append(r);
                 perf.count('rowMounts');
             });
