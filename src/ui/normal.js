@@ -14,6 +14,7 @@ import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-pag
 import { perf } from './perf.js';
 import { entryStatus } from '../engine/turn.js';
 import { isObject } from '../engine/util.js';
+import { createListWindow, WIN_LIMIT } from './window.js';
 
 /**
  * @param {object} A The app's context (destructured below): its state, the library and hooks, and the app
@@ -363,207 +364,24 @@ export function createNormal(A) {
 
     // ---------------------------------------------------------------- book page
     // Windowed book list (N4a). The header, chips and selection head stay mounted; the flat group-head/row/note list
-    // is materialized only around the viewport, with a spacer for each skipped run. Heights are cached by item key
-    // from the mounted nodes and unknown items fall back to the estimates below (a 54 px entry row is the CSS
-    // min-height; a folder head is 44 px; a note is about 96 px). A measured item corrects its spacer on the next
-    // fix, so the scrollbar is approximate until a row has been seen and exact after that; the anchor is held while
-    // the correction happens so content does not jump. Books of 200 shown entries or fewer keep every row, as before.
-    const WIN_LIMIT = 200;
-    const WIN_DEFAULT = 54;
-    const WIN_OVERSCAN = 1.5; // screens above and below: about four screens, ~50 rows at 390 × 844
+    // is materialized only around the viewport, with a spacer for each skipped run. `src/ui/window.js` owns the range
+    // maths, the height cache and the focused-row pin; the estimates here are a 54 px entry row (the CSS min-height),
+    // a 44 px folder head and a 96 px note. Books of 200 shown entries or fewer keep every row, as before.
     const bookWindows = new WeakMap();
 
     /** The mounted-height cache and window state for one retained book `.view`. */
     function bookWindow(v) {
-        let s = bookWindows.get(v);
-        if (s) return s;
-        s = {
-            heights: new Map(), prefix: [], body: [], byKey: new Map(), gaps: [], last: null,
-            elByKey: new Map(), observed: new WeakSet(), ro: null, raf: 0, windowed: false, dirty: false,
-            viewport: 0, focusKey: null, anchorKey: null,
-        };
-        // The window inserts and removes rows above the viewport itself. Browser scroll anchoring would then add the
-        // removed rows' height to scrollTop a second time; fixGaps() is the one anchor that keeps the content still.
-        v.style.overflowAnchor = 'none';
-        // Scroll work is coalesced to one rAF; the handler itself only schedules.
-        v.addEventListener('scroll', () => { if (s.windowed) scheduleBookWindow(v, s); }, { passive: true });
-        v.addEventListener('focusout', () => {
-            setTimeout(() => {
-                // A hidden list is waiting for Back (N3b): keep its focused row pinned until it is shown again.
-                if (v.hidden) return;
-                const a = shadow.activeElement;
-                if (a && v.contains(a)) return;
-                if (s.focusKey !== null) { s.focusKey = null; if (s.windowed) scheduleBookWindow(v, s); }
-            }, 0);
-        });
-        if (globalThis.ResizeObserver) {
-            s.ro = new ResizeObserver(entries => {
-                let changed = false;
-                for (const en of entries) {
-                    const key = en.target.dataset?.key;
-                    if (key === undefined) continue;
-                    const h = outerHeight(en.target);
-                    if (h > 0 && Math.abs((s.heights.get(key) ?? -1) - h) > 0.5) { s.heights.set(key, h); changed = true; }
-                }
-                if (changed) { s.dirty = true; if (s.windowed) scheduleBookWindow(v, s); }
-            });
+        let win = bookWindows.get(v);
+        if (!win) {
+            win = createListWindow(v, { defaultHeight: 54 });
+            bookWindows.set(v, win);
         }
-        bookWindows.set(v, s);
-        return s;
-    }
-
-    /** A node's layout height, with an empty note's vertical margins included (margins are outside the box). */
-    function outerHeight(n) {
-        const h = n.getBoundingClientRect().height;
-        if (!n.classList.contains('empty-note')) return h;
-        const cs = getComputedStyle(n);
-        return h + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
-    }
-
-    /** A known height, or the item's estimate: the cache replaces estimates as items mount and are measured. */
-    const estimate = (s, item) => s.heights.get(String(item.key)) ?? item.est ?? WIN_DEFAULT;
-
-    function rangeHeight(s, from, to) {
-        let h = 0;
-        for (let i = from; i < to; i++) h += estimate(s, s.body[i]);
-        return h;
-    }
-
-    function scheduleBookWindow(v, s) {
-        if (s.raf) return;
-        s.raf = requestAnimationFrame(() => {
-            s.raf = 0;
-            if (!v.isConnected || v.hidden || !s.windowed) return;
-            drawBookWindow(v, s, false);
-        });
-    }
-
-    /** A skipped run: a zero-content block whose height the estimates cache describes. */
-    function gapItem(s, gap) {
-        return {
-            key: gap.key,
-            est: 0,
-            make() {
-                const n = el('div', 'win-gap');
-                n.setAttribute('aria-hidden', 'true');
-                return n;
-            },
-            update: n => { n.style.height = `${rangeHeight(s, gap.from, gap.to)}px`; },
-        };
-    }
-
-    /**
-     * Picks the mounted range from the height cache: one rAF pass over the body (the list is at most a few thousand
-     * entries). `force` is a draw from renderBook; a scroll draw returns early when the same range is still current.
-     */
-    function drawBookWindow(v, s, force) {
-        if (!v.isConnected || v.hidden) return;
-        const viewport = v.clientHeight || s.viewport || 844;
-        if (viewport > 0) s.viewport = viewport;
-        // Find the row carrying focus so it stays mounted even when the window has moved away from it.
-        const active = shadow.activeElement;
-        if (active && v.contains(active)) {
-            const node = active.closest?.('[data-key]');
-            const key = node?.dataset.key;
-            s.focusKey = key !== undefined && s.byKey.has(key) ? key : null;
-        }
-        const focus = s.focusKey !== null ? s.byKey.get(s.focusKey) : undefined;
-        const prefixH = s.prefix.reduce((h, item) => h + estimate(s, item), 0);
-        const top = Math.max(0, v.scrollTop - prefixH);
-        const over = Math.max(320, viewport * WIN_OVERSCAN);
-        const from = Math.max(0, top - over);
-        const to = top + viewport + over;
-        let y = 0;
-        let start = s.body.length;
-        let end = 0;
-        let started = false;
-        for (let i = 0; i < s.body.length; i++) {
-            const h = estimate(s, s.body[i]);
-            if (!started && y + h > from) { start = i; started = true; }
-            if (y < to) end = i + 1;
-            y += h;
-        }
-        if (end < start) end = start;
-        const same = !force && s.last && s.last.start === start && s.last.end === end && s.last.focus === (focus ?? null);
-        if (same) { fixGaps(s, v); return; }
-
-        const items = [...s.prefix];
-        s.gaps = [];
-        const addGap = (key, a, b) => {
-            if (b <= a) return;
-            const gap = { key, from: a, to: b };
-            s.gaps.push(gap);
-            items.push(gapItem(s, gap));
-        };
-        const addBody = (a, b) => { for (let i = a; i < b; i++) items.push(s.body[i]); };
-        if (focus !== undefined && focus < start) {
-            // The focused row is above the window: keep it (and its focus) at its true place, with a spacer either side.
-            addGap('win:gap:0', 0, focus);
-            addBody(focus, focus + 1);
-            addGap('win:gap:1', focus + 1, start);
-            addBody(start, end);
-            addGap('win:gap:2', end, s.body.length);
-        } else if (focus !== undefined && focus >= end) {
-            addGap('win:gap:0', 0, start);
-            addBody(start, end);
-            addGap('win:gap:1', end, focus);
-            addBody(focus, focus + 1);
-            addGap('win:gap:2', focus + 1, s.body.length);
-        } else {
-            addGap('win:gap:0', 0, start);
-            addBody(start, end);
-            addGap('win:gap:2', end, s.body.length);
-        }
-        s.anchorKey = start < end ? String(s.body[start].key) : (focus !== undefined ? s.focusKey : null);
-        s.last = { start, end, focus: focus ?? null };
-        keyed(v, items, item => item.make());
-        s.elByKey.clear();
-        for (const node of v.children) if (node.dataset.key !== undefined) s.elByKey.set(node.dataset.key, node);
-        // Measure only nodes new to this state; a retained node is already in the cache and watched by the observer.
-        let changed = false;
-        for (const node of v.children) {
-            const key = node.dataset.key;
-            if (key === undefined || s.observed.has(node)) continue;
-            s.observed.add(node);
-            s.ro?.observe(node);
-            const h = outerHeight(node);
-            if (h > 0 && Math.abs((s.heights.get(key) ?? -1) - h) > 0.5) { s.heights.set(key, h); changed = true; }
-        }
-        if (changed) s.dirty = true;
-        fixGaps(s, v);
-    }
-
-    /** Corrects the spacers from the height cache and holds the anchor row still while their heights change. */
-    function fixGaps(s, v) {
-        if (!s.dirty) return;
-        s.dirty = false;
-        const anchor = s.anchorKey !== null ? s.elByKey.get(s.anchorKey) : null;
-        const before = anchor?.getBoundingClientRect().top;
-        for (const gap of s.gaps) {
-            const node = s.elByKey.get(gap.key);
-            if (!node) continue;
-            const h = rangeHeight(s, gap.from, gap.to);
-            if (Math.abs((parseFloat(node.style.height) || 0) - h) > 0.5) node.style.height = `${h}px`;
-        }
-        const after = anchor?.getBoundingClientRect().top;
-        if (anchor && Number.isFinite(before) && Number.isFinite(after) && Math.abs(after - before) > 0.5) {
-            v.scrollTop += after - before;
-        }
+        return win;
     }
 
     /** Forgets the window (a loading/empty page): the next book list starts from the whole body again. */
     function resetBookWindow(v) {
-        const s = bookWindows.get(v);
-        if (!s) return;
-        s.prefix = [];
-        s.body = [];
-        s.byKey.clear();
-        s.gaps = [];
-        s.last = null;
-        s.windowed = false;
-        s.dirty = false;
-        s.focusKey = null;
-        s.anchorKey = null;
+        bookWindows.get(v)?.reset();
     }
 
     /**
@@ -609,20 +427,7 @@ export function createNormal(A) {
         if (!shown.length) body.push(noteItem('empty', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
 
         const rowAt = view ? null : perf.begin('rowMount');
-        const s = bookWindow(v);
-        s.prefix = prefix;
-        s.body = body;
-        s.byKey = new Map(body.map((item, i) => [String(item.key), i]));
-        if (body.length > WIN_LIMIT) {
-            s.windowed = true;
-            drawBookWindow(v, s, true);
-        } else {
-            // A small book keeps its old shape: no spacers, no scroll work.
-            s.windowed = false;
-            s.last = null;
-            s.gaps = [];
-            keyed(v, [...prefix, ...body], item => item.make());
-        }
+        bookWindow(v).paint(prefix, body, body.length > WIN_LIMIT);
         perf.end(rowAt);
     }
 

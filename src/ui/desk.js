@@ -10,9 +10,15 @@ import {
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
 import { perf } from './perf.js';
+import { createListWindow, WIN_LIMIT } from './window.js';
 
 const LIST_W = { def: 270, min: 200, max: 460 };
 const NARROW = 640;
+// The desktop list's fixed row shapes (`app.css`): `.brow` is 32 px, a `.blfold` head is 28 px plus its 8 px top
+// margin, and the "nothing matches" note is about 46 px. Measured rows replace these as the window mounts them.
+const BROW_EST = 32;
+const FOLDER_EST = 36;
+const NOTE_EST = 46;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const dateText = t => {
     if (!t) return '';
@@ -275,7 +281,7 @@ export function deskNormal(A) {
     }
 
     // ---------------------------------------------------------------- render
-    /** The book page kept between draws: { page, book, data, model, sig, wrap, left, right }. */
+    /** The book page kept between draws: { page, book, data, model, sig, wrap, left, right, listWin }. */
     let bookMount = null;
 
     function render() {
@@ -285,6 +291,8 @@ export function deskNormal(A) {
         // A book page whose left list's inputs are unchanged keeps its wrap, list and rows (N3); only the right pane
         // is drawn again. Anything else is built from scratch, as before.
         if (!(p.type === 'book' && reuseBook(p))) {
+            // N3a replaces the whole `.bk` mount on a signature change: drop the old list window and its observer.
+            bookMount?.listWin?.dispose();
             bookMount = null;
             main.innerHTML = '';
             if (p.type === 'home') renderHome();
@@ -692,8 +700,8 @@ export function deskNormal(A) {
         }
         const right = el('section', 'br');
         wrap.append(right);
-        bookMount = { page: p, book, data, model, sig: listSig(p, data, model), wrap, left, right };
-        bookList(left, p, book, data, model, all);
+        bookMount = { page: p, book, data, model, sig: listSig(p, data, model), wrap, left, right, listWin: null };
+        bookMount.listWin = bookList(left, p, book, data, model, all);
         renderPane(right, p, book, data, all);
     }
 
@@ -760,37 +768,75 @@ export function deskNormal(A) {
         list.setAttribute('aria-multiselectable', 'true');
         left.append(list);
         listGestures(list, p, book);
+        // A bounded window of rows (N4b), the same mechanics as the phone list (N4a) without its header prefix: the
+        // `.bllist` itself scrolls, `.brow` is 32 px and a folder head 36 px including its margin. The window state is
+        // per list, so N3a's replacement of the whole `.bk` mount drops it (render() disposes the old one).
+        const win = createListWindow(list, { defaultHeight: BROW_EST, marginSelector: '.empty-note, .blfold' });
         let order = [];
         const shownNow = () => {
             const q = (p.q ?? '').trim().toLowerCase();
             return all.filter(e => (S.showOff || !e.disable || e.uid === p.sel) && (!q || titleOf(e).toLowerCase().includes(q) || (e.key ?? []).some(k => k.toLowerCase().includes(q))));
         };
+        /** A keyed entry row; its window `update` only refreshes the two a11y counters. */
+        const rowItem = (e) => {
+            const item = { key: `entry:${e.uid}`, est: BROW_EST, make: () => entryRow(p, book, e, model, item), update: r => paintRowAria(r, item) };
+            return item;
+        };
+        /** A folder head: fold and add read the live state at click time; the node is rebuilt with the list. */
+        const folderItem = (grp, items) => {
+            const key = `${book}:folder:${grp}`;
+            const open = !S.collapsed.has(key);
+            return {
+                key: `head:${key}`,
+                est: FOLDER_EST,
+                make() {
+                    const fh = el('div', `blfold${open ? ' open' : ''}`);
+                    const t = btn('ft', html`${ic('right', 's')}<span></span><small></small>`, () => {
+                        if (S.collapsed.has(key)) S.collapsed.delete(key); else S.collapsed.add(key);
+                        fill();
+                    });
+                    t.querySelector('span').textContent = grp;
+                    t.querySelector('small').textContent = items.length;
+                    t.setAttribute('aria-expanded', String(open));
+                    fh.append(t, btn('fadd', ic('plus', 's'), () => newEntry(p, book, grp), `New entry in ${grp}`));
+                    fh.dataset.folder = grp;
+                    return fh;
+                },
+            };
+        };
         function fill() {
+            // A filter, sort, folder or data change rebuilds the list, as before; a scroll only redraws the window.
             list.innerHTML = '';
             const shown = shownNow();
             const groups = groupEntries(shown, A.sortBy(), e => A.entryFolder(book, e));
             for (const fl of bookSettings(settings, book).folderList ?? []) if (!groups.some(([x]) => x === fl)) groups.push([fl, []]);
             groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
             order = [];
+            const body = [];
+            let pos = 0;
             for (const [grp, items] of groups) {
-                const key = `${book}:folder:${grp}`;
-                const open = !S.collapsed.has(key);
                 if (grp) {
-                    const fh = el('div', `blfold${open ? ' open' : ''}`);
-                    const t = btn('ft', html`${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); fill(); });
-                    t.querySelector('span').textContent = grp;
-                    t.querySelector('small').textContent = items.length;
-                    t.setAttribute('aria-expanded', String(open));
-                    fh.append(t, btn('fadd', ic('plus', 's'), () => newEntry(p, book, grp), `New entry in ${grp}`));
-                    fh.dataset.folder = grp;
-                    list.append(fh);
-                    if (!open) continue;
+                    body.push(folderItem(grp, items));
+                    if (S.collapsed.has(`${book}:folder:${grp}`)) continue;
                 }
-                const rowAt = perf.begin('rowMount');
-                for (const e of items) { order.push(e.uid); list.append(entryRow(p, book, e, model)); }
-                perf.end(rowAt);
+                for (const e of items) {
+                    const item = rowItem(e);
+                    item.pos = ++pos;
+                    order.push(e.uid);
+                    body.push(item);
+                }
             }
-            if (!shown.length) list.append(el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'));
+            for (const item of body) if (item.pos !== undefined) item.size = pos;
+            if (!shown.length) {
+                body.push({
+                    key: 'none',
+                    est: NOTE_EST,
+                    make: () => el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'),
+                });
+            }
+            const rowAt = perf.begin('rowMount');
+            win.paint([], body, body.length > WIN_LIMIT);
+            perf.end(rowAt);
         }
         fill();
         list.addEventListener('keydown', e => listKeys(e, p, book, () => order));
@@ -812,9 +858,19 @@ export function deskNormal(A) {
             foot.append(b);
         }
         left.append(foot);
+        return win;
     }
 
-    function entryRow(p, book, e, model) {
+    /**
+     * A row's place in the whole visible order (across folders), so assistive tech knows the listbox holds more than
+     * the mounted window. The folder heads between them are not options and do not count.
+     */
+    function paintRowAria(r, item) {
+        r.setAttribute('aria-setsize', String(item.size ?? 0));
+        r.setAttribute('aria-posinset', String(item.pos ?? 0));
+    }
+
+    function entryRow(p, book, e, model, item = null) {
         const multi = p.select?.size > 1;
         const on = multi ? p.select.has(e.uid) : p.sel === e.uid;
         const r = el('div', `brow st-${strategyOf(e)}${on ? ' on' : ''}${e.disable ? ' off' : ''}`);
@@ -848,6 +904,7 @@ export function deskNormal(A) {
         const sw = swEl(!e.disable, v => library.change(book, d => { d.entries[e.uid].disable = !v; }), `${titleOf(e)} on`);
         sw.classList.add('sm');
         r.append(sw, btn('more', ic('more', 's'), ev => { ev.stopPropagation(); entryMenu(p, book, e.uid, ev.currentTarget); }, `${titleOf(e)} actions`));
+        if (item) paintRowAria(r, item);
         perf.count('rowMounts');
         return r;
     }
@@ -1023,7 +1080,13 @@ export function deskNormal(A) {
         reveal(uid);
         if (focusTitle) setTimeout(() => main.querySelector('.br .en h1')?.focus(), 0);
     }
-    const reveal = uid => requestAnimationFrame(() => main.querySelector(`.brow[data-uid="${uid}"]`)?.scrollIntoView({ block: 'nearest' }));
+    // A selected/moved row may be outside the mounted window: scroll the window around it, mount it, then bring it into
+    // view. A row that is already mounted takes the plain path (one scrollIntoView, as before).
+    const reveal = uid => requestAnimationFrame(() => {
+        const row = main.querySelector(`.bllist .brow[data-uid="${uid}"]`);
+        if (row) { row.scrollIntoView({ block: 'nearest' }); return; }
+        bookMount?.listWin?.reveal(`entry:${uid}`);
+    });
     function toggleSel(p, uid) {
         const s = p.select ?? new Set(p.sel != null ? [p.sel] : []);
         s.has(uid) ? s.delete(uid) : s.add(uid);
