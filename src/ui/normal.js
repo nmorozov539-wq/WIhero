@@ -7,7 +7,7 @@ import {
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
 import { btn, el, html, longPress, pressable, swEl } from './dom.js';
-import { ic } from './icons.js';
+import { ic, setIcon } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
 import { keywordClashes } from './clashes.js';
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
@@ -85,7 +85,7 @@ export function createNormal(A) {
         const lt = linkText(name);
         if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; m.append(u); }
         if (global) m.append(el('span', 'badge g', 'Global'));
-        if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); m.append(l); }
+        if (lt) { const l = el('span', 'badge l'); setIcon(l, 'chain', 's'); l.append(lt); m.append(l); }
         if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; m.append(o); }
         return m;
     }
@@ -106,7 +106,7 @@ export function createNormal(A) {
         const picked = !!S.select?.has(name);
         const it = el('div', `item${picked ? ' sel' : ''}`);
         const i = el('div', 'ic');
-        i.innerHTML = ic(picked ? 'check' : 'book');
+        setIcon(i, picked ? 'check' : 'book');
         const tx = el('div', 'txt');
         tx.append(el('div', 't', name), bookMeta(name));
         it.append(i, tx);
@@ -122,7 +122,7 @@ export function createNormal(A) {
         const t = el('div', `ptile${picked ? ' sel' : ''}`);
         const top = el('div', 'pt');
         const i = el('div', 'ic');
-        i.innerHTML = ic(picked ? 'check' : 'book');
+        setIcon(i, picked ? 'check' : 'book');
         top.append(i);
         if (!S.select) top.append(btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`));
         t.append(top, el('div', 't', name), bookMeta(name));
@@ -199,7 +199,7 @@ export function createNormal(A) {
         // Just the strategy stripe (no icon: it was the same on every row), and the teal dot desktop shows for an
         // entry with story logic.
         const i = el('div', 'ic');
-        if (picked) i.innerHTML = ic('check');
+        if (picked) setIcon(i, 'check');
         const tx = el('div', 'txt');
         const t = el('div', 't');
         t.append(el('span', 'nm', titleOf(e)));
@@ -278,7 +278,7 @@ export function createNormal(A) {
 
     function check(on) {
         const c = el('span', `check${on ? ' on' : ''}`);
-        if (on) c.innerHTML = ic('check');
+        if (on) setIcon(c, 'check');
         return c;
     }
 
@@ -417,7 +417,7 @@ export function createNormal(A) {
             for (const h of hits.slice(0, 80)) {
                 const it = el('div', `item${h.kind === 'entry' ? ` ent st-${strategyOf(h.entry)}` : ''}`);
                 const i = el('div', 'ic');
-                i.innerHTML = ic(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder');
+                setIcon(i, h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder');
                 const tx = el('div', 'txt');
                 const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
                 const meta = h.kind === 'entry' ? `${h.book}${entryFolder(h.book, h.entry) ? ` · ${entryFolder(h.book, h.entry)}` : ''}`

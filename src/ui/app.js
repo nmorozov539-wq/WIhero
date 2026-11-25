@@ -99,6 +99,19 @@ export function createApp(deps) {
     document.body.append(host);
     const layer = createLayer(layerBox, toastBox);
 
+    // The tone is read once per theme change, not on every draw. The cache lives here so two apps never share it.
+    let tone = null;
+    if (globalThis.MutationObserver) {
+        const clearTone = () => { tone = null; };
+        const themeWatch = new MutationObserver(clearTone);
+        const themeAttrs = { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] };
+        themeWatch.observe(document.documentElement, themeAttrs);
+        if (document.body) themeWatch.observe(document.body, themeAttrs);
+    }
+    function toneNow() {
+        return (tone ??= toneOf(root));
+    }
+
     // Keys typed in WI Hero are its own: ST's hotkeys (arrows swipe, Enter sends) never see them.
     for (const type of ['keydown', 'keyup', 'keypress']) {
         host.addEventListener(type, e => e.stopPropagation());
@@ -347,7 +360,7 @@ export function createApp(deps) {
         perf.count('appRenders');
         undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
-        root.dataset.tone = toneOf(root);
+        root.dataset.tone = toneNow();
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
         shape();
@@ -513,6 +526,7 @@ export function createApp(deps) {
     function show() {
         if (!host.hidden) return;
         host.hidden = false;
+        tone = null;
         pushBackState();
         render();
         deps.onVisible?.(true);

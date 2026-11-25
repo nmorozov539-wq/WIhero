@@ -120,6 +120,10 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**C4 — parsed icon templates (`src/ui/icons.js`, `src/ui/dom.js`).** `ic()` carries an icon marker; `icNode` clones a cached `<template>`; `btn()` uses it for icons, and rows, tiles, search results and the greeting/Moment card grips clone instead of parsing. `setIcon` wraps `replaceChildren` for direct nodes. Sheets, inspectors and one-offs still use `ic()`.
+
+**C5 — cached tone (`src/ui/app.js`).** `toneOf` runs once per theme change: the value lives in the app closure, is cleared on `show()` and by a small `MutationObserver` on `documentElement`/`body` theme attributes.
+
 **C3 — cached `normalize` with clones (`src/engine/model.js`, `src/ui/pieces.js`, `src/ui/hero-desk.js`).** `normalize` caches `{ config, ui, legacy }` per raw object. `buildModel` asks for a reread because ST can edit a config in place; the reread also refreshes the cache. `bookEditor.config` and the Hero duplicate path hand out deep copies before mutating; the rest of the callers were audited read-only or already write through `writeConfig`, which clones. The cache's comment names the clone rule.
 
 **C6 — cached character/tag choices (`src/ui/data.js`).** `filterChoices` gains `setProvider`/`invalidate`; `get` caches the provider's arrays until a character or chat change clears them. `index.js` clears before refresh draws, not after.
@@ -285,7 +289,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
-| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1, C2, C3, C6, C9 done; C4, C5, C7, C8, C10 pending |
+| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1–C6, C9 done; C7, C8, C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -305,7 +309,7 @@ Dependencies:
 | 6b | H3 clash cold path (landed; entry-open gate moved to the entry page) |
 | 7a | C2 + C9 grouped issues and Moments (landed) |
 | 7b | C3 + C6 normalize and filterChoices caches (landed) |
-| 7c | C4 + C5 icon and tone caches |
+| 7c | C4 + C5 icon and tone caches (landed) |
 | 7d | C7 + C8 Home sort keys and links index |
 | 7e | C10 `contain` step 1 |
 | 8 | T0 token count |
@@ -581,6 +585,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 
 **Done when.** `test/html.test.js` and visual e2e pass; no per-row icon parse in the hot path.
 
+**Status.** Landed. `ic()` keeps its markup and gains a marker; `icNode` clones a cached template; `btn()` appends a clone for icon content. Normal rows/tiles, desktop rows/tiles/search, Home search results, and the greeting/Moment card grips use it. Sheets, inspectors and one-offs stay on `ic()`. `test/html.test.js` pins the markup and marker.
+
 **Risk.** Low.
 
 **Source.** Qwen F13; DeepSeek #12.
@@ -592,6 +598,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 **Change.** Cache the tone and recompute on `show()` and on ST theme/settings changes (or a `MutationObserver` on the theme attributes ST sets). Once per theme change, not per draw.
 
 **Done when.** Theme changes still update the tone; a draw no longer calls `getComputedStyle` unconditionally.
+
+**Status.** Landed. The cache is per app instance, cleared at `show()` and by a `MutationObserver` on `documentElement`/`body` class, style and `data-theme`. `e2e/desktop.mjs`'s light-theme pass still shows the deeper piece colors.
 
 **Risk.** Low.
 
@@ -1244,3 +1252,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | H3 clash cold path | Phrase enumeration; cold 149–157 ms → 34.8–37.5 ms, warm shared 147–159 → 10.9 ms; entry open 6× 15.8–17.5 s → 0.65–1.05 s, worst 0.28–0.49 s; entry-page gate remains |
 | 2026-11-25 | this commit | C2 + C9 | Issues grouped once per model; Moments cached per book revision; 336 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C3 + C6 | normalize cached per raw (buildModel rereads); choices cached and invalidated before redraw; 343 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | C4 + C5 | Icon templates cloned in rows/cards; tone cached per theme change; 343 pass, 0 fail, 7 skipped |

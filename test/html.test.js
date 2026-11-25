@@ -26,6 +26,11 @@ test('html`` escapes values and keeps Html as it is', () => {
     assert.ok(out.markup.startsWith('<svg class="i s"'));
     assert.ok(out.markup.includes('<span>&lt;img src=x onerror=alert(1)&gt;</span>'));
     assert.equal(`${ic('x')}`, ic('x').markup, 'an icon still works inside a plain template');
+    // The icon marker rides along without changing the markup; html`` makes a new Html without it.
+    assert.equal(ic('menu').markup, '<svg class="i " viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7 H20 M4 12 H20 M4 17 H20"/></svg>');
+    assert.deepEqual(ic('menu').icon, { name: 'menu', cls: '' });
+    assert.deepEqual(ic('menu', 's').icon, { name: 'menu', cls: 's' });
+    assert.equal(html`${ic('menu')}`.icon, undefined);
 });
 
 test('btn(): a plain string is text, only Html is markup', async () => {
@@ -38,5 +43,5 @@ test('btn(): a plain string is text, only Html is markup', async () => {
     const i = btn('linkish', html`${ic('plus', 's')} Add ${HOSTILE}`);
     assert.equal(i.text, null);
     assert.ok(!i.markup.includes('<img'));
-    assert.ok(btn('', ic('x')).markup.startsWith('<svg'));
+    assert.ok(btn('', html`${ic('x')}`).markup.startsWith('<svg'));
 });

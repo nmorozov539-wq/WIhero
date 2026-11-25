@@ -1,6 +1,6 @@
 // Small DOM helpers and the shared overlays (LAYOUT "Sheets and toasts"): sheets from the bottom over a dimmed
 // backdrop, the ☰ menu sheet, a one-line text form, and toasts, some with Undo.
-import { ic } from './icons.js';
+import { ic, icNode } from './icons.js';
 import { Html } from './html.js';
 import { explainNode } from './explain-meta.js';
 
@@ -20,7 +20,8 @@ export function el(tag, cls, text) {
 export function btn(cls, content, fn, label) {
     const b = el('button', cls);
     b.type = 'button';
-    if (content instanceof Html) b.innerHTML = content.markup;
+    if (content instanceof Html && content.icon) b.append(icNode(content.icon.name, content.icon.cls));
+    else if (content instanceof Html) b.innerHTML = content.markup;
     else b.textContent = content ?? '';
     if (label) b.setAttribute('aria-label', label);
     if (fn) b.addEventListener('click', fn);

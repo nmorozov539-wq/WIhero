@@ -53,4 +53,29 @@ export const ICON = {
 };
 
 /** An icon as markup. `cls` 's' makes the 16px inline size. */
-export const ic = (name, cls = '') => new Html(`<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] ?? ''}</svg>`);
+export const ic = (name, cls = '') => {
+    const h = new Html(`<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] ?? ''}</svg>`);
+    // The marker lets btn() append a clone instead of parsing the markup again.
+    h.icon = { name, cls };
+    return h;
+};
+
+// Hot rows and cards clone a parsed template instead of parsing the same markup again. Templates live in the main
+// document; their content clones into the shadow root.
+const tplCache = new Map();
+export function icNode(name, cls = '') {
+    const markup = ic(name, cls).markup;
+    let t = tplCache.get(markup);
+    if (!t) {
+        t = document.createElement('template');
+        t.innerHTML = markup;
+        tplCache.set(markup, t);
+    }
+    return t.content.cloneNode(true);
+}
+
+/** Replaces a node's children with one icon. */
+export function setIcon(node, name, cls = '') {
+    node.replaceChildren(icNode(name, cls));
+    return node;
+}

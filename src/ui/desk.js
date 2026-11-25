@@ -3,7 +3,7 @@
 // Ctrl/Shift-click selection instead of a selection mode, the search overlay and the keys. Phones never get here.
 // Everything it needs from the app comes in `A` (see app.js deskApi).
 import { btn, html, el, issueText, swEl } from './dom.js';
-import { ic } from './icons.js';
+import { ic, icNode, setIcon } from './icons.js';
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, compareText, duplicateEntry, entriesOf, groupEntries, paramValue, search,
     bookTokens, promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf, tokenGuess, tokensText,
@@ -348,7 +348,7 @@ export function deskNormal(A) {
         const lt = A.linkText(name);
         if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; out.push(u); }
         if (global) out.push(el('span', 'badge g', 'Global'));
-        if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); out.push(l); }
+        if (lt) { const l = el('span', 'badge l'); setIcon(l, 'chain', 's'); l.append(lt); out.push(l); }
         if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; out.push(o); }
         return out;
     }
@@ -363,7 +363,7 @@ export function deskNormal(A) {
         const t = el('div', `tile${on ? ' sel' : ''}`);
         t.setAttribute('role', 'button');
         const top = el('div', 'tt');
-        top.insertAdjacentHTML('beforeend', ic('book', 's'));
+        top.append(icNode('book', 's'));
         top.append(el('b', '', name));
         t.append(top);
         const chips = el('div', 'tchips');
@@ -387,7 +387,7 @@ export function deskNormal(A) {
         const c0 = el('span', 'c0');
         c0.append(check(on, () => toggleBook(name), `Select ${name}`));
         const nm = el('span', 'c-name');
-        nm.insertAdjacentHTML('beforeend', ic('book', 's'));
+        nm.append(icNode('book', 's'));
         nm.append(el('b', '', name));
         const act = el('span', 'c-active');
         act.append(...statusChips(name));
@@ -1009,7 +1009,7 @@ export function deskNormal(A) {
             hits.forEach((h, i) => {
                 const r = el('div', `dsr${h.kind === 'entry' ? ` st-${strategyOf(h.entry)}` : ''}`);
                 r.setAttribute('role', 'option');
-                r.insertAdjacentHTML('beforeend', ic(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder', 's'));
+                r.append(icNode(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder', 's'));
                 const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
                 const meta = h.kind === 'entry' ? `${h.book}${A.entryFolder(h.book, h.entry) ? ` · ${A.entryFolder(h.book, h.entry)}` : ''}${h.entry.key?.length ? ` · ${h.entry.key.join(', ')}` : ''}`
                     : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';

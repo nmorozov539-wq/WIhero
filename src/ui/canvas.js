@@ -6,7 +6,7 @@ import { createLinkEngine } from '../link-engine/index.js';
 import { addDot, moveDot, normalize, removeDot, setSegment, toCanvas } from '../link-engine/shape.js';
 import { btn, el } from './dom.js';
 import { explainNode } from './explain-meta.js';
-import { ic } from './icons.js';
+import { ic, setIcon } from './icons.js';
 import { perf } from './perf.js';
 import { wireInput } from './canvas-input.js';
 
@@ -239,7 +239,7 @@ export function mountCanvas(vp, d) {
                 c.dataset.id = e.id;
                 Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
                 const gr = el('div', 'grip gicon');
-                gr.innerHTML = ic('chat');
+                setIcon(gr, 'chat');
                 gr.dataset.grip = e.id;
                 gr.setAttribute('aria-label', `Move ${e.title}`);
                 c.append(gr, el('div', 'tag', e.greeting.missing ? 'START · MISSING' : 'START'), el('div', 't', e.title),
@@ -258,7 +258,7 @@ export function mountCanvas(vp, d) {
                 c.dataset.id = e.id;
                 Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
                 const gr = el('div', 'grip gicon');
-                gr.innerHTML = ic('spark');
+                setIcon(gr, 'spark');
                 gr.dataset.grip = e.id;
                 gr.setAttribute('aria-label', `Move ${e.title}`);
                 const who = e.moment.by === 'user' ? ' · YOU' : e.moment.by === 'char' ? ' · CHARACTER' : '';
