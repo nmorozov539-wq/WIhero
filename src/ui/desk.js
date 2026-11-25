@@ -275,14 +275,22 @@ export function deskNormal(A) {
     }
 
     // ---------------------------------------------------------------- render
+    /** The book page kept between draws: { page, book, data, model, sig, wrap, left, right }. */
+    let bookMount = null;
+
     function render() {
         const p = A.page();
-        main.innerHTML = '';
         // The page's name: Hero's three-column grid (and anything else keyed on it) must not outlive Hero.
         main.dataset.page = `desk:${p.type}`;
-        if (p.type === 'home') renderHome();
-        else if (p.type === 'book') renderBook(p);
-        else renderEntryTab(p);
+        // A book page whose left list's inputs are unchanged keeps its wrap, list and rows (N3); only the right pane
+        // is drawn again. Anything else is built from scratch, as before.
+        if (!(p.type === 'book' && reuseBook(p))) {
+            bookMount = null;
+            main.innerHTML = '';
+            if (p.type === 'home') renderHome();
+            else if (p.type === 'book') renderBook(p);
+            else renderEntryTab(p);
+        }
         if (S.search) renderSearch();
     }
 
@@ -527,6 +535,79 @@ export function deskNormal(A) {
     const listW = () => Math.max(LIST_W.min, Math.min(LIST_W.max, desk().listW ?? LIST_W.def));
     const narrow = () => (A.root.clientWidth || 9999) < NARROW;
 
+    /**
+     * Everything the left list draws that reusing its nodes would not update in place. A change to any of `key`
+     * rebuilds the list as before. `multi` is recorded because the rows' markup follows it, but updateRows refreshes
+     * that markup, so a change of selection mode alone is applied in place.
+     */
+    function listSig(p, data, model) {
+        const folders = bookSettings(settings, p.book);
+        const collapsed = [...S.collapsed].filter(k => k.startsWith(`${p.book}:folder:`)).sort().join('\n');
+        const assignments = Object.entries(folders.folders ?? {}).map(([k, v]) => `${k}=${v}`).join('\n');
+        return {
+            key: [
+                p.book,
+                data,
+                library.bookVersion(p.book),
+                model,
+                A.sortBy(),
+                S.showOff,
+                p.q ?? '',
+                collapsed,
+                narrow(),
+                listW(),
+                (folders.folderList ?? []).join('\n'),
+                assignments,
+                library.isGlobal(p.book),
+                A.linkText(p.book),
+                library.chatOpen(),
+            ],
+            // Row markup follows the selection mode; updateRows reconciles it, so it never forces a rebuild.
+            multi: p.select?.size > 1,
+        };
+    }
+    function sameListSig(a, b) {
+        if (!a || !b || a.key.length !== b.key.length) return false;
+        return a.key.every((v, i) => v === b.key[i]);
+    }
+
+    /** The wrap's classes and width, both on a new book page and on a kept one. */
+    function paintBook(wrap, p) {
+        const isNarrow = narrow();
+        // A narrow drawer works like the phone: the list fills the book, an entry fills it with ← back to the list.
+        // With nothing picked yet there is no entry to show, so the list shows.
+        if (isNarrow && p.sel == null && !p.pane && !(p.select?.size > 1)) p.listOpen = true;
+        wrap.classList.toggle('narrow', isNarrow);
+        wrap.classList.toggle('lpage', isNarrow && !!p.listOpen);
+        wrap.style.setProperty('--lw', `${listW()}px`);
+        return isNarrow;
+    }
+
+    /** The rows' selection markup for p.sel/p.select, without touching the rows themselves. */
+    function updateRows(mount, p) {
+        const multi = p.select?.size > 1;
+        for (const r of mount.left.querySelectorAll('.brow')) {
+            const on = multi ? p.select.has(Number(r.dataset.uid)) : p.sel === Number(r.dataset.uid);
+            r.classList.toggle('on', on);
+            r.setAttribute('aria-selected', String(on));
+        }
+    }
+
+    /** Keeps the book page when its list inputs match; draws the right pane and the selection and returns the mount. */
+    function reuseBook(p) {
+        const mount = bookMount;
+        if (!mount || mount.page !== p) return null;
+        const data = A.need(p.book);
+        if (!data || data !== mount.data) return null;
+        const model = A.modelOf(p.book, data);
+        if (!sameListSig(listSig(p, data, model), mount.sig)) return null;
+        for (const child of [...main.children]) if (child !== mount.wrap) child.remove();
+        paintBook(mount.wrap, p);
+        updateRows(mount, p);
+        renderPane(mount.right, p, p.book, data, A.entriesShown(p.book, data));
+        return mount;
+    }
+
     function renderBook(p) {
         const data = A.need(p.book);
         const wrap = el('div', 'bk');
@@ -538,14 +619,7 @@ export function deskNormal(A) {
         const all = A.entriesShown(book, data);
         if (p.sel != null && !data.entries[p.sel]) p.sel = null;
         if (p.select) for (const u of [...p.select]) if (!data.entries[u] || A.hiddenIn(book).has(u)) p.select.delete(u);
-        const isNarrow = narrow();
-        // A narrow drawer works like the phone: the list fills the book, an entry fills it with ← back to the list.
-        // With nothing picked yet there is no entry to show, so the list shows.
-        if (isNarrow && p.sel == null && !p.pane && !(p.select?.size > 1)) p.listOpen = true;
-        const listPage = isNarrow && !!p.listOpen;
-        wrap.classList.toggle('narrow', isNarrow);
-        wrap.classList.toggle('lpage', listPage);
-        wrap.style.setProperty('--lw', `${listW()}px`);
+        const isNarrow = paintBook(wrap, p);
 
         const left = el('aside', 'bl');
         wrap.append(left);
@@ -554,7 +628,14 @@ export function deskNormal(A) {
         }
         const right = el('section', 'br');
         wrap.append(right);
+        bookMount = { page: p, book, data, model, sig: listSig(p, data, model), wrap, left, right };
         bookList(left, p, book, data, model, all);
+        renderPane(right, p, book, data, all);
+    }
+
+    /** The right pane: Book settings, the bulk pane, one entry, or the "pick an entry" note. */
+    function renderPane(right, p, book, data, all) {
+        right.innerHTML = '';
         if (p.pane === 'settings') bookSettingsPane(right, p, book, data);
         else if (p.select?.size > 1) bulkPane(right, p, book, data);
         else if (p.sel != null) entryPane(right, p, book, data, all);
