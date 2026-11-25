@@ -168,8 +168,9 @@ export function mountCanvas(vp, d) {
         const { g, ids, R, P } = arrange(m, mem, viewCenter(), d.dir ?? TB);
         perf.end(arrangeAt);
         if (JSON.stringify(mem) !== before) d.save();
-        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [] };
+        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [], byLid: new Map(), ln: new Map(), hit: new Map() };
         world.innerHTML = '';
+        OV_NODES = null; // the nodes it named are gone with the old canvas
         drawn++;
         // Every node is tagged with the cards it belongs to (data-of): a card drag moves a card's own nodes and
         // hides the links to other cards, without drawing the canvas again (dragFrame).
@@ -403,7 +404,9 @@ export function mountCanvas(vp, d) {
             const pts = [];
             for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
             path(pts, q.x.kind, undefined, faint(q.x), LINKS.path(q.def.id).d);
-            for (const n of [...lk.childNodes].slice(n0)) { n.dataset.lid = q.def.id; n.classList.add('ln'); }
+            const nodes = [...lk.childNodes].slice(n0);
+            for (const n of nodes) { n.dataset.lid = q.def.id; n.classList.add('ln'); }
+            CV.ln.set(q.def.id, nodes);
             return pts;
         };
         const drawQueued = () => {
@@ -415,6 +418,7 @@ export function mountCanvas(vp, d) {
                     const pts = lineOf(q);
                     // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
                     const hp = sv('path', { d: LINKS.path(def.id).d, class: 'lhit' });
+                    CV.hit.set(def.id, hp);
                     hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null, id: def.id, key: linkKey(x) }) - 1;
                     hp.dataset.ends = `${x.from}>${x.to}`;
                     hp.dataset.kind = x.kind;
@@ -431,13 +435,16 @@ export function mountCanvas(vp, d) {
             }
         };
         // Draws some links again after a layout (a dot being dragged): their lines and hit paths, not their pills.
+        // The maps keep this to the changed link's own nodes instead of scanning every link in the canvas.
         CV.queue = queue;
+        for (const q of queue) CV.byLid.set(q.def.id, q);
         CV.relink = ids => {
-            for (const q of queue) {
-                if (!ids.has(q.def.id)) continue;
-                for (const n of [...lk.querySelectorAll('.ln')]) if (n.dataset.lid === q.def.id) n.remove();
+            for (const id of ids) {
+                const q = CV.byLid.get(id);
+                if (!q) continue;
+                for (const n of CV.ln.get(id) ?? []) n.remove();
                 owning(`${q.x.from} ${q.x.to}`, () => lineOf(q));
-                for (const n of lk.querySelectorAll('.lhit')) if (n.dataset.lid === q.def.id) n.setAttribute('d', LINKS.path(q.def.id).d);
+                CV.hit.get(id)?.setAttribute('d', LINKS.path(id).d);
             }
         };
         /** The point `d` back from the end of a line. */
@@ -613,11 +620,23 @@ export function mountCanvas(vp, d) {
 
     // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
     let OV = null;
+    /** The nodes the overlay put classes on, so clearing it touches only those. */
+    let OV_NODES = null;
     const keyOf = n => n.dataset.id ?? (n.dataset.pack ? `pack:${n.dataset.pack}` : null);
-    function drawOverlay() {
+    /** Takes an overlay off without walking every card: `overlay(null)` on an already-clear canvas is a no-op. */
+    function clearOverlay() {
         world.querySelectorAll('.ov').forEach(n => n.remove());
-        vp.classList.toggle('arming', !!OV?.dim);
+        vp.classList.remove('arming');
+        if (OV_NODES) for (const n of OV_NODES) { n.classList.remove('dim', 'sel', 'target'); }
+        OV_NODES = null;
+    }
+    function drawOverlay() {
+        if (!OV) { clearOverlay(); return; }
+        world.querySelectorAll('.ov').forEach(n => n.remove());
+        vp.classList.toggle('arming', !!OV.dim);
+        OV_NODES ??= new Set();
         for (const n of world.querySelectorAll('.card[data-id], .packframe[data-pack]')) {
+            OV_NODES.add(n);
             const k = keyOf(n);
             const sel = !!OV?.sel?.has(k);
             // Asked once per card while this overlay stands: a loose end being dragged redraws it on every move.
@@ -640,7 +659,11 @@ export function mountCanvas(vp, d) {
         world.append(h);
     }
     /** Sets the overlay: { dim(key) → bool, sel: Set, loose: { from, at: [x, y], color }, onLoose(hit) }. */
-    function overlay(o) { OV = o; drawOverlay(); }
+    function overlay(o) {
+        if (o == null && OV == null && !OV_NODES) return; // nothing drawn: a tap must not walk the cards
+        OV = o ?? null;
+        drawOverlay();
+    }
     /** Where a loose end starts: below its card. */
     function looseStart(key) {
         const r = CV?.R.get(key);

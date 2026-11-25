@@ -120,6 +120,10 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V4 — overlay no-op (`src/ui/canvas.js`).** `overlay(null)` on an already-clear canvas returns before touching any card. When an overlay was applied, only the nodes it classed are cleaned; a full draw resets that node set. Actual overlays still walk the cards once, as before.
+
+**V5 — link node indexes (`src/ui/canvas.js`).** A draw records `linkId → line nodes` and `linkId → hit path`, plus a queue-by-id map. `relink` now removes and redraws only the changed link's own nodes instead of scanning every `.ln`/`.lhit`. The double `JSON.stringify(mem)` around `arrange` stays deferred (§10.D).
+
 **V2 — canvas signature (`src/ui/canvas-sig.js`).** The Hero signature is split: the entry side (title, keys, strategy, off, folder, problem, graph rows, mask names/gates, Moment phrases, note) is built once when `modelOf` builds a model and cached on it; the per-draw side is only saved cards, `placed`, hidden entries and chat identity. `edited`, `seen`, `snapshots`, folders, defaults, body content, camera and library revisions are out. The changed path computes the signature once, no longer returns `null` for chat state, and the fresh mount signs after its draw. Measured-native: entry side 6.1 ms at model build (1,000 entries), per Hero draw 0.58–0.90 ms with 500–862 cards. Until V6 patches badges in place, chat state on adds a cheap chat revision (`length`, last text length, swipe) so a new message still updates badges; a content edit does not move it.
 
 **V1 — per-book revisions (`src/ui/st-books.js` and cache keys).** The library now keeps a monotonic per-book revision (`bookVersion(name)`, 0 when unknown) beside the global one. `dirty`, external updates, `newCopy`, remove and rename maintain it; saves that only confirm do not bump. The model cache, clash count/marking, Moments cache, Hero `canvasSig` and checks signature key the book revision, so editing B no longer invalidates A. History still uses the global version deliberately: it only looks at the open book, and a global bump forces a compare, not a lost edit.
@@ -329,7 +333,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ◐ V1, V2 landed; V3–V6 pending |
+| 3 Hero per-draw | ◐ V1, V2, V4, V5 landed; V3 retained chrome and V6 badge patching pending |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -356,7 +360,7 @@ Dependencies:
 | 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions (landed) |
 | 13 | V2 `canvasSig` (landed); V3 Hero chrome pending |
-| 14 | V4 + V5 + V6 overlay, links, status |
+| 14 | V4 + V5 overlay and link indexes (landed); V6 status patching pending |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
 | 16 | N4 + N5 windowing and `content-visibility` |
 | 17 | M1 + M2 + M3 loader, eviction, counts |
@@ -892,6 +896,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** A tap with no overlay does not walk every card; overlay-on and overlay-off visuals are unchanged.
 
+**Status.** Landed. The early return is covered by the same code path the piece bar and explain mode use; `e2e/controls.mjs` (23 checks), `e2e/shape.mjs` and `e2e/desktop.mjs` pass.
+
 **Risk.** Low.
 
 **Source.** DeepSeek #3d.
@@ -908,6 +914,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 - Index link nodes by `def.id` so `relink` touches only that link’s nodes.
 
 **Done when.** A dot drag touches only the changed link’s nodes; a full redraw still recreates DOM only when geometry changed; link visuals are unchanged.
+
+**Status.** Landed for the node indexes and `relink`. `e2e/shape.mjs` drags a ghost dot and a line through both viewports; `e2e/controls.mjs` exercises link hover/selection. The arrange double-stringify remains as the plan already deferred.
 
 **Risk.** Medium. Keep hit testing and link ordering correct.
 
@@ -1321,3 +1329,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | T4 + T5 | Hider memo + one queue per task; field-sizing with a tested rAF fallback; 371 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V1 | Per-book revisions for model, clash, Moments, canvasSig and checks; history stays global; 376 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V2 | Entry-side signature built with the model, 0.58–0.90 ms per Hero draw; content edits keep the canvas; 382 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | V4 + V5 | Overlay(null) no-op; relink uses per-link node maps; 382 pass, 0 fail, 7 skipped |
