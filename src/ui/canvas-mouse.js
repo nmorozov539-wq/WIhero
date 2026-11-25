@@ -145,6 +145,17 @@ export function mouseInput(C, I) {
 
     return {
         wire,
+        /** Hover timers do not run while the page is hidden (A3). */
+        pause() {
+            clearTimeout(focusTimer);
+            clearTimeout(lineTimer);
+            clearTimeout(leaveTimer);
+            C.hoverKey = null;
+            litKey = null;
+            litLine = null;
+            C.hideHandles?.();
+            unlightLine();
+        },
         /** A press: the right and middle buttons (and Space with the left) start a camera drag; others are ignored. */
         down(e) {
             if (e.button === 0 || e.button === 1 || e.button === 2) return I.pts.size > 0; // one pointer at a time

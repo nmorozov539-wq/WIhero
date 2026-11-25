@@ -223,6 +223,12 @@
     font-size: var(--mainFontSize, 15px);
 }
 
+/* A3: the eager shell's placeholder is the one surface outside the editor's shadow root. It has no motion today;
+   the rule keeps a future one from ignoring reduced motion without a page-wide selector that would reach ST's UI. */
+@media (prefers-reduced-motion: reduce) {
+    #wihero-loading { animation: none !important; transition: none !important; }
+}
+
 /* ST lights a closed top bar button on :hover. A phone keeps :hover on the last thing tapped, so a closed button
    stayed lit until another was tapped. On screens without hover, a closed button looks closed. ST's own classes
    (openIcon/closedIcon) still decide which button is lit. */

@@ -13,6 +13,7 @@ import {
     SORT_NAMES, isBlank, removeEntry, reorderEntries, setFolder, setParam, titleOf,
 } from './data.js';
 import { createSearchCache } from './search.js';
+import { createPageMotion } from './page-motion.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook, offCanvasMoments } from './canvas-graph.js';
 import { canvasElementSig, canvasElements } from './canvas-sig.js';
@@ -121,6 +122,14 @@ export function createApp(deps) {
     shadow.append(link, root);
     document.body.append(host);
     const layer = createLayer(layerBox, toastBox);
+
+    // Optional motion and background draws pause while the page is hidden (A3). The listener belongs to the editor
+    // chunk, so a never-opened editor pays nothing; a missing visibility API is the visible path. The same attribute
+    // also parks CSS motion, and `hide()` keeps it on while the host itself is hidden.
+    const pageMotion = createPageMotion();
+    function syncPaused() { root.toggleAttribute('data-paused', pageMotion.hidden() || host.hidden); }
+    syncPaused();
+    pageMotion.listen(() => onPageChange());
 
     // The tone is read once per theme change, not on every draw. The cache lives here so two apps never share it.
     let tone = null;
@@ -360,12 +369,30 @@ export function createApp(deps) {
         loader.cancel();
     }
 
-    /** One redraw on the next frame, however many things asked for it. */
+    /** One redraw on the next frame, however many things asked for it. A hidden page parks it instead (A3). */
     let renderQueued = false;
+    let renderFrame = 0;
     function scheduleRender() {
         if (renderQueued) return;
+        if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         renderQueued = true;
-        requestAnimationFrame(() => { renderQueued = false; refresh(); });
+        renderFrame = requestAnimationFrame(() => { renderFrame = 0; renderQueued = false; refresh(); });
+    }
+    /** A frame that was already queued when the page hid waits for visibility instead of drawing behind it. */
+    function parkRender() {
+        if (renderFrame) { cancelAnimationFrame(renderFrame); renderFrame = 0; }
+        if (renderQueued) { renderQueued = false; pendingRender = true; }
+    }
+    /** The page went hidden or came back: park draws and canvas frames while hidden, catch up once visible. */
+    function onPageChange() {
+        syncPaused();
+        if (pageMotion.hidden()) {
+            parkRender();
+            if (heroCanvas()?.pause?.()) pendingRender = true;
+            return;
+        }
+        heroCanvas()?.resume?.();
+        if (pendingRender) refresh();
     }
 
     // ---------------------------------------------------------------- render
@@ -385,7 +412,7 @@ export function createApp(deps) {
     }
     function refresh() {
         if (syncOperation()) { pendingRender = true; return; }
-        if (host.hidden) { pendingRender = true; return; }
+        if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         if (typing()) { pendingRender = true; renderTabs(); return; }
         render();
     }
@@ -397,7 +424,7 @@ export function createApp(deps) {
         if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
         wasNarrow = n;
     }).observe(root);
-    root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) render(); }, 0));
+    root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) refresh(); }, 0));
 
     /** The book on screen: Hero's, or the page's in Normal mode. */
     const currentBook = () => (S.mode === 'hero' ? S.hero.book : page()?.book) ?? null;
@@ -418,6 +445,7 @@ export function createApp(deps) {
     let listPane = null; // { id, page, node, focus }
 
     function render() {
+        if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
         searchDrawn();
@@ -692,9 +720,11 @@ export function createApp(deps) {
     function show() {
         if (!host.hidden) return;
         host.hidden = false;
+        syncPaused();
         tone = null;
         pushBackState();
         render();
+        if (!pageMotion.hidden()) heroCanvas()?.resume?.();
         deps.onVisible?.(true);
     }
     function hide() {
@@ -704,6 +734,8 @@ export function createApp(deps) {
         layer.close();
         layer.flushToast();
         host.hidden = true;
+        syncPaused();
+        if (heroCanvas()?.pause?.()) pendingRender = true;
         library.flush().catch(() => {}); // a failed save is reported by the library
         loadFailed.clear();
         if (history.state?.wihero) { ignorePop = true; history.back(); }

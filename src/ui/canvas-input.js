@@ -384,6 +384,41 @@ export function wireInput(C) {
 
     mouse.wire?.();
     touch.wire?.();
+
+    /**
+     * Drops the transient side of a gesture while the page is hidden (A3): its frame loops and hold timer are
+     * cancelled, guides/boxes/targets come off, and the pointer state is cleared. What the gesture already moved is
+     * kept: a pan's camera is written to memory, a card/shape drag's change is saved. True when that owes a draw.
+     */
+    function pause() {
+        clearTimeout(I.holdTimer);
+        I.holdTimer = null;
+        if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
+        if (edgeRaf) { cancelAnimationFrame(edgeRaf); edgeRaf = 0; }
+        edgeAt = null;
+        mouse.pause?.();
+        const mode = I.mode;
+        const owed = I.moved && (mode === 'card' || mode === 'dot');
+        const panned = I.moved && (mode === 'pan' || mode === 'pinch');
+        world.querySelector('.linkguide')?.remove();
+        world.querySelector('.dragguide')?.remove();
+        I.drag?.box?.remove();
+        vp.classList.remove('panning');
+        C.markTarget(null);
+        C.hideHandles?.();
+        C.moving = null;
+        DR = null;
+        I.pts.clear();
+        I.reset();
+        C.gesture(false);
+        if (panned || owed) C.saveCamera();
+        if (owed) {
+            for (const n of world.querySelectorAll('.card.moving')) n.classList.remove('moving');
+            d.save();
+        }
+        return owed;
+    }
+
     /** What the canvas asks of its input: the mouse's hover state, which a draw puts back. */
-    return { mouse, touch, get mode() { return I.mode; } };
+    return { mouse, touch, pause, pending: () => ({ mode: I.mode, points: I.pts.size, drag: !!dragRaf, edge: !!edgeRaf }), get mode() { return I.mode; } };
 }

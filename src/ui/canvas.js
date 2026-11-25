@@ -199,6 +199,7 @@ export function mountCanvas(vp, d) {
     vp.addEventListener('scroll', () => { vp.scrollTop = 0; vp.scrollLeft = 0; });
     let CV = null;
     let drawn = 0; // full draws so far: a card drag notices one made under it
+    let paused = false; // the page (or the editor host) is hidden: frames and timers are parked (A3)
     let moving = null;
     let hit = null;
     let flashTimer = null;
@@ -1304,7 +1305,7 @@ export function mountCanvas(vp, d) {
     }
 
     // The input (canvas-input.js) reaches the canvas only through this.
-    wireInput({
+    const input = wireInput({
         vp, world, d, camera, saveCamera, applyView, viewLater, gesture, memory, toWorld, zoomAt, render, setPicked,
         drawOverlay, dotTo, addDotAt, removeShapeDot, hideHandles, showHandles, applyFocus, clearFocus, lineUnder, hitAt,
         markTarget, tapAt, pointAt, placeOffer, lassoPrompt,
@@ -1316,10 +1317,40 @@ export function mountCanvas(vp, d) {
         get hoverKey() { return hoverKey; }, set hoverKey(v) { hoverKey = v; }, get focusKey() { return focusKey; },
     });
 
+    /**
+     * Parks the canvas while the page is hidden (A3): pending frames and timers are cancelled, the camera a pan
+     * already reached and the positions a card drag already moved stay (and save once), and the transient parts of a
+     * gesture (guides, a box, a half-made link) are dropped. Returns true when a draw is owed once visible.
+     */
+    function pause() {
+        if (paused) return false;
+        paused = true;
+        const live = !!liveRaf;
+        const flashed = hit != null;
+        if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); }
+        if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
+        if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+        if (gestureTimer) { clearTimeout(gestureTimer); gestureTimer = null; }
+        vp.classList.remove('gesture');
+        const interrupted = input.pause();
+        // A camera pan writes memory through saveCamera and leaves only its delayed save: flush that now.
+        if (camTimer) { clearTimeout(camTimer); camTimer = null; d.save(); }
+        if (flashed) hit = null;
+        return !!(interrupted || live || flashed);
+    }
+    /** The page is visible again. The app redraws when `pause()` owed one; the flag itself only re-allows frames. */
+    function resume() {
+        if (!paused) return false;
+        paused = false;
+        return true;
+    }
+
     return {
         render, fit, centerOn, reveal, tidy, flip, pointAt, screenRect, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
         shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(), patchStatus,
-        picked: () => [...picked], setPicked, phoneFocus,
+        picked: () => [...picked], setPicked, phoneFocus, pause, resume,
+        /** Diagnostics for the motion harness: what the canvas still has running or parked. */
+        pending: () => ({ paused, view: !!viewRaf, live: !!liveRaf, ...input.pending() }),
         get view() { return CV; }, get camera() { return camera(); },
     };
 }

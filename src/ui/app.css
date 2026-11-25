@@ -565,7 +565,16 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .prow.greet .nm { display: flex; flex-direction: column; }
 .prow.greet .nm small { color: var(--muted); font-size: var(--t-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--content-font, var(--serif)); font-style: italic; }
 
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* Reduced motion (A3). This sheet lives in the editor's shadow root, so `*` reaches only the editor's own tree and
+   never ST's page. The canvas keeps its non-motion feedback (dimming, the inspection outline); only transitions and
+   animations go, and a status/toast still reads because its element and text stay. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+/* A hidden page (phone switching apps, a background tab) parks motion instead of finishing it off screen. app.js
+   sets the attribute from the visibility change and clears it when the page or the editor is visible again. */
+.wih[data-paused], .wih[data-paused] *, .wih[data-paused]::before, .wih[data-paused]::after,
+.wih[data-paused] *::before, .wih[data-paused] *::after { animation-play-state: paused !important; transition: none !important; }
 @media (min-width: 700px) { .en { max-width: 760px; } }
 
 /* Preview (N5, LAYOUT "Preview tab", VISUAL 8) */
