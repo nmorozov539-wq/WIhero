@@ -11,6 +11,7 @@ import * as generation from './bench-generation.mjs';
 import * as trackers from './bench-trackers.mjs';
 import * as rebuild from './bench-rebuild.mjs';
 import * as clash from './bench-clash.mjs';
+import * as clashCold from './bench-clash-cold.mjs';
 import * as collator from './bench-collator.mjs';
 import * as history from './bench-history.mjs';
 import * as behavior from './behavior.mjs';
@@ -20,6 +21,7 @@ const BENCHES = [
     ['trackers', trackers],
     ['rebuild', rebuild],
     ['clash', clash],
+    ['clash-cold', clashCold],
     ['collator', collator],
     ['history', history],
     ['behavior', behavior],

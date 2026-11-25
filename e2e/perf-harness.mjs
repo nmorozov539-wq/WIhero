@@ -240,6 +240,13 @@ async function runOnce(run) {
             for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, 600); await page.waitForTimeout(50); }
         });
 
+        // Back to the top outside the step: making Playwright scroll 1,000 rows up inside it would be measured as
+        // entry-open work, which it is not.
+        currentStep = 'back to the top of the book';
+        await page.mouse.move(195, 420);
+        for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, -800); await page.waitForTimeout(20); }
+        await page.waitForTimeout(100);
+
         await perfStep('open an entry', async () => {
             await $('.item.ent').nth(3).click();
             await $('.en h1').waitFor();

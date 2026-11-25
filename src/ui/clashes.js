@@ -6,24 +6,39 @@ import { perf } from './perf.js';
 
 const norm = k => String(k).trim().toLowerCase().replace(/\s+/g, ' ');
 const isRegex = k => /^\/.+\/[a-z]*$/.test(String(k).trim());
-const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/** One whole-word pattern per distinct key, built once. */
-const withinRx = new Map();
+const ALNUM = /[\p{L}\p{N}]/u;
 /** Per-book results, keyed by the book object and invalidated by its revision. */
 const cache = new WeakMap();
-function within(word, key) {
-    if (key.length <= word.length) return false;
-    let rx = withinRx.get(word);
-    if (!rx) {
-        rx = new RegExp(`(^|[^\\p{L}\\p{N}])${escape(word)}($|[^\\p{L}\\p{N}])`, 'u');
-        withinRx.set(word, rx);
+
+const alnum = cp => ALNUM.test(String.fromCodePoint(cp));
+
+/** Whether the code point just before `at` is a letter or digit (surrogate pairs included). */
+function alnumBefore(text, at) {
+    if (at <= 0) return false;
+    const low = text.charCodeAt(at - 1);
+    if (low >= 0xDC00 && low <= 0xDFFF && at >= 2) {
+        const high = text.charCodeAt(at - 2);
+        if (high >= 0xD800 && high <= 0xDBFF) return alnum((high - 0xD800) * 0x400 + (low - 0xDC00) + 0x10000);
     }
-    return rx.test(key);
+    return alnum(low);
 }
 
-/** The alphanumeric tokens of a normalized key, used only to narrow the pair scan. */
-const tokens = word => word.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+/** Whether the code point at `at` is a letter or digit. */
+function alnumAfter(text, at) {
+    return at < text.length && alnum(text.codePointAt(at));
+}
+
+/** Whether `word` is in `key` as a whole word: both edges are the string ends or outside `[\p{L}\p{N}]`. */
+function within(word, key) {
+    if (key.length <= word.length) return false;
+    for (let at = key.indexOf(word); at !== -1; at = key.indexOf(word, at + 1)) {
+        if (!alnumBefore(key, at) && !alnumAfter(key, at + word.length)) return true;
+    }
+    return false;
+}
+
+/** The ordered alphanumeric spans of a normalized key, as regex matches with `index` and text. */
+const spans = key => [...key.matchAll(/[\p{L}\p{N}]+/gu)];
 
 /** Entries whose key words can fire them: on, keyword strategy, not a Moment (ST never activates a Moment). */
 function keyed(e) {
@@ -58,35 +73,60 @@ export function keywordClashes(data, skip = new Set(), revision = null) {
             const ks = [...new Set(e.key.filter(k => typeof k === 'string' && k.trim() && !isRegex(k)).map(norm))];
             for (const k of ks) { if (!words.has(k)) words.set(k, new Set()); words.get(k).add(e.uid); }
         }
-        const all = [...words.keys()];
-        // A key can only contain `word` as a whole-word substring if it contains `word`'s first token. Indexing by
-        // token turns the W² pair scan into a scan of the plausible candidates; words with no token fall back to all.
-        // Tokens only one key has are left out: they can never put another key in the candidate set.
-        const keyTokens = new Map(); // normalized key → its unique tokens
-        const tokenCount = new Map(); // token → how many keys contain it
-        for (const k of all) {
-            const ts = [...new Set(tokens(k))];
-            keyTokens.set(k, ts);
-            for (const t of ts) tokenCount.set(t, (tokenCount.get(t) ?? 0) + 1);
+        // Enumerate phrases instead of scanning pairs. Every contiguous token span of a key, sliced from the
+        // normalized string so its separators survive ("old-mill" keeps its hyphen), is a phrase. For a key that
+        // starts and ends with a token, its phrases are exactly the whole words it contains; so a phrase that is
+        // itself a key stands for the old "same word, or word inside a longer key" relation.
+        const phrases = new Map(); // phrase → Set(normalized keys containing it), in key order
+        const fallback = []; // keys a phrase cannot stand for: no token, or punctuation at an edge
+        const keySpans = [];
+        const counts = new Set(); // token counts some key has: only those spans can match a key
+        for (const key of words.keys()) {
+            const ts = spans(key);
+            keySpans.push([key, ts]);
+            if (ts.length) counts.add(ts.length);
+            // A key can stand for a phrase only when its own text is one. It can still contain other keys' phrases,
+            // so every key's spans are indexed; only a key whose span covers it whole can become a group word.
+            if (!ts.length || ts[0].index !== 0 || ts[ts.length - 1].index + ts[ts.length - 1][0].length !== key.length) {
+                fallback.push(key);
+            }
         }
-        const byToken = new Map(); // token → Set(normalized keys), only for shared tokens
-        for (const k of all) {
-            for (const t of keyTokens.get(k)) {
-                if (tokenCount.get(t) < 2) continue;
-                let set = byToken.get(t);
-                if (!set) byToken.set(t, set = new Set());
-                set.add(k);
+        const lengths = [...counts].sort((a, b) => a - b);
+        for (const [key, ts] of keySpans) {
+            for (let i = 0; i < ts.length; i++) {
+                for (const len of lengths) {
+                    const j = i + len - 1;
+                    if (j >= ts.length) break;
+                    const phrase = key.slice(ts[i].index, ts[j].index + ts[j][0].length);
+                    // Only phrases that are keys themselves can ever be a group word; other slices are dropped.
+                    if (!words.has(phrase)) continue;
+                    let set = phrases.get(phrase);
+                    if (!set) phrases.set(phrase, set = new Set());
+                    set.add(key); // one member per key, however many spans produce the phrase
+                }
             }
         }
         const groups = [];
-        for (const w of all) {
-            const uids = new Set(words.get(w));
-            const first = keyTokens.get(w)[0];
-            const candidates = first ? (tokenCount.get(first) > 1 ? byToken.get(first) : null) : all;
-            if (candidates) for (const other of candidates) {
-                if (other !== w && within(w, other)) for (const u of words.get(other)) uids.add(u);
+        const addGroup = (word, uids) => { if (uids.size > 1) groups.push({ word, uids: [...uids] }); };
+        for (const word of words.keys()) {
+            const containing = phrases.get(word);
+            if (!containing) continue;
+            const uids = new Set(words.get(word));
+            for (const key of containing) {
+                if (key === word) continue;
+                for (const uid of words.get(key)) uids.add(uid);
             }
-            if (uids.size > 1) groups.push({ word: w, uids: [...uids] });
+            addGroup(word, uids);
+        }
+        // A key phrase enumeration cannot stand for (no alphanumeric token, or punctuation on an edge) is rare;
+        // scan every key with the old boundary check so its groups and `of()` stay identical.
+        for (const word of fallback) {
+            const uids = new Set(words.get(word));
+            for (const key of words.keys()) {
+                if (key === word) continue;
+                if (within(word, key)) for (const uid of words.get(key)) uids.add(uid);
+            }
+            addGroup(word, uids);
         }
         groups.sort((a, b) => compareText(a.word, b.word));
         const byUid = new Map(); // uid → the groups it belongs to, in the same sorted order

@@ -40,7 +40,7 @@ PR #48 has already landed the engine-side hot-path work:
 The next moves, in order:
 
 1. **Establish the baseline and the harness.** Disposable fixture, instrumentation, scale benchmarks, agreed budgets. **Landed**; see §2.4.
-2. **Remove the measured hangs.** A–Z collation is done. The clash scan is not: the baseline found a third hang in its cold path (H3) — opening one entry in a 1,000-entry book with shared key vocabulary is a single ~17 s long task at 6×.
+2. **Remove the measured hangs.** A–Z collation and the clash cold path (H3) are done: opening an entry in a 1,000-entry shared-key book fell from ~17 s to 0.65–1.05 s at 6×. The remaining entry-open gate is entry-page render/layout, not the clash scan.
 3. **Remove the phone blur and cache the real token count.** Cheap, high-impact, and the blur is the prerequisite for compositor-only animation.
 4. **Fix the typing path.** Save-path clones and stringifies, `saveSettings` cadence, history transactions and a byte budget, chat-hider and textarea work.
 5. **Fix Hero per-draw work.** Per-book revisions, `canvasSig` projection, retained chrome, overlay and link-node indexes.
@@ -119,6 +119,24 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 **A1 — phone blur (`src/ui/app.css`).** Removed the live `backdrop-filter` from `.wih` and `.sheet, .dlg`; the tint is layered over its own opaque color, with the previous background kept as a fallback for engines without relative color syntax. The now-redundant desktop override and the unused `--blur` variable are gone. Paint verification on the weakest device is still to do.
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
+
+**H3 — clash cold path (`src/ui/clashes.js`).** Phrase enumeration replaces the per-word RegExp candidate scan. Every contiguous token span of each normalized key is indexed as a phrase, sliced from the key so separators survive (`old-mill` is not `old mill`); a clash is a phrase held by two or more entries, and `of()` looks up the entry's own spans. Keys with no alphanumeric token, or punctuation on an edge, keep the old boundary scan. The whole-word contract is unchanged.
+
+| Measure | Before | After |
+|---|---:|---:|
+| cold, fresh process, 1,000 × 4 shared | 149–157 ms median, 1.95 s p95 | 34.8–37.5 ms |
+| cold, mixed 1–3 word shared (135 groups) | — | 10.2–11.0 ms |
+| warm, 1,000 × 4 shared | 147–159 ms | 10.9 ms |
+| warm, 1,000 × 4 unique | 16.9 ms | 11.9 ms |
+| warm, 500 × 4 shared | 40.4–43.3 ms | 5.1 ms |
+| entry open at 6× | 15.8–17.5 s; clash 15.3–16.9 s | 0.65–1.05 s; clash 95–98 ms |
+| entry open native | 2.27 s; clash 2.10 s | 170 ms; clash 14.6 ms |
+
+The 6× entry-open worst task is still 0.28–0.49 s, so §4.2's gate is open — but the scan is no longer the cause. `entryPage` is 117–123 ms at 6×; the rest is page layout/paint. That belongs to the entry-page work (C4/T0/N3), not to H3.
+
+The harness step changed with this work: B0's entry-open step clicked `nth(3)` after scrolling 6,000 px, so Playwright scrolled 1,000 rows back up inside the measured step. H3 scrolls to the top outside it. The `clashScan` delta is like-for-like; the step totals are not directly comparable to §2.4.
+
+**Tests.** `test/clash-cold.test.js` runs the old pair scan as an oracle beside the new one at 1,000 × 4 shared keys, with punctuation, case changes, regex keys, Moments, permanent entries and a tokenless key; groups and every `of()` answer must match. Full suite: 337 tests, 330 pass, 0 fail, 7 skipped. `tools/perf/bench-clash-cold.mjs` records both cold shapes in a fresh process on every `npm run perf`.
 
 ### 2.4 B0 baseline (2026-11-24)
 
@@ -259,7 +277,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
-| 1 Hangs + cheap wins | ◐ H1 landed but its done condition fails on shared-vocabulary keys (H3 opened); H2, A1, A2 landed; C1 done in #48; C2–C10 pending |
+| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1 done in #48; C2–C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -276,7 +294,7 @@ Dependencies:
 | 4 | H1 clash (landed; H3 follows) |
 | 5 | H2 collator (landed) |
 | 6 | A1 + A2 blur/transform (landed) |
-| 6b | H3 clash cold path (next) |
+| 6b | H3 clash cold path (landed; entry-open gate moved to the entry page) |
 | 7 | C2–C10 cheap per-draw batch |
 | 8 | T0 token count |
 | 9 | T1 + T2 save path and settings |
@@ -413,6 +431,8 @@ H1's done condition (“no > 50 ms at 6×”) is false in this shape. Marking H1
 4. Add a fresh-process cold bench and an equivalence test at 1,000 × 4 shared keys: the new result must equal the current implementation's groups and `of()` output exactly, including punctuation and case.
 
 **Done when.** `test/cheap.test.js` passes unchanged; the shared-vocabulary equivalence test passes; a fresh-process cold scan at 1,000 × 4 shared keys is under 50 ms native (from 149–157 ms median, 1.95 s p95); opening the first entry in that book produces no > 100 ms long task at 6× (merge gate) with the 50 ms target still the goal; repeat draws stay free per revision.
+
+**Status.** ◐ Scan fixed, gate still open. Phrase enumeration landed; see §2.3 for the numbers and the harness-step correction. Cold 34.8–37.5 ms, warm shared 10.9 ms, warm mixed with 135 groups 11.0 ms — the scan half of the done condition is met. Entry open fell from 15.8–17.5 s to 0.65–1.05 s at 6× (worst 0.28–0.49 s), but that is still above the 100 ms gate, and the remaining time is entry-page render/layout (`entryPage` 117–123 ms), not the scan. Do not reopen H3 for that; it belongs to the entry-page work (C4, T0, N3). H1 and H3 may be marked done for clashes once the gate's owner is decided.
 
 **Risk.** Medium. Whole-word equivalence is the whole contract; a phrase map that joins tokens with spaces silently changes punctuation behavior. Test the exact groups, not just the count.
 
@@ -1147,7 +1167,7 @@ The three source notes are superseded by this document and have been removed.
 
 ### B. Measurement recipes
 
-- **Clash:** `tools/perf/bench-clash.mjs`. Two shapes: unique multi-word keys and shared vocabulary. Report cold (fresh process and fresh salt), warm, and cached. The cold tail is the user-visible number; a warm-only figure hides it.
+- **Clash:** `tools/perf/bench-clash.mjs` plus `bench-clash-cold.mjs`. Shapes: unique multi-word keys, shared five-word keys, and shared mixed 1–3 word keys (the one that forms groups). Report cold (a fresh process, and a fresh salt), warm and cached. The cold tail is the user-visible number; a warm-only figure hides it.
 - **A–Z:** `tools/perf/bench-collator.mjs`, which runs the old comparator and `sortEntries` side by side on the same titles at 150/500/1,000/3,000.
 - **History:** `tools/perf/bench-history.mjs`; one character per change, median and p95 with the sample count, plus serialized size.
 - **Link routing:** `node tools/link-bench.js` and a fresh `createLinkEngine()` per sample; time `layout(defs)` after setting obstacles.
@@ -1201,3 +1221,4 @@ Measure before committing to these:
 | 2026-11-24 | this commit | B0 native harness | `tools/perf/` rebuilt from the recipes; 52 measurements; behaviorHash `33c034aef964c242`; shared-vocabulary clash measured |
 | 2026-11-24 | this commit | B0 browser fixture + instrumentation | `?perf=1` disposable profile; `e2e/perf-harness.mjs`; `src/ui/perf.js` counters/timings; `e2e/perf.mjs` seed guard |
 | 2026-11-24 | this commit | B0 baseline | 17 steps at 1× and 6×; entry open 15.8–17.5 s at 6×, 96% clash scan; H3 opened; budgets unchanged |
+| 2026-11-25 | this commit | H3 clash cold path | Phrase enumeration; cold 149–157 ms → 34.8–37.5 ms, warm shared 147–159 → 10.9 ms; entry open 6× 15.8–17.5 s → 0.65–1.05 s, worst 0.28–0.49 s; entry-page gate remains |
