@@ -48,9 +48,22 @@ await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE });
 await page.evaluate(() => {
     window.__perf = { long: [], renders: 0 };
     new PerformanceObserver(l => { for (const e of l.getEntries()) window.__perf.long.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false });
+    // L1: the editor host is created by the chunk, after the drawer opens, so watch the body until it exists.
+    const watchMain = main => new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('view')) window.__perf.renders++; })
+        .observe(main, { childList: true });
     const host = document.getElementById('wihero-editor');
-    new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('view')) window.__perf.renders++; })
-        .observe(host.shadowRoot.querySelector('.main'), { childList: true });
+    const main = host?.shadowRoot?.querySelector('.main');
+    if (main) watchMain(main);
+    else {
+        new MutationObserver((ms, observer) => {
+            const ready = document.getElementById('wihero-editor')?.shadowRoot?.querySelector('.main');
+            if (!ready) return;
+            observer.disconnect();
+            // The first Home view may have drawn before the host could be watched: count it.
+            if (ready.querySelector(':scope > .view')) window.__perf.renders++;
+            watchMain(ready);
+        }).observe(document.body, { childList: true });
+    }
 });
 const t0 = Date.now();
 await page.click('#WI-SP-button .drawer-toggle');

@@ -211,6 +211,18 @@
     display: none !important;
 }
 
+/* L1: the drawer's place while the editor chunk loads. The drawer is hidden at once, so this stands in it rather
+   than leaving the screen blank or flashing ST's own editor. Matches the editor host's box (src/ui/app.css). */
+#wihero-loading {
+    position: fixed; left: 0; right: 0; top: var(--topBarBlockSize, 0px); z-index: 3004;
+    height: calc(100vh - var(--topBarBlockSize, 0px)); height: calc(100dvh - var(--topBarBlockSize, 0px));
+    display: flex; align-items: center; justify-content: center;
+    background: var(--SmartThemeBlurTintColor, #1d1e22);
+    color: var(--SmartThemeBodyColor, #e4e2da);
+    font-family: var(--mainFontFamily, 'Noto Sans'), system-ui, sans-serif;
+    font-size: var(--mainFontSize, 15px);
+}
+
 /* ST lights a closed top bar button on :hover. A phone keeps :hover on the last thing tapped, so a closed button
    stayed lit until another was tapped. On screens without hover, a closed button looks closed. ST's own classes
    (openIcon/closedIcon) still decide which button is lit. */

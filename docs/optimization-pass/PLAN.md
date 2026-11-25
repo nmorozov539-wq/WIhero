@@ -267,6 +267,23 @@ Tests: `test/library-memory.test.js` (16) covers summary freshness and lazy reco
 
 Harness evidence (no ST). **Read counts and typing** (`e2e/search.mjs`, 390 × 844 phone; standard harness with every read delayed 400 ms): opening search read **0** books and named **3** of **7** as not searched yet (four had loaded on Home/for the open book); Search all books read those **3** with max **3** at once and left the overlay open with the same field node; closing it dropped the queue with **3** reads in flight and **0** new starts. On the 40-book profile (`?perf=1&books=40&entries=150&big=1000`, current "Perf Big" loaded, measured-at-6x): one character ran **1** scan taking **9.1–12 ms** over two runs, no task over 50 ms, **0** corpus builds; at 1× (measured-native-browser) the same scan took **1.9–3.8 ms**. No absolute time is asserted. `e2e/perf-harness.mjs` search typing at 1× is **746 ms** (M2 844 ms) and at 6× **1,236 ms** against B0's 3.57–3.79 s; its worst task fell from **1.68–1.93 s** to **109 ms**, now the one-time 41-corpus warm on open, with 5 runs (the open plus four 150 ms-spaced keys) and 41 builds. A 10-key burst in `e2e/search.mjs` runs search **once** after the debounce with **0** rebuilds. Ranking is held by `test/search.test.js`, which compares `searchCorpus` with `data.search` on every query/current-book fixture (case, keys, book/folder names, folder dedupe, off entries); the harness checks off entries still search, Moments never do, one folder row for two entries, and the open book's rows first after Search all. Suite: 420 tests, 413 pass, 0 fail, 7 skipped.
 
+**L1 — lazy editor (`index.js`, `src/ui/lazy-app.js`, `style.css`).** `index.js` no longer statically imports `src/ui/app.js`: the editor chunk is a dynamic import behind the World Info drawer, a queued book request, or an idle prefetch ~3 s after boot. The engine side and `globalThis.wihero` stay eager (`app` is a getter that is null until loaded, plus a `ready` promise). A minimal `#wihero-loading` placeholder fills the drawer's place while the chunk resolves; a failed import removes `wihero-under` so ST's own drawer is shown, reports a toast and lets the next open retry. Drawer changes carry a ticket, so a fast open/close cannot show the editor or leave the drawer hidden. The host's `touchstart`/`mousedown` stopPropagation listeners and the side-panel class syncs attach once, after the chunk loads. `app.css` moved with the chunk; `style.css` stays eager.
+
+Measured-native graph (`node tools/boot-graph.mjs`, Node 26.13.0; `--at HEAD` is the pre-L1 boot graph):
+
+| Boot graph | Modules | Bytes |
+|---|---:|---:|
+| Before — eager static | 70 | 1,196.2 KB |
+| After — eager static | 29 | 293.8 KB |
+| After — deferred editor | 42 | 909.7 KB |
+| After — total reachable | 71 | 1,203.5 KB |
+
+The deferred half starts at `src/ui/app.js` and carries `canvas`, `desk`, `normal`, `hero-*`, `menus`, `explain`, `guide`, `preview`, `piecebar`, `inspector`, `link-engine`, `history`, `loader`, `search` and the rest of the editor graph; the eager half keeps hooks, the engine, the panel, bubble, library, data and compat. The extra module over the pre-L1 total is `src/ui/lazy-app.js`.
+
+Browser boot evidence (`e2e/boot.mjs` on `e2e/desktop/boot.html`, which imports the real `index.js` with a stub ST; measured-native-browser, 390 × 844, unthrottled Chromium 158, no ST): at boot the server request log and `performance.getEntriesByType('resource')` contain no `src/ui/app.js`, no editor module and no `app.css`; opening the drawer requests each exactly once, removes the placeholder, resolves `wihero.ready` and draws a Home row in **159–244 ms** across five runs; the idle prefetch loads the chunk with the drawer closed and shows nothing; a fast open/close during a 500 ms delayed `app.js` load leaves no `wihero-under`, no placeholder and a hidden host; a book chosen through ST's editor dropdown opens on that book; an aborted `app.js` request restores ST's drawer, reports a toast and leaves `wihero.app` null. This is a launch-harness measurement, not an ST boot trace.
+
+Tests: `test/lazy-app.test.js` (6) pins one create for concurrent loads, the ready promise, delay→idle prefetch, cancellation and retry after failure; `test/boot-graph.test.js` (3) pins the boundary. Suite: 429 tests, 422 pass, 0 fail, 7 skipped. The editor harness (`e2e/desktop/harness.html`) stays eager by design; a live-ST drawer/lifecycle run and `e2e/perf.mjs`'s `firstRowMs` are not verified here.
+
 ### 2.4 B0 baseline (2026-11-24)
 
 **Environment.** AMD Ryzen 5 3500U, 8 cores, 5.7 GB, Node 26.13.0, Chromium 158, Linux x64. Browser runs are 390 × 844, touch and mobile emulation. Labels: **measured-native** for Node and unthrottled browser, **measured-at-6x** for the throttled browser. 6× is a comparison tool, not a phone prediction; no weakest-device evidence exists yet.
@@ -411,7 +428,7 @@ Dependencies:
 | 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
 | 4 Normal retention | ◐ N1a/N1b keyed rows, N2a/N2b delegation, N3a desktop pane, N3b phone entry pane, N4a phone windowing and N4b desktop windowing landed; N5 `content-visibility` tested and rejected (no net win; reverted; `e2e/paint.mjs` kept). Paint/memory and in-page find/anchoring evidence: the paint recorder now exists; windowed-away find remains an N4 limit; device traces outstanding |
 | 5 Memory/loading/search | ✅ M1 loader/cancellation, M3 Home-count cancellation, M2 summaries/LRU/pinning and M4 search landed (foreground read ahead of three background reads; leaving Home drops queued counts; Home draws from summaries with clean copies capped at 8; search reads no book on open, scans cached per-revision corpora, debounces typing and loads unsearched books in the background). Device heap/paint traces remain §0/§7.5, not Phase 5 |
-| 6 Launch/animation readiness | ☐ |
+| 6 Launch/animation readiness | ◐ L1 lazy editor landed (the boot graph no longer reaches `app.js`; editor chunk on first need + idle prefetch, placeholder, failure fallback, `wihero.ready`); A3–A5 pending; live-ST drawer/lifecycle and `e2e/perf.mjs` `firstRowMs` unverified |
 
 ### 5.2 Commit slices
 
@@ -440,7 +457,7 @@ Dependencies:
 | 16 | N4a phone windowing and N4b desktop `.bllist` windowing (landed); N5 `content-visibility` tested and rejected — `e2e/paint.mjs` added, no CSS kept |
 | 17 | M1 + M3 loader and Home counts (landed); M2 summaries/LRU eviction/pinning (landed 2026-11-25) |
 | 18 | M4 search index, debounce and background loads (landed 2026-11-25) |
-| 19 | L1 lazy editor |
+| 19 | L1 lazy editor (landed 2026-11-25) |
 | 20 | A3 + A4 + A5 animation readiness |
 
 Every commit updates the status table and the measurement table in this document.
@@ -1190,6 +1207,8 @@ Wiring to handle:
 
 **Done when.** ST boot long tasks drop by the editor parse/eval cost; first drawer open still shows a row quickly; `e2e/perf.mjs` `firstRowMs`, drawer e2e, lifecycle e2e, and `node --test` pass.
 
+**Status.** ◐ Landed with `src/ui/lazy-app.js`. The static graph from `index.js` no longer reaches `src/ui/app.js`: measured-native it fell from 70 modules / 1,196.2 KB to 29 / 293.8 KB eager, with 42 / 909.7 KB deferred behind `app.js` (71 total, including the new `lazy-app.js`). The chunk loads on the drawer's first open or a queued book request, with a `#wihero-loading` placeholder; an idle prefetch ~3 s after boot loads it on capable devices and is dropped on a non-bfcache pagehide. A drawer ticket means a quick open/close cannot show the editor or leave `wihero-under`; a failed import removes `wihero-under`, reports and leaves ST's drawer visible. `e2e/boot.mjs` proves 0 editor requests at boot, exactly one `app.js` and `app.css` on open, a Home row in 159–244 ms (five runs, measured-native-browser), the prefetch, the fast open/close and the failure path. Harness `e2e/drawer.mjs` (10) and `e2e/lifecycle.mjs` (3 PASS) pass; a live-ST drawer/lifecycle run and `e2e/perf.mjs`'s `firstRowMs` (real ST boot long tasks) remain unverified, as does the “ST boot long tasks drop” half of the done condition. A3–A5 are still open.
+
 **Risk.** Medium — wiring guards and the eager `wihero` surface.
 
 **Source.** Qwen F1; DeepSeek #11; Astra #9.
@@ -1284,6 +1303,7 @@ Practical rule: if a change needs a layout read (`getBoundingClientRect`, `scrol
 - `npm run perf:smoke` for the native harness's determinism/count assertions; `npm run perf` for the scale numbers.
 - `e2e/perf-harness.mjs` for browser scenarios and long tasks (no ST); `e2e/perf.mjs` for the same against a throwaway ST, with `PERF_ALLOW_SEED=1`.
 - `e2e/paint.mjs` for the CDP layout/paint recording (no ST) of the windowed lists, Home refresh, Explain mode and the Hero panel.
+- `e2e/boot.mjs` for L1's boot boundary (no ST): no editor module or `app.css` at boot, one chunk load on the drawer open, the idle prefetch, a fast open/close and a failed import; `tools/boot-graph.mjs` for the measured-native module/byte split.
 - `e2e/memory.mjs` for the M2 heap plateau, summary-only Home and the dirty/undo eviction proof (no ST).
 - `tools/link-bench.js` for routing.
 - `test/history.test.js`, `test/book-write.test.js`, `test/st-books.test.js`, `test/library-lifecycle.test.js` for save/history behavior.
@@ -1446,3 +1466,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | M1 + M3 | Shared loader (`src/ui/loader.js`) over `library.get`: foreground ahead of three background reads, queued promotion, cancel drops queued counts and bumps a generation; Home spans cleared on leave/replace; 13-book slow-read harness: 3 started / 10 queued, tap starts next and opens with 9 uncounted, 0 counts start after leaving, return reloads all 13 with no duplicate read; 396 pass, 0 fail, 7 skipped; e2e load-priority 5, home-rows 6, desktop 51, tiles 6, normal-rows 7, window 12, window-desktop 14, desk-pane 7, delegate 11, perf-harness 17 at 1× |
 | 2026-11-25 | this commit | M2 | Per-book summaries (visible count, total, tokens, revision) answer Home with no read; stale after a change and computed lazily; clean copies LRU-capped at 8 with open/dirty/saving/failed/operation/reserved/loading/history pins; eviction after read/save keeps revisions, `seeded` and settings; `stats()`; browser heap plateau over 10 Home↔book cycles: 8 copies, 41 summaries, evictions 33→43, 317 KiB growth over the last five cycles, summary-only Home redraw 0 reads; dirty copy and undo survive eviction; 412 pass, 0 fail, 7 skipped; e2e memory 8, load-priority 5, home-rows 6, window 12, window-desktop 14, desk-pane 7, desktop 51, normal-rows 7, entry-pane 6, tiles 6, delegate 11, mobile-edit pass, lifecycle pass, perf-harness 17 at 1× |
 | 2026-11-25 | this commit | M4 | Search scans per-revision lowercase corpora and no longer loads the library on open: 0 reads on open, 3 of 7 named "not searched yet", Search all books 3 bounded background reads updating the open overlay, close drops the queue (3 in flight, 0 new); 10-key burst = 1 run, 0 rebuilds; one character at 6× scans 9.1–12 ms with no task over 50 ms (1× 1.9–3.8 ms); perf-harness search typing 746 ms at 1× and 1,236 ms at 6× (B0 3.57–3.79 s), worst task 109 ms (B0 1.68–1.93 s), 5 runs / 41 builds; ranking equals `data.search`; 420 pass, 0 fail, 7 skipped; e2e search 10, load-priority 5, home-rows 6, window 12, window-desktop 14, desk-pane 7, desktop 51, tiles 6, delegate-desktop 19, cheap 12, entry-pane 6, memory 8, perf-harness 17 at 1× and 6× |
+| 2026-11-25 | this commit | L1 | `index.js` no longer statically imports `src/ui/app.js`; the editor chunk loads on the drawer's first open or a queued book, with an idle prefetch ~3 s after boot, a `#wihero-loading` placeholder, `wihero.ready`/`app` surface, drawer tickets and a failure fallback that restores ST's drawer; measured-native boot graph 70 modules / 1,196.2 KB → 29 / 293.8 KB eager + 42 / 909.7 KB deferred (71 total); boot page: 0 editor requests and 0 `app.css` at boot, exactly one `app.js` + one `app.css` on open, Home row 159–244 ms over five runs, prefetch loads with the drawer closed, fast open/close leaves no `wihero-under`, failed import restores ST's drawer; 429 pass, 0 fail, 7 skipped; e2e boot 6, desktop 51, desk-pane 7, window 12, window-desktop 14, home-rows 6, normal-rows 7, entry-pane 6, search 10, memory 8, load-priority 5, tabs 5, chrome 5, pbar 1, delegate 11, delegate-desktop 19, badges 6, canvas-sig 5, drawer 10, lifecycle 3, perf-harness 17 at 1× |

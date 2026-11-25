@@ -1,11 +1,12 @@
 // WI Hero: story logic for SillyTavern's World Info. Entries open as the story reaches them and close once it
 // moves past. The engine and its ST wiring (N1), and the editor that opens from ST's World Info button (N2).
+// The editor is a separate chunk (L1): it is imported when the drawer opens, not while ST launches.
 // See docs/BUILD_SPEC.md.
 import { MODULE, getSettings } from './src/settings.js';
 import { ensureSettings, filterChoices } from './src/ui/data.js';
 import { createLibrary } from './src/ui/st-books.js';
 import { createSnapshots } from './src/ui/snapshots.js';
-import { createApp } from './src/ui/app.js';
+import { createLazyApp } from './src/ui/lazy-app.js';
 import { mountPanel, renderNotice, renderWhenVisible } from './src/panel.js';
 import { createHooks } from './src/st-hooks.js';
 import { perf } from './src/ui/perf.js';
@@ -205,7 +206,8 @@ const library = createLibrary({
             + `${conflicts === 1 ? 'One entry' : `${conflicts} entries`} changed in both places keep${conflicts === 1 ? 's' : ''} WI Hero's version; the rest take the outside changes.`, 'WI Hero');
     },
     // M2: Home draws a book's count from this summary instead of loading the book, and the library keeps the open
-    // book and any book with undo states loaded. `app` exists by the time either is asked (no book is read before it).
+    // book and any book with undo states loaded. The editor may not be loaded yet (L1), so the fallback answers the
+    // entry count alone; once it is, the app adds the visible count and tokens.
     summarize: (name, data) => (app ? app.summarizeBook(name, data) : { entries: Object.keys(data?.entries ?? {}).length }),
     pinned: () => app?.pinnedBooks?.() ?? [],
 });
@@ -236,8 +238,8 @@ const clickWiButton = () => globalThis.jQuery?.('#WI-SP-button .drawer-toggle').
 let native = false;
 function openStEditor() {
     native = true;
-    wiDrawer?.classList.remove('wihero-under');
-    app.hide();
+    if (wiDrawer?.classList.contains('wihero-under')) wiDrawer.classList.remove('wihero-under');
+    app?.hide();
     if (!drawerOpen()) clickWiButton();
 }
 /** WI Hero opened or closed itself (its Back, Escape): ST's drawer goes with it, through ST's own button. */
@@ -252,29 +254,97 @@ bubble = createBubble({ ctx, settings, saveSettings: saveSettingsDebounced, gap:
 stVersion().then(v => health.setVersion(v));
 if (!health.ok) showHealth(health);
 
-app = createApp({
-    ctx: uiCtx, library, snapshots, hooks, settings, saveSettings: saveSettingsDebounced,
-    entryTemplate: st.newWorldInfoEntryTemplate,
-    cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
-    openStEditor,
-    onVisible: followEditor,
-    scan: { globals: scanGlobals, parseRegexFromString: st.parseRegexFromString },
+// ---- The editor, loaded on first need (L1). ST's launch parses only the engine side; the editor chunk (app.js and
+// the canvas, lists, panels and sheets behind it) arrives when the drawer first opens. A placeholder fills the
+// drawer's place while it does, so the screen is never blank and ST's own editor never flashes underneath.
+let editorLoading = null;
+function showEditorLoading() {
+    if (editorLoading || !document.body) return;
+    editorLoading = document.createElement('div');
+    editorLoading.id = 'wihero-loading';
+    editorLoading.setAttribute('role', 'status');
+    editorLoading.textContent = 'Opening WI Hero…';
+    document.body.append(editorLoading);
+}
+function hideEditorLoading() {
+    editorLoading?.remove();
+    editorLoading = null;
+}
+/** The chunk or its wiring failed: report it, put ST's own drawer back, and let a later open try again. */
+function editorFailed() {
+    hideEditorLoading();
+    if (!drawerOpen() || native) return; // a prefetch failure: the next open reports it to the reader
+    native = true;
+    if (wiDrawer?.classList.contains('wihero-under')) wiDrawer.classList.remove('wihero-under');
+    globalThis.toastr?.error('WI Hero could not open its editor. SillyTavern\'s World Info is shown instead.', 'WI Hero');
+}
+// The side-panel class syncs are created below; the loaded editor applies the current state once.
+const sidePanelSyncs = [];
+const editor = createLazyApp(() => import('./src/ui/app.js').then(({ createApp }) => {
+    const instance = createApp({
+        ctx: uiCtx, library, snapshots, hooks, settings, saveSettings: saveSettingsDebounced,
+        entryTemplate: st.newWorldInfoEntryTemplate,
+        cssUrl: new URL('./src/ui/app.css', import.meta.url).href,
+        openStEditor,
+        onVisible: followEditor,
+        scan: { globals: scanGlobals, parseRegexFromString: st.parseRegexFromString },
+    });
+    app = instance;
+    // ST closes its open drawers on any touch or mouse press outside them (script.js, on <html>). WI Hero stands for
+    // the drawer, so a press inside it stays inside: it doesn't reach that handler. Passive: a touch listener that
+    // could cancel makes the phone wait for the page's script before every scroll starts.
+    for (const type of ['touchstart', 'mousedown']) instance.host.addEventListener(type, e => e.stopPropagation(), { passive: true });
+    for (const sync of sidePanelSyncs) sync();
+    return instance;
+}), {
+    onError: error => console.error('[WI Hero] Could not load the editor.', error),
 });
 
+/** Shows or opens the book the drawer asked for; shared by the already-loaded and just-loaded paths. */
+function showEditor(instance) {
+    if (askedBook) {
+        const name = askedBook;
+        askedBook = null;
+        clearTimeout(askedTimer);
+        instance.openBook(name);
+    } else {
+        instance.show();
+    }
+}
+
+// Every drawer change takes a ticket: an open that finishes after the drawer closed (a quick open/close, or a
+// superseded sync) must not show the editor.
+let drawerSync = 0;
 function syncWithDrawer() {
     if (!drawerOpen()) {
+        drawerSync++;
         native = false; // the class stays on while the drawer closes, so its closing animation isn't seen
-        app.hide();
+        hideEditorLoading();
+        if (app) app.hide();
+        else if (wiDrawer?.classList.contains('wihero-under')) wiDrawer.classList.remove('wihero-under'); // never shown: don't hide ST's drawer next time
         return;
     }
-    if (native) return;
+    if (native) { hideEditorLoading(); return; }
     if (!wiDrawer.classList.contains('wihero-under')) wiDrawer.classList.add('wihero-under');
-    if (askedBook) { const name = askedBook; askedBook = null; app.openBook(name); } else app.show();
+    if (app) {
+        hideEditorLoading();
+        try { showEditor(app); } catch (error) { console.error('[WI Hero] Could not show the editor.', error); editorFailed(); }
+        return;
+    }
+    const ticket = ++drawerSync;
+    showEditorLoading();
+    editor.load().then(instance => {
+        if (ticket !== drawerSync) return;
+        if (!drawerOpen() || native) { hideEditorLoading(); return; }
+        try {
+            showEditor(instance);
+            hideEditorLoading();
+        } catch (error) { console.error('[WI Hero] Could not show the editor.', error); editorFailed(); }
+    }, error => {
+        if (ticket !== drawerSync) return;
+        editorFailed();
+    });
 }
-// ST closes its open drawers on any touch or mouse press outside them (script.js, on <html>). WI Hero stands for the
-// drawer, so a press inside it stays inside: it doesn't reach that handler. Passive: a touch listener that could
-// cancel makes the phone wait for the page's script before every scroll starts.
-for (const type of ['touchstart', 'mousedown']) app.host.addEventListener(type, e => e.stopPropagation(), { passive: true });
 if (wiDrawer) {
     new MutationObserver(syncWithDrawer).observe(wiDrawer, { attributes: true, attributeFilter: ['class'] });
     syncWithDrawer();
@@ -289,7 +359,7 @@ const keepBesideSidePanel = e => {
     const toggle = e.target.closest?.('.drawer-toggle');
     const panel = toggle?.parentElement?.querySelector('.drawer-content');
     if (!panel || !SIDE_PANELS.has(panel.id) || panel.classList.contains('openDrawer')) return;
-    if (!app.isOpen() || !app.host.classList.contains('desk') || app.host.classList.contains('wide') || !drawerOpen()) return;
+    if (!app?.isOpen() || !app.host.classList.contains('desk') || app.host.classList.contains('wide') || !drawerOpen()) return;
     const icon = document.querySelector('#WI-SP-button .drawer-icon');
     const pinned = wiDrawer.classList.contains('pinnedOpen');
     if (pinned) return;
@@ -302,19 +372,22 @@ for (const type of ['mousedown', 'touchstart', 'click']) document.addEventListen
 for (const [id, cls] of [['left-nav-panel', 'pl'], ['right-nav-panel', 'pr']]) {
     const panel = document.getElementById(id);
     if (!panel) continue;
-    const sync = () => app.host.classList.toggle(cls, panel.classList.contains('openDrawer'));
+    const sync = () => app?.host.classList.toggle(cls, panel.classList.contains('openDrawer'));
     new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    sidePanelSyncs.push(sync);
     sync();
 }
 globalThis.jQuery?.('#world_editor_select').on('change', function () {
     if (native || library.busy?.()) return; // WI Hero's own book changes refresh that list too
     const name = st.WI.world_names?.[Number(globalThis.jQuery(this).val())];
     if (!name) return;
-    if (app.isOpen()) { app.openBook(name); return; }
+    if (app?.isOpen()) { app.openBook(name); return; }
     // The drawer can open a moment later (ST waits for another drawer to close first).
     askedBook = name;
     clearTimeout(askedTimer);
     askedTimer = setTimeout(() => { askedBook = null; }, 1500);
+    // Or it is already open (ST programmatically picked a book): start the edit now, asking for this book.
+    if (drawerOpen() && !native) syncWithDrawer();
 });
 
 on('WORLDINFO_UPDATED', library.onWorldInfoUpdated);
@@ -324,7 +397,10 @@ for (const type of ['CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) e
 for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
 
 globalThis.wihero = {
-    app,
+    /** The editor, or null until the chunk has loaded (await `ready`). */
+    get app() { return app; },
+    /** Resolves with the editor; rejects if the first open's import or wiring failed. */
+    ready: editor.ready,
     library,
     snapshots,
     perf,
@@ -337,3 +413,8 @@ globalThis.wihero = {
     settings,
     module: MODULE,
 };
+
+// L1: the first open on a capable device should be instant, but ST's launch must not pay for the editor. Ask for the
+// chunk on an idle callback a few seconds in; a page teardown drops the pending request.
+editor.prefetch();
+globalThis.addEventListener?.('pagehide', event => { if (!event.persisted) editor.cancel(); });

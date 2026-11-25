@@ -1,6 +1,9 @@
 // The stand-in for SillyTavern behind harness.html: an in-memory library of books (the examples, and a few made up
 // here), WI Hero's settings in localStorage, and no chat. Exposes `wihero.app` like the extension does.
 //
+// This page imports the editor eagerly on purpose: it is the fixture for editor behaviour, not for ST's launch
+// (e2e/desktop/boot.html with index.js is the L1 boot page). `wihero.ready` is already resolved for parity.
+//
 // `?perf=1` swaps that library for the disposable optimization profile (docs/optimization-pass/PLAN.md, B0): 40
 // generated books, one 1,000-entry "Perf Big" book with a placed canvas, a 100 KB entry, and a long chat. It is not
 // saved anywhere but this page's localStorage, and e2e/perf-harness.mjs drives it. Without `perf` nothing changes.
@@ -226,7 +229,7 @@ app = createApp({
     onVisible: open => document.getElementById('wi-button').classList.toggle('lit', open),
 });
 document.getElementById('wi-button').addEventListener('click', () => app.toggle());
-globalThis.wihero = { app, library, settings, perf: perfCounters, ...(harnessState ? { hooks } : {}) };
+globalThis.wihero = { app, ready: Promise.resolve(app), library, settings, perf: perfCounters, ...(harnessState ? { hooks } : {}) };
 if (loadState) globalThis.wiheroHarnessLoads = loadState;
 if (perf) {
     // Left closed so the runner can time the page's first tab; the profile it actually seeded is reported with each
