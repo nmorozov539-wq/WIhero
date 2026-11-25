@@ -120,6 +120,16 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**T3 — history runs and a byte budget (`src/ui/history.js`).** A quiet run captures the pre-edit state once and the final state once at its boundary; the keystrokes between them cost a timestamp update, not a whole-book stringify. A pause of 1 s, a non-quiet edit, a redraw, `settle`, or undo/redo ends the run. Captured states carry an estimated size; a global 12 MiB budget evicts the oldest state across every book's undo and redo stacks (per-book 100-step cap kept), and `stats()` exposes bytes/steps for tests. `held`, external resets, camera exclusion and redo clearing are unchanged.
+
+| Entries | Per-keystroke edit before | After (run continuation) | p95 after |
+|---:|---:|---:|---:|
+| 150 | 0.32 ms | 0.011 ms | 0.035 ms |
+| 1,000 | 2.83 ms | 0.010 ms | 0.021 ms |
+| 5,000 | 10.44 ms | 0.006 ms | 0.052 ms |
+
+Measured-native, `bench-history.mjs`. The two boundary captures still serialize the whole book once each; that is the remaining bounded cost, not a per-keystroke one. Patch-level state (the plan's item 3) was not taken up: the run keeps whole states at its two ends, and the byte budget caps how many of those survive.
+
 **T1 — save path (`src/ui/st-books.js`).** Comparison bases (`bases`, `cacheSeen`) are JSON text, not objects; the second whole-book clone (`sent`) is gone, and the native-cache comparison stringifies once. Typing stretches the debounce 350 → 525 → 788 → 1000 ms; a discrete edit after idle stays at 350 ms; retries keep their own delay. The crash-loss window is documented and still bounded by `flush` on hide/close. Save baselines, concurrency checks, the pending-native merge and retries are unchanged.
 
 | Entries | Save median before | After | Serialized chars before | After |
@@ -310,7 +320,7 @@ Dependencies:
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
-| 2 Typing path | ◐ T0, T1, T2 landed; T3–T5 pending |
+| 2 Typing path | ◐ T0–T3 landed; T4, T5 pending |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
@@ -334,7 +344,7 @@ Dependencies:
 | 7e | C10 `contain` step 1 (landed as a measured intermediate) |
 | 8 | T0 token count (landed) |
 | 9 | T1 + T2 save path and settings (landed) |
-| 10 | T3 history |
+| 10 | T3 history (landed) |
 | 11 | T4 + T5 chat hider and autosize |
 | 12 | V1 per-book revisions |
 | 13 | V2 + V3 `canvasSig` and Hero chrome |
@@ -781,6 +791,8 @@ Measured edit cost (history wrapper + mutation, excluding rendering/persistence/
 4. Bound history by estimated bytes across books as well as step count (for example 8–16 MB total). Drop oldest states first. Release history through an explicit lifecycle policy.
 
 **Done when.** Typing in a 5,000-entry book does not serialize the whole book per keystroke; undo grouping, Done/Cancel, rename, external edits, and piece-bar cancellation behave as before; history stays under the byte budget across repeated navigation; `test/history.test.js` and the related e2e pass.
+
+**Status.** Landed for the run boundary and the budget. `test/history.test.js` adds: 40 quiet changes capture ≤3 times and undo/redo restore the ends; a pause splits; non-quiet and redraw boundaries; `held`; external reset; and budget eviction/accounting (including undo, redo, forget, rename). `e2e/mobile-edit.mjs` passes; ST-only history e2e is still unrun. Patch-level storage remains deferred; the pre/final whole states are bounded by the 12 MiB budget.
 
 **Risk.** Medium–large. Do not simply debounce `take()`: that can lose the pre-edit state, change Done/Cancel semantics, or merge actions that must remain separately undoable. Keep camera movement excluded and external-save history resets intact.
 
@@ -1289,3 +1301,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | C10 | Row containment landed as an intermediate; scroll counters unchanged (0 layouts, 9–11 recalcs); paint trace pending |
 | 2026-11-25 | this commit | T0 | Token count cached per text, deferred 1200 ms or flushed on blur, skipped when hidden/dead; 358 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | T1 + T2 | Save bases as JSON, one payload clone, adaptive 350→1000 ms; one settings save per save; 5,000-entry save 157 → 91 ms; 363 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | T3 | Quiet runs capture at the ends only; 1,000-entry keystroke 2.83 → 0.01 ms; 12 MiB global budget; 368 pass, 0 fail, 7 skipped |
