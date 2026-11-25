@@ -31,47 +31,132 @@ export function createNormal(A) {
     } = A;
 
     // ---------------------------------------------------------------- Home
-    function renderHome() {
-        const v = el('div', 'view');
-        main.append(v);
+    /**
+     * Home, reconciled into a retained `.view` (N1b). The header, folder heads, rows and tiles are keyed, so a draw
+     * for the same page keeps their nodes and listeners. Rows key by book name and tiles by book name inside a keyed
+     * grid; switching between list and tiles uses different keys, so those nodes are rebuilt.
+     */
+    function renderHome(view = null) {
+        const v = view ?? el('div', 'view');
+        if (!view) main.append(v);
         const names = visibleNames();
         const tiles = settings.homeView === 'tiles';
-        const books = list => {
-            if (!tiles) {
-                const rowAt = perf.begin('rowMount');
-                for (const n of list) v.append(bookRow(n));
-                perf.end(rowAt);
-                return;
-            }
-            const g = el('div', 'ptiles');
-            const rowAt = perf.begin('rowMount');
-            for (const n of list) g.append(bookTile(n));
-            perf.end(rowAt);
-            if (list.length) v.append(g);
-        };
-        if (S.select) v.append(selHead(names, 'books'));
-        else {
-            const h = el('div', 'head');
-            // List or tiles, the phone's own choice (desktop keeps its own under settings.desk).
-            const toTiles = !tiles;
-            h.append(el('h1', '', 'World Info'),
-                btn('round flat', ic(toTiles ? 'grid' : 'rows'), () => { settings.homeView = toTiles ? 'tiles' : 'list'; saveSettings(); render(); }, toTiles ? 'Show books as tiles' : 'Show books as a list'),
-                btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
-            v.append(h);
-        }
+        const items = [];
+        if (S.select) {
+            items.push({
+                key: 'selhead',
+                make: () => el('div', 'selhead'),
+                update: h => h.replaceChildren(...selHead(names, 'books').childNodes),
+            });
+        } else items.push(homeHeadItem(tiles));
+        items.push(noteItem('books-label', 'Books', 'section'));
         // A folder shows while it holds a book shown here, or nothing at all (a new folder, #40).
         const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => compareText(a, b));
         const loose = names.filter(n => !bookFolderOf(settings, n));
-        v.append(el('div', 'section', 'Books'));
-        books(loose);
+        homeBooks(items, loose, tiles, 'loose');
         for (const f of folders) {
             const list = settings.bookFolders[f].filter(n => names.includes(n)).sort((a, b) => compareText(a, b));
             const key = `home:${f}`;
             const open = !S.collapsed.has(key);
-            v.append(sectionHead(`${f} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list : null));
-            if (open) books(list);
+            items.push(homeFolderHeadItem(f, `${f} · ${list.length}`, open));
+            if (open) homeBooks(items, list, tiles, `folder:${f}`);
         }
-        if (!names.length) v.append(el('div', 'empty-note', 'No books yet. Tap + to make the first one.'));
+        if (!names.length) items.push(noteItem('home-empty', 'No books yet. Tap + to make the first one.'));
+        const rowAt = perf.begin('rowMount');
+        keyed(v, items, item => item.make());
+        perf.end(rowAt);
+    }
+
+    /** Adds a list's rows, or one keyed tile grid for it. A different view type uses different keys, so it replaces. */
+    function homeBooks(items, list, tiles, scope) {
+        if (!tiles) {
+            for (const n of list) items.push(bookRowItem(n));
+            return;
+        }
+        if (!list.length) return;
+        items.push({
+            key: `tiles:${scope}`,
+            make: () => el('div', 'ptiles'),
+            update: g => keyed(g, list.map(n => bookTileItem(n)), item => item.make()),
+        });
+    }
+
+    function bookRowItem(name) {
+        return { key: `row:${name}`, make: () => bookRow(name), update: it => updateBookRow(it, name) };
+    }
+
+    function bookTileItem(name) {
+        return { key: `tile:${name}`, make: () => bookTile(name), update: t => updateBookTile(t, name) };
+    }
+
+    /** Home's header: kept, with its title and the list/tiles button's icon and label updated in place. */
+    function homeHeadItem(tiles) {
+        // List or tiles, the phone's own choice (desktop keeps its own under settings.desk), read at click time.
+        const toggle = () => {
+            settings.homeView = settings.homeView === 'tiles' ? 'list' : 'tiles';
+            saveSettings();
+            render();
+        };
+        return {
+            key: 'head',
+            make() {
+                const h = el('div', 'head');
+                const viewBtn = btn('round flat', '', toggle, 'Show books as tiles');
+                paintIcon(viewBtn, tiles ? 'rows' : 'grid');
+                h.append(el('h1', '', 'World Info'), viewBtn, btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
+                return h;
+            },
+            update(h) {
+                h.querySelector(':scope > h1').textContent = 'World Info';
+                const viewBtn = h.querySelector(':scope > button');
+                paintIcon(viewBtn, tiles ? 'rows' : 'grid');
+                viewBtn.setAttribute('aria-label', tiles ? 'Show books as a list' : 'Show books as tiles');
+            },
+        };
+    }
+
+    /** A folder's head on Home. Folding and select-all read the current folder and selection at event time. */
+    function homeFolderHeadItem(folder, text, open) {
+        const key = `home:${folder}`;
+        const current = () => (settings.bookFolders[folder] ?? []).filter(n => visibleNames().includes(n)).sort((a, b) => compareText(a, b));
+        const toggle = () => {
+            if (S.collapsed.has(key)) S.collapsed.delete(key); else S.collapsed.add(key);
+            render();
+        };
+        return {
+            key: `folder:${folder}`,
+            make() {
+                const s = el('div', 'section');
+                s.append(btn('', html`${ic('right')}<span></span>`, toggle));
+                return s;
+            },
+            update(s) {
+                let c = s.querySelector(':scope > .check');
+                if (S.select) {
+                    if (!c) {
+                        c = check(true);
+                        c.setAttribute('role', 'checkbox');
+                        c.addEventListener('click', () => {
+                            if (!S.select) return;
+                            const list = current();
+                            const all = list.length && list.every(x => S.select.has(x));
+                            for (const x of list) all ? S.select.delete(x) : S.select.add(x);
+                            render();
+                        });
+                        s.prepend(c);
+                    }
+                    const list = current();
+                    const all = list.length && list.every(x => S.select.has(x));
+                    c.classList.toggle('on', all);
+                    if (all) setIcon(c, 'check'); else c.replaceChildren();
+                    c.setAttribute('aria-label', `Select ${folder}`);
+                } else c?.remove();
+                const b = s.querySelector(':scope > button');
+                b.querySelector('span').textContent = text;
+                b.classList.toggle('open', open);
+                b.setAttribute('aria-expanded', String(open));
+            },
+        };
     }
 
     /** Entry count and status badges, shared by a book's row and its tile. */
@@ -81,54 +166,138 @@ export function createNormal(A) {
         const count = el('span', '', data ? `${entriesShown(name, data).length} entries` : '…');
         if (!data) countInto(name, count);
         m.append(count);
-        const global = library.isGlobal(name);
-        const lt = linkText(name);
-        if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; m.append(u); }
-        if (global) m.append(el('span', 'badge g', 'Global'));
-        if (lt) { const l = el('span', 'badge l'); setIcon(l, 'chain', 's'); l.append(lt); m.append(l); }
-        if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; m.append(o); }
+        updateBookMeta(m, name);
         return m;
     }
 
-    /** Tap, long press and select mode, the same on a row and a tile. */
+    /**
+     * Count and badges on a retained row/tile. The count span is written only when the book is loaded here; until
+     * then `countInto` owns its text, so a draw cannot put "…" back over a count that just arrived.
+     */
+    function updateBookMeta(m, name) {
+        const count = m.querySelector(':scope > span:not(.badge)');
+        const data = library.peek(name);
+        if (data) count.textContent = `${entriesShown(name, data).length} entries`;
+        const global = library.isGlobal(name);
+        const lt = linkText(name);
+        const want = [];
+        if (library.unsaved?.(name)) want.push({ cls: 'u', text: 'Not saved', title: 'Saving failed. Your edits are kept here; the next change tries again' });
+        if (global) want.push({ cls: 'g', text: 'Global' });
+        if (lt) want.push({ cls: 'l', text: lt, icon: 'chain' });
+        if (!global && !lt) want.push({ cls: 'o', text: 'Off', title: 'No chat uses it. Open the book to use it in a chat or make it global' });
+        const have = new Map();
+        for (const n of [...m.querySelectorAll(':scope > .badge')]) {
+            const cls = [...n.classList].find(c => c !== 'badge');
+            if (!cls || have.has(cls)) n.remove();
+            else have.set(cls, n);
+        }
+        let at = count;
+        for (const b of want) {
+            let n = have.get(b.cls);
+            if (!n) {
+                n = el('span', `badge ${b.cls}`);
+                if (b.icon) { setIcon(n, b.icon, 's'); n.append(el('span')); }
+            }
+            if (b.icon) n.querySelector(':scope > span').textContent = b.text;
+            else n.textContent = b.text;
+            if (b.title) n.title = b.title; else n.removeAttribute('title');
+            at.after(n);
+            at = n;
+        }
+        for (const [cls, n] of have) if (!want.some(b => b.cls === cls)) n.remove();
+    }
+
+    /** The book icon, or its check mark in select mode, replaced only when it changes. */
+    function paintBookIcon(box, picked) {
+        paintIcon(box, picked ? 'check' : 'book');
+    }
+
+    function paintIcon(node, name, cls = '') {
+        const want = `${name}:${cls}`;
+        if (node.dataset.icon === want) return;
+        node.dataset.icon = want;
+        setIcon(node, name, cls);
+    }
+
+    /** Tap, long press and select mode, the same on a row and a tile. Handlers read the current state at event time. */
     function bookPress(node, name) {
         node.dataset.book = name;
-        if (S.select) { node.setAttribute('role', 'checkbox'); node.setAttribute('aria-checked', String(!!S.select.has(name))); }
+        paintBookPress(node, name);
         pressable(node, () => {
-            if (S.select) { toggleSel(name); return; }
-            if (settings.openInHero) { S.hero.book = name; switchMode(); return; }
-            openIn({ type: 'book', book: name });
-        }, S.select ? null : () => openIn({ type: 'book', book: name }, { newTab: true, background: true }));
+            const book = node.dataset.book;
+            if (!book) return;
+            if (S.select) { toggleSel(book); return; }
+            if (settings.openInHero) { S.hero.book = book; switchMode(); return; }
+            openIn({ type: 'book', book });
+        }, () => {
+            if (S.select) return;
+            const book = node.dataset.book;
+            if (book) openIn({ type: 'book', book }, { newTab: true, background: true });
+        });
+    }
+
+    /** Selection's row/tile state, in place: the `sel` class and its checkbox role. */
+    function paintBookPress(node, name) {
+        const picked = !!S.select?.has(name);
+        node.classList.toggle('sel', picked);
+        if (S.select) {
+            node.setAttribute('role', 'checkbox');
+            node.setAttribute('aria-checked', String(picked));
+        } else {
+            node.removeAttribute('role');
+            node.removeAttribute('aria-checked');
+        }
+        return picked;
     }
 
     function bookRow(name) {
-        // In select mode a tap selects the row: it lights up and its book icon becomes a check mark (#42).
-        const picked = !!S.select?.has(name);
-        const it = el('div', `item${picked ? ' sel' : ''}`);
-        const i = el('div', 'ic');
-        setIcon(i, picked ? 'check' : 'book');
+        const it = el('div', 'item');
         const tx = el('div', 'txt');
-        tx.append(el('div', 't', name), bookMeta(name));
-        it.append(i, tx);
-        if (!S.select) it.append(btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`));
+        tx.append(el('div', 't'), bookMeta(name));
+        it.append(el('div', 'ic'), tx);
         bookPress(it, name);
         perf.count('rowMounts');
         return it;
     }
 
+    function updateBookRow(it, name) {
+        const picked = paintBookPress(it, name);
+        paintBookIcon(it.querySelector(':scope > .ic'), picked);
+        it.querySelector(':scope > .txt > .t').textContent = name;
+        updateBookMeta(it.querySelector(':scope > .txt > .m'), name);
+        let more = it.querySelector(':scope > .more');
+        if (S.select) { more?.remove(); return; }
+        if (!more) {
+            more = btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`);
+            it.append(more);
+        }
+        more.setAttribute('aria-label', `${name} actions`);
+    }
+
     /** Home's tile view on phones: two to a row, the name on up to two lines, then the count and badges. */
     function bookTile(name) {
-        const picked = !!S.select?.has(name);
-        const t = el('div', `ptile${picked ? ' sel' : ''}`);
+        const t = el('div', 'ptile');
         const top = el('div', 'pt');
-        const i = el('div', 'ic');
-        setIcon(i, picked ? 'check' : 'book');
-        top.append(i);
-        if (!S.select) top.append(btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`));
-        t.append(top, el('div', 't', name), bookMeta(name));
+        top.append(el('div', 'ic'));
+        t.append(top, el('div', 't'), bookMeta(name));
         bookPress(t, name);
         perf.count('rowMounts');
         return t;
+    }
+
+    function updateBookTile(t, name) {
+        const picked = paintBookPress(t, name);
+        paintBookIcon(t.querySelector(':scope > .pt > .ic'), picked);
+        t.querySelector(':scope > .t').textContent = name;
+        updateBookMeta(t.querySelector(':scope > .m'), name);
+        const top = t.querySelector(':scope > .pt');
+        let more = top.querySelector(':scope > .more');
+        if (S.select) { more?.remove(); return; }
+        if (!more) {
+            more = btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`);
+            top.append(more);
+        }
+        more.setAttribute('aria-label', `${name} actions`);
     }
 
     // ---------------------------------------------------------------- book page
@@ -459,23 +628,6 @@ export function createNormal(A) {
         const defaults = bookSettings(settings, book).defaults ?? {};
         return paramSummary({ ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined });
     };
-
-    function sectionHead(text, open, onToggle, selectable) {
-        const s = el('div', 'section');
-        if (selectable) {
-            const all = selectable.length && selectable.every(x => S.select.has(x));
-            const c = check(all);
-            c.setAttribute('role', 'checkbox');
-            c.setAttribute('aria-label', `Select ${text}`);
-            c.addEventListener('click', () => { for (const x of selectable) all ? S.select.delete(x) : S.select.add(x); render(); });
-            s.append(c);
-        }
-        const b = btn(open ? 'open' : '', html`${ic('right')}<span></span>`, onToggle);
-        b.querySelector('span').textContent = text;
-        b.setAttribute('aria-expanded', String(open));
-        s.append(b);
-        return s;
-    }
 
     function check(on) {
         const c = el('span', `check${on ? ' on' : ''}`);

@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**N1b — keyed Home rows (`src/ui/normal.js`).** Home now keeps its `.view` too: book rows/tiles key by name, folders by folder, the header and notes by stable keys. Selection, badges, open/closed folders and labels update in place; the count span is never overwritten while a book is still loading, so an arriving count survives; scroll and focus persist. List/tiles switch keeps the view but replaces the rows.
+
 **N1a — keyed Normal book rows (`src/ui/app.js`, `src/ui/normal.js`).** A book page keeps its `.view` across a draw for the same `pageId`; the header, chips, off hint, group heads and entry rows are reconciled instead of rebuilt. Rows key by uid, group heads by book+folder, and selection/order/size/switch/problem/logic state update in place. Handlers late-bind the current entry by uid; scroll and focus survive. Home rows, the bars, the entry page and desktop panes still rebuild (N1b/N2/N3).
 
 **V6 — badge patching (`src/ui/canvas.js`, `src/ui/hero-shell.js`).** The signature no longer includes chat length/text/swipe; chat state on still draws once when toggled, because cards are built with or without status nodes. On an unchanged retained canvas, a chat change calls `patchStatus`: card classes (`closed`/`waiting`/`holding`/`happened`), grip ring, the `.k` line (closed/value/mask/keywords via the same `cardLine` helper the draw uses), the fired/once/closes badge (add/remove/text), the Moment tag and the layer-nav dot. No link routing, no card recreation. The harness `?perf=1` profile now has a real model and a mutable state object, so `e2e/badges.mjs` can prove fired, closed, holding and Moment changes patch without a `canvasRenders` increase.
@@ -344,7 +346,7 @@ Dependencies:
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
 | 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
-| 4 Normal retention | ◐ N1a keyed book rows landed; N1b, N2–N5 pending |
+| 4 Normal retention | ◐ N1a/N1b keyed Home and book rows landed; N2–N5 pending |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
 
@@ -371,7 +373,7 @@ Dependencies:
 | 12 | V1 per-book revisions (landed) |
 | 13 | V2 `canvasSig` (landed); V3 retained chrome (landed) |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching (landed) |
-| 15 | N1 keyed rows (N1a landed); N1b, N2, N3 pending |
+| 15 | N1 keyed rows (N1a/N1b landed); N2, N3 pending |
 | 16 | N4 + N5 windowing and `content-visibility` |
 | 17 | M1 + M2 + M3 loader, eviction, counts |
 | 18 | M4 search |
@@ -959,7 +961,7 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Selecting an entry updates only the selection and the right pane; the left list keeps DOM identity and scroll; a full redraw happens only when the page actually changes.
 
-**Status.** ◐ N1a landed for the phone/Normal book page: `e2e/normal-rows.mjs` keeps the `.view`, header, chips and row node across a title change, off/on, scroll/focus refresh, A–Z re-sort, selection and leaving selection. Home rows, the selection/bottom bars, the entry page and desktop panes still rebuild; selecting an entry still redraws the page (N1b/N3).
+**Status.** ◐ N1a/N1b landed. `e2e/normal-rows.mjs` keeps the book `.view`, header, chips and row node across a title change, off/on, scroll/focus refresh, A–Z re-sort, selection and leaving selection. `e2e/home-rows.mjs` keeps Home's view, rows, count span/text, selection state, folder survival and scroll; the list↔tiles switch keeps the view but replaces rows. Selection/bottom bars, the entry page, desktop panes and per-row listeners still rebuild; selecting an entry redraws the page (N2/N3).
 
 **Risk.** Medium–large. This is the biggest structural change; stage it.
 
@@ -1351,3 +1353,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | V3c | Panel and inspector shells retained per book/selection; detached reattach; e2e chrome 5, desktop 51, drawer 10, review 10, explain 26, pbar 1, tabs 5 |
 | 2026-11-25 | this commit | V6 | Status patched on retained cards: classes, line, badge, Moment tag, nav dot; e2e badges 6, canvas-sig 5 |
 | 2026-11-25 | this commit | N1a | Book page view and rows keyed by uid; scroll/focus/selection survive; e2e normal-rows 6 |
+| 2026-11-25 | this commit | N1b | Home view and rows/tiles keyed; counts survive; e2e home-rows 6 |

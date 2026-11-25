@@ -377,9 +377,9 @@ export function createApp(deps) {
         const p = page();
         const id = pageId(p);
         const old = main.querySelector('.view');
-        // A book page keeps its `.view` on a draw for the same page: its header, group heads and keyed rows are
-        // reconciled instead of rebuilt, so rows, listeners, focus and scroll survive a refresh (N1a).
-        const keep = p.type === 'book' && old && main.dataset.page === id;
+        // A book page or Home keeps its `.view` on a draw for the same page: its header, group heads and keyed rows
+        // are reconciled instead of rebuilt, so rows, listeners, focus and scroll survive a refresh (N1a/N1b).
+        const keep = (p.type === 'book' || p.type === 'home') && old && main.dataset.page === id;
         if (old && main.dataset.page === id) p.scroll = old.scrollTop;
         if (keep) {
             for (const child of [...main.children]) if (child !== old) child.remove();
@@ -387,7 +387,7 @@ export function createApp(deps) {
         main.dataset.page = id;
         if (p.type === 'entry') renderEntry(p);
         else if (p.type === 'book') renderBook(p, keep ? old : null);
-        else renderHome();
+        else renderHome(keep ? old : null);
         if (p.type !== 'entry') main.append(S.select ? selBar(p) : bottomBar(p));
         if (S.search) renderSearch();
         const view = main.querySelector('.view');
