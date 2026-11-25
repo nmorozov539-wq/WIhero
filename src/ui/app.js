@@ -398,6 +398,9 @@ export function createApp(deps) {
             retained.node.hidden = false;
             // A draw for the page already on screen keeps its current scroll, as N1a/N1b did.
             if (main.dataset.page === id) p.scroll = retained.node.scrollTop;
+            // Back to the retained list: put its scroll back before the keyed draw, so the window is computed for
+            // the right place even on an engine that reset scrollTop while the pane was display:none.
+            else if (p.scroll) retained.node.scrollTop = p.scroll;
             for (const child of [...main.children]) if (child !== retained.node) child.remove();
         } else if (listPane && entry) {
             // Save the list's scroll and focus before hiding it, then leave only the list under the entry.
@@ -420,12 +423,16 @@ export function createApp(deps) {
             if (node) { node.dataset.pane = 'entry'; node.dataset.page = id; }
             if (node && p.scroll) node.scrollTop = p.scroll;
         } else {
+            // The bottom/selection bar takes its height out of the `.view`. Mount it first so a windowed list
+            // measures its final viewport, then move it below the view once the page is drawn.
+            const bar = S.select ? selBar(p) : bottomBar(p);
+            main.append(bar);
             if (p.type === 'book') renderBook(p, keepList ? retained.node : null);
             else renderHome(keepList ? retained.node : null);
             const node = [...main.children].find(n => n.classList?.contains('view')) ?? null;
             if (node) { node.dataset.pane = 'list'; node.dataset.page = id; }
             listPane = { id, page: p, node, focus: null };
-            main.append(S.select ? selBar(p) : bottomBar(p));
+            main.append(bar);
             if (node && p.scroll) node.scrollTop = p.scroll;
             if (restoreFocus && restoreFocus.isConnected) restoreFocus.focus({ preventScroll: true });
         }

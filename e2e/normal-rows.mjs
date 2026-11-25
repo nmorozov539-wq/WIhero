@@ -52,7 +52,15 @@ try {
     await $('.item[data-book="Perf Big"]').click();
     await $('.bkname h1').filter({ hasText: 'Perf Big' }).waitFor({ timeout: 60000 });
     await $('.view .item.ent').first().waitFor({ timeout: 60000 });
-    assert.equal(await $('.view .item.ent').count(), 980, 'the 1,000-entry book hides its 20 Moments');
+    const firstWindow = await page.evaluate(() => {
+        const sr = document.querySelector('#wihero-editor').shadowRoot;
+        const view = sr.querySelector('.view');
+        return { rows: view.querySelectorAll('.item.ent').length, scrollHeight: view.scrollHeight, clientHeight: view.clientHeight };
+    });
+    // N4a windows the list: the 980 shown entries are not all mounted, but the scrollbar still spans the book.
+    assert.ok(firstWindow.rows > 10 && firstWindow.rows < 250, `only a window of rows is mounted (${firstWindow.rows})`);
+    assert.ok(firstWindow.scrollHeight > 40000, `the view still spans the whole book (${firstWindow.scrollHeight}px)`);
+    ok(`the 1,000-entry book mounts a bounded window of rows (${firstWindow.rows} of 980)`);
 
     // Remember the fourth row and the view, then rename that entry and draw again.
     await page.evaluate(() => {
@@ -75,7 +83,7 @@ try {
     assert.ok(renamed.head, 'the header keeps its node');
     assert.ok(renamed.chips, 'the chips keep their node');
     assert.equal(renamed.title, 'Retained row title', 'the row title updates in place');
-    assert.equal(renamed.count, await page.evaluate(() => window.__count), 'no rows are added or lost');
+    assert.ok(Math.abs(renamed.count - await page.evaluate(() => window.__count)) <= 6, 'the window stays about the same size');
     ok('a title change updates the same row, header and chips under the same .view, with the same row count');
 
     // The switch is late-bound to the uid: it keeps its own node and toggles off and back on.
@@ -124,10 +132,11 @@ try {
     assert.ok(afterScroll.focus, 'the focused switch keeps focus');
     ok('a refresh keeps the view node, its scrollTop and the focused switch');
 
-    // Re-sort through the menu: every surviving row keeps its node, only the order changes.
+    // Re-sort through the menu: rows that remain in the window keep their node, only the order changes.
     await page.evaluate(() => {
         const sr = document.querySelector('#wihero-editor').shadowRoot;
         window.__rows = [...sr.querySelectorAll('.view .item.ent')];
+        window.__byUid = new Map(window.__rows.map(r => [r.dataset.uid, r]));
         window.__order = window.__rows.map(r => r.dataset.uid);
     });
     await $('button[aria-label="Menu"]').click();
@@ -140,22 +149,30 @@ try {
         const sr = document.querySelector('#wihero-editor').shadowRoot;
         const now = [...sr.querySelectorAll('.view .item.ent')];
         return {
-            kept: window.__rows.every(n => n.isConnected && now.includes(n)),
+            reused: now.filter(n => window.__byUid.get(n.dataset.uid) === n).length,
             view: sr.querySelector('.view') === window.__view,
             scroll: sr.querySelector('.view').scrollTop,
             order: now.map(r => r.dataset.uid),
             count: now.length,
         };
     });
-    assert.ok(sorted.kept, 'every row survives the re-sort as the same node');
+    assert.ok(sorted.reused > 0, 'rows still in the window survive the re-sort as the same nodes');
     assert.ok(sorted.view, 'the re-sort keeps the .view node');
-    assert.equal(sorted.count, 980, 'the row count is unchanged');
+    assert.ok(sorted.count < 250, `the re-sort keeps the window bounded (${sorted.count})`);
     assert.ok(Math.abs(sorted.scroll - scrolled) < 2, `the re-sort keeps scrollTop (${scrolled} → ${sorted.scroll})`);
-    assert.notDeepEqual(sorted.order, await page.evaluate(() => window.__order), 'the rows really are in a new order');
-    ok('the A–Z re-sort moves the surviving rows without replacing them');
+    assert.notDeepEqual(sorted.order.slice(0, 20), await page.evaluate(() => window.__order.slice(0, 20)), 'the rows really are in a new order');
+    ok(`the A–Z re-sort moves the surviving window rows without replacing them (${sorted.reused} nodes reused)`);
 
-    // Selection mode updates the same row: a check mark and aria-checked, no switch; leaving puts them back.
-    const uid = await page.evaluate(() => window.__uid);
+    // Selection mode updates a mounted row: a check mark and aria-checked, no switch; leaving puts them back.
+    await page.evaluate(() => { window.__view.scrollTop = 0; });
+    await wait(50);
+    const uid = await page.evaluate(() => {
+        const sr = document.querySelector('#wihero-editor').shadowRoot;
+        const rows = [...sr.querySelectorAll('.view .item.ent')];
+        window.__row = rows[0];
+        window.__uid = Number(rows[0].dataset.uid);
+        return window.__uid;
+    });
     await $('.bottombar button[aria-label="Select"]').click();
     await wait(30);
     await $(`.view .item.ent[data-uid="${uid}"]`).click();

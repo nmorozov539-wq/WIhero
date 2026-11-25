@@ -62,13 +62,20 @@ try {
     await $('.tab').first().waitFor({ timeout: 60000 });
     await $('.item[data-book="Perf Big"]').click();
     await $('.view .item.ent').first().waitFor({ timeout: 60000 });
-    assert.equal(await $('.view .item.ent').count(), 980, 'the 1,000-entry book hides its 20 Moments');
+    const firstWindow = await page.evaluate(() => {
+        const sr = document.querySelector('#wihero-editor').shadowRoot;
+        const view = sr.querySelector('.view');
+        return { rows: view.querySelectorAll('.item.ent').length, scrollHeight: view.scrollHeight };
+    });
+    assert.ok(firstWindow.rows > 10 && firstWindow.rows < 250, `N4a mounts only a window of the 980 shown entries (${firstWindow.rows})`);
+    assert.ok(firstWindow.scrollHeight > 40000, `the view still spans the whole book (${firstWindow.scrollHeight}px)`);
 
-    // Scroll the list, focus a row's switch and remember the view, every row and that row.
-    const tagged = await page.evaluate(() => {
+    // Scroll the list, focus a row's switch and remember the view, every mounted row and that row.
+    const tagged = await page.evaluate(async () => {
         const sr = document.querySelector('#wihero-editor').shadowRoot;
         const view = sr.querySelector('.view');
         view.scrollTop = 1200;
+        await new Promise(r => setTimeout(r, 150));
         const box = view.getBoundingClientRect();
         const rows = [...view.querySelectorAll('.item.ent')];
         const row = rows.find(r => {

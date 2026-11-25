@@ -134,7 +134,7 @@ try {
     await $('.bkname h1').filter({ hasText: 'Perf Big' }).waitFor({ timeout: 60000 });
     await $('.view .item.ent').first().waitFor({ timeout: 60000 });
     const entries = await $('.view .item.ent').count();
-    assert.ok(entries > 900, `the big book shows its rows (${entries})`);
+    assert.ok(entries > 10 && entries < 250, `the big book mounts a bounded window of rows (${entries})`);
     await $('.view .item.ent').first().click();
     await $('.en-top').waitFor();
     assert.ok(!(await onBook()), 'the tap leaves the book for the entry page');
@@ -182,7 +182,7 @@ try {
     const beforeEntrySelectLong = await tabCount();
     await hold($('.view .item.ent').nth(1));
     assert.equal(await tabCount(), beforeEntrySelectLong, 'a long press in entry select mode opens no background tab');
-    assert.ok((await $('.view .item.ent').count()) > 900, 'select mode stays on the book page');
+    assert.ok((await $('.view .item.ent').count()) < 250, 'select mode stays on the book page with a bounded window');
     await $('.selhead button[aria-label="Leave selection"]').click();
     await wait(30);
     ok('select mode marks entry rows and a long press there opens no background tab');
