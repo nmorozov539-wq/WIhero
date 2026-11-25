@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**C10 — row containment (`src/ui/app.css`).** `.item, .ptile, .drow` get `contain: layout style paint`; `.card` deliberately does not (sticky notes sit above it). Tested on the 1,000-row book: explain mode, desktop and tiles pass with no clipped outlines. A CDP counter run at 6× during a 6,000 px scroll showed **no change** (0 layouts and 9–11 style recalcs either way), so this is an unverified paint intermediate, not a measured win. Scroll anchoring and in-page find are still untested, and the paint trace/device evidence is outstanding.
+
 **C7 — Home sort keys (`src/ui/desk.js`).** `homeSort(list, key, dir, val)` decorates each book with its sort key once, then sorts and maps back; an Entries sort no longer re-counts a book's entries inside the comparator. Order and tie behavior are unchanged.
 
 **C8 — links index (`src/ui/st-books.js`).** The book → links answer is built once per Home pass and cached; character order, aux order, duplicate suppression and the open chat's row are preserved. It clears on `CHARACTER_EDITED`, `CHAT_CHANGED`, and inside `unlink`, `linkChat` and `rename`; array identity is a short-circuit, not the only guard.
@@ -293,7 +295,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
-| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1–C9 done; C10 pending |
+| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -315,7 +317,7 @@ Dependencies:
 | 7b | C3 + C6 normalize and filterChoices caches (landed) |
 | 7c | C4 + C5 icon and tone caches (landed) |
 | 7d | C7 + C8 Home sort keys and links index (landed) |
-| 7e | C10 `contain` step 1 |
+| 7e | C10 `contain` step 1 (landed as a measured intermediate) |
 | 8 | T0 token count |
 | 9 | T1 + T2 save path and settings |
 | 10 | T3 history |
@@ -678,6 +680,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 Do **not** put `contain: paint` on `.card`: sticky notes sit above the card box (`.card .sticky { bottom: calc(100% - 4px) }`) and would be clipped. `contain: layout style` on cards is acceptable if profiling wants it. Treat this as a measured intermediate, not a substitute for retention.
 
 **Done when.** Scroll/selection/explain-mode e2e pass; no clipped content; paint/layout scope improves in a trace.
+
+**Status.** ◐ Intermediate. The rule is in, and explain mode (26 checks), desktop (51) and tiles (6) pass with no clipped outlines. But a CDP counter run at 6× on the 1,000-row book showed no scroll difference: 0 layouts and 9–11 style recalcs with containment on or off. The paint/trace half of the done condition is therefore not met; keep it as a low-risk intermediate for N5, not as a claimed win. Scroll anchoring and in-page find still need a manual check.
 
 **Risk.** Medium — test explain-mode outlines, scroll anchoring, and in-page find.
 
@@ -1262,3 +1266,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | C3 + C6 | normalize cached per raw (buildModel rereads); choices cached and invalidated before redraw; 343 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C4 + C5 | Icon templates cloned in rows/cards; tone cached per theme change; 343 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C7 + C8 | Home sort keys decorated once; book → links index cached and invalidated; 350 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | C10 | Row containment landed as an intermediate; scroll counters unchanged (0 layouts, 9–11 recalcs); paint trace pending |

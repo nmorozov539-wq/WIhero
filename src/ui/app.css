@@ -843,6 +843,10 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .drow .c-active { display: flex; gap: 4px; }
 .drow .c-entries, .drow .c-edited { color: var(--muted); }
 
+/* Long lists: each row is its own layout/paint scope. Measured intermediate, not a substitute for retention.
+   Do not put paint containment on .card: sticky notes sit above the card box and would be clipped. */
+.item, .ptile, .drow { contain: layout style paint; }
+
 /* Book: two panes */
 .bk { position: relative; flex: 1; min-height: 0; display: flex; --lw: 270px; }
 .bl { width: var(--lw); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: var(--bar); }
