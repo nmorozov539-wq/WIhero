@@ -5,6 +5,7 @@
 import { bookSettings, cardKey, entriesOf } from './data.js';
 import { btn, el, html } from './dom.js';
 import { canvasBook } from './canvas-graph.js';
+import { canvasElements, canvasInputSig } from './canvas-sig.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { closedText } from './logic-text.js';
 import { entryStatus, slotValues, writtenText } from '../engine/turn.js';
@@ -38,11 +39,20 @@ export function createHeroShell(A) {
     }
 
     /** The canvas's view of a book, worked out once per draw. */
-    function heroData(book, data) {
+    function canvasData(book, data) {
         const problems = blockingUids(book, modelOf(book, data));
         const live = entriesOf(data).filter(e => !hiddenIn(book).has(e.uid));
         const m = canvasBook({ entries: Object.fromEntries(live.map(e => [e.uid, e])) }, { folderOf: e => entryFolder(book, e), problems, greetings: chatGreetings(data) });
-        return { m, memory: canvasMemory(bookSettings(settings, book)), problems, chatState: H.chatState, status: H.chatState ? chatStatus(book) : () => null };
+        return { m, memory: canvasMemory(bookSettings(settings, book)), problems };
+    }
+
+    /** The canvas's view plus the open chat's card states, as mountCanvas asks for them. */
+    function heroData(book, data) {
+        return heroView(book, canvasData(book, data));
+    }
+
+    function heroView(book, canvas) {
+        return { ...canvas, chatState: H.chatState, status: H.chatState ? chatStatus(book) : () => null };
     }
 
     /** D17: each card's state in the open chat, at its latest message. Cards of books the chat doesn't use get none. */
@@ -202,16 +212,27 @@ export function createHeroShell(A) {
 
     /**
      * What the canvas draws from, as one string: when a Hero draw finds it unchanged (a piece bar step that only
-     * changes the strip, the inspector opening, the panel), the cards and links stay as they are. The camera is left
-     * out: it moves without a draw. Show chat state always draws, since the chat moves under it.
+     * changes the strip, the inspector opening, the panel), the cards and links stay as they are. The entry side is
+     * already on the model; only the saved cards, hidden entries and chat identity are read here.
      */
-    function canvasSig(book) {
-        if (H.chatState) return null;
-        const bs = settings.books?.[book] ?? {};
-        const { camera, ...canvas } = bs.canvas ?? {};
-        const top = Object.entries(settings).filter(([k, v]) => k !== 'books' && (v === null || typeof v !== 'object'));
+    function canvasSig(book, model) {
+        const memory = canvasMemory(bookSettings(settings, book));
         const c = ctx();
-        return JSON.stringify([library.bookVersion(book), { ...bs, canvas }, top, [...hiddenIn(book)], c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null]);
+        const chat = c.chat ?? [];
+        const last = chat.at(-1);
+        // Until V6 patches badges in place, a chat with state on must redraw when the chat can change a badge: a new
+        // message, a swipe, or an edit of the last one. A content edit still does not move any of these.
+        const chatKey = H.chatState
+            ? [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, 1, chat.length, last?.mes?.length ?? 0, last?.swipe_id ?? 0]
+            : [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, 0];
+        return canvasInputSig({
+            model,
+            elements: () => canvasElements(book, library.peek(book), model, e => entryFolder(book, e)),
+            cards: memory.cards,
+            placed: memory.placed,
+            hidden: hiddenIn(book),
+            chat: chatKey,
+        });
     }
     /** The canvas kept between Hero draws of the same book: { book, data, vp, sig, data() cache }. */
     let heroMount = null;
@@ -238,10 +259,14 @@ export function createHeroShell(A) {
             for (const n of [...main.children]) if (n !== kept.vp) n.remove();
             kept.vp.querySelector('.legend')?.remove();
             if (H.legend) kept.vp.append(legendBox());
-            const sig = canvasSig(keepBook);
+            const sig = canvasSig(keepBook, modelOf(keepBook, kept.data));
             heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
-            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); undoHistory.settle(keepBook); kept.sig = canvasSig(keepBook); } // a draw can place cards
-            else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
+            if (sig !== kept.sig) {
+                kept.cache = heroView(keepBook, canvasData(keepBook, kept.data));
+                heroCanvas.render();
+                undoHistory.settle(keepBook);
+                kept.sig = sig;
+            } else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
             heroAround(keepBook, kept.data);
             return;
         }
@@ -328,7 +353,7 @@ export function createHeroShell(A) {
         heroMount = mount;
         heroCanvas.render();
         undoHistory.settle(book); // cards the draw placed on its own are not an edit
-        mount.sig = canvasSig(book); // after the draw, which can place cards
+        mount.sig = canvasSig(book, modelOf(book, data)); // after the draw, which can place cards
         heroAround(book, data);
     }
     /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */

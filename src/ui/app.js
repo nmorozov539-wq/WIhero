@@ -13,6 +13,7 @@ import {
 } from './data.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook, offCanvasMoments } from './canvas-graph.js';
+import { canvasElementSig, canvasElements } from './canvas-sig.js';
 import { canvasMemory } from './canvas.js';
 import { bookEditor, packsOf, renamePack } from './pieces.js';
 import { getStringHash } from '../engine/util.js';
@@ -215,7 +216,11 @@ export function createApp(deps) {
         perf.end(at);
         perf.count('modelBuilds');
         model.issuesByStKey = groupIssues(model.issues);
-        if (own) models.set(data, { book, version: library.bookVersion(book), greets, model });
+        if (own) {
+            // The canvas's entry side changes with the model, not with an inspector tap; build it here once.
+            model.canvasElementSig = canvasElementSig(canvasElements(book, data, model, e => folderOf(settings, book, e)));
+            models.set(data, { book, version: library.bookVersion(book), greets, model });
+        }
         return model;
     };
     /**

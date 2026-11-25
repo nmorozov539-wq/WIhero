@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V2 — canvas signature (`src/ui/canvas-sig.js`).** The Hero signature is split: the entry side (title, keys, strategy, off, folder, problem, graph rows, mask names/gates, Moment phrases, note) is built once when `modelOf` builds a model and cached on it; the per-draw side is only saved cards, `placed`, hidden entries and chat identity. `edited`, `seen`, `snapshots`, folders, defaults, body content, camera and library revisions are out. The changed path computes the signature once, no longer returns `null` for chat state, and the fresh mount signs after its draw. Measured-native: entry side 6.1 ms at model build (1,000 entries), per Hero draw 0.58–0.90 ms with 500–862 cards. Until V6 patches badges in place, chat state on adds a cheap chat revision (`length`, last text length, swipe) so a new message still updates badges; a content edit does not move it.
+
 **V1 — per-book revisions (`src/ui/st-books.js` and cache keys).** The library now keeps a monotonic per-book revision (`bookVersion(name)`, 0 when unknown) beside the global one. `dirty`, external updates, `newCopy`, remove and rename maintain it; saves that only confirm do not bump. The model cache, clash count/marking, Moments cache, Hero `canvasSig` and checks signature key the book revision, so editing B no longer invalidates A. History still uses the global version deliberately: it only looks at the open book, and a global bump forces a compare, not a lost edit.
 
 **T4 — chat hider (`src/show-in-chat.js`, `index.js`).** A per-box memo stores the message text, WI Hero on/off, model identity, author fields and rendered output; an unchanged box is not reformatted. The five render events share one pending-id queue and one timeout. `all()` reads the model and flag once. The memo clears on chat/book changes, drops pending hides, and clears on ST's `SETTINGS_UPDATED` so a formatting change cannot stale it.
@@ -327,7 +329,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ◐ V1 landed; V2–V6 pending |
+| 3 Hero per-draw | ◐ V1, V2 landed; V3–V6 pending |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -353,7 +355,7 @@ Dependencies:
 | 10 | T3 history (landed) |
 | 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions (landed) |
-| 13 | V2 + V3 `canvasSig` and Hero chrome |
+| 13 | V2 `canvasSig` (landed); V3 Hero chrome pending |
 | 14 | V4 + V5 + V6 overlay, links, status |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
 | 16 | N4 + N5 windowing and `content-visibility` |
@@ -864,6 +866,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Opening an inspector or changing a strip leaves card DOM identity and route-compute counts unchanged, with “Show chat state” both off and on; a content edit does not redraw the canvas; a geometry change still does.
 
+**Status.** Landed. `test/canvas-sig.test.js` covers every projected field and exclusion, order independence, and the cached entry-side build; `e2e/canvas-sig.mjs` proves content keeps `canvasRenders` and the card node, while keys, off/on and title redraw. `e2e/desktop.mjs` Hero/inspector passes. Chat-state badge patching (V6) is still the next step; the temporary chat revision keeps badges correct until then.
+
 **Risk.** Medium — invalidation correctness. Keep the existing `settle()` and external-save boundaries.
 
 **Source.** DeepSeek #3b; Astra #2.
@@ -1316,3 +1320,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | T3 | Quiet runs capture at the ends only; 1,000-entry keystroke 2.83 → 0.01 ms; 12 MiB global budget; 368 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | T4 + T5 | Hider memo + one queue per task; field-sizing with a tested rAF fallback; 371 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V1 | Per-book revisions for model, clash, Moments, canvasSig and checks; history stays global; 376 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | V2 | Entry-side signature built with the model, 0.58–0.90 ms per Hero draw; content edits keep the canvas; 382 pass, 0 fail, 7 skipped |
