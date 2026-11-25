@@ -7,6 +7,12 @@ import { adoptUiFields, forgetReusedNames } from './data.js';
 import { perf } from './perf.js';
 
 const SAVE_DELAY = 350;
+/**
+ * While typing, each change pushes a pending save further back: 350 → 525 → 788 → 1000 ms. A change after a pause
+ * (nothing waiting) keeps SAVE_DELAY. The cost is a larger crash-loss window while typing, up to about a second;
+ * flush on hide/close still bounds it, but a hard process kill can lose that last second of typing.
+ */
+const SAVE_DELAY_MAX = 1000;
 /** A failed save is tried again after this, a few times, before the book is left unsaved until its next change. */
 const RETRY_DELAY = 5000;
 const RETRIES = 3;
@@ -26,10 +32,16 @@ const SEED_RETRY = 60000;
  * @param {(name: string, error: unknown, final: boolean, what?: 'save' | 'export') => void} [deps.onSaveError] a save
  *   (or export) of `name` failed; `final` when it won't be tried again until the book changes.
  */
+/** A value's JSON text, counted as serialized characters: the whole-book work a save or comparison pays. */
+const json = value => {
+    const text = JSON.stringify(value);
+    perf.count('serializedChars', text?.length ?? 0);
+    return text;
+};
+
 const same = (a, b) => {
-    const sa = JSON.stringify(a);
-    const sb = JSON.stringify(b);
-    perf.count('serializedChars', (sa?.length ?? 0) + (sb?.length ?? 0));
+    const sa = json(a);
+    const sb = json(b);
     return sa === sb;
 };
 
@@ -64,10 +76,16 @@ export function createLibrary({
 }) {
     /** name → the working copy WI Hero edits; ST's cache is updated on every save. */
     const copies = new Map();
-    /** name → the book as ST last had it from WI Hero's side (loaded, or saved): what an outside save is merged against. */
+    /**
+     * name → the JSON text of the book as ST last had it from WI Hero's side (loaded, or saved): what an outside save
+     * is merged against. A string is all a comparison needs; it is parsed only when a merge needs the object.
+     */
     const bases = new Map();
+    /** name → the JSON text of ST's cache as last seen (`base` when it was not looked at since the load). */
     const cacheSeen = new Map();
     const timers = new Map();
+    /** name → the delay of a typing timer, so the next change can stretch it toward SAVE_DELAY_MAX. */
+    const delays = new Map();
     const inFlight = new Map();
     const reserved = new Set();
     // A timer requests a write; only a confirmed revision makes a book clean.
@@ -114,7 +132,7 @@ export function createLibrary({
                 const data = await ctx().loadWorldInfo(name);
                 if (!data) return null;
                 data.entries ??= {};
-                if (!copies.has(name)) { copies.set(name, data); bases.set(name, structuredClone(data)); }
+                if (!copies.has(name)) { copies.set(name, data); bases.set(name, json(data)); }
                 return copies.get(name);
             })().finally(() => loading.delete(name)));
         }
@@ -146,14 +164,26 @@ export function createLibrary({
         seen(name, data);
         let out;
         try { out = fn(data); } finally { dirty(name); }
-        schedule(name);
+        scheduleTyping(name);
         if (!quiet) onChange();
         return out;
     }
 
     function schedule(name, delay = SAVE_DELAY) {
         clearTimeout(timers.get(name));
-        timers.set(name, setTimeout(() => save(name), delay));
+        delays.delete(name);
+        timers.set(name, setTimeout(() => { delays.delete(name); save(name); }, delay));
+    }
+
+    /**
+     * Typing stretches a pending save toward SAVE_DELAY_MAX. A retry timer has no `delays` entry, so a change during
+     * a retry starts again at SAVE_DELAY rather than growing from RETRY_DELAY.
+     */
+    function scheduleTyping(name) {
+        const stretching = timers.has(name) && delays.has(name);
+        const delay = stretching ? Math.min(SAVE_DELAY_MAX, Math.round(delays.get(name) * 1.5)) : SAVE_DELAY;
+        schedule(name, delay);
+        delays.set(name, delay);
     }
 
     function save(name) {
@@ -175,28 +205,33 @@ export function createLibrary({
         perf.count('saveAttempts');
         clearTimeout(timers.get(name));
         timers.delete(name);
+        delays.delete(name);
         const data = copies.get(name);
         if (!data) return;
         // Native debounced saves update ST's cache before they emit their event. Merge that pending edit too.
         const cached = WI.worldInfoCache?.get(name);
         const base = bases.get(name);
-        if (cached && base && !same(cached, cacheSeen.get(name) ?? base)) {
-            const conflicts = mergeOutside(data, base, structuredClone(cached));
-            bases.set(name, structuredClone(cached));
-            cacheSeen.set(name, structuredClone(cached));
+        const cachedJson = cached ? json(cached) : null;
+        if (cachedJson && base && cachedJson !== (cacheSeen.get(name) ?? base)) {
+            const conflicts = mergeOutside(data, JSON.parse(base), JSON.parse(cachedJson));
+            bases.set(name, cachedJson);
+            cacheSeen.set(name, cachedJson);
             external.set(name, (external.get(name) ?? 0) + 1);
             dirty(name);
             onMerged(name, conflicts);
         }
         const { ui } = upgradeBook(data);
-        if (Object.keys(ui).length) { adoptUiFields(settings, name, data, ui); perf.count('settingsSaves'); saveSettings(); }
-        // When it was last edited here, for Home's tiles and list (ST keeps no date of its own).
+        // When it was last edited here, for Home's tiles and list (ST keeps no date of its own). One settings save per
+        // save transaction carries both the adopted UI fields and this date.
         (settings.books[name] ??= { defaults: {}, folders: {} }).edited = Date.now();
+        if (Object.keys(ui).length) adoptUiFields(settings, name, data, ui);
         perf.count('settingsSaves');
         saveSettings();
         const sentRevision = revision(name).dirty;
+        // The write payload may be kept and changed by ST after the save. The base an outside save is merged against
+        // is this JSON text, taken before the write, so that later change cannot reach it.
         const copy = structuredClone(data);
-        const sent = structuredClone(copy); // ST may keep and change `copy` after the save
+        const sentJson = json(copy);
         ours.add(copy);
         try {
             await writeBook(name, copy);
@@ -212,10 +247,11 @@ export function createLibrary({
         } finally { ours.delete(copy); }
         // A native edit can update the cache while the HTTP request is pending, before its debounced event.
         const after = WI.worldInfoCache?.get(name);
-        if (after && !same(after, sent) && !same(after, cacheSeen.get(name) ?? base)) onWorldInfoUpdated(name, after);
-        if (after) cacheSeen.set(name, structuredClone(after));
+        const afterJson = after ? json(after) : null;
+        if (afterJson && afterJson !== sentJson && afterJson !== (cacheSeen.get(name) ?? base)) onWorldInfoUpdated(name, after);
+        if (afterJson) cacheSeen.set(name, afterJson);
         failures.delete(name);
-        bases.set(name, sent);
+        bases.set(name, sentJson);
         revisions.set(name, { ...revision(name), saved: sentRevision });
         if (unsavedSet.delete(name)) onChange();
         await quietly(() => ctx().reloadWorldInfoEditor?.(name));
@@ -242,10 +278,11 @@ export function createLibrary({
      */
     function onWorldInfoUpdated(name, data) {
         if (ours.has(data)) return;
-        if (data && typeof data === 'object') cacheSeen.set(name, structuredClone(data));
+        const dataJson = data && typeof data === 'object' ? json(data) : null;
+        if (dataJson) cacheSeen.set(name, dataJson);
         const mine = copies.get(name);
         const base = bases.get(name);
-        if (mine && base && same(base, data)) {
+        if (mine && base && base === dataJson) {
             // Native requests serialize before awaiting fetch, but emit their mutable cached object afterwards.
             // Even equal event content can describe an older in-flight write: confirm our latest copy again.
             dirty(name);
@@ -260,9 +297,9 @@ export function createLibrary({
             onChange();
             return;
         }
-        if (!mine || !base || !data || typeof data !== 'object') return;
-        const conflicts = mergeOutside(mine, base, structuredClone(data));
-        bases.set(name, structuredClone(data));
+        if (!mine || !base || !dataJson) return;
+        const conflicts = mergeOutside(mine, JSON.parse(base), JSON.parse(dataJson));
+        bases.set(name, dataJson);
         dirty(name);
         schedule(name);
         onChange();
@@ -350,7 +387,7 @@ export function createLibrary({
         editable(name);
         seen(name, old);
         copies.set(name, structuredClone(data));
-        if (!bases.has(name)) bases.set(name, structuredClone(old));
+        if (!bases.has(name)) bases.set(name, json(old));
         dirty(name);
         schedule(name);
         if (await save(name) === false) throw Object.assign(new Error('a book could not be saved'), { reported: true });

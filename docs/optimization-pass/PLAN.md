@@ -120,6 +120,18 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**T1 — save path (`src/ui/st-books.js`).** Comparison bases (`bases`, `cacheSeen`) are JSON text, not objects; the second whole-book clone (`sent`) is gone, and the native-cache comparison stringifies once. Typing stretches the debounce 350 → 525 → 788 → 1000 ms; a discrete edit after idle stays at 350 ms; retries keep their own delay. The crash-loss window is documented and still bounded by `flush` on hide/close. Save baselines, concurrency checks, the pending-native merge and retries are unchanged.
+
+| Entries | Save median before | After | Serialized chars before | After |
+|---:|---:|---:|---:|---:|
+| 150 | 8.18 ms | 4.4–5.3 ms | 3.32 M | 2.49 M |
+| 1,000 | 65.38 ms | 28.8–43.5 ms | 22.8 M | 17.1 M |
+| 5,000 | 157.34 ms | 90.6–91.3 ms | 119.6 M | 89.7 M |
+
+Measured-native, `tools/perf/bench-save.mjs`, 40 one-character changes in 5 rounds of 8. The ranges are two runs; the machine is noisy.
+
+**T2 — one settings save (`src/ui/st-books.js`).** `saveNow` sets `edited` once, adopts UI fields, then calls `saveSettings()` once; the payload shape and ST's save are untouched. The bench records one settings save per save (5/5).
+
 **T0 — token count (`src/ui/token-count.js`, `src/ui/entry-page.js`).** One counter per entry page: a cached count per exact text, an in-flight request shared for the same text, a 1200 ms idle for typing, an immediate flush on blur, and no request while the document is hidden or the page has been rebuilt. The page keeps `tokenGuess` visible; the real number lands only when it resolves and the text has not changed. Opening an entry still makes exactly one call; the perf-harness typing step still records one.
 
 **C10 — row containment (`src/ui/app.css`).** `.item, .ptile, .drow` get `contain: layout style paint`; `.card` deliberately does not (sticky notes sit above it). Tested on the 1,000-row book: explain mode, desktop and tiles pass with no clipped outlines. A CDP counter run at 6× during a 6,000 px scroll showed **no change** (0 layouts and 9–11 style recalcs either way), so this is an unverified paint intermediate, not a measured win. Scroll anchoring and in-page find are still untested, and the paint trace/device evidence is outstanding.
@@ -298,7 +310,7 @@ Dependencies:
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
-| 2 Typing path | ◐ T0 landed; T1–T5 pending |
+| 2 Typing path | ◐ T0, T1, T2 landed; T3–T5 pending |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
@@ -321,7 +333,7 @@ Dependencies:
 | 7d | C7 + C8 Home sort keys and links index (landed) |
 | 7e | C10 `contain` step 1 (landed as a measured intermediate) |
 | 8 | T0 token count (landed) |
-| 9 | T1 + T2 save path and settings |
+| 9 | T1 + T2 save path and settings (landed) |
 | 10 | T3 history |
 | 11 | T4 + T5 chat hider and autosize |
 | 12 | V1 per-book revisions |
@@ -723,6 +735,8 @@ Do **not** put `contain: paint` on `.card`: sticky notes sit above the card box 
 
 **Done when.** A 10 s typing burst in one book produces one save per debounce window, not per 350 ms; host-save tests pass; the crash-loss window is documented.
 
+**Status.** Landed. `tools/perf/bench-save.mjs` records the before/after table above. `test/st-books.test.js` pins coalescing and the final payload, the idle-edit delay, the pending-native merge, a failed retry, and the string base for `mergeOutside`. `e2e/mobile-edit.mjs` passes against the harness save lifecycle; `e2e/host-saves.mjs` still needs a throwaway ST.
+
 **Risk.** Low–medium. Longer debounce means a larger crash-loss window; the flush covers tab hide/close but not a hard process kill. Do not remove baselines, concurrency comparisons, or pending-native-save synchronization.
 
 **Source.** Qwen F6; Astra #8.
@@ -738,6 +752,8 @@ Do **not** put `contain: paint` on `.card`: sticky notes sit above the card box 
 - Measure `saveSettingsDebounced` call size and frequency in the target ST before changing behavior. Do not bypass ST’s settings save.
 
 **Done when.** A 10 s typing burst produces at most one settings save per debounce window; the payload does not grow with unrelated books’ canvas state; “Edited …” semantics are preserved.
+
+**Status.** Landed. One `saveSettings()` per save transaction, with `edited` and any adopted UI fields in the same call; the bench records 5 settings saves for 5 saves. Payload shape is unchanged, so unrelated books' canvas state is still in ST's settings object — that is ST's save, not this path.
 
 **Risk.** Low–medium. `edited` is user-visible.
 
@@ -1272,3 +1288,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | C7 + C8 | Home sort keys decorated once; book → links index cached and invalidated; 350 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C10 | Row containment landed as an intermediate; scroll counters unchanged (0 layouts, 9–11 recalcs); paint trace pending |
 | 2026-11-25 | this commit | T0 | Token count cached per text, deferred 1200 ms or flushed on blur, skipped when hidden/dead; 358 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | T1 + T2 | Save bases as JSON, one payload clone, adaptive 350→1000 ms; one settings save per save; 5,000-entry save 157 → 91 ms; 363 pass, 0 fail, 7 skipped |

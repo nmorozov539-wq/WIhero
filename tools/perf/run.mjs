@@ -14,6 +14,7 @@ import * as clash from './bench-clash.mjs';
 import * as clashCold from './bench-clash-cold.mjs';
 import * as collator from './bench-collator.mjs';
 import * as history from './bench-history.mjs';
+import * as save from './bench-save.mjs';
 import * as behavior from './behavior.mjs';
 
 const BENCHES = [
@@ -24,6 +25,7 @@ const BENCHES = [
     ['clash-cold', clashCold],
     ['collator', collator],
     ['history', history],
+    ['save', save],
     ['behavior', behavior],
 ];
 
