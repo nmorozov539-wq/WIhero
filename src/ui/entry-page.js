@@ -9,7 +9,7 @@ import {
 import { FAMILY_COLOR, logicSummary } from './logic-text.js';
 import { slotsOf, valueLine } from './tracker-ui.js';
 import { rawConfig as configOf } from '../engine/model.js';
-import { perf } from './perf.js';
+import { createTokenCounter } from './token-count.js';
 
 const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
@@ -428,21 +428,26 @@ export function renderEntryPage(main, o) {
             en.append(box);
         }
     }
-    const count = text => {
-        perf.count('tokenCalls');
-        return o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
+    const counter = createTokenCounter({
+        tokens: o.tokens,
+        isActive: () => content.isConnected,
+    });
+    const showCount = (text, n) => {
+        if (typeof n === 'number' && content.value === text) tk.textContent = `${n} tokens`;
     };
-    let countTimer = null;
     const content = autoText(text0, 'Type here', text => {
         if (version) o.changeMask(version.name, text);
         else o.change(x => { x.content = text; }, true);
         tk.textContent = `${tokenGuess(text)} tokens`;
-        clearTimeout(countTimer);
-        countTimer = setTimeout(() => count(text), 500);
+        counter.input(text).then(n => showCount(text, n));
     });
     explainNode(content, 'blocked.input', { title: version ? `Mask ${version.name}` : 'Content', text: 'Edits the entry text.' });
+    content.addEventListener('blur', () => {
+        const text = content.value;
+        counter.flush(text).then(n => showCount(text, n));
+    });
     en.append(content);
-    count(text0);
+    counter.open(text0).then(n => showCount(text0, n));
     if (!o.hero) storyLogic();
 
     if (o.fresh) setTimeout(() => { if (!h1.textContent) h1.focus(); }, 30);

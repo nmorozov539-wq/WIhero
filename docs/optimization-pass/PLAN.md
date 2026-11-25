@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**T0 — token count (`src/ui/token-count.js`, `src/ui/entry-page.js`).** One counter per entry page: a cached count per exact text, an in-flight request shared for the same text, a 1200 ms idle for typing, an immediate flush on blur, and no request while the document is hidden or the page has been rebuilt. The page keeps `tokenGuess` visible; the real number lands only when it resolves and the text has not changed. Opening an entry still makes exactly one call; the perf-harness typing step still records one.
+
 **C10 — row containment (`src/ui/app.css`).** `.item, .ptile, .drow` get `contain: layout style paint`; `.card` deliberately does not (sticky notes sit above it). Tested on the 1,000-row book: explain mode, desktop and tiles pass with no clipped outlines. A CDP counter run at 6× during a 6,000 px scroll showed **no change** (0 layouts and 9–11 style recalcs either way), so this is an unverified paint intermediate, not a measured win. Scroll anchoring and in-page find are still untested, and the paint trace/device evidence is outstanding.
 
 **C7 — Home sort keys (`src/ui/desk.js`).** `homeSort(list, key, dir, val)` decorates each book with its sort key once, then sorts and maps back; an Entries sort no longer re-counts a book's entries inside the comparator. Order and tie behavior are unchanged.
@@ -296,7 +298,7 @@ Dependencies:
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
-| 2 Typing path | ☐ |
+| 2 Typing path | ◐ T0 landed; T1–T5 pending |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
@@ -318,7 +320,7 @@ Dependencies:
 | 7c | C4 + C5 icon and tone caches (landed) |
 | 7d | C7 + C8 Home sort keys and links index (landed) |
 | 7e | C10 `contain` step 1 (landed as a measured intermediate) |
-| 8 | T0 token count |
+| 8 | T0 token count (landed) |
 | 9 | T1 + T2 save path and settings |
 | 10 | T3 history |
 | 11 | T4 + T5 chat hider and autosize |
@@ -702,6 +704,8 @@ Do **not** put `contain: paint` on `.card`: sticky notes sit above the card box 
 - Skip the call while the host is hidden or the page is being rebuilt; cancel stale results with a token/generation check.
 
 **Done when.** Typing 10 s into a 100 KB entry makes zero tokenizer calls until a pause/blur; opening an entry calls it once; the visible number still updates.
+
+**Status.** Landed. `test/token-count.test.js` pins open caching, deferred input, rapid-input replacement, flush/in-flight sharing, hidden and inactive skips, failure not caching, and the cap. `e2e/perf-harness.mjs` still records one call on entry open and one for the 50-character burst (the step waits out the 1200 ms idle). The cache is per page render, so a mask switch starts a new one; repeat opens of the same text within a page are free.
 
 **Risk.** Low. Remote tokenizers make this a network cost, so caching matters more.
 
@@ -1267,3 +1271,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | C4 + C5 | Icon templates cloned in rows/cards; tone cached per theme change; 343 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C7 + C8 | Home sort keys decorated once; book → links index cached and invalidated; 350 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C10 | Row containment landed as an intermediate; scroll counters unchanged (0 layouts, 9–11 recalcs); paint trace pending |
+| 2026-11-25 | this commit | T0 | Token count cached per text, deferred 1200 ms or flushed on blur, skipped when hidden/dead; 358 pass, 0 fail, 7 skipped |

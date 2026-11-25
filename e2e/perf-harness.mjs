@@ -360,7 +360,8 @@ async function runOnce(run) {
         await step('type 50 chars into the 100 KB entry', async () => {
             await $('textarea[aria-label="Content"]').click();
             await page.keyboard.type(TYPED, { delay: 20 });
-            await page.waitForTimeout(700);
+            // T0 defers the count 1200 ms after the last key, so the step must outwait that idle before reading.
+            await page.waitForTimeout(1500);
             return { chars: TYPED.length, tokenCalls: await page.evaluate(() => globalThis.__perfTokenCalls) };
         });
 
