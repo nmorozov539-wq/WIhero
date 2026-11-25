@@ -23,41 +23,37 @@ export function createHeroPanel(A) {
         createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
         folderSheet, bulkEdit, clashCount, clashesSheet,
     } = A;
+    let shell = null;
     let panelState = () => {};
 
-    function heroPanel(book, data) {
-        const desk = S.desk;
-        // A selection and a scroll place belong to one book.
-        if (H.pbook !== book) { H.pbook = book; H.psel = null; H.pscroll = 0; }
+    /**
+     * Builds the panel's shell once for a book and layout: the button, the aside, its header (search, new entry,
+     * select), the list and its scroll listener, the selection bar, and the footer or tool row. The per-draw data
+     * lives on the returned shell and the handlers read it there.
+     */
+    function makeShell(book, desk) {
+        const st = { book, desk, data: null, view: null, shown: [], fold: null, clash: null };
+        let filled = false;
+
         const pb = desk
             ? btn('panelBtn', ic(listShown() ? 'left' : 'panel'), () => { H.dlist = !listShown(); render(); }, listShown() ? 'Hide the entry list' : 'Show the entry list')
             : btn('panelBtn', ic('panel'), () => { H.panel = !H.panel; panelState(); }, 'Entries');
-        explainNode(pb, 'shell.panel', { title: desk ? (listShown() ? 'Hide the entry list' : 'Show the entry list') : 'Entries' });
-        if (desk) pb.title = listShown() ? 'Hide the entry list' : 'Show the entry list';
-        if (desk && !listShown()) { main.append(pb); panelState = () => {}; return; }
+        pb.dataset.retained = '1';
         const p = el('aside', desk ? 'panel dock' : 'panel');
-        main.append(pb, p);
-        // The list is filled the first time the panel opens: a closed panel costs nothing on each draw.
-        let filled = false;
+        p.dataset.retained = '1';
+        st.pb = pb;
+        st.p = p;
         if (desk) {
-            panelState = () => { if (!filled) fill(); p.classList.remove('closed'); };
             const grip = resizer(() => deskSettings().heroListW ?? 250, w => { deskSettings().heroListW = w; deskColumns(); }, { min: 200, max: 420, def: 250, side: 'right', onEnd: () => saveSettings() });
             explainNode(grip, 'shell.panel.resize');
             p.append(grip);
-        } else panelState = () => {
-            if (H.panel && !filled) fill();
-            p.classList.toggle('closed', !H.panel);
-            pb.classList.toggle('open', H.panel);
-            pb.innerHTML = H.panel ? ic('left') : ic('panel');
-            pb.setAttribute('aria-label', H.panel ? 'Close the entry panel' : 'Entries');
-            p.inert = !H.panel;
-        };
+        }
+
         const ph = el('div', 'phead');
         const q = el('input');
         q.placeholder = 'Search entries';
         q.setAttribute('aria-label', 'Search entries');
         explainNode(q, 'blocked.search', { title: 'Search entries' });
-        q.value = H.q;
         q.addEventListener('input', () => { H.q = q.value; fill(); });
         const plus = btn('round flat', ic('plus'), () => layer.askText({
             title: 'New entry', placeholder: 'Entry name', ok: 'Create',
@@ -81,28 +77,24 @@ export function createHeroPanel(A) {
         };
         if (desk) ph.append(sb);
         p.append(ph);
-        // Keyword clashes are about key words, so they live here with the entries, not on the canvas (Features 8).
-        const clashes = clashCount(book, data);
-        if (clashes) {
-            const cb = btn('pclash', html`${ic('alert', 's')}<span></span>${ic('right', 's')}`, () => clashesSheet(book), 'Keyword clashes');
-            explainNode(cb, 'shell.panel.clashes', { title: 'Keyword clashes' });
-            cb.querySelector('span').textContent = `${clashes} keyword clash${clashes === 1 ? '' : 'es'}`;
-            p.append(cb);
-        }
+        st.q = q;
+        st.sb = sb;
+
         const list = el('div', 'plist');
         p.append(list);
+        st.list = list;
         // The list keeps its place across draws, so placing entries one by one doesn't send it back to the top.
         list.addEventListener('scroll', () => { H.pscroll = list.scrollTop; }, { passive: true });
-        const picked = () => [...(H.psel ?? [])].filter(u => data.entries[u]);
-        const keysOf = uids => uids.map(u => cardKey(data.entries[u]));
+        const picked = () => [...(H.psel ?? [])].filter(u => st.data.entries[u]);
+        const keysOf = uids => uids.map(u => cardKey(st.data.entries[u]));
         // Desktop and phone alike: the selected entries that are on the canvas light up there.
-        const light = () => { if (H.psel) canvas()?.setPicked(new Set(keysOf(picked()).filter(k => view?.ids?.has(k))), true); };
+        const light = () => { if (H.psel) canvas()?.setPicked(new Set(keysOf(picked()).filter(k => st.view?.ids?.has(k))), true); };
         /** Puts entries on the canvas: at a point (one under another, from there), or each beside its partner. */
         const placeMany = (uids, at = null) => {
             const mem = canvasMemory(bookSettings(settings, book));
             keysOf(uids).forEach((key, i) => {
                 const c = { ...(mem.cards[key] ?? {}), placed: true };
-                if (at) Object.assign(c, { x: at.x, y: at.y + i * (CH + 24) }); else if (!view?.ids?.has(key)) { delete c.x; delete c.y; }
+                if (at) Object.assign(c, { x: at.x, y: at.y + i * (CH + 24) }); else if (!st.view?.ids?.has(key)) { delete c.x; delete c.y; }
                 delete c.ports;
                 mem.cards[key] = c;
             });
@@ -113,9 +105,8 @@ export function createHeroPanel(A) {
             const cv = canvas();
             if (cv && uids.length > 1) { cv.setPicked(new Set(keysOf(uids)), true); if (!at) cv.fit(); }
             else if (cv && !at) cv.centerOn(keysOf(uids)[0]);
-            layer.toast(uids.length === 1 ? `${titleOf(data.entries[uids[0]])} placed` : `${uids.length} entries placed. Drag any of them to move them together`);
+            layer.toast(uids.length === 1 ? `${titleOf(st.data.entries[uids[0]])} placed` : `${uids.length} entries placed. Drag any of them to move them together`);
         };
-        const view = canvas().view;
         // Dragging a dot out of the panel places the card where it is dropped (or moves it there). The panel slides
         // away once the drag starts, so the whole canvas is a drop target; dropping on the red × cancels.
         const dropped = new WeakSet();
@@ -149,7 +140,7 @@ export function createHeroPanel(A) {
                     if (desk) dot.setPointerCapture?.(ev.pointerId);
                     const all = many();
                     ghost = el('div', 'dragghost', all ? `${title} +${all.length - 1}` : title);
-                    tail = (all ?? []).slice(1).map(u => el('div', 'dragghost real tail', titleOf(data.entries[u])));
+                    tail = (all ?? []).slice(1).map(u => el('div', 'dragghost real tail', titleOf(st.data.entries[u])));
                     cancel = el('div', 'dropcancel');
                     cancel.innerHTML = ic('x');
                     cancel.setAttribute('aria-label', 'Drop here to cancel');
@@ -206,13 +197,14 @@ export function createHeroPanel(A) {
         };
         const fill = () => {
             filled = true;
+            const top = list.scrollTop;
             list.innerHTML = '';
-            const on = view?.ids ?? new Set();
+            const on = st.view?.ids ?? new Set();
             const needle = H.q.trim().toLowerCase();
             // Folders as a tree (Features 2): Places/Town sits inside Places.
             const tree = { path: '', kids: new Map(), entries: [], n: 0 };
             const shownEntries = [];
-            for (const e of sortEntries(entriesShown(book, data), sortBy())) {
+            for (const e of sortEntries(entriesShown(book, st.data), sortBy())) {
                 if (needle && !titleOf(e).toLowerCase().includes(needle)) continue;
                 shownEntries.push(e);
                 let node = tree;
@@ -227,7 +219,7 @@ export function createHeroPanel(A) {
             }
             // The open chat's character's greetings (BUILD_SPEC 15.4), placed with the dot like entries. First, as the story
             // starts from them.
-            const greets = chatGreetings(data).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
+            const greets = chatGreetings(st.data).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
             if (greets.length) {
                 const open = !H.closedFolders.has('\u0000greetings');
                 const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
@@ -261,7 +253,7 @@ export function createHeroPanel(A) {
                 }
             }
             // The book's Moments (CONCEPTS 3.13), under the greetings: the only list they are in.
-            const moments = sortEntries(momentsOf(book, data), 'az').filter(e => !needle || titleOf(e).toLowerCase().includes(needle) || (e.key ?? []).some(k => String(k).toLowerCase().includes(needle)));
+            const moments = sortEntries(momentsOf(book, st.data), 'az').filter(e => !needle || titleOf(e).toLowerCase().includes(needle) || (e.key ?? []).some(k => String(k).toLowerCase().includes(needle)));
             if (moments.length) {
                 const open = !H.closedFolders.has('\u0000moments');
                 const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Moments</span><small></small>`, () => { open ? H.closedFolders.add('\u0000moments') : H.closedFolders.delete('\u0000moments'); fill(); });
@@ -368,12 +360,11 @@ export function createHeroPanel(A) {
                 }
             };
             folderRows(tree, list);
-            shown = shownEntries;
-            if (!scrolled) { scrolled = true; list.scrollTop = H.pscroll ?? 0; }
+            st.shown = shownEntries;
+            // The retained list clears and refills in place: keep the scroll place it had.
+            list.scrollTop = top || (H.pscroll ?? 0);
             selBar();
         };
-        let shown = [];
-        let scrolled = false;
         // The selection's actions, at the foot of the list: the same as Normal mode's, plus Place.
         const bar = el('div', 'pselbar');
         const selBar = () => {
@@ -382,9 +373,9 @@ export function createHeroPanel(A) {
             if (!H.psel) return;
             const uids = picked();
             const head = el('div', 'pselhead');
-            const every = shown.length && shown.every(e => H.psel.has(e.uid));
+            const every = st.shown.length && st.shown.every(e => H.psel.has(e.uid));
             const all = btn('', every ? 'None' : 'All', () => {
-                H.psel = every ? new Set() : new Set(shown.map(e => e.uid));
+                H.psel = every ? new Set() : new Set(st.shown.map(e => e.uid));
                 fill();
                 light();
             });
@@ -399,7 +390,7 @@ export function createHeroPanel(A) {
             };
             act('canvas', 'Place', () => placeMany(uids));
             act('move', 'Move', () => folderSheet(book, null, f => {
-                for (const u of uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], f);
+                for (const u of uids) if (st.data.entries[u]) setFolder(settings, book, st.data.entries[u], f);
                 saveSettings();
                 H.psel = null;
                 render();
@@ -410,13 +401,11 @@ export function createHeroPanel(A) {
             bar.append(head, acts);
         };
         p.append(bar);
-        light();
+
         if (desk) {
             // The footer: the book's links and how many of its entries are on the canvas.
             const picker = btn('panelbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
             explainNode(picker, 'shell.panel.book', { title: 'Switch book' });
-            picker.querySelector('span').textContent = book;
-            picker.title = book;
             const prow = el('div', 'panelbookrow');
             const more = btn('panelmore', ic('more', 's'), () => heroBookMenu(book), 'Book actions');
             explainNode(more, 'shell.panel.bookMenu', { title: 'Book actions' });
@@ -424,54 +413,150 @@ export function createHeroPanel(A) {
             prow.append(picker, more);
             p.append(prow);
             const ft = el('div', 'pfoot');
+            const links = el('span', 'plinks');
+            const count = el('span', 'pcount');
+            ft.append(links, count);
+            p.append(ft);
+            st.picker = picker;
+            st.links = links;
+            st.count = count;
+        } else {
+            // Phone: a tool row over the footer, as in Obsidian's file list: Select · New entry · fold or unfold every
+            // folder (only when the book has folders). New folder lives in Move's sheet, Sort by in the ☰ menu.
+            const folders = () => {
+                const all = new Set(settings.books?.[book]?.folderList ?? []);
+                for (const e of entriesShown(book, st.data)) { const f = entryFolder(book, e); if (f) all.add(f); }
+                for (const f of [...all]) { const parts = f.split('/'); for (let i = 1; i < parts.length; i++) all.add(parts.slice(0, i).join('/')); }
+                return all;
+            };
+            st.folders = folders;
+            const tools = el('div', 'ptools');
+            tools.append(sb, plus);
+            tools.addEventListener('contextmenu', e => { const b = e.target.closest('button'); if (b) { e.preventDefault(); layer.toast(b.getAttribute('aria-label')); } });
+            p.append(tools);
+            // The footer: the book's name opens the books menu, ⋮ this book's menu; a quiet line says where it is active.
+            const br = el('div', 'bookrow');
+            const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><small></small>`, () => bookPicker(), 'Books');
+            explainNode(bp, 'shell.panel.book', { title: 'Books' });
+            const more = btn('round flat', ic('more'), () => heroBookMenu(book), 'Book actions');
+            explainNode(more, 'shell.panel.bookMenu', { title: 'Book actions' });
+            br.append(bp, more);
+            p.append(br);
+            st.bp = bp;
+        }
+
+        st.fill = fill;
+        return st;
+    }
+
+    /** Brings the stood-in shell's labels, classes and lists up to the current draw. */
+    function paint(st, book, data) {
+        const desk = st.desk;
+        const p = st.p;
+        const pb = st.pb;
+        st.data = data;
+        st.view = canvas()?.view;
+        const on = st.view?.ids ?? new Set();
+        const clashes = clashCount(book, data);
+
+        if (desk) {
+            const shown = listShown();
+            pb.innerHTML = ic(shown ? 'left' : 'panel');
+            pb.classList.remove('open');
+            pb.setAttribute('aria-label', shown ? 'Hide the entry list' : 'Show the entry list');
+            pb.title = shown ? 'Hide the entry list' : 'Show the entry list';
+            explainNode(pb, 'shell.panel', { title: shown ? 'Hide the entry list' : 'Show the entry list' });
+            st.q.value = H.q;
+            st.sb.classList.toggle('on', !!H.psel);
+            st.sb.setAttribute('aria-label', H.psel ? 'Leave selection' : 'Select entries');
+            st.sb.title = H.psel ? 'Leave selection' : 'Select entries';
+            if (!shown) {
+                p.remove();
+                main.append(pb);
+                panelState = () => {};
+                return;
+            }
+            panelState = () => { st.fill(); p.classList.remove('closed'); };
+            main.append(pb, p);
+            st.picker.querySelector('span').textContent = book;
+            st.picker.title = book;
             const lt = linkText(book);
             const g = library.isGlobal(book);
-            const links = el('span', 'plinks');
-            links.innerHTML = ic(g ? 'book' : 'chain', 's');
-            links.append(g ? 'Global' : lt || 'Not linked');
-            const shown = entriesShown(book, data);
-            const on = view?.ids ?? new Set();
-            ft.append(links, el('span', 'pcount', `${shown.filter(e => on.has(cardKey(e))).length} of ${shown.length} placed`));
-            p.append(ft);
-            panelState();
-            return;
-        }
-        // Phone: a tool row over the footer, as in Obsidian's file list: Select · New entry · fold or unfold every
-        // folder (only when the book has folders). New folder lives in Move's sheet, Sort by in the ☰ menu.
-        const folders = () => {
-            const all = new Set(settings.books?.[book]?.folderList ?? []);
-            for (const e of entriesShown(book, data)) { const f = entryFolder(book, e); if (f) all.add(f); }
-            for (const f of [...all]) { const parts = f.split('/'); for (let i = 1; i < parts.length; i++) all.add(parts.slice(0, i).join('/')); }
-            return all;
-        };
-        const tools = el('div', 'ptools');
-        tools.append(sb, plus);
-        if (folders().size) {
-            const anyOpen = () => [...folders()].some(f => !H.closedFolders.has(f));
-            const label = () => (anyOpen() ? 'Fold all folders' : 'Unfold all folders');
-            const fold = btn('', ic(anyOpen() ? 'foldAll' : 'unfoldAll'), () => {
-                if (anyOpen()) for (const f of folders()) H.closedFolders.add(f); else for (const f of folders()) H.closedFolders.delete(f);
+            st.links.innerHTML = ic(g ? 'book' : 'chain', 's');
+            st.links.append(g ? 'Global' : lt || 'Not linked');
+            const listed = entriesShown(book, data);
+            st.count.textContent = `${listed.filter(e => on.has(cardKey(e))).length} of ${listed.length} placed`;
+        } else {
+            explainNode(pb, 'shell.panel', { title: 'Entries' });
+            st.q.value = H.q;
+            st.sb.classList.toggle('on', !!H.psel);
+            st.sb.setAttribute('aria-label', H.psel ? 'Leave selection' : 'Select entries');
+            st.sb.title = H.psel ? 'Leave selection' : 'Select entries';
+            panelState = () => {
+                if (H.panel) st.fill();
+                p.classList.toggle('closed', !H.panel);
+                pb.classList.toggle('open', H.panel);
+                pb.innerHTML = H.panel ? ic('left') : ic('panel');
+                pb.setAttribute('aria-label', H.panel ? 'Close the entry panel' : 'Entries');
+                p.inert = !H.panel;
+            };
+            main.append(pb, p);
+            const fs = st.folders();
+            if (fs.size) {
+                let fold = st.fold;
+                if (!fold) {
+                    const anyOpen = () => [...st.folders()].some(f => !H.closedFolders.has(f));
+                    const label = () => (anyOpen() ? 'Fold all folders' : 'Unfold all folders');
+                    fold = btn('', ic(anyOpen() ? 'foldAll' : 'unfoldAll'), () => {
+                        const open = [...st.folders()].some(f => !H.closedFolders.has(f));
+                        if (open) for (const f of st.folders()) H.closedFolders.add(f); else for (const f of st.folders()) H.closedFolders.delete(f);
+                        fold.innerHTML = ic(open ? 'unfoldAll' : 'foldAll');
+                        fold.setAttribute('aria-label', open ? 'Unfold all folders' : 'Fold all folders');
+                        if (H.panel) st.fill();
+                    }, label());
+                    explainNode(fold, 'nav.disclosure', { title: label() });
+                    st.fold = fold;
+                }
+                const anyOpen = () => [...st.folders()].some(f => !H.closedFolders.has(f));
+                const label = () => (anyOpen() ? 'Fold all folders' : 'Unfold all folders');
                 fold.innerHTML = ic(anyOpen() ? 'foldAll' : 'unfoldAll');
                 fold.setAttribute('aria-label', label());
-                if (filled) fill();
-            }, label());
-            explainNode(fold, 'nav.disclosure', { title: label() });
-            tools.append(fold);
+                explainNode(fold, 'nav.disclosure', { title: label() });
+                if (!fold.parentNode) st.p.querySelector(':scope > .ptools').append(fold);
+            } else st.fold?.remove();
+            const lt = linkText(book);
+            const listed = entriesShown(book, data);
+            const placed = listed.filter(e => on.has(cardKey(e))).length;
+            st.bp.querySelector('b span').textContent = book;
+            st.bp.querySelector('small').textContent = `${library.isGlobal(book) ? 'Global' : lt ? `Linked to ${lt}` : 'Not linked'} · ${placed} of ${listed.length} placed`;
         }
-        tools.addEventListener('contextmenu', e => { const b = e.target.closest('button'); if (b) { e.preventDefault(); layer.toast(b.getAttribute('aria-label')); } });
-        p.append(tools);
-        // The footer: the book's name opens the books menu, ⋮ this book's menu; a quiet line says where it is active.
-        const br = el('div', 'bookrow');
-        const bp = btn('bookpick', html`<b><span></span>${ic('down', 's')}</b><small></small>`, () => bookPicker(), 'Books');
-        explainNode(bp, 'shell.panel.book', { title: 'Books' });
-        bp.querySelector('b span').textContent = book;
-        const lt = linkText(book);
-        const listed = entriesShown(book, data);
-        const placed = listed.filter(e => (view?.ids ?? new Set()).has(cardKey(e))).length;
-        bp.querySelector('small').textContent = `${library.isGlobal(book) ? 'Global' : lt ? `Linked to ${lt}` : 'Not linked'} · ${placed} of ${listed.length} placed`;
-        br.append(bp, (() => { const b = btn('round flat', ic('more'), () => heroBookMenu(book), 'Book actions'); explainNode(b, 'shell.panel.bookMenu', { title: 'Book actions' }); return b; })());
-        p.append(br);
+
+        const list = st.list;
+        if (clashes) {
+            if (!st.clash) {
+                st.clash = btn('pclash', html`${ic('alert', 's')}<span></span>${ic('right', 's')}`, () => clashesSheet(book), 'Keyword clashes');
+                explainNode(st.clash, 'shell.panel.clashes', { title: 'Keyword clashes' });
+            }
+            st.clash.querySelector('span').textContent = `${clashes} keyword clash${clashes === 1 ? '' : 'es'}`;
+            if (st.clash.nextSibling !== list) st.p.insertBefore(st.clash, list);
+        } else if (st.clash) {
+            st.clash.remove();
+            st.clash = null;
+        }
         panelState();
+    }
+
+    function heroPanel(book, data) {
+        const desk = S.desk;
+        // A selection and a scroll place belong to one book.
+        if (H.pbook !== book) { H.pbook = book; H.psel = null; H.pscroll = 0; }
+        if (shell && (shell.book !== book || shell.desk !== desk)) {
+            shell.pb.remove();
+            shell.p.remove();
+            shell = null;
+        }
+        if (!shell) shell = makeShell(book, desk);
+        paint(shell, book, data);
     }
 
     return { heroPanel, panelState: () => panelState() };

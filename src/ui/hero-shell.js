@@ -23,7 +23,7 @@ import { strategyColor } from './entry-page.js';
 export function createHeroShell(A) {
     const {
         newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
-        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
+        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas, startExplain,
         stopExplain, explainDrawn, strip, tabbar, visibleNames, desk, deadCount, deadSheet, undoHistory, historyStep,
@@ -349,7 +349,8 @@ export function createHeroShell(A) {
         if (kept) {
             need(keepBook); // Also prune Moments just taken off this retained canvas.
             // Same canvas: everything around it is drawn again (cheap), the cards and links only if they changed.
-            for (const n of [...main.children]) if (n !== kept.vp) n.remove();
+            // The kept panel and inspector shells stay where they are (their nodes carry data-retained).
+            for (const n of [...main.children]) if (n !== kept.vp && !n.dataset?.retained) n.remove();
             kept.vp.querySelector('.legend')?.remove();
             if (H.legend) kept.vp.append(legendBox());
             const sig = canvasSig(keepBook, modelOf(keepBook, kept.data));
@@ -439,7 +440,7 @@ export function createHeroShell(A) {
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (S.desk) { H.insp = null; heroInspector(book, data); return; }
-                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); heroCanvas?.phoneFocus?.(); }
+                if (H.insp) { H.insp = null; dropInspector(); heroCanvas?.phoneFocus?.(); }
             },
             ...(S.desk ? deskCanvas(book, data) : {}),
         });
@@ -505,6 +506,7 @@ export function createHeroShell(A) {
         mountPieceBar(barApi(book));
         if (S.desk) { heroInspector(book, data); if (S.search) desk().renderSearch(); return; }
         if (H.insp?.book === book) inspectorFor(book, data);
+        else dropInspector();
     }
     function legendBox() {
         const lg = el('div', 'legend');

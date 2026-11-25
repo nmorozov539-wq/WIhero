@@ -23,7 +23,7 @@ import { strategyColor } from './entry-page.js';
 export function createHeroDesk(A) {
     const {
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder,
-        inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
+        inspect, inspectorFor, dropInspector, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render, saveSettings, settings, shadow, showOnCanvas, onCanvas, sortBy, startExplain, stopExplain, typing,
         canvas, deleteEntries, bulkEdit,
     } = A;
@@ -198,19 +198,37 @@ export function createHeroDesk(A) {
         });
     }
 
+    // The inspector column kept per book: its resizer and its `.insp` shell survive a draw.
+    let deskShell = null;
+
     /** The right column: the card's inspector, the selected cards, or the book. */
     function heroInspector(book, data) {
-        main.querySelector('.hinsp')?.remove();
-        main.querySelector('.insp')?.remove();
         deskColumns();
-        if (!inspShown()) return;
-        const col = el('aside', 'hinsp');
+        if (!inspShown()) {
+            if (deskShell) { deskShell.col.remove(); deskShell = null; }
+            dropInspector();
+            return;
+        }
+        if (deskShell && deskShell.book !== book) { deskShell.col.remove(); deskShell = null; }
+        if (!deskShell) {
+            const col = el('aside', 'hinsp');
+            col.dataset.retained = '1';
+            col.append(resizer(() => deskSettings().heroInspW ?? 320, w => { deskSettings().heroInspW = w; deskColumns(); }, { min: 260, max: 560, def: 320, side: 'left', onEnd: () => saveSettings() }));
+            deskShell = { book, col };
+        }
+        const col = deskShell.col;
         main.append(col);
-        col.append(resizer(() => deskSettings().heroInspW ?? 320, w => { deskSettings().heroInspW = w; deskColumns(); }, { min: 260, max: 560, def: 320, side: 'left', onEnd: () => saveSettings() }));
         if (H.insp?.book === book) {
             inspectorFor(book, data, col);
-            if (H.insp) return;
+            if (H.insp) {
+                // A group or book pane left from before is not this selection's.
+                for (const n of [...col.querySelectorAll(':scope > .insp')]) if (!n.matches('.entry, .greet')) n.remove();
+                return;
+            }
         }
+        // No card selection: the entry inspector is gone; the group or book pane takes the column.
+        dropInspector();
+        for (const n of [...col.querySelectorAll(':scope > .insp')]) n.remove();
         const picked = (canvas()?.picked() ?? []).filter(k => nodeOf(book, k));
         if (picked.length > 1) groupPane(col, book, data, picked);
         else bookPane(col, book, data);

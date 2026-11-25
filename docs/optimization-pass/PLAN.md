@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V3c — retained panel and inspector (`src/ui/hero-panel.js`, `hero-inspector.js`, `hero-desk.js`).** The entry panel keeps one shell per book/layout: button, aside, header/search/new/select, list container and scroll listener, selection bar, footer/tool row, with handlers reading the current draw. The inspector keeps `.insp` and its header per book+selection+column; the body is redrawn inside it, and the shell survives a same-selection draw. A different book/selection/layout rebuilds; a detached shell is reattached; `data-retained` nodes are skipped by the canvas cleanup. Panel rows and the inspector body are still rebuilt inside their shells — that is N1's keyed-row work.
+
 **V3b — retained piece bar (`src/ui/piecebar.js`).** The non-edit `.pbar` is kept on the Hero bar state per book/root/layout: fold button, all chips, hint, more button, scroll listener and `ResizeObserver` survive a draw; armed classes, `aria-pressed`, the arm banner and fold state update in place. A detached bar (tab switch cleared `main`) is reattached; another book/layout rebuilds. Edit mode keeps its temporary strip. `e2e/pbar.mjs` holds the bar/chip/fold node across refresh, arm, fold/unfold and Preview→Canvas.
 
 **V3a — retained tab row (`src/ui/dom.js`, `app.js`, `desk.js`, `hero-shell.js`).** A small `keyed(box, items, make)` reconciler keeps tab nodes and listeners: Home, book tabs by book, entry tabs by book+uid (desk/phone) or tab object (Hero), with a suffix for duplicates. Labels, active/fixed classes, strategy dots, book icons, unsaved badges, close buttons and explain metadata update in place; handlers resolve the current tab by key at click time. `.tright` is retained and reconciled too. Panel, piece bar and inspector shells are V3b.
@@ -337,7 +339,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ◐ V1, V2, V3a, V3b, V4, V5 landed; V3c panel/inspector and V6 badge patching pending |
+| 3 Hero per-draw | ◐ V1–V5 landed; V6 badge patching pending |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -363,7 +365,7 @@ Dependencies:
 | 10 | T3 history (landed) |
 | 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions (landed) |
-| 13 | V2 `canvasSig` (landed); V3a tab row and V3b piece bar (landed); V3c panel/inspector pending |
+| 13 | V2 `canvasSig` (landed); V3 retained chrome (landed) |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching pending |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
 | 16 | N4 + N5 windowing and `content-visibility` |
@@ -888,7 +890,7 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** A Hero draw with no state change does not recreate the chrome; opening the inspector or switching a strip keeps DOM identity; labels and classes still update.
 
-**Status.** ◐ Tab row (V3a) and piece bar (V3b) landed. `e2e/tabs.mjs` keeps Hero phone/desktop, Normal phone and desktop tab nodes and `.tright` across refresh, entry open/Back, switches, close and rename; `e2e/pbar.mjs` keeps the bar/chip/fold nodes across refresh, arm, fold and Preview→Canvas; desktop/controls/review/drawer pass. The entry panel and inspector shells are still rebuilt per draw (V3c).
+**Status.** Landed for the chrome shells: tab row (V3a), piece bar (V3b), entry panel and inspector (V3c). `e2e/tabs.mjs` keeps Hero/Normal tab nodes and `.tright`; `e2e/pbar.mjs` keeps the bar/chip/fold nodes; `e2e/chrome.mjs` keeps the panel button/aside/search/list container and the `.insp` shell for the same selection. Desktop, drawer, review, explain, controls and cheap pass. Rows and inspector bodies are still rebuilt inside their shells; keyed rows are N1.
 
 **Risk.** Medium. Keep event listeners stable; avoid stale closures over book/state.
 
@@ -1338,3 +1340,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | V4 + V5 | Overlay(null) no-op; relink uses per-link node maps; 382 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V3a | Keyed tab reconciliation, late-bound handlers, retained `.tright`; e2e tabs 5 ok |
 | 2026-11-25 | this commit | V3b | Piece bar retained per canvas; arm/fold update in place; tone cache invalidated on CSS load; e2e pbar 1, drawer 10, review 10 |
+| 2026-11-25 | this commit | V3c | Panel and inspector shells retained per book/selection; detached reattach; e2e chrome 5, desktop 51, drawer 10, review 10, explain 26, pbar 1, tabs 5 |
