@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V3b — retained piece bar (`src/ui/piecebar.js`).** The non-edit `.pbar` is kept on the Hero bar state per book/root/layout: fold button, all chips, hint, more button, scroll listener and `ResizeObserver` survive a draw; armed classes, `aria-pressed`, the arm banner and fold state update in place. A detached bar (tab switch cleared `main`) is reattached; another book/layout rebuilds. Edit mode keeps its temporary strip. `e2e/pbar.mjs` holds the bar/chip/fold node across refresh, arm, fold/unfold and Preview→Canvas.
+
 **V3a — retained tab row (`src/ui/dom.js`, `app.js`, `desk.js`, `hero-shell.js`).** A small `keyed(box, items, make)` reconciler keeps tab nodes and listeners: Home, book tabs by book, entry tabs by book+uid (desk/phone) or tab object (Hero), with a suffix for duplicates. Labels, active/fixed classes, strategy dots, book icons, unsaved badges, close buttons and explain metadata update in place; handlers resolve the current tab by key at click time. `.tright` is retained and reconciled too. Panel, piece bar and inspector shells are V3b.
 
 **V4 — overlay no-op (`src/ui/canvas.js`).** `overlay(null)` on an already-clear canvas returns before touching any card. When an overlay was applied, only the nodes it classed are cleaned; a full draw resets that node set. Actual overlays still walk the cards once, as before.
@@ -335,7 +337,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ◐ V1, V2, V3a, V4, V5 landed; V3b panel/piece-bar/inspector and V6 badge patching pending |
+| 3 Hero per-draw | ◐ V1, V2, V3a, V3b, V4, V5 landed; V3c panel/inspector and V6 badge patching pending |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -361,7 +363,7 @@ Dependencies:
 | 10 | T3 history (landed) |
 | 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions (landed) |
-| 13 | V2 `canvasSig` (landed); V3a tab row (landed); V3b chrome shells pending |
+| 13 | V2 `canvasSig` (landed); V3a tab row and V3b piece bar (landed); V3c panel/inspector pending |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching pending |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
 | 16 | N4 + N5 windowing and `content-visibility` |
@@ -643,7 +645,7 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 
 **Done when.** Theme changes still update the tone; a draw no longer calls `getComputedStyle` unconditionally.
 
-**Status.** Landed. The cache is per app instance, cleared at `show()` and by a `MutationObserver` on `documentElement`/`body` class, style and `data-theme`. `e2e/desktop.mjs`'s light-theme pass still shows the deeper piece colors.
+**Status.** Landed. The cache is per app instance, cleared at `show()`, when `app.css` finishes loading (the first draw can land before it), and by a `MutationObserver` on `documentElement`/`body` class, style and `data-theme`. `e2e/desktop.mjs` and `e2e/review.mjs`'s light-theme passes show the deeper piece colors and ≥3:1 contrast.
 
 **Risk.** Low.
 
@@ -886,7 +888,7 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** A Hero draw with no state change does not recreate the chrome; opening the inspector or switching a strip keeps DOM identity; labels and classes still update.
 
-**Status.** ◐ Tab row landed (V3a): `e2e/tabs.mjs` keeps Hero phone/desktop, Normal phone and desktop tab nodes and `.tright` across refresh, entry open/Back, switches, close and rename; desktop/controls/cheap pass. The entry panel, piece bar and inspector shells are still rebuilt per draw (V3b).
+**Status.** ◐ Tab row (V3a) and piece bar (V3b) landed. `e2e/tabs.mjs` keeps Hero phone/desktop, Normal phone and desktop tab nodes and `.tright` across refresh, entry open/Back, switches, close and rename; `e2e/pbar.mjs` keeps the bar/chip/fold nodes across refresh, arm, fold and Preview→Canvas; desktop/controls/review/drawer pass. The entry panel and inspector shells are still rebuilt per draw (V3c).
 
 **Risk.** Medium. Keep event listeners stable; avoid stale closures over book/state.
 
@@ -1335,3 +1337,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | V2 | Entry-side signature built with the model, 0.58–0.90 ms per Hero draw; content edits keep the canvas; 382 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V4 + V5 | Overlay(null) no-op; relink uses per-link node maps; 382 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | V3a | Keyed tab reconciliation, late-bound handlers, retained `.tright`; e2e tabs 5 ok |
+| 2026-11-25 | this commit | V3b | Piece bar retained per canvas; arm/fold update in place; tone cache invalidated on CSS load; e2e pbar 1, drawer 10, review 10 |

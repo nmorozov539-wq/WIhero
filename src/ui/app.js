@@ -102,6 +102,8 @@ export function createApp(deps) {
 
     // The tone is read once per theme change, not on every draw. The cache lives here so two apps never share it.
     let tone = null;
+    // The first draw can land before app.css does: read the tone again when the stylesheet arrives.
+    link.addEventListener('load', () => { tone = null; if (!host.hidden) render(); });
     if (globalThis.MutationObserver) {
         const clearTone = () => { tone = null; };
         const themeWatch = new MutationObserver(clearTone);
