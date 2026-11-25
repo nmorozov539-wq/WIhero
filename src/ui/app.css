@@ -135,7 +135,7 @@ svg.i.s { width: 16px; height: 16px; }
 
 /* Toggle: a light knob; the On track is the accent mixed about half with the background */
 .switch { width: 40px; height: 24px; border-radius: 12px; background: var(--line); position: relative; flex-shrink: 0; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s, background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s; } /* the knob colour snaps; only transform animates (A5) */
 .switch.on { background: color-mix(in srgb, var(--accent) 50%, var(--tint)); }
 .switch.on::after { transform: translateX(16px); background: #fbfaf7; } /* the knob stays light on every theme */
 
@@ -305,7 +305,7 @@ input.kbox:focus { border-color: var(--accent); }
 @supports (color: rgb(from red r g b)) {
   .wih { --canvas: rgb(from var(--tint) r g b); }
 }
-.modebtn { display: flex; align-items: center; gap: 12px; width: calc(100% - 20px); margin: 4px 10px 6px; min-height: 50px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; transition: background .15s, border-color .15s; }
+.modebtn { display: flex; align-items: center; gap: 12px; width: calc(100% - 20px); margin: 4px 10px 6px; min-height: 50px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; } /* armed colours snap: no background/border transition (A5) */
 .modebtn span { flex: 1; }
 .modebtn.arm { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 500; font-size: var(--t-s); }
 
@@ -371,7 +371,7 @@ svg.lk path.head { stroke-width: 0; }
 .plabel { position: absolute; z-index: 3; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: var(--p-pack); background: var(--canvas); padding: 0 4px; border-radius: 4px; pointer-events: none; text-transform: uppercase; letter-spacing: .04em; }
 .canvas-tools { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
 .canvas-tools button, .panelBtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
-.panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: left .22s ease; }
+.panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: transform .22s ease; } /* moves by transform; see .panelBtn.open (A5) */
 /* Undo and redo on the canvas: beside the entries button, top left. */
 /* Phone: undo and redo in a row at the bottom right, in thumb reach, under the zoom column; the top left keeps
    only the panel button and the legend. Desktop keeps them top left. */
@@ -387,7 +387,6 @@ svg.lk path.head { stroke-width: 0; }
 .checkchip svg { color: var(--warn); }
 .checkchip.dead svg { color: var(--bad); }
 [data-desk="1"] .checkchip { right: 10px; top: 10px; height: 28px; }
-.panelBtn.open { left: calc(100% - 54px); }
 .zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font: inherit; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; border: 0; cursor: pointer; }
 .zlabel:hover { color: var(--fg); }
 .cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
@@ -399,7 +398,10 @@ svg.lk path.head { stroke-width: 0; }
 /* The entry panel (Obsidian style) */
 .panel { position: absolute; left: 0; top: 0; bottom: 0; width: calc(100% - 64px); max-width: 420px; z-index: 10; background: linear-gradient(var(--bar), var(--bar)), var(--canvas); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; transition: transform .22s ease; box-shadow: 8px 0 30px var(--shadow); }
-.panelBtn.open { left: min(calc(100% - 54px), 430px); }
+/* Phone Hero: from left 10px to min(100% - 54px, 430px) without animating `left`. The containing block is the
+   full drawer width on a phone, so the delta is the viewport width minus the 10px inset and the 54px right edge,
+   clamped at the same 430px open position. The desktop open class is never set (the button is a flex child). */
+.panelBtn.open { transform: translateX(min(calc(100vw - 64px), 420px)); }
 .panel.closed { transform: translateX(-102%); box-shadow: none; }
 .panel .phead { display: flex; align-items: center; gap: 6px; padding: 10px 8px 4px 16px; min-height: 64px; }
 .panel .phead input { flex: 1; min-width: 0; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
@@ -628,7 +630,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 /* Over the canvas, the card as it will land: its size at this zoom, on the grid (Features 3). */
 .dragghost.real { margin: 0; min-height: 0; padding: .4em .6em .4em 2.2em; white-space: normal; font-weight: 600; display: flex; align-items: center; line-height: 1.2; border-width: 2px; }
 /* Drop here to cancel a drag from the entry panel */
-.dropcancel { position: absolute; left: 50%; top: 78%; z-index: 59; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: color-mix(in srgb, var(--bad) 75%, transparent); box-shadow: 0 6px 20px var(--shadow); transition: transform .12s, background .12s; }
+.dropcancel { position: absolute; left: 50%; top: 78%; z-index: 59; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: color-mix(in srgb, var(--bad) 75%, transparent); box-shadow: 0 6px 20px var(--shadow); transition: transform .12s; } /* the red-on-hover colour snaps (A5) */
 .dropcancel svg { width: 28px; height: 28px; }
 .dropcancel.over { transform: scale(1.18); background: var(--bad); }
 /* An Undo toast's time left: its outline drains */
@@ -792,11 +794,11 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .lbtn:hover:not(:disabled) { background: var(--raised); color: var(--fg); }
 .switch.sm { width: 30px; height: 18px; }
 .switch.sm::after { top: 3px; left: 3px; width: 12px; height: 12px; }
-.switch.sm.on::after { left: 15px; }
+.switch.sm.on::after { transform: translateX(12px); } /* 30px track, 12px knob, 3px inset: fixed 12px delta */
 .sp { flex: 1; }
 .colresize { width: 6px; margin: 0 -3px; cursor: col-resize; z-index: 4; flex-shrink: 0; position: relative; }
-.colresize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: transparent; transition: background .1s; }
-.colresize:hover::after, .colresize.on::after { background: var(--accent); }
+.colresize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: var(--accent); opacity: 0; transition: opacity .1s; }
+.colresize:hover::after, .colresize.on::after { opacity: 1; }
 
 /* Home */
 .dhome { padding-bottom: 24px; }

@@ -106,7 +106,7 @@ assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('
 ok('the eager placeholder animates normally and an ST-page element keeps its own transition');
 
 // ---- Reduced motion: the media query reaches the shadow tree and takes every transition/animation with it.
-assert.equal(await css('.probe-switch', 'transitionProperty', '::after'), 'transform, background');
+assert.equal(await css('.probe-switch', 'transitionProperty', '::after'), 'transform');
 assert.equal(await css('.probe-sheet', 'animationName'), 'up');
 assert.equal(await css('.probe-loose', 'animationName'), 'pulse');
 assert.equal(await css('.probe-toast .ttimer rect', 'animationName'), 'tdrain');
@@ -139,7 +139,7 @@ ok('reduced motion leaves non-motion feedback alone (a dimmed card still reads a
 
 await cdp.send('Emulation.setEmulatedMedia', { features: [] });
 assert.equal(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches), false);
-assert.equal(await css('.probe-switch', 'transitionProperty', '::after'), 'transform, background');
+assert.equal(await css('.probe-switch', 'transitionProperty', '::after'), 'transform');
 assert.equal(await css('.probe-sheet', 'animationName'), 'up');
 assert.equal(await css('.probe-loose', 'animationName'), 'pulse');
 assert.equal(await css('.probe-toast .ttimer rect', 'animationName'), 'tdrain');
