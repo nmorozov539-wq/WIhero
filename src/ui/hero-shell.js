@@ -10,6 +10,7 @@ import { closedText } from './logic-text.js';
 import { entryStatus, slotValues, writtenText } from '../engine/turn.js';
 import { ic } from './icons.js';
 import { explainNode } from './explain-meta.js';
+import { blockingUids } from './model-issues.js';
 import { mountPieceBar } from './piecebar.js';
 import { strategyColor } from './entry-page.js';
 
@@ -35,10 +36,6 @@ export function createHeroShell(A) {
         if (!H.book || !names.includes(H.book)) H.book = names[0] ?? null;
         return H.book;
     }
-
-    const blockingUids = (book, model) => new Set(model.issues
-        .filter(i => !i.warning && i.blocking !== false && i.stKey?.startsWith(`${book}.`))
-        .map(i => Number(i.stKey.slice(book.length + 1))));
 
     /** The canvas's view of a book, worked out once per draw. */
     function heroData(book, data) {

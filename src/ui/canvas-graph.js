@@ -160,9 +160,24 @@ export function canvasSet(m, g, placed) {
     return new Set([...s].filter(id => m.byId(id)));
 }
 
-/** Moments only exist on the canvas: retain explicit placements and cards pulled in by story links/packs. */
-export function offCanvasMoments(data, memory) {
-    const candidates = Object.values(data.entries ?? {}).filter(e => isMoment(e) && !memory.cards?.[cardKey(e)]?.placed);
+/** A book's Moments, kept by the library revision (a different data object, or a changed book, reads again). */
+const momentsCache = new WeakMap();
+function momentsOf(data, revision) {
+    if (revision === null) return Object.values(data.entries ?? {}).filter(isMoment);
+    const hit = momentsCache.get(data);
+    if (hit?.revision === revision) return hit.moments;
+    const moments = Object.values(data.entries ?? {}).filter(isMoment);
+    momentsCache.set(data, { revision, moments });
+    return moments;
+}
+
+/**
+ * Moments only exist on the canvas: retain explicit placements and cards pulled in by story links/packs.
+ * `revision` is the library's version; null computes uncached (tests and other callers). Placed Moments are
+ * filtered per call, so the canvas model is only built when an unplaced one is left.
+ */
+export function offCanvasMoments(data, memory, revision = null) {
+    const candidates = momentsOf(data, revision).filter(e => !memory.cards?.[cardKey(e)]?.placed);
     if (!candidates.length) return [];
     const model = canvasBook(data);
     const visible = canvasSet(model, buildGraph(model), Object.entries(memory.cards ?? {}).filter(([, p]) => p.placed).map(([key]) => key));

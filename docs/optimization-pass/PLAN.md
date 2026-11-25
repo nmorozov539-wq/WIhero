@@ -120,6 +120,10 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**C2 — grouped model issues (`src/ui/model-issues.js`).** `modelOf` attaches `issuesByStKey` once per built model; `problemsOf`, `warningsOf` and Hero's `blockingUids` read it instead of filtering the whole issue list per row, with a fallback scan for models built outside `modelOf` (tests, trial copies).
+
+**C9 — Moments fast path (`src/ui/canvas-graph.js`).** The book's Moment list is cached per data object and library revision; placed Moments are filtered per call, and the canvas model is built only when an unplaced Moment remains. `need()` passes `library.version`; `revision === null` computes uncached.
+
 **H3 — clash cold path (`src/ui/clashes.js`).** Phrase enumeration replaces the per-word RegExp candidate scan. Every contiguous token span of each normalized key is indexed as a phrase, sliced from the key so separators survive (`old-mill` is not `old mill`); a clash is a phrase held by two or more entries, and `of()` looks up the entry's own spans. Keys with no alphanumeric token, or punctuation on an edge, keep the old boundary scan. The whole-word contract is unchanged.
 
 | Measure | Before | After |
@@ -277,7 +281,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
-| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1 done in #48; C2–C10 pending |
+| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1, C2, C9 done; C3–C8, C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -295,7 +299,11 @@ Dependencies:
 | 5 | H2 collator (landed) |
 | 6 | A1 + A2 blur/transform (landed) |
 | 6b | H3 clash cold path (landed; entry-open gate moved to the entry page) |
-| 7 | C2–C10 cheap per-draw batch |
+| 7a | C2 + C9 grouped issues and Moments (landed) |
+| 7b | C3 + C6 normalize and filterChoices caches |
+| 7c | C4 + C5 icon and tone caches |
+| 7d | C7 + C8 Home sort keys and links index |
+| 7e | C10 `contain` step 1 |
 | 8 | T0 token count |
 | 9 | T1 + T2 save path and settings |
 | 10 | T3 history |
@@ -513,6 +521,8 @@ Keep the `warning`/`blocking` split at read time. `blockingUids` can use the sam
 
 **Done when.** Issue-related tests pass; a book draw no longer scans all issues per row.
 
+**Status.** Landed. `test/model-issues.test.js` compares the grouped helpers against the old scan for every uid, including warnings, non-blocking notes, a null `stKey` and a rebuilt model; `model.issues` is unchanged. Models built outside `modelOf` still fall back to a scan.
+
 **Risk.** Low.
 
 **Source.** Qwen F4; DeepSeek #12.
@@ -624,6 +634,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 **Change.** Memoize the filter per book revision; skip the canvas model entirely when there are no Moments.
 
 **Done when.** Books without Moments do not pay an O(entries) filter per `need()`; Moments still appear.
+
+**Status.** Landed. `test/moments-cache.test.js` pins the no-Moment path (a getter that throws if `canvasBook` runs), placed and unplaced Moments, cache reuse per revision, invalidation when a Moment is added or removed, two books not sharing, and the uncached `null` path.
 
 **Risk.** Low.
 
@@ -1222,3 +1234,4 @@ Measure before committing to these:
 | 2026-11-24 | this commit | B0 browser fixture + instrumentation | `?perf=1` disposable profile; `e2e/perf-harness.mjs`; `src/ui/perf.js` counters/timings; `e2e/perf.mjs` seed guard |
 | 2026-11-24 | this commit | B0 baseline | 17 steps at 1× and 6×; entry open 15.8–17.5 s at 6×, 96% clash scan; H3 opened; budgets unchanged |
 | 2026-11-25 | this commit | H3 clash cold path | Phrase enumeration; cold 149–157 ms → 34.8–37.5 ms, warm shared 147–159 → 10.9 ms; entry open 6× 15.8–17.5 s → 0.65–1.05 s, worst 0.28–0.49 s; entry-page gate remains |
+| 2026-11-25 | this commit | C2 + C9 | Issues grouped once per model; Moments cached per book revision; 336 pass, 0 fail, 7 skipped |

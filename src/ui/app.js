@@ -20,6 +20,7 @@ import { greetingFpOf, greetingSignature } from '../chat-state.js';
 import { createPreview } from './preview-view.js';
 import { createHeroPanel } from './hero-panel.js';
 import { createMenus } from './menus.js';
+import { groupIssues, problemsOf, warningsOf } from './model-issues.js';
 import { createHeroShell } from './hero-shell.js';
 import { createHeroDesk } from './hero-desk.js';
 import { createNormal } from './normal.js';
@@ -200,10 +201,10 @@ export function createApp(deps) {
         const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })));
         perf.end(at);
         perf.count('modelBuilds');
+        model.issuesByStKey = groupIssues(model.issues);
         if (own) models.set(data, { book, version: library.version, greets, model });
         return model;
     };
-    const problemsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && !i.warning && i.blocking !== false);
     /**
      * Whether an entry has story logic, its own or put on it by other entries (a switch's paths, Closes for,
      * Gates for): the list's teal dot.
@@ -212,8 +213,6 @@ export function createApp(deps) {
         const c = configOf(e);
         return (!!c && Object.keys(c).some(k => k !== 'id')) || !!(node && (node.closes.length || node.opens.all.length));
     };
-    /** An entry's warnings and non-blocking notes, for the entry page and the inspector (problemsOf has the rest). */
-    const warningsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && (i.warning || i.blocking === false));
     const linkText = name => { const l = library.links(name); return l.length ? `${l[0].name}${l.length > 1 ? ` +${l.length - 1}` : ''}` : ''; };
     const entryFolder = (book, e) => folderOf(settings, book, e);
 
@@ -231,7 +230,7 @@ export function createApp(deps) {
             if (open) library.seen(book);
             const record = bookSettings(settings, book);
             const mem = canvasMemory(record);
-            const orphaned = offCanvasMoments(data, mem);
+            const orphaned = offCanvasMoments(data, mem, library.version);
             if (orphaned.length) {
                 library.change(book, d => {
                     for (const e of orphaned) {
