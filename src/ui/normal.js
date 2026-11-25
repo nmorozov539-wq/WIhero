@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
-import { btn, el, html, longPress, pressable, swEl } from './dom.js';
+import { btn, el, html, keyed, longPress, pressable, swEl } from './dom.js';
 import { ic, setIcon } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
 import { keywordClashes } from './clashes.js';
@@ -132,42 +132,30 @@ export function createNormal(A) {
     }
 
     // ---------------------------------------------------------------- book page
-    function renderBook(p) {
-        const v = el('div', 'view');
-        main.append(v);
-        const data = need(p.book);
-        if (!library.names().includes(p.book) && !data) { v.append(el('div', 'empty-note', 'This book was deleted or renamed.')); return; }
-        if (!data) { v.append(el('div', 'empty-note', loadingNote(p.book))); return; }
+    /**
+     * The book page. A retained `.view` from the same page is reconciled: its header, chips, group heads and rows are
+     * updated in place, and rows are keyed by uid, so a refresh keeps every row node and its listeners (N1a). A new
+     * page gets a new view and only its rows are mounted.
+     */
+    function renderBook(p, view = null) {
+        const v = view ?? el('div', 'view');
+        if (!view) main.append(v);
         const book = p.book;
+        const data = need(book);
+        const lost = !library.names().includes(book) && !data;
+        if (lost || !data) {
+            keyed(v, [noteItem('empty', lost ? 'This book was deleted or renamed.' : loadingNote(book))], item => item.make());
+            return;
+        }
         const model = modelOf(book, data);
         const all = entriesShown(book, data);
         const shown = all.filter(e => S.showOff || !e.disable);
-
-        if (S.select) v.append(selHead(shown.map(e => e.uid), 'entries'));
+        const items = [];
+        if (S.select) items.push(selectHeadItem(shown.map(e => e.uid)));
         else {
-            const h = el('div', 'head');
-            if (tab().history.length > 1) h.append(btn('round flat', ic('back'), back, 'Back'));
-            const bn = el('button', 'bkname');
-            bn.type = 'button';
-            bn.append(el('h1', '', book), el('span', 'car', '▾'));
-            bn.addEventListener('click', () => bookMenu(book, { fromPage: true }));
-            h.append(bn);
-            v.append(h);
-            const chips = el('div', 'bkchips');
-            const global = library.isGlobal(book);
-            const g = btn(`chip2${global ? ' on' : ''}`, html`<i class="dot"></i><span>Global</span>`, () => {
-                library.setGlobal(book, !global);
-                layer.toast(!global ? `${book} is active everywhere` : `${book} is no longer global`);
-                render();
-            }, 'Active globally');
-            g.setAttribute('aria-pressed', String(global));
-            const lk = btn('chip2', html`${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links');
-            lk.querySelector('span').textContent = linkText(book) || 'Not linked';
-            chips.append(g, lk);
-            chips.append(el('span', 'bksize', `${all.length} ${all.length === 1 ? 'entry' : 'entries'} · ${tokensText(bookTokens(all))}`));
-            v.append(chips);
+            items.push(bookHeadItem(book), bookChipsItem(book, all));
             const off = offHint(book);
-            if (off) v.append(off);
+            if (off) items.push({ key: 'off', make: () => off });
         }
 
         const groups = groupEntries(shown, sortBy(), e => entryFolder(book, e));
@@ -177,57 +165,270 @@ export function createNormal(A) {
             const key = `${book}:folder:${g}`;
             const open = !S.collapsed.has(key);
             if (g) {
-                const head = sectionHead(`${g} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list.map(e => e.uid) : null);
-                if (!S.select) head.append(btn('add', ic('plus', 's'), () => newEntry(book, g), `New entry in ${g}`));
-                v.append(head);
+                items.push(groupHeadItem(book, g, `${g} · ${list.length}`, key, open));
                 if (!open) continue;
-            } else if (groups.length > 1) {
-                v.append(el('div', 'section', 'No folder'));
-            }
-            const rowAt = perf.begin('rowMount');
-            for (const e of list) v.append(entryRow(book, e, model));
-            perf.end(rowAt);
+            } else if (groups.length > 1) items.push(noteItem('nofolder', 'No folder', 'section'));
+            for (const e of list) items.push(entryItem(book, e.uid, model));
         }
-        if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
+        if (!shown.length) items.push(noteItem('empty', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
+        const rowAt = view ? null : perf.begin('rowMount');
+        keyed(v, items, item => item.make());
+        perf.end(rowAt);
     }
 
-    function entryRow(book, e, model) {
-        const picked = !!S.select?.has(e.uid);
-        const it = el('div', `item ent st-${strategyOf(e)}${picked ? ' sel' : ''}`);
-        it.dataset.uid = e.uid;
-        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
-        // Just the strategy stripe (no icon: it was the same on every row), and the teal dot desktop shows for an
-        // entry with story logic.
+    /** An empty note, or the "No folder" divider: one text line keyed like the other book-page children. */
+    function noteItem(key, text, cls = 'empty-note') {
+        return {
+            key,
+            make: () => el('div', cls, text),
+            update: n => { n.textContent = text; },
+        };
+    }
+
+    /** The book's header (Back and its name): updated in place, so its menu listener and focus survive a draw. */
+    function bookHeadItem(book) {
+        return {
+            key: 'head',
+            make() {
+                const h = el('div', 'head');
+                const bn = el('button', 'bkname');
+                bn.type = 'button';
+                bn.append(el('h1', '', book), el('span', 'car', '▾'));
+                bn.addEventListener('click', () => bookMenu(book, { fromPage: true }));
+                h.append(bn);
+                return h;
+            },
+            update(h) {
+                const wantBack = tab().history.length > 1;
+                let backBtn = h.querySelector(':scope > [aria-label="Back"]');
+                if (wantBack && !backBtn) h.prepend(btn('round flat', ic('back'), back, 'Back'));
+                else if (!wantBack) backBtn?.remove();
+                const bn = h.querySelector(':scope > .bkname');
+                bn.querySelector('h1').textContent = book;
+                bn.querySelector('.car').textContent = '▾';
+            },
+        };
+    }
+
+    /** Global, Links and the entry/token count: their text, class and aria update without replacing the chips. */
+    function bookChipsItem(book, all) {
+        const toggleGlobal = () => {
+            const global = library.isGlobal(book);
+            library.setGlobal(book, !global);
+            layer.toast(!global ? `${book} is active everywhere` : `${book} is no longer global`);
+            render();
+        };
+        return {
+            key: 'chips',
+            make() {
+                const chips = el('div', 'bkchips');
+                chips.append(
+                    btn('chip2', html`<i class="dot"></i><span>Global</span>`, toggleGlobal, 'Active globally'),
+                    btn('chip2', html`${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links'),
+                    el('span', 'bksize'),
+                );
+                return chips;
+            },
+            update(chips) {
+                const global = library.isGlobal(book);
+                const g = chips.children[0];
+                const lk = chips.children[1];
+                g.classList.toggle('on', global);
+                g.setAttribute('aria-pressed', String(global));
+                lk.querySelector('span').textContent = linkText(book) || 'Not linked';
+                chips.children[2].textContent = `${all.length} ${all.length === 1 ? 'entry' : 'entries'} · ${tokensText(bookTokens(all))}`;
+            },
+        };
+    }
+
+    /** Selection's own header: kept as a node, its buttons rebuilt for the current selection. */
+    function selectHeadItem(uids) {
+        return {
+            key: 'selhead',
+            make: () => el('div', 'selhead'),
+            update: h => h.replaceChildren(...selHead(uids, 'entries').childNodes),
+        };
+    }
+
+    /**
+     * A folder's group head. Its fold, select-all and add listener read the current state at event time; the label,
+     * open class, aria and checkbox are updated on each draw.
+     */
+    function groupHeadItem(book, folder, text, key, open) {
+        const uidsNow = () => {
+            const data = library.peek(book);
+            if (!data) return [];
+            return entriesShown(book, data).filter(e => (S.showOff || !e.disable) && entryFolder(book, e) === folder).map(e => e.uid);
+        };
+        const toggle = () => {
+            if (S.collapsed.has(key)) S.collapsed.delete(key); else S.collapsed.add(key);
+            render();
+        };
+        return {
+            key: `head:${key}`,
+            make() {
+                const s = el('div', 'section');
+                const b = btn('', html`${ic('right')}<span></span>`, toggle);
+                b.querySelector('span').textContent = text;
+                s.append(b);
+                return s;
+            },
+            update(s) {
+                let c = s.querySelector(':scope > .check');
+                if (S.select) {
+                    if (!c) {
+                        c = check(true);
+                        c.setAttribute('role', 'checkbox');
+                        c.addEventListener('click', () => {
+                            const uids = uidsNow();
+                            const all = uids.length && uids.every(x => S.select.has(x));
+                            for (const x of uids) all ? S.select.delete(x) : S.select.add(x);
+                            render();
+                        });
+                        s.prepend(c);
+                    }
+                    const uids = uidsNow();
+                    const all = uids.length && uids.every(x => S.select.has(x));
+                    c.classList.toggle('on', all);
+                    if (all) setIcon(c, 'check'); else c.replaceChildren();
+                    c.setAttribute('aria-label', `Select ${text}`);
+                } else c?.remove();
+                const b = s.querySelector(':scope > button');
+                b.classList.toggle('open', open);
+                b.setAttribute('aria-expanded', String(open));
+                b.querySelector('span').textContent = text;
+                let add = s.querySelector(':scope > .add');
+                if (!S.select) {
+                    if (!add) { add = btn('add', ic('plus', 's'), () => newEntry(book, folder), `New entry in ${folder}`); s.append(add); }
+                } else add?.remove();
+            },
+        };
+    }
+
+    function entryItem(book, uid, model) {
+        return {
+            key: `entry:${uid}`,
+            make: () => entryRow(book, uid),
+            update: it => updateEntryRow(it, book, uid, model),
+        };
+    }
+
+    /** A row's fixed shell. It keeps this node and its listeners; updateEntryRow fills in everything that changes. */
+    function entryRow(book, uid) {
+        const it = el('div', 'item ent');
+        it.dataset.uid = uid;
         const i = el('div', 'ic');
-        if (picked) setIcon(i, 'check');
         const tx = el('div', 'txt');
         const t = el('div', 't');
-        t.append(el('span', 'nm', titleOf(e)));
-        if (hasLogic(e, model.byStKey.get(`${book}.${e.uid}`))) { const d = el('i', 'ldot'); d.title = 'Has story logic'; t.append(d); }
-        if (problemsOf(model, e.uid, book).length) { const b = el('span', 'bang', '!'); b.title = 'This entry has a problem'; t.append(b); }
-        tx.append(t, el('div', 'm', e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`));
+        t.append(el('span', 'nm'));
+        tx.append(t, el('div', 'm'));
         it.append(i, tx);
-        // Prompt order sort: the Order parameter on the row, tap to change it.
-        if (!S.select && sortBy() === 'prompt') {
-            const ob = btn('ordb', String(promptOrder(e)), () => layer.askText({
-                title: `Order: ${titleOf(e)}`, value: String(promptOrder(e)), type: 'number',
-                check: v => (Number.isInteger(Number(v)) && v.trim() !== '' ? null : 'A whole number'),
-                done: v => library.change(book, d => setParam(d, e.uid, ORDER_PARAM, Number(v))),
-            }), `Order ${promptOrder(e)}: where ${titleOf(e)} goes in the prompt`);
-            it.append(ob);
-        }
-        // Largest first: each row's rough size.
-        if (!S.select && sortBy() === 'size') it.append(el('span', 'tokn', `${tokenGuess(e.content)} tk`));
-        if (!S.select) {
-            it.append(swEl(!e.disable, on => library.change(book, d => { d.entries[e.uid].disable = !on; }), `${titleOf(e)} on`));
-            it.append(btn('more', ic('more'), () => entryMenu(book, e.uid), `${titleOf(e)} actions`));
-        }
-        pressable(it, () => {
-            if (S.select) { toggleSel(e.uid); return; }
-            openIn({ type: 'entry', book, uid: e.uid });
-        }, S.select ? null : () => openIn({ type: 'entry', book, uid: e.uid }, { newTab: true, background: true }));
+        // The row resolves the entry at event time: a title, key words, folder or even the entry can change while
+        // this node stays mounted.
+        const openRow = () => {
+            if (!library.peek(book)?.entries?.[uid]) return;
+            if (S.select) { toggleSel(uid); return; }
+            openIn({ type: 'entry', book, uid });
+        };
+        pressable(it, openRow, () => {
+            if (S.select) { toggleSel(uid); return; }
+            if (!library.peek(book)?.entries?.[uid]) return;
+            openIn({ type: 'entry', book, uid }, { newTab: true, background: true });
+        });
         perf.count('rowMounts');
         return it;
+    }
+
+    /** Brings a retained row's title, keys, stripe, marks, extras, switch and selection up to date. */
+    function updateEntryRow(it, book, uid, model) {
+        const e = library.peek(book)?.entries?.[uid];
+        if (!e) return;
+        const picked = !!S.select?.has(uid);
+        for (const cls of [...it.classList]) if (cls.startsWith('st-')) it.classList.remove(cls);
+        it.classList.add(`st-${strategyOf(e)}`);
+        it.classList.toggle('sel', picked);
+        if (S.select) {
+            it.setAttribute('role', 'checkbox');
+            it.setAttribute('aria-checked', String(picked));
+        } else {
+            it.removeAttribute('role');
+            it.removeAttribute('aria-checked');
+        }
+        // Just the strategy stripe (no icon: it was the same on every row), and the check mark in selection.
+        const box = it.querySelector(':scope > .ic');
+        if (picked) { if (!box.firstChild) setIcon(box, 'check'); }
+        else box.replaceChildren();
+        const tx = it.querySelector(':scope > .txt');
+        const t = tx.querySelector(':scope > .t');
+        t.querySelector(':scope > .nm').textContent = titleOf(e);
+        const logic = hasLogic(e, model.byStKey.get(`${book}.${uid}`));
+        let ldot = t.querySelector(':scope > .ldot');
+        if (logic) {
+            if (!ldot) {
+                ldot = el('i', 'ldot');
+                t.insertBefore(ldot, t.querySelector(':scope > .bang'));
+            }
+            ldot.title = 'Has story logic';
+        } else ldot?.remove();
+        const problem = problemsOf(model, uid, book).length > 0;
+        let bang = t.querySelector(':scope > .bang');
+        if (problem) {
+            if (!bang) { bang = el('span', 'bang', '!'); t.append(bang); }
+            bang.title = 'This entry has a problem';
+        } else bang?.remove();
+        tx.querySelector(':scope > .m').textContent = e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`;
+        const firstOf = (...selectors) => {
+            for (const sel of selectors) { const n = it.querySelector(`:scope > ${sel}`); if (n) return n; }
+            return null;
+        };
+        // Prompt order sort: the Order parameter on the row, tap to change it.
+        const wantOrder = !S.select && sortBy() === 'prompt';
+        let ordb = it.querySelector(':scope > .ordb');
+        if (wantOrder) {
+            if (!ordb) {
+                ordb = btn('ordb', '', () => orderPress(book, uid));
+                it.insertBefore(ordb, firstOf('.tokn', '.switch', '.more'));
+            }
+            ordb.textContent = String(promptOrder(e));
+            ordb.setAttribute('aria-label', `Order ${promptOrder(e)}: where ${titleOf(e)} goes in the prompt`);
+        } else ordb?.remove();
+        // Largest first: each row's rough size.
+        const wantSize = !S.select && sortBy() === 'size';
+        let tokn = it.querySelector(':scope > .tokn');
+        if (wantSize) {
+            if (!tokn) { tokn = el('span', 'tokn'); it.insertBefore(tokn, firstOf('.switch', '.more')); }
+            tokn.textContent = `${tokenGuess(e.content)} tk`;
+        } else tokn?.remove();
+        const wantSwitch = !S.select;
+        let sw = it.querySelector(':scope > .switch');
+        if (wantSwitch) {
+            if (!sw) {
+                sw = swEl(false, on => library.change(book, d => {
+                    const cur = d.entries?.[uid];
+                    if (cur) cur.disable = !on;
+                }), 'On');
+                it.insertBefore(sw, firstOf('.more'));
+            }
+            sw.classList.toggle('on', !e.disable);
+            sw.setAttribute('aria-checked', String(!e.disable));
+            sw.setAttribute('aria-label', `${titleOf(e)} on`);
+        } else sw?.remove();
+        let more = it.querySelector(':scope > .more');
+        if (wantSwitch) {
+            if (!more) { more = btn('more', ic('more'), () => entryMenu(book, uid), `${titleOf(e)} actions`); it.append(more); }
+            more.setAttribute('aria-label', `${titleOf(e)} actions`);
+        } else more?.remove();
+    }
+
+    /** The Order button's form reads the entry again when it opens, so a retained row never edits a stale copy. */
+    function orderPress(book, uid) {
+        const e = library.peek(book)?.entries?.[uid];
+        if (!e) return;
+        layer.askText({
+            title: `Order: ${titleOf(e)}`, value: String(promptOrder(e)), type: 'number',
+            check: v => (Number.isInteger(Number(v)) && v.trim() !== '' ? null : 'A whole number'),
+            done: v => library.change(book, d => setParam(d, uid, ORDER_PARAM, Number(v))),
+        });
     }
 
     /**

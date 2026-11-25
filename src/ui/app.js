@@ -375,12 +375,18 @@ export function createApp(deps) {
         if (S.desk) { renderTabs(); deskN.render(); return; }
         renderTabs();
         const p = page();
+        const id = pageId(p);
         const old = main.querySelector('.view');
-        if (old && main.dataset.page === pageId(p)) p.scroll = old.scrollTop;
-        main.innerHTML = '';
-        main.dataset.page = pageId(p);
+        // A book page keeps its `.view` on a draw for the same page: its header, group heads and keyed rows are
+        // reconciled instead of rebuilt, so rows, listeners, focus and scroll survive a refresh (N1a).
+        const keep = p.type === 'book' && old && main.dataset.page === id;
+        if (old && main.dataset.page === id) p.scroll = old.scrollTop;
+        if (keep) {
+            for (const child of [...main.children]) if (child !== old) child.remove();
+        } else main.innerHTML = '';
+        main.dataset.page = id;
         if (p.type === 'entry') renderEntry(p);
-        else if (p.type === 'book') renderBook(p);
+        else if (p.type === 'book') renderBook(p, keep ? old : null);
         else renderHome();
         if (p.type !== 'entry') main.append(S.select ? selBar(p) : bottomBar(p));
         if (S.search) renderSearch();
@@ -781,7 +787,7 @@ export function createApp(deps) {
     let heroShellView = null;
     const heroShell = () => (heroShellView ??= createHeroShell({
         newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
-        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
+        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas: onHeroCanvas,
         startExplain, stopExplain, explainDrawn, strip, switchMode, tabbar, visibleNames, desk: () => deskN, deadCount: (book, data) => menus().deadCount(book, data), deadSheet, undoHistory, historyStep,
@@ -955,6 +961,7 @@ export function createApp(deps) {
         dropPiece: (...a) => dropPiece(...a),
     }));
     function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
+    function dropInspector(...a) { return heroInsp().dropInspector(...a); }
     function inspect(...a) { return heroInsp().inspect(...a); }
     function inspectorFor(...a) { return heroInsp().inspectorFor(...a); }
     function showOnCanvas(...a) { return heroInsp().showOnCanvas(...a); }
@@ -1088,7 +1095,7 @@ export function createApp(deps) {
     let heroDeskView = null;
     const heroDesk = () => (heroDeskView ??= createHeroDesk({
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder, hide,
-        inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
+        inspect, inspectorFor, dropInspector, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, onCanvas: onHeroCanvas, sortBy: () => sortBy(),
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(), deleteEntries,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids),
