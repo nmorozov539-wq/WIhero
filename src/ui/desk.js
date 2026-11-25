@@ -24,6 +24,17 @@ const dateText = t => {
     return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 };
 
+/**
+ * The Home list's order: one key per book, then the comparison the list always used. Decorating keeps `val` to one
+ * call per book (an Entries sort would otherwise count a book's entries again for every comparison).
+ */
+export function homeSort(list, key, dir, val) {
+    return list
+        .map(n => [val(n, key), n])
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0) * dir)
+        .map(([, n]) => n);
+}
+
 /** A drag handle on a column's edge: drag to resize between min and max, double-click to reset. */
 export function resizer(get, set, { min, max, def, side = 'right', onEnd }) {
     const h = el('div', `colresize ${side}`);
@@ -253,9 +264,9 @@ export function deskNormal(A) {
         const sorted = list => {
             if (view !== 'list') return list;
             const s = S.homeSort ?? { key: 'name', dir: 1 };
-            const val = n => (s.key === 'entries' ? (library.peek(n) ? A.entriesShown(n, library.peek(n)).length : -1)
-                : s.key === 'edited' ? (library.edited?.(n) ?? 0) : s.key === 'active' ? (library.isGlobal(n) ? 2 : A.linkText(n) ? 1 : 0) : n.toLowerCase());
-            return [...list].sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * s.dir);
+            const val = (n, k) => (k === 'entries' ? (library.peek(n) ? A.entriesShown(n, library.peek(n)).length : -1)
+                : k === 'edited' ? (library.edited?.(n) ?? 0) : k === 'active' ? (library.isGlobal(n) ? 2 : A.linkText(n) ? 1 : 0) : n.toLowerCase());
+            return homeSort(list, s.key, s.dir, val);
         };
         for (const [f, list] of groups) {
             const key = `home:${f ?? ''}`;

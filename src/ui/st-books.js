@@ -432,6 +432,7 @@ export function createLibrary({
                 if (c?.data?.extensions?.world !== from) continue;
                 await mergeCharacter(c, { extensions: { world: target } });
             }
+            invalidateLinks();
             const deleted = await WI.deleteWorldInfo(from);
             if (deleted === false) throw new Error(`Saved a copy as ${target}, but could not delete ${from}. Both books were kept; the rename is incomplete.`);
             copies.delete(from);
@@ -443,12 +444,13 @@ export function createLibrary({
             for (const lore of WI.world_info.charLore ?? []) {
                 if (lore.extraBooks?.includes(from)) lore.extraBooks = lore.extraBooks.map(b => (b === from ? target : b));
             }
+            invalidateLinks();
             if (powerUser) {
                 if (powerUser.persona_description_lorebook === from) powerUser.persona_description_lorebook = target;
                 for (const d of Object.values(powerUser.persona_descriptions ?? {})) if (d?.lorebook === from) d.lorebook = target;
             }
             const meta = ctx().chatMetadata;
-            if (meta?.[WI.METADATA_KEY] === from) { meta[WI.METADATA_KEY] = target; await ctx().saveMetadata(); }
+            if (meta?.[WI.METADATA_KEY] === from) { meta[WI.METADATA_KEY] = target; invalidateLinks(); await ctx().saveMetadata(); }
             await ctx().updateWorldInfoList();
             if (wasGlobal) setGlobal(target, true);
             ctx().saveSettingsDebounced();
@@ -503,21 +505,46 @@ export function createLibrary({
 
     const fileOf = avatar => String(avatar ?? '').replace(/\.[^/.]+$/, '');
 
+    // One links index per Home pass: book → links. Array identity catches characters, charLore and chatMetadata being
+    // swapped; in-place edits (unlink/linkChat, a rename, CHARACTER_EDITED/CHAT_CHANGED) clear it explicitly.
+    let linksIndex = null;
+    let linksRefs = null;
+    const noLinks = [];
+
+    const invalidateLinks = () => { linksIndex = null; linksRefs = null; };
+
+    function buildLinks(chars, lore, meta) {
+        const index = new Map();
+        const entry = name => { let out = index.get(name); if (!out) index.set(name, out = []); return out; };
+        for (const c of chars) {
+            const book = c?.data?.extensions?.world;
+            if (book != null) entry(book).push({ kind: 'char', name: c.name, avatar: c.avatar });
+        }
+        for (const l of lore) {
+            for (const book of new Set(l.extraBooks ?? [])) {
+                if (index.get(book)?.some(o => o.avatar && fileOf(o.avatar) === l.name)) continue;
+                const c = chars.find(x => fileOf(x.avatar) === l.name);
+                entry(book).push({ kind: 'aux', name: c?.name ?? l.name, file: l.name });
+            }
+        }
+        const chatBook = meta?.[WI.METADATA_KEY];
+        if (chatBook != null) entry(chatBook).push({ kind: 'chat', name: 'This chat' });
+        return index;
+    }
+
     /**
      * Characters and chats that turn a book on. Only the open chat is known (ST keeps a chat's book in that chat).
      * @returns {{ kind: 'char' | 'aux' | 'chat', name: string, avatar?: string, file?: string }[]}
      */
     function links(name) {
-        const out = [];
         const chars = ctx().characters ?? [];
-        for (const c of chars) if (c?.data?.extensions?.world === name) out.push({ kind: 'char', name: c.name, avatar: c.avatar });
-        for (const lore of WI.world_info?.charLore ?? []) {
-            if (!lore.extraBooks?.includes(name)) continue;
-            const c = chars.find(x => fileOf(x.avatar) === lore.name);
-            if (!out.some(o => o.avatar && fileOf(o.avatar) === lore.name)) out.push({ kind: 'aux', name: c?.name ?? lore.name, file: lore.name });
+        const lore = WI.world_info?.charLore ?? [];
+        const meta = ctx().chatMetadata;
+        if (!linksIndex || linksRefs.chars !== chars || linksRefs.lore !== lore || linksRefs.meta !== meta) {
+            linksIndex = buildLinks(chars, lore, meta);
+            linksRefs = { chars, lore, meta };
         }
-        if (ctx().chatMetadata?.[WI.METADATA_KEY] === name) out.push({ kind: 'chat', name: 'This chat' });
-        return out;
+        return linksIndex.get(name) ?? noLinks;
     }
 
     async function unlink(name, link) {
@@ -536,6 +563,7 @@ export function createLibrary({
             await mergeCharacter(c, { extensions: { world: '' } });
             if (current && $) { $('#character_world').val(''); WI.setWorldInfoButtonClass?.(undefined, false); }
         }
+        invalidateLinks();
         onChange();
     }
 
@@ -544,6 +572,7 @@ export function createLibrary({
 
     async function linkChat(name) {
         ctx().chatMetadata[WI.METADATA_KEY] = name;
+        invalidateLinks();
         globalThis.jQuery?.('.chat_lorebook_button').addClass('world_set');
         await ctx().saveMetadata();
         onChange();
@@ -587,6 +616,6 @@ export function createLibrary({
         unsaved: name => unsavedSet.has(name),
         operationText, externalRevision: name => external.get(name) ?? 0,
         edited, names, get, peek, seen, change, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
-        exportBook, isGlobal, setGlobal, links, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
+        exportBook, isGlobal, setGlobal, links, invalidateLinks, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
     };
 }

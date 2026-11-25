@@ -219,3 +219,81 @@ test('delete waits for an active write before removing the book', async t => {
     assert.deepEqual(order, ['write', 'delete']);
     assert.equal(library.peek('Book'), null);
 });
+
+// ---- links (C8): one index per pass, same order and shape as the per-book scan
+
+function setupLinks() {
+    const characters = [
+        { name: 'Ada', avatar: 'Ada.png', data: { extensions: { world: 'Book' } } },
+        { name: 'Bob', avatar: 'Bob.png', data: { extensions: { world: 'Other' } } },
+        { name: 'Cid', avatar: 'Cid.png', data: { extensions: { world: 'Book' } } },
+    ];
+    const charLore = [
+        { name: 'Ada', extraBooks: ['Book', 'Other'] },
+        { name: 'Bob', extraBooks: ['Book'] },
+        { name: 'Zed', extraBooks: ['Book'] },
+    ];
+    const chatMetadata = { world_info: 'Book' };
+    const ctx = {
+        characters, chatMetadata, getWorldInfoNames: () => [], getRequestHeaders: () => ({}),
+        saveMetadata: async () => {},
+    };
+    const WI = {
+        METADATA_KEY: 'world_info', world_info: { charLore },
+        charSetAuxWorlds: (file, extraBooks) => { const l = charLore.find(x => x.name === file); if (l) l.extraBooks = extraBooks; },
+    };
+    const library = createLibrary({ ctx: () => ctx, WI, settings: { books: {} }, saveSettings() {}, writeBook: async () => {} });
+    return { library, characters, charLore, chatMetadata };
+}
+
+test('links: characters, extra books and the open chat keep their order; a character link hides its aux duplicate', () => {
+    const { library } = setupLinks();
+    assert.deepEqual(library.links('Book'), [
+        { kind: 'char', name: 'Ada', avatar: 'Ada.png' },
+        { kind: 'char', name: 'Cid', avatar: 'Cid.png' },
+        { kind: 'aux', name: 'Bob', file: 'Bob' },
+        { kind: 'aux', name: 'Zed', file: 'Zed' },
+        { kind: 'chat', name: 'This chat' },
+    ]);
+    assert.deepEqual(library.links('Other'), [
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+        { kind: 'aux', name: 'Ada', file: 'Ada' },
+    ]);
+    assert.deepEqual(library.links('Missing'), []);
+});
+
+test('links: an in-place character edit is seen once the index is invalidated', () => {
+    const { library, characters } = setupLinks();
+    assert.ok(library.links('Book').some(l => l.kind === 'char' && l.name === 'Ada'));
+    characters[0].data.extensions.world = 'Other';
+    library.invalidateLinks();
+    assert.deepEqual(library.links('Book'), [
+        { kind: 'char', name: 'Cid', avatar: 'Cid.png' },
+        { kind: 'aux', name: 'Ada', file: 'Ada' },
+        { kind: 'aux', name: 'Bob', file: 'Bob' },
+        { kind: 'aux', name: 'Zed', file: 'Zed' },
+        { kind: 'chat', name: 'This chat' },
+    ]);
+    assert.deepEqual(library.links('Other'), [
+        { kind: 'char', name: 'Ada', avatar: 'Ada.png' },
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+    ]);
+});
+
+test('links: linkChat and unlink invalidate the index', async () => {
+    const { library, charLore, chatMetadata } = setupLinks();
+    library.links('Other');
+    await library.linkChat('Other');
+    assert.equal(chatMetadata.world_info, 'Other');
+    assert.deepEqual(library.links('Other').at(-1), { kind: 'chat', name: 'This chat' });
+
+    assert.ok(library.links('Book').some(l => l.kind === 'aux' && l.name === 'Bob'));
+    await library.unlink('Book', { kind: 'aux', name: 'Bob', file: 'Bob' });
+    assert.deepEqual(charLore.find(l => l.name === 'Bob').extraBooks, []);
+    assert.ok(!library.links('Book').some(l => l.kind === 'aux' && l.name === 'Bob'));
+
+    await library.unlink('Other', { kind: 'chat', name: 'This chat' });
+    assert.equal(chatMetadata.world_info, undefined);
+    assert.ok(!library.links('Other').some(l => l.kind === 'chat'));
+});
+

@@ -120,6 +120,10 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**C7 — Home sort keys (`src/ui/desk.js`).** `homeSort(list, key, dir, val)` decorates each book with its sort key once, then sorts and maps back; an Entries sort no longer re-counts a book's entries inside the comparator. Order and tie behavior are unchanged.
+
+**C8 — links index (`src/ui/st-books.js`).** The book → links answer is built once per Home pass and cached; character order, aux order, duplicate suppression and the open chat's row are preserved. It clears on `CHARACTER_EDITED`, `CHAT_CHANGED`, and inside `unlink`, `linkChat` and `rename`; array identity is a short-circuit, not the only guard.
+
 **C4 — parsed icon templates (`src/ui/icons.js`, `src/ui/dom.js`).** `ic()` carries an icon marker; `icNode` clones a cached `<template>`; `btn()` uses it for icons, and rows, tiles, search results and the greeting/Moment card grips clone instead of parsing. `setIcon` wraps `replaceChildren` for direct nodes. Sheets, inspectors and one-offs still use `ic()`.
 
 **C5 — cached tone (`src/ui/app.js`).** `toneOf` runs once per theme change: the value lives in the app closure, is cleared on `show()` and by a small `MutationObserver` on `documentElement`/`body` theme attributes.
@@ -289,7 +293,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
-| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1–C6, C9 done; C7, C8, C10 pending |
+| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1–C9 done; C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -310,7 +314,7 @@ Dependencies:
 | 7a | C2 + C9 grouped issues and Moments (landed) |
 | 7b | C3 + C6 normalize and filterChoices caches (landed) |
 | 7c | C4 + C5 icon and tone caches (landed) |
-| 7d | C7 + C8 Home sort keys and links index |
+| 7d | C7 + C8 Home sort keys and links index (landed) |
 | 7e | C10 `contain` step 1 |
 | 8 | T0 token count |
 | 9 | T1 + T2 save path and settings |
@@ -627,6 +631,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 
 **Done when.** Home sort order is unchanged; `entriesShown` per Home draw is O(books), not O(books × entries).
 
+**Status.** Landed. `test/home-sort.test.js` compares the decorated sort against the old comparator for name, active, entries and edited in both directions, ties, unloaded books, and pins one `val` call per book.
+
 **Risk.** Low.
 
 **Source.** DeepSeek #6.
@@ -638,6 +644,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 **Change.** Build one reverse index per render pass (book → links) and pass it into `bookMeta`, or cache it in the library invalidated on `CHAT_CHANGED` / `CHARACTER_EDITED` / character-list changes.
 
 **Done when.** Home draw cost with many characters drops; link text is unchanged.
+
+**Status.** Landed. `test/st-books.test.js` pins link order and shape (character, aux with duplicate suppression, chat), an in-place character edit plus `invalidateLinks()`, and `linkChat`/`unlink` clearing. Duplicate `extraBooks` entries inside one lore are deduped; that is the only observable difference.
 
 **Risk.** Low.
 
@@ -1253,3 +1261,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | C2 + C9 | Issues grouped once per model; Moments cached per book revision; 336 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C3 + C6 | normalize cached per raw (buildModel rereads); choices cached and invalidated before redraw; 343 pass, 0 fail, 7 skipped |
 | 2026-11-25 | this commit | C4 + C5 | Icon templates cloned in rows/cards; tone cached per theme change; 343 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | C7 + C8 | Home sort keys decorated once; book → links index cached and invalidated; 350 pass, 0 fail, 7 skipped |
