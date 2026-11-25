@@ -120,6 +120,10 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**C3 — cached `normalize` with clones (`src/engine/model.js`, `src/ui/pieces.js`, `src/ui/hero-desk.js`).** `normalize` caches `{ config, ui, legacy }` per raw object. `buildModel` asks for a reread because ST can edit a config in place; the reread also refreshes the cache. `bookEditor.config` and the Hero duplicate path hand out deep copies before mutating; the rest of the callers were audited read-only or already write through `writeConfig`, which clones. The cache's comment names the clone rule.
+
+**C6 — cached character/tag choices (`src/ui/data.js`).** `filterChoices` gains `setProvider`/`invalidate`; `get` caches the provider's arrays until a character or chat change clears them. `index.js` clears before refresh draws, not after.
+
 **C2 — grouped model issues (`src/ui/model-issues.js`).** `modelOf` attaches `issuesByStKey` once per built model; `problemsOf`, `warningsOf` and Hero's `blockingUids` read it instead of filtering the whole issue list per row, with a fallback scan for models built outside `modelOf` (tests, trial copies).
 
 **C9 — Moments fast path (`src/ui/canvas-graph.js`).** The book's Moment list is cached per data object and library revision; placed Moments are filtered per call, and the canvas model is built only when an unplaced Moment remains. `need()` passes `library.version`; `revision === null` computes uncached.
@@ -281,7 +285,7 @@ Dependencies:
 | #48 engine hot paths | ✅ landed (`f7f84e8`) |
 | Plan | ✅ this commit |
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
-| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1, C2, C9 done; C3–C8, C10 pending |
+| 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2 landed; C1, C2, C3, C6, C9 done; C4, C5, C7, C8, C10 pending |
 | 2 Typing path | ☐ |
 | 3 Hero per-draw | ☐ |
 | 4 Normal retention | ☐ |
@@ -300,7 +304,7 @@ Dependencies:
 | 6 | A1 + A2 blur/transform (landed) |
 | 6b | H3 clash cold path (landed; entry-open gate moved to the entry page) |
 | 7a | C2 + C9 grouped issues and Moments (landed) |
-| 7b | C3 + C6 normalize and filterChoices caches |
+| 7b | C3 + C6 normalize and filterChoices caches (landed) |
 | 7c | C4 + C5 icon and tone caches |
 | 7d | C7 + C8 Home sort keys and links index |
 | 7e | C10 `contain` step 1 |
@@ -551,6 +555,8 @@ Audit every `configOf`/`normalize` caller for mutation before enabling the cache
 
 **Done when.** `test/pieces.test.js`, `test/engine.test.js`, `test/trackers.test.js`, and bar-edit e2e pass; no mutating caller shares a cached object.
 
+**Status.** Landed with one addition: `normalize(raw, reread)` exists because ST can edit a config in place, so `buildModel` asks for a reread and refreshes the cache; UI reads keep the hit. `bookEditor.config` and Hero's duplicate path deep-copy before mutating. `test/normalize-cache.test.js` pins identity, non-objects, the editor path (old cached raw untouched, stored raw new and edited) and two entries not sharing. Suite: 343 pass.
+
 **Risk.** Medium — the mutation trap is real.
 
 **Source.** Qwen F5; DeepSeek #12.
@@ -598,6 +604,8 @@ Use `icNode` in hot paths (rows, cards); `btn()` can append the clone when conte
 **Change.** Cache by the `characters`/tags array identity, invalidated on character edits. Keep the returned shape.
 
 **Done when.** Character/tag tests pass; repeated `charsText` calls do not rebuild the arrays.
+
+**Status.** Landed. `filterChoices` has `setProvider`/`invalidate`; the app installs a provider, and `CHARACTER_EDITED`/`CHAT_CHANGED` clear the cache before the redraw (not after). `test/choices-cache.test.js` pins the cache, invalidation, item shape/order and a character edit between calls.
 
 **Risk.** Low.
 
@@ -1235,3 +1243,4 @@ Measure before committing to these:
 | 2026-11-24 | this commit | B0 baseline | 17 steps at 1× and 6×; entry open 15.8–17.5 s at 6×, 96% clash scan; H3 opened; budgets unchanged |
 | 2026-11-25 | this commit | H3 clash cold path | Phrase enumeration; cold 149–157 ms → 34.8–37.5 ms, warm shared 147–159 → 10.9 ms; entry open 6× 15.8–17.5 s → 0.65–1.05 s, worst 0.28–0.49 s; entry-page gate remains |
 | 2026-11-25 | this commit | C2 + C9 | Issues grouped once per model; Moments cached per book revision; 336 pass, 0 fail, 7 skipped |
+| 2026-11-25 | this commit | C3 + C6 | normalize cached per raw (buildModel rereads); choices cached and invalidated before redraw; 343 pass, 0 fail, 7 skipped |

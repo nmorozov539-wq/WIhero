@@ -129,10 +129,18 @@ export const GEN_TYPES = [['normal', 'Normal'], ['continue', 'Continue'], ['impe
 const hasGroup = e => !!String(e.group ?? '').trim();
 
 /**
- * Where the character filter gets its choices: the app sets it to read ST's characters and tags
- * ({ chars: [{ key, name }], tags: [{ key, name }] }). Empty until then (tests, the harness).
+ * Where the character filter gets its choices: the app installs a provider that reads ST's characters and tags
+ * ({ chars: [{ key, name }], tags: [{ key, name }] }). Its result is cached until `invalidate()`, which the app
+ * calls when a character or the chat changes. `get` stays plain, so tests can replace it.
  */
-export const filterChoices = { get: () => ({ chars: [], tags: [] }) };
+const NO_CHOICES = () => ({ chars: [], tags: [] });
+let choicesProvider = NO_CHOICES;
+let choices = null;
+export const filterChoices = {
+    get: () => (choices ??= choicesProvider()),
+    setProvider: fn => { choicesProvider = fn ?? NO_CHOICES; choices = null; },
+    invalidate: () => { choices = null; },
+};
 
 /**
  * The entry page's Parameters (LAYOUT "Entry page"), in groups. Each: { field, label, type, options?, def, unit?, when? }.

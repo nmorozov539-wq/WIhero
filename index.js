@@ -2,7 +2,7 @@
 // moves past. The engine and its ST wiring (N1), and the editor that opens from ST's World Info button (N2).
 // See docs/BUILD_SPEC.md.
 import { MODULE, getSettings } from './src/settings.js';
-import { ensureSettings } from './src/ui/data.js';
+import { ensureSettings, filterChoices } from './src/ui/data.js';
 import { createLibrary } from './src/ui/st-books.js';
 import { createSnapshots } from './src/ui/snapshots.js';
 import { createApp } from './src/ui/app.js';
@@ -308,6 +308,8 @@ globalThis.jQuery?.('#world_editor_select').on('change', function () {
 });
 
 on('WORLDINFO_UPDATED', library.onWorldInfoUpdated);
+// The character filter's choices are cached (data.js): clear them before refresh draws, not after it.
+for (const type of ['CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], () => filterChoices.invalidate());
 for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
 
 globalThis.wihero = {

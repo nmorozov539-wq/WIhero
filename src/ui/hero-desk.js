@@ -143,7 +143,8 @@ export function createHeroDesk(A) {
                 if (!src) continue;
                 const copy = duplicateEntry(d, u);
                 // The copy keeps its text, masks, packs and settings, but not its links (they are the story's logic).
-                const c = configOf(copy);
+                // normalize is cached by the raw object: clone before cutting link fields out of the copy's config.
+                const c = structuredClone(configOf(copy));
                 if (c) {
                     let cut = false;
                     for (const f of LINK_FIELDS) if (f in c) { delete c[f]; cut = true; }

@@ -64,12 +64,12 @@ export function createApp(deps) {
     const undoHistory = createHistory({ library: deps.library, settings, saveSettings, held: () => !!S.hero.bar.edit });
     const library = withHistory(deps.library, undoHistory);
     // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
-    filterChoices.get = () => {
+    filterChoices.setProvider(() => {
         const c = ctx();
         const chars = (c.characters ?? []).filter(x => x?.avatar).map(x => ({ key: String(x.avatar).replace(/\.[^.]+$/, ''), name: x.name }));
         const tags = (c.tags ?? []).filter(t => t?.id !== undefined).map(t => ({ key: t.id, name: t.name }));
         return { chars, tags };
-    };
+    });
 
     // ---------------------------------------------------------------- DOM
     const host = document.createElement('div');
