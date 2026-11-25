@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**V6 — badge patching (`src/ui/canvas.js`, `src/ui/hero-shell.js`).** The signature no longer includes chat length/text/swipe; chat state on still draws once when toggled, because cards are built with or without status nodes. On an unchanged retained canvas, a chat change calls `patchStatus`: card classes (`closed`/`waiting`/`holding`/`happened`), grip ring, the `.k` line (closed/value/mask/keywords via the same `cardLine` helper the draw uses), the fired/once/closes badge (add/remove/text), the Moment tag and the layer-nav dot. No link routing, no card recreation. The harness `?perf=1` profile now has a real model and a mutable state object, so `e2e/badges.mjs` can prove fired, closed, holding and Moment changes patch without a `canvasRenders` increase.
+
 **V3c — retained panel and inspector (`src/ui/hero-panel.js`, `hero-inspector.js`, `hero-desk.js`).** The entry panel keeps one shell per book/layout: button, aside, header/search/new/select, list container and scroll listener, selection bar, footer/tool row, with handlers reading the current draw. The inspector keeps `.insp` and its header per book+selection+column; the body is redrawn inside it, and the shell survives a same-selection draw. A different book/selection/layout rebuilds; a detached shell is reattached; `data-retained` nodes are skipped by the canvas cleanup. Panel rows and the inspector body are still rebuilt inside their shells — that is N1's keyed-row work.
 
 **V3b — retained piece bar (`src/ui/piecebar.js`).** The non-edit `.pbar` is kept on the Hero bar state per book/root/layout: fold button, all chips, hint, more button, scroll listener and `ResizeObserver` survive a draw; armed classes, `aria-pressed`, the arm banner and fold state update in place. A detached bar (tab switch cleared `main`) is reattached; another book/layout rebuilds. Edit mode keeps its temporary strip. `e2e/pbar.mjs` holds the bar/chip/fold node across refresh, arm, fold/unfold and Preview→Canvas.
@@ -339,7 +341,7 @@ Dependencies:
 | 0 Baseline | ◐ harness, instrumentation and baseline JSON landed; budgets read (§2.4); device paint/heap traces outstanding |
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
-| 3 Hero per-draw | ◐ V1–V5 landed; V6 badge patching pending |
+| 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
 | 4 Normal retention | ☐ |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
@@ -366,7 +368,7 @@ Dependencies:
 | 11 | T4 + T5 chat hider and autosize (landed) |
 | 12 | V1 per-book revisions (landed) |
 | 13 | V2 `canvasSig` (landed); V3 retained chrome (landed) |
-| 14 | V4 + V5 overlay and link indexes (landed); V6 status patching pending |
+| 14 | V4 + V5 overlay and link indexes (landed); V6 status patching (landed) |
 | 15 | N1 + N2 + N3 keyed rows, delegation, pane |
 | 16 | N4 + N5 windowing and `content-visibility` |
 | 17 | M1 + M2 + M3 loader, eviction, counts |
@@ -937,6 +939,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** A new message updates badges without route recomputation; a status change that changes bounds explicitly invalidates geometry.
 
+**Status.** Landed. `e2e/badges.mjs` changes the harness state (fired, closed, holding, Moment status) and checks the same card node and no new `canvasRenders`; toggling Show chat state draws exactly once off and once on. A real-ST chat is still the missing evidence: the harness state stub is not an engine.
+
 **Risk.** Medium — easy to miss a bounds-changing status.
 
 **Source.** Astra #2; DeepSeek #3b.
@@ -1341,3 +1345,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | V3a | Keyed tab reconciliation, late-bound handlers, retained `.tright`; e2e tabs 5 ok |
 | 2026-11-25 | this commit | V3b | Piece bar retained per canvas; arm/fold update in place; tone cache invalidated on CSS load; e2e pbar 1, drawer 10, review 10 |
 | 2026-11-25 | this commit | V3c | Panel and inspector shells retained per book/selection; detached reattach; e2e chrome 5, desktop 51, drawer 10, review 10, explain 26, pbar 1, tabs 5 |
+| 2026-11-25 | this commit | V6 | Status patched on retained cards: classes, line, badge, Moment tag, nav dot; e2e badges 6, canvas-sig 5 |

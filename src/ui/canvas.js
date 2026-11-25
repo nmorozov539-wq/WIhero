@@ -97,6 +97,79 @@ export function arrange(m, memory, center, dir = TB) {
 const LINKS = createLinkEngine({ grid: G });
 /** Where a link's hand-made shape is kept: on its source card, `canvas.cards[<from>].links[<this>]`. */
 export const linkKey = x => `${x.fromPort}>${x.to}${x.mask != null ? `@${x.mask}` : ''}`;
+
+/**
+ * The text a normal card's `k` line shows, from its entry and chat status. The draw and patchStatus both use it, so
+ * a status change can rewrite the line without a redraw and cannot drift from what the draw made.
+ */
+export function cardLine(e, st, si) {
+    if (st?.closed) return { kind: 'closed', text: `CLOSED · by ${st.closed}` };
+    if (typeof st?.value === 'string') {
+        return { kind: 'value', text: `${st.mask ? `${st.mask}: ` : ''}${st.value.replace(/\s+/g, ' ')}`, title: st.value };
+    }
+    if (si) return { kind: 'mask', text: `mask: ${e.masks[si - 1].name}` };
+    return { kind: 'keys', text: e.strategy === 'perm' ? 'permanent' : e.keys.join(', ') || 'no key words', by: e.by };
+}
+
+/** Draws a card line into its `.k` node: the draw's first pass and patchStatus's later ones. */
+function drawCardLine(k, line) {
+    k.classList.toggle('wval', line.kind === 'value');
+    if (line.kind === 'value') k.title = line.title;
+    else k.removeAttribute('title');
+    k.textContent = '';
+    if (line.kind === 'closed') k.append(el('span', 'cl', line.text));
+    else if (line.kind === 'value' || line.kind === 'mask') k.textContent = line.text;
+    else {
+        if (line.by) k.insertAdjacentHTML('beforeend', ic(line.by === 'user' ? 'user' : 'bot'));
+        k.append(el('span', '', line.text));
+    }
+}
+
+/** A card's small badge: its fired count, else its Once or delayed-close sign; null when it has none. */
+export function cardBadge(e, st) {
+    if (st?.fired) return { cls: 'fired', text: `${st.fired}×`, title: null };
+    if (e.once) return { cls: 'badge1', text: '1×', title: null };
+    if (e.closesAfter != null) {
+        return {
+            cls: 'badge1',
+            text: e.closesAfter ? `+${e.closesAfter}` : '1×',
+            title: e.closesAfter
+                ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires`
+                : 'Closes after it first fires',
+        };
+    }
+    return null;
+}
+
+/** Whether two card states would draw the same badges and classes. */
+function sameStatus(a, b) {
+    a ??= {};
+    b ??= {};
+    return a.fired === b.fired && a.closed === b.closed && a.holding === b.holding
+        && a.waiting === b.waiting && a.happened === b.happened && a.mask === b.mask && a.value === b.value;
+}
+
+/** Puts a card's badge on, changes it, or takes it off; it never rebuilds the card. */
+function setCardBadge(rec, st) {
+    const spec = cardBadge(rec.e, st);
+    if (!spec) {
+        if (rec.badge) { rec.badge.remove(); rec.badge = null; }
+        return;
+    }
+    if (!rec.badge) {
+        const b = el('span', spec.cls, spec.text);
+        rec.badge = b;
+        const after = rec.hold ?? rec.text;
+        if (after?.parentNode) after.after(b);
+        else rec.card.append(b);
+    } else {
+        rec.badge.className = spec.cls;
+        rec.badge.textContent = spec.text;
+    }
+    if (spec.title) rec.badge.title = spec.title;
+    else rec.badge.removeAttribute('title');
+}
+
 /** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
 export const PHONE_FLOOR = 0.8;
 export { holdSpace, wheelMove } from './canvas-mouse.js';
@@ -168,7 +241,7 @@ export function mountCanvas(vp, d) {
         const { g, ids, R, P } = arrange(m, mem, viewCenter(), d.dir ?? TB);
         perf.end(arrangeAt);
         if (JSON.stringify(mem) !== before) d.save();
-        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [], byLid: new Map(), ln: new Map(), hit: new Map() };
+        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [], byLid: new Map(), ln: new Map(), hit: new Map(), statusTargets: [] };
         world.innerHTML = '';
         OV_NODES = null; // the nodes it named are gone with the old canvas
         drawn++;
@@ -263,9 +336,10 @@ export function mountCanvas(vp, d) {
                 gr.dataset.grip = e.id;
                 gr.setAttribute('aria-label', `Move ${e.title}`);
                 const who = e.moment.by === 'user' ? ' · YOU' : e.moment.by === 'char' ? ' · CHARACTER' : '';
-                const tag = st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${who}`;
-                c.append(gr, el('div', 'tag', tag), el('div', 't', e.title),
+                const tag = el('div', 'tag', st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${who}`);
+                c.append(gr, tag, el('div', 't', e.title),
                     el('div', 'k gk', e.moment.phrases.length ? e.moment.phrases.map(p => `“${p}”`).join(' · ') : 'no phrases yet'));
+                CV.statusTargets.push({ e, card: c, grip: gr, text: tag, moment: true, who, st });
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This Moment has a problem'; c.append(b); }
                 put(world, c);
                 continue;
@@ -291,21 +365,16 @@ export function mountCanvas(vp, d) {
             gr.setAttribute('aria-label', `Move ${e.title}`);
             c.append(gr, el('div', 't', e.title));
             const k = el('div', 'k');
-            if (st?.closed) k.append(el('span', 'cl', `CLOSED · by ${st.closed}`));
-            else if (typeof st?.value === 'string') { k.classList.add('wval'); k.textContent = `${st.mask ? `${st.mask}: ` : ''}${st.value.replace(/\s+/g, ' ')}`; k.title = st.value; }
-            else if (si) k.textContent = `mask: ${e.masks[si - 1].name}`;
-            else {
-                if (e.by) k.insertAdjacentHTML('beforeend', ic(e.by === 'user' ? 'user' : 'bot'));
-                k.append(el('span', '', e.strategy === 'perm' ? 'permanent' : e.keys.join(', ') || 'no key words'));
-            }
+            drawCardLine(k, cardLine(e, st, si));
             c.append(k);
-            if (e.glue?.mode === 'hold') c.append(el('i', 'hold'));
-            if (st?.fired) c.append(el('span', 'fired', `${st.fired}×`));
-            else if (e.once) c.append(el('span', 'badge1', '1×'));
-            else if (e.closesAfter != null) {
-                const b = el('span', 'badge1', e.closesAfter ? `+${e.closesAfter}` : '1×');
-                b.title = e.closesAfter ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires` : 'Closes after it first fires';
-                c.append(b);
+            let hold = null;
+            if (e.glue?.mode === 'hold') { hold = el('i', 'hold'); c.append(hold); }
+            const badge = cardBadge(e, st);
+            let badgeNode = null;
+            if (badge) {
+                badgeNode = el('span', badge.cls, badge.text);
+                if (badge.title) badgeNode.title = badge.title;
+                c.append(badgeNode);
             }
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
             if (e.note) {
@@ -315,6 +384,7 @@ export function mountCanvas(vp, d) {
                 c.append(n);
             }
             put(world, c);
+            let navText = null;
             if (r.nav) {
                 const n = el('div', `mnav${r.nav.v ? ' v' : ''}`);
                 Object.assign(n.style, { left: `${r.nav.x}px`, top: `${r.nav.y}px` });
@@ -326,9 +396,11 @@ export function mountCanvas(vp, d) {
                 const nx = btn('', ic('right'), null, 'Next layer');
                 nx.dataset.flip = e.id; nx.dataset.d = 1;
                 explainNode(nx, 'canvas.maskFlip', { title: 'Next layer', text: 'Shows the next version of this card\'s text.' });
-                n.append(pv, el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`), nx);
+                navText = el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`);
+                n.append(pv, navText, nx);
                 put(world, n);
             }
+            CV.statusTargets.push({ e, card: c, grip: gr, text: k, badge: badgeNode, hold, navText, si, st });
         }
 
         owner = '';
@@ -616,6 +688,36 @@ export function mountCanvas(vp, d) {
         if (!d.desk) phoneFocus();
         drawShaping();
         perf.end(drawAt);
+    }
+
+    /**
+     * Updates the badges and card state of the cards already drawn, without rebuilding them or touching links. A chat
+     * message changes these on every card that shows the chat's state, and routing has nothing to do with them.
+     */
+    function patchStatus(statusFor) {
+        if (!CV) return;
+        const at = perf.begin('status');
+        for (const rec of CV.statusTargets) {
+            const st = statusFor(rec.e.id);
+            if (sameStatus(rec.st, st)) continue;
+            rec.st = st;
+            if (rec.moment) {
+                rec.card.classList.toggle('happened', !!st?.happened);
+                rec.text.textContent = st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${rec.who}`;
+                continue;
+            }
+            rec.card.classList.toggle('closed', !!st?.closed);
+            rec.card.classList.toggle('waiting', !!st?.waiting);
+            rec.card.classList.toggle('holding', !!st?.holding);
+            rec.grip.classList.toggle('ring', (rec.e.strategy === 'vec' && !rec.e.off) || !!st?.waiting);
+            drawCardLine(rec.text, cardLine(rec.e, st, rec.si));
+            setCardBadge(rec, st);
+            if (rec.navText) {
+                const active = st?.mask ? rec.e.masks.findIndex(x => x.name === st.mask) + 1 : 0;
+                rec.navText.textContent = `${rec.si ? `${rec.si}/${rec.e.masks.length}` : 'main'}${active && active === rec.si ? ' •' : ''}`;
+            }
+        }
+        perf.end(at);
     }
 
     // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
@@ -1216,7 +1318,7 @@ export function mountCanvas(vp, d) {
 
     return {
         render, fit, centerOn, reveal, tidy, flip, pointAt, screenRect, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
-        shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(),
+        shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(), patchStatus,
         picked: () => [...picked], setPicked, phoneFocus,
         get view() { return CV; }, get camera() { return camera(); },
     };

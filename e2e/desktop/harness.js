@@ -7,6 +7,7 @@
 import { createLibrary } from '../../src/ui/st-books.js';
 import { createApp } from '../../src/ui/app.js';
 import { ensureSettings } from '../../src/ui/data.js';
+import { buildModel } from '../../src/engine/model.js';
 import { perf as perfCounters } from '../../src/ui/perf.js';
 import { book as perfBook, chat as perfChat, placedCanvas } from '../../tools/perf/fixture.mjs';
 
@@ -155,6 +156,19 @@ const ctx = () => (perf
     : { chat: [], characters: [], getTokenCountAsync: null });
 
 await loadBooks();
+// Under `perf`, the seeded books get their real model and a state object the page test can change, so Hero's chat
+// state has something to show (closed, holding, fired) without a chat. The default harness keeps its empty one.
+let harnessState = null;
+if (perf) {
+    const entries = [];
+    for (const [name, data] of books) for (const entry of Object.values(data.entries)) entries.push({ ...entry, world: name });
+    hooks.model = buildModel(entries);
+    harnessState = {
+        v: 2, at: -1, fired: {}, firstAt: {}, lastAt: {}, closed: {}, holding: {}, latches: {}, baseline: {},
+        masks: { closed: {}, pick: {} }, round: [], rolls: {}, written: {}, wrote: {}, byHand: {},
+    };
+    hooks.state = () => harnessState;
+}
 // Optional real save lifecycle, including ST's programmatic dropdown event on editor reload.
 if (params.has('saves')) {
     const controls = globalThis.wiheroHarness = { writeDelay: 20, deleteDelay: 0, failDelete: false, snapshots };
@@ -185,7 +199,7 @@ app = createApp({
     onVisible: open => document.getElementById('wi-button').classList.toggle('lit', open),
 });
 document.getElementById('wi-button').addEventListener('click', () => app.toggle());
-globalThis.wihero = { app, library, settings, perf: perfCounters };
+globalThis.wihero = { app, library, settings, perf: perfCounters, ...(harnessState ? { hooks } : {}) };
 if (perf) {
     // Left closed so the runner can time the page's first tab; the profile it actually seeded is reported with each
     // measurement.

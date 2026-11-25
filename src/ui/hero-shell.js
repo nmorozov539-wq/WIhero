@@ -311,13 +311,10 @@ export function createHeroShell(A) {
     function canvasSig(book, model) {
         const memory = canvasMemory(bookSettings(settings, book));
         const c = ctx();
-        const chat = c.chat ?? [];
-        const last = chat.at(-1);
-        // Until V6 patches badges in place, a chat with state on must redraw when the chat can change a badge: a new
-        // message, a swipe, or an edit of the last one. A content edit still does not move any of these.
-        const chatKey = H.chatState
-            ? [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, 1, chat.length, last?.mes?.length ?? 0, last?.swipe_id ?? 0]
-            : [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, 0];
+        // Chat state on still draws once when it is toggled, because the cards are built with or without status nodes.
+        // After that a new message only patches badges (canvas.patchStatus); chat identity is here, chat content is
+        // not, since it does not move a card.
+        const chatKey = [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, H.chatState ? 1 : 0];
         return canvasInputSig({
             model,
             elements: () => canvasElements(book, library.peek(book), model, e => entryFolder(book, e)),
@@ -360,7 +357,11 @@ export function createHeroShell(A) {
                 heroCanvas.render();
                 undoHistory.settle(keepBook);
                 kept.sig = sig;
-            } else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
+            } else {
+                // Same cards and links: a chat that moved its badges only patches those in place, no routing.
+                if (H.chatState) heroCanvas.patchStatus(chatStatus(keepBook));
+                heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
+            }
             heroAround(keepBook, kept.data);
             return;
         }
