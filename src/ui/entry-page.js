@@ -450,6 +450,16 @@ export function renderEntryPage(main, o) {
     counter.open(text0).then(n => showCount(text0, n));
     if (!o.hero) storyLogic();
 
+    // Cold book: the page is drawn without marks, then the clash scan warms off the task and this patches the key
+    // words in place. A page rebuilt (or left by Back) before then is detached, so it is not patched.
+    if (o.clash && o.clashWhenReady) {
+        o.clashWhenReady(() => {
+            if (!v.isConnected) return;
+            for (const chip of v.querySelectorAll('[data-clash-word]')) applyClashChip(chip, chip.dataset.clashWord, o.clash);
+            for (const n of v.querySelectorAll('.clashnote')) fillClashNote(n, o.clash);
+        });
+    }
+
     if (o.fresh) setTimeout(() => { if (!h1.textContent) h1.focus(); }, 30);
     return v;
 }
@@ -476,25 +486,39 @@ function autoText(value, placeholder, onInput) {
 
 /** Marks a key word chip that also fires other entries (the keyword clash finder). */
 function markClash(chip, word, clash) {
-    const others = clash?.(word) ?? [];
-    if (others.length) {
-        chip.classList.add('clash');
-        chip.title = `Also fires ${others.join(', ')}`;
-    }
+    chip.dataset.clashWord = word;
+    applyClashChip(chip, word, clash);
     return chip;
 }
 
+/** Re-applies one chip's mark; `clash` may have gained its result since the page was drawn. */
+function applyClashChip(chip, word, clash) {
+    const others = clash?.(word) ?? [];
+    chip.classList.toggle('clash', others.length > 0);
+    if (others.length) chip.title = `Also fires ${others.join(', ')}`;
+    else chip.removeAttribute('title');
+}
+
+/** note node → its key words, so a deferred clash pass can rebuild it. */
+const clashNoteKeys = new WeakMap();
+
 /** A line under the key words naming what each clashing word also fires: "mill also fires Old Mill". */
 function clashNote(keys, clash) {
-    const lines = (keys ?? []).map(k => [k, clash?.(k) ?? []]).filter(([, o]) => o.length);
     const n = el('div', 'clashnote');
+    clashNoteKeys.set(n, [...(keys ?? [])]);
+    fillClashNote(n, clash);
+    return n;
+}
+
+/** Fills a clash note from the current resolver (empty while the scan is still warming). */
+function fillClashNote(n, clash) {
+    const lines = (clashNoteKeys.get(n) ?? []).map(k => [k, clash?.(k) ?? []]).filter(([, o]) => o.length);
     n.hidden = !lines.length;
-    for (const [k, o] of lines) {
+    n.replaceChildren(...lines.map(([k, o]) => {
         const r = el('div');
         r.append(el('b', '', k), document.createTextNode(` also fires ${o.join(', ')}`));
-        n.append(r);
-    }
-    return n;
+        return r;
+    }));
 }
 
 /** The key word box: chips, tapped into a comma-separated line. */

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import { deadBranches } from '../src/engine/dead.js';
-import { keywordClashes } from '../src/ui/clashes.js';
+import { cachedClashes, keywordClashes } from '../src/ui/clashes.js';
 import { writeNote } from '../src/ui/pieces.js';
 import { e, Sim } from './sim.js';
 import { diceRoll } from '../src/engine/turn.js';
@@ -71,6 +71,19 @@ test('clashes: the revision cache follows edits and skips', () => {
     assert.notEqual(second, first, 'a new revision recomputes');
     assert.deepEqual(sorted(second.groups), { mill: [1, 2, 3] });
     assert.deepEqual(sorted(keywordClashes(data, new Set([3]), 2).groups), { mill: [1, 2] }, 'a changed skip recomputes');
+});
+
+test('clashes: the cache can be read without scanning, for the entry page warm path (G1)', () => {
+    const data = { entries: {
+        1: { uid: 1, comment: 'Mill', key: ['mill'] },
+        2: { uid: 2, comment: 'Old Mill', key: ['old mill'] },
+    } };
+    assert.equal(cachedClashes(data, new Set(), 1), null, 'a cold book has no cached result');
+    const first = keywordClashes(data, new Set(), 1);
+    assert.equal(cachedClashes(data, new Set(), 1), first, 'the warm result is readable at the same revision');
+    assert.equal(cachedClashes(data, new Set([2]), 1), null, 'a different skip set is cold');
+    assert.equal(cachedClashes(data, new Set(), 2), null, 'a new revision is cold');
+    assert.equal(cachedClashes(data, new Set()), null, 'no revision means no cache');
 });
 
 // ---------------------------------------------------------------- dead branches

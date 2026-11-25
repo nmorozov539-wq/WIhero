@@ -11,6 +11,19 @@ const ALNUM = /[\p{L}\p{N}]/u;
 const cache = new WeakMap();
 
 const alnum = cp => ALNUM.test(String.fromCodePoint(cp));
+/** The cache's identity for a skip set: a sorted list of uids, or '' for none. */
+const skipSignature = skip => (skip?.size ? [...skip].sort((a, b) => a - b).join(',') : '');
+
+/**
+ * The clash result already cached for this book at this revision and skip set, or null without scanning. The entry
+ * page uses this so a warm cache (see normal.js) keeps the scan off the task that opens an entry.
+ */
+export function cachedClashes(data, skip = new Set(), revision = null) {
+    if (revision === null) return null;
+    const hit = cache.get(data);
+    if (!hit || hit.revision !== revision) return null;
+    return hit.skipSig === skipSignature(skip) ? hit.result : null;
+}
 
 /** Whether the code point just before `at` is a letter or digit (surrogate pairs included). */
 function alnumBefore(text, at) {
@@ -62,7 +75,7 @@ function keyed(e) {
 export function keywordClashes(data, skip = new Set(), revision = null) {
     const started = perf.begin('clashScan');
     try {
-        const skipSig = revision === null ? null : (skip.size ? [...skip].sort((a, b) => a - b).join(',') : '');
+        const skipSig = revision === null ? null : skipSignature(skip);
         if (revision !== null) {
             const hit = cache.get(data);
             if (hit && hit.revision === revision && hit.skipSig === skipSig) return hit.result;

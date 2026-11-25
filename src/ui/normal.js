@@ -11,7 +11,7 @@ import { trackerContext } from './tracker-ui.js';
 import { btn, delegatePress, el, html, keyed, longPress, swEl } from './dom.js';
 import { ic, setIcon } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
-import { keywordClashes } from './clashes.js';
+import { cachedClashes, keywordClashes } from './clashes.js';
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
 import { perf } from './perf.js';
 import { entryStatus } from '../engine/turn.js';
@@ -112,6 +112,7 @@ export function createNormal(A) {
      * grid; switching between list and tiles uses different keys, so those nodes are rebuilt.
      */
     function renderHome(view = null) {
+        cancelClashWarm();
         const v = view ?? el('div', 'view');
         if (!view) main.append(v);
         const names = visibleNames();
@@ -392,8 +393,83 @@ export function createNormal(A) {
 
     /** Terminal teardown (A4): every retained phone window's scroll/focus listener and ResizeObserver. */
     function dispose() {
+        cancelClashWarm();
         for (const ref of windowRefs) ref.deref()?.dispose();
         windowRefs.length = 0;
+    }
+
+    // G1: the clash scan warms only after the book page has been quiet for a moment, so it never extends the draw,
+    // the first scroll or a tap; opening an entry before then draws unmarked and patches its marks when the scan
+    // lands. One pending warm at a time; a draw for another book (or Home/search) cancels it, and data replaces or a
+    // revision bump are re-read when it runs.
+    const CLASH_QUIET_MS = 700;
+    let clashWarm = null;
+    const skipSig = skip => (skip?.size ? [...skip].sort((a, b) => a - b).join(',') : '');
+    function cancelClashWarm() {
+        if (!clashWarm) return;
+        clashWarm.cancel();
+        clashWarm = null;
+    }
+    /**
+     * Restarts the quiet wait. The timer is the contract: an idle callback fires in the short gaps between wheel
+     * events (and the windowed list starves it on a busy page), so it would not give the page a real quiet window.
+     */
+    function armClashWarm(w) {
+        if (w.timer) clearTimeout(w.timer);
+        w.timer = setTimeout(w.run, CLASH_QUIET_MS);
+    }
+    /** Pushes the warm back past another book-page interaction (pointer, wheel, scroll or key). */
+    function deferClashWarm(book, data) {
+        if (settings.markClashes === false || !data) return;
+        if (cachedClashes(data, hiddenIn(book), library.bookVersion(book))) return;
+        if (clashWarm?.data === data) { armClashWarm(clashWarm); return; }
+        scheduleClashWarm(book, data);
+    }
+    /** Warms the cache, or calls `onResult` as soon as it is known. Returns nothing; the warm is book-level work. */
+    function scheduleClashWarm(book, data, onResult = null) {
+        if (settings.markClashes === false || !data) return;
+        const skip = hiddenIn(book);
+        const revision = library.bookVersion(book);
+        const known = cachedClashes(data, skip, revision);
+        if (known) { onResult?.(known); return; }
+        const sig = skipSig(skip);
+        if (clashWarm?.data === data && clashWarm.revision === revision && clashWarm.sig === sig) {
+            if (onResult) clashWarm.done.add(onResult);
+            return;
+        }
+        cancelClashWarm();
+        const w = { book, data, revision, sig, done: new Set(), timer: 0, run: null, cancel: null };
+        if (onResult) w.done.add(onResult);
+        w.run = () => {
+            if (clashWarm !== w) return;
+            if (w.timer) { clearTimeout(w.timer); w.timer = 0; }
+            clashWarm = null;
+            if (settings.markClashes === false) return;
+            // The captured data is the one to scan; the revision and skip set are read again, so a result that lands
+            // after an edit is cached for the book as it is now (and the cache itself never serves stale marks).
+            if (library.peek(book) !== data) return;
+            const result = keywordClashes(data, hiddenIn(book), library.bookVersion(book));
+            for (const fn of w.done) fn(result);
+        };
+        w.cancel = () => {
+            if (w.timer) { clearTimeout(w.timer); w.timer = 0; }
+        };
+        armClashWarm(w);
+        clashWarm = w;
+    }
+
+    /** Any interaction with the book page pushes its clash warm past the quiet window. Attached once per view. */
+    const clashWatched = new WeakSet();
+    function watchClashQuiet(v, book) {
+        if (clashWatched.has(v)) return;
+        clashWatched.add(v);
+        const defer = () => {
+            if (!v.isConnected || v.hidden) return;
+            const p = page();
+            if (p?.type !== 'book' || p.book !== book) return;
+            deferClashWarm(book, library.peek(book));
+        };
+        for (const type of ['pointerdown', 'wheel', 'scroll', 'keydown']) v.addEventListener(type, defer, { passive: true });
     }
 
     /** Forgets the window (a loading/empty page): the next book list starts from the whole body again. */
@@ -446,6 +522,9 @@ export function createNormal(A) {
         const rowAt = view ? null : perf.begin('rowMount');
         bookWindow(v).paint(prefix, body, body.length > WIN_LIMIT);
         perf.end(rowAt);
+        // After the page has been quiet: an early entry open draws unmarked and patches from the cache later (G1).
+        watchClashQuiet(v, book);
+        scheduleClashWarm(book, data);
     }
 
     /** An empty note, or the "No folder" divider: one text line keyed like the other book-page children. */
@@ -849,6 +928,7 @@ export function createNormal(A) {
      * query runs at once.
      */
     function renderSearch() {
+        cancelClashWarm();
         searchCancel(); // a previous overlay's background reads, if a draw rebuilt this one
         const s = el('div', 'search');
         const bar = el('div', 'bar');
@@ -976,6 +1056,13 @@ export function createNormal(A) {
             }
         }
         S.ui.condition = !!p.condition;
+        // Clash marks resolve from the cache the book page warmed (G1). A cold book renders the page unmarked first
+        // and applies the marks when that scan lands, so the scan is never on the entry-open task.
+        const markClashes = settings.markClashes !== false;
+        const skip = hiddenIn(book);
+        let clashes = markClashes ? cachedClashes(data, skip, library.bookVersion(book)) : null;
+        const clashCold = markClashes && !clashes;
+        const clash = markClashes ? key => (clashes ? clashes.of(e.uid, key) : []) : null;
         const entryAt = perf.begin('entryPage');
         renderEntryPage(into, {
             entry: e,
@@ -986,7 +1073,8 @@ export function createNormal(A) {
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             // Keyword clash marking can be turned off (☰ menu, Display); the ☰ menu's Keyword clashes row stays.
-            clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book), library.bookVersion(book))),
+            clash,
+            clashWhenReady: clashCold ? apply => scheduleClashWarm(book, data, result => { clashes = result; apply(); }) : null,
             lines,
             incoming: [...incoming],
             closed,
