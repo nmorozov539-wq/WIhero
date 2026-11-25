@@ -81,6 +81,8 @@ svg.i.s { width: 16px; height: 16px; }
 /* ---------- Main ---------- */
 .main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .view { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; }
+/* A pane that is off screen keeps its DOM but takes no space and cannot be focused (N3b). */
+.view[hidden] { display: none; }
 .head { display: flex; align-items: center; gap: 8px; padding: 14px 8px 8px 16px; }
 .head h1 { margin: 0; font-size: var(--t-l); font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .head > h1 { flex: 1; }

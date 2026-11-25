@@ -360,6 +360,11 @@ export function createApp(deps) {
         return true;
     }
 
+    // Phone Normal keeps the last list page (Home or a book) as a live `.view`, and draws an entry page in a second
+    // `.view` beside it (N3b). The pane that is not on screen is hidden, not removed: Back returns to the same rows,
+    // scroll and focus. At most one list pane is kept; another page discards it and draws from scratch.
+    let listPane = null; // { id, page, node, focus }
+
     function render() {
         if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
@@ -376,22 +381,55 @@ export function createApp(deps) {
         renderTabs();
         const p = page();
         const id = pageId(p);
-        const old = main.querySelector('.view');
-        // A book page or Home keeps its `.view` on a draw for the same page: its header, group heads and keyed rows
-        // are reconciled instead of rebuilt, so rows, listeners, focus and scroll survive a refresh (N1a/N1b).
-        const keep = (p.type === 'book' || p.type === 'home') && old && main.dataset.page === id;
-        if (old && main.dataset.page === id) p.scroll = old.scrollTop;
-        if (keep) {
-            for (const child of [...main.children]) if (child !== old) child.remove();
-        } else main.innerHTML = '';
+        const entry = p.type === 'entry';
+        // An entry opened from a book page keeps that page's list while the entry is shown. The list belongs to the
+        // same tab; an entry from a new tab or a deep link has none and rebuilds on Back, as before.
+        const listId = entry ? `${tab().id}:book:${p.book}:` : id;
+        const retained = listPane && listPane.id === listId && listPane.node?.isConnected && listPane.node.parentNode === main ? listPane : null;
+        if (!retained) listPane = null;
+
+        const oldEntry = [...main.children].find(n => n !== listPane?.node && n.classList?.contains('view') && n.dataset.pane === 'entry') ?? null;
+        if (oldEntry && main.dataset.page === id) p.scroll = oldEntry.scrollTop;
+
+        // A list page for the same page keeps its `.view` and is reconciled (N1a/N1b); from an entry it is shown
+        // again with the scroll, focus and rows it had.
+        const keepList = !entry && !!retained;
+        if (keepList) {
+            retained.node.hidden = false;
+            // A draw for the page already on screen keeps its current scroll, as N1a/N1b did.
+            if (main.dataset.page === id) p.scroll = retained.node.scrollTop;
+            for (const child of [...main.children]) if (child !== retained.node) child.remove();
+        } else if (listPane && entry) {
+            // Save the list's scroll and focus before hiding it, then leave only the list under the entry.
+            if (!listPane.node.hidden) {
+                listPane.page.scroll = listPane.node.scrollTop;
+                const a = shadow.activeElement;
+                listPane.focus = a && listPane.node.contains(a) ? a : null;
+                listPane.node.hidden = true;
+            }
+            for (const child of [...main.children]) if (child !== listPane.node) child.remove();
+        } else {
+            listPane = null;
+            main.innerHTML = '';
+        }
         main.dataset.page = id;
-        if (p.type === 'entry') renderEntry(p);
-        else if (p.type === 'book') renderBook(p, keep ? old : null);
-        else renderHome(keep ? old : null);
-        if (p.type !== 'entry') main.append(S.select ? selBar(p) : bottomBar(p));
+        const restoreFocus = keepList ? retained.focus : null;
+        if (entry) {
+            renderEntry(p);
+            const node = [...main.children].find(n => n !== listPane?.node && n.classList?.contains('view')) ?? null;
+            if (node) { node.dataset.pane = 'entry'; node.dataset.page = id; }
+            if (node && p.scroll) node.scrollTop = p.scroll;
+        } else {
+            if (p.type === 'book') renderBook(p, keepList ? retained.node : null);
+            else renderHome(keepList ? retained.node : null);
+            const node = [...main.children].find(n => n.classList?.contains('view')) ?? null;
+            if (node) { node.dataset.pane = 'list'; node.dataset.page = id; }
+            listPane = { id, page: p, node, focus: null };
+            main.append(S.select ? selBar(p) : bottomBar(p));
+            if (node && p.scroll) node.scrollTop = p.scroll;
+            if (restoreFocus && restoreFocus.isConnected) restoreFocus.focus({ preventScroll: true });
+        }
         if (S.search) renderSearch();
-        const view = main.querySelector('.view');
-        if (view && p.scroll) view.scrollTop = p.scroll;
     }
     const pageId = p => `${tab().id}:${p.type}:${p.book ?? ''}:${p.uid ?? ''}`;
 

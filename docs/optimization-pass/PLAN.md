@@ -122,6 +122,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **N3a — retained desktop list pane (`src/ui/desk.js`).** The book page keeps its `wrap`, left list, filter input, rows and listeners when the list signature is unchanged; selection, pane and narrow `listOpen` changes update row `on`/aria and the wrap classes, then rebuild only the right pane through the extracted `renderPane`. The signature covers book, data + book revision, model, sort/show-off/filter/collapsed folders, narrow/width, folders, global/link/chat state; switching single/multi reconciles rows. A filter/sort/data change rebuilds the list as before.
 
+**N3b — retained phone list pane (`src/ui/app.js`).** Phone Normal keeps the last list page's `.view` (Home or a book) and draws an entry page in a second `.view` beside it. The pane off screen is `hidden` (no layout, no focus) rather than removed, so Back returns to the same rows, listeners, scroll and focused row; moving between entries rebuilds only the entry `.view`. The retained list's `scrollTop` and focus are saved before hiding and restored after the keyed draw, because `display:none` may reset scroll on some engines. A page change (another tab, another book, Home, deep link) discards the list as before. Measured-native-browser in `e2e/entry-pane.mjs` at 390 × 844 on the 1,000-entry "Perf Big" book: opening an entry is one app render with 0 `rowMounts`; Back is one app render with **0** `rowMounts` (before N3b the same Back rebuilt the list: one app render, **980** `rowMounts`). A title edit made while the entry is open updates the same row on Back, also with 0 new row mounts.
+
 **N2a — phone row delegation (`src/ui/dom.js`, `src/ui/normal.js`).** One `delegatePress(root, resolve)` on `main` replaces `pressable` on Home rows/tiles and Normal entry rows: 480 ms long press, 8 px cancel, `pressing`, button/check skip, click swallow and contextmenu, resolving the row's live book/uid at event time. Switch/more/order buttons keep their own listeners. Desktop `.drow`, search results and sheet rows stay on `pressable` for now.
 
 **N2b — desktop list and search delegation (`src/ui/desk.js`, `src/ui/normal.js`).** Desktop Home rows/tiles, book-list `.brow` rows, folder drop heads and both search lists no longer allocate row listeners. `desk.js` puts one set on the draw's `.dhome` (click, Ctrl/Shift, middle-click, Enter/Space, contextmenu, drag to a folder), on the retained `.bllist` (select, Ctrl/Shift, double-click, middle-click, contextmenu, reorder and folder drops) and on each search result box (hover, click, middle-click); events resolve the live row from `data-book`/`data-uid`/`data-folder` or the result's index. Phone search rows join N2a's `delegatePress` on `main` and keep the 480 ms long press, 8 px cancel and prevented contextmenu. Switch, ⋯, Order, folder fold/add and tab buttons keep their own listeners. `e2e/delegate-desktop.mjs` covers every surface; CDP `DOMDebugger.getEventListeners` reports 0 listeners on the Home row, one `.brow`, one desktop result and one phone result, with the delegated set on `.dhome` (10), `.bllist` (11), `.dsres` (3) and `main` (7).
@@ -352,7 +354,7 @@ Dependencies:
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
 | 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
-| 4 Normal retention | ◐ N1a/N1b keyed rows, N2a/N2b delegation, N3a desktop pane landed; N3b–N5 pending |
+| 4 Normal retention | ◐ N1a/N1b keyed rows, N2a/N2b delegation, N3a desktop pane, N3b phone entry pane landed; N4–N5 pending |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
 
@@ -379,7 +381,7 @@ Dependencies:
 | 12 | V1 per-book revisions (landed) |
 | 13 | V2 `canvasSig` (landed); V3 retained chrome (landed) |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching (landed) |
-| 15 | N1 keyed rows, N2a/N2b phone and desktop delegation, N3a desktop pane (landed); N3b pending |
+| 15 | N1 keyed rows, N2a/N2b phone and desktop delegation, N3a desktop pane, N3b phone entry pane (landed); N4 pending |
 | 16 | N4 + N5 windowing and `content-visibility` |
 | 17 | M1 + M2 + M3 loader, eviction, counts |
 | 18 | M4 search |
@@ -995,7 +997,7 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Selecting an entry does not recreate the list; the pane updates; focus stays sensible.
 
-**Status.** ◐ N3a landed for desktop/narrow drawers: `e2e/desk-pane.mjs` keeps the list, rows, filter and scroll while selecting another entry, opening Book settings, switching single/multi and swapping panes in a 600px drawer; a filter change rebuilds the list intentionally. Phone Normal still replaces its page for an entry (N3b).
+**Status.** ◐ N3a landed for desktop/narrow drawers: `e2e/desk-pane.mjs` keeps the list, rows, filter and scroll while selecting another entry, opening Book settings, switching single/multi and swapping panes in a 600px drawer; a filter change rebuilds the list intentionally. N3b landed for phone Normal: `e2e/entry-pane.mjs` keeps the book `.view`, its rows, `scrollTop` and focused switch while an entry is open and Back, shows the hidden list neither visible nor focusable, keeps it while moving to a second entry through the entry drawer, and updates the same row after a title edit made during the entry, with 0 new `rowMounts` on Back (980 before N3b). Another page (tab, book, Home, deep link) still discards the list.
 
 **Risk.** Medium.
 
@@ -1367,3 +1369,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | N2a | Phone row gestures delegated to main; e2e delegate 11 |
 | 2026-11-25 | this commit | N3a | Desktop list kept across selection/pane changes; e2e desk-pane 7 |
 | 2026-11-25 | this commit | N2b | Desktop Home rows/tiles, .brow rows, folder heads and both search lists delegated; CDP 0 per row, 10 `.dhome`, 11 `.bllist`, 3 `.dsres`, 7 `main`; 382 pass, 0 fail, 7 skipped; e2e delegate-desktop 19 |
+| 2026-11-25 | this commit | N3b | Phone book `.view`, rows, scrollTop and focus kept while an entry is open; entry drawn in a second `.view`; Back 0 `rowMounts` (980 before), 1 `appRender`; 382 pass, 0 fail, 7 skipped; e2e entry-pane 6, normal-rows 6, home-rows 6, delegate 11, delegate-desktop 19, desk-pane 7, desktop 51, tabs 5, chrome 5 |

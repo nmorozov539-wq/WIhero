@@ -33,7 +33,8 @@ page.on('console', m => { if (m.type() === 'error' && !m.location().url.endsWith
 const $ = sel => page.locator(`#wihero-editor ${sel}`);
 const wait = ms => page.waitForTimeout(ms);
 const tabCount = () => $('.tabbar .tab').count();
-const onBook = async () => (await $('.bkname').count()) > 0;
+// The book page is the visible page: an entry open hides its list but keeps the .bkname node (N3b).
+const onBook = () => $('.bkname').first().isVisible();
 
 /** The centre of a row, so pointer moves start well inside it. */
 async function centre(locator) {
