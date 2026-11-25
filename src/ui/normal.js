@@ -234,22 +234,28 @@ export function createNormal(A) {
     /** Entry count and status badges, shared by a book's row and its tile. */
     function bookMeta(name) {
         const m = el('div', 'm');
-        const data = library.peek(name);
-        const count = el('span', '', data ? `${entriesShown(name, data).length} entries` : '…');
-        if (!data) countInto(name, count);
+        const summary = library.summary?.(name);
+        // The summary answers without the book loaded; without one, a loaded copy can (the harness's stand-in
+        // library has no summaries), otherwise the loader fills it in.
+        const data = summary ? null : library.peek(name);
+        const count = el('span', '', summary ? `${summary.entries} entries` : data ? `${entriesShown(name, data).length} entries` : '…');
+        if (!summary && !data) countInto(name, count);
         m.append(count);
         updateBookMeta(m, name);
         return m;
     }
 
     /**
-     * Count and badges on a retained row/tile. The count span is written only when the book is loaded here; until
-     * then `countInto` owns its text, so a draw cannot put "…" back over a count that just arrived.
+     * Count and badges on a retained row/tile. The count span is written only when the book's summary is known (or it
+     * is loaded here); until then `countInto` owns its text, so a draw cannot put "…" back over a count that just
+     * arrived. A summary means Home never reads a book just for its count (M2).
      */
     function updateBookMeta(m, name) {
         const count = m.querySelector(':scope > span:not(.badge)');
-        const data = library.peek(name);
-        if (data) count.textContent = `${entriesShown(name, data).length} entries`;
+        const summary = library.summary?.(name);
+        const data = summary ? null : library.peek(name);
+        if (summary) count.textContent = `${summary.entries} entries`;
+        else if (data) count.textContent = `${entriesShown(name, data).length} entries`;
         const global = library.isGlobal(name);
         const lt = linkText(name);
         const want = [];

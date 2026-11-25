@@ -270,6 +270,15 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
             for (const h of books.values()) steps += h.undo.length + h.redo.length;
             return { bytes: totalBytes, steps };
         },
+        /**
+         * Books with undo or redo states (M2). Those states are applied to the book's working copy, so the library
+         * must keep that copy loaded: an evicted book could not be undone. The app pins these.
+         */
+        booksWithStates() {
+            const out = [];
+            for (const [book, h] of books) if (h.undo.length || h.redo.length) out.push(book);
+            return out;
+        },
         /** A book renamed: its history goes with it. */
         rename(from, to) {
             const h = books.get(from);

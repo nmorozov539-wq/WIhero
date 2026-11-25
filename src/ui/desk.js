@@ -375,7 +375,7 @@ export function deskNormal(A) {
         const sorted = list => {
             if (view !== 'list') return list;
             const s = S.homeSort ?? { key: 'name', dir: 1 };
-            const val = (n, k) => (k === 'entries' ? (library.peek(n) ? A.entriesShown(n, library.peek(n)).length : -1)
+            const val = (n, k) => (k === 'entries' ? (library.summary?.(n)?.entries ?? (library.peek(n) ? A.entriesShown(n, library.peek(n)).length : -1))
                 : k === 'edited' ? (library.edited?.(n) ?? 0) : k === 'active' ? (library.isGlobal(n) ? 2 : A.linkText(n) ? 1 : 0) : n.toLowerCase());
             return homeSort(list, s.key, s.dir, val);
         };
@@ -537,9 +537,11 @@ export function deskNormal(A) {
         return out;
     }
     function countSpan(name) {
-        const data = library.peek(name);
-        const s = el('span', 'cnt', data ? plural(A.entriesShown(name, data).length, 'entry', 'entries') : '…');
-        if (!data) A.countInto(name, s);
+        const summary = library.summary?.(name);
+        const data = summary ? null : library.peek(name);
+        const n = summary ? summary.entries : data ? A.entriesShown(name, data).length : null;
+        const s = el('span', 'cnt', n === null ? '…' : plural(n, 'entry', 'entries'));
+        if (n === null) A.countInto(name, s);
         return s;
     }
     function bookTile(name, sel) {
@@ -576,9 +578,11 @@ export function deskNormal(A) {
         const act = el('span', 'c-active');
         act.append(...statusChips(name));
         const n = el('span', 'c-entries');
-        const data = library.peek(name);
-        n.textContent = data ? String(A.entriesShown(name, data).length) : '…';
-        if (!data) A.countInto(name, n, d => String(d));
+        const summary = library.summary?.(name);
+        const loaded = summary ? null : library.peek(name);
+        const entries = summary ? summary.entries : loaded ? A.entriesShown(name, loaded).length : null;
+        n.textContent = entries === null ? '…' : String(entries);
+        if (entries === null) A.countInto(name, n, d => String(d));
         r.append(c0, nm, act, n, el('span', 'c-edited', dateText(library.edited?.(name)) || '–'));
         const more = el('span', 'c-more');
         more.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));

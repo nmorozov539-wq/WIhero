@@ -18,6 +18,16 @@ const RETRY_DELAY = 5000;
 const RETRIES = 3;
 /** How long a failed As imported copy waits before the book's next open tries it again. */
 const SEED_RETRY = 60000;
+/**
+ * How many working copies stay loaded at once (M2). Book data is the big retained thing: a 1,000-entry book is
+ * roughly a megabyte serialized, and Home only needs a count. Eight covers the open book plus a few tabs, and keeps
+ * a 40-book Home from ending up with the whole library in memory. Pinned books (open, dirty, saving, failed, history,
+ * reserved, loading) are never evicted, so the real count can be higher; `stats()` says by how much.
+ */
+export const MAX_COPIES = 8;
+/** The cheap default summary: a book's entry count. Home passes a richer one (visible entries and tokens). */
+const countOf = data => Object.keys(data?.entries ?? {}).length;
+const defaultSummary = (name, data) => ({ entries: countOf(data), total: countOf(data), tokens: 0 });
 
 /**
  * @param {object} deps
@@ -31,6 +41,12 @@ const SEED_RETRY = 60000;
  * @param {() => void} [deps.onChange]
  * @param {(name: string, error: unknown, final: boolean, what?: 'save' | 'export') => void} [deps.onSaveError] a save
  *   (or export) of `name` failed; `final` when it won't be tried again until the book changes.
+ * @param {(name: string, data: object) => { entries: number, total?: number, tokens?: number }} [deps.summarize]
+ *   the small per-book summary Home shows without the book loaded (M2). It runs once per load, and lazily after a
+ *   change, not per keystroke; the default counts entries.
+ * @param {() => Iterable<string>} [deps.pinned] names the app must keep loaded: the open books, and books whose undo
+ *   states still need their working copy (M2).
+ * @param {number} [deps.maxCopies] the clean-copy cache bound, for tests; defaults to MAX_COPIES.
  */
 /** A value's JSON text, counted as serialized characters: the whole-book work a save or comparison pays. */
 const json = value => {
@@ -73,6 +89,7 @@ export function createLibrary({
     ctx, WI, powerUser, settings, saveSettings, writeBook = (name, data) => persistBook(ctx(), WI, name, data), onFirstSeen = async () => {}, onChange = () => {},
     onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e),
     onMerged = () => {},
+    summarize = defaultSummary, pinned = () => [], maxCopies = MAX_COPIES,
 }) {
     /** name → the working copy WI Hero edits; ST's cache is updated on every save. */
     const copies = new Map();
@@ -128,6 +145,17 @@ export function createLibrary({
     const loading = new Map();
     /** Books whose As imported copy was asked for this session (onFirstSeen itself remembers it across sessions). */
     const seeded = new Set();
+    /**
+     * name → the small summary Home draws without the book loaded (M2): `{ entries, total, tokens, revision }`.
+     * A summary is kept while its book is clean; `revision` is the book revision it was taken at, so a change (which
+     * bumps the revision) makes it stale without paying an O(entries) walk per keystroke. `summary(name)` recomputes
+     * lazily from a working copy, or answers null so Home falls back to the loader.
+     */
+    const summaries = new Map();
+    /** name → when it was last read or written, oldest first: the eviction order. */
+    const lru = new Map();
+    const limit = Math.max(1, Math.floor(maxCopies) || MAX_COPIES);
+    let evictions = 0;
 
     const names = () => ctx().getWorldInfoNames();
     /** A book was made under this name: a rename that left it behind no longer applies (forgetReusedNames). */
@@ -138,20 +166,110 @@ export function createLibrary({
      */
     let version = 0;
 
+    const touch = name => {
+        if (!copies.has(name)) return;
+        lru.delete(name);
+        lru.set(name);
+    };
+
+    function computeSummary(name, data) {
+        const total = countOf(data);
+        let out = null;
+        try { out = summarize(name, data); } catch (e) { out = null; }
+        const num = (v, fallback) => (Number.isFinite(v) ? v : fallback);
+        return { entries: num(out?.entries, total), total: num(out?.total, total), tokens: num(out?.tokens, 0), revision: bookVersion(name) };
+    }
+    /** Takes a book's summary now, from its working copy. */
+    function summarizeNow(name) {
+        const data = copies.get(name);
+        if (!data) return null;
+        const out = computeSummary(name, data);
+        summaries.set(name, out);
+        return out;
+    }
+    /**
+     * Home's count without the loader: a fresh summary, or null when there is neither a summary nor a working copy
+     * to take one from. A stale summary with a copy (the book was edited) is recomputed here, once, so a Home draw
+     * never walks every book: only the ones whose revision moved since their last summary.
+     *
+     * A save needs no separate invalidation: `change` already bumped the book revision, and `saveNow` writes the same
+     * entries (an outside merge calls `dirty` too). Anything that changes a book's visible entries must either bump
+     * the revision (library changes, outside saves) or call `invalidateSummary` (the app's hidden-entry set).
+     */
+    function summary(name) {
+        const kept = summaries.get(name);
+        if (kept && kept.revision === bookVersion(name)) return kept;
+        return summarizeNow(name);
+    }
+    /** The book's visible entries changed outside its revision (the app's undo-toast hidden set): drop the summary. */
+    function invalidateSummary(name) { summaries.delete(name); }
+
+    /** Why a copy must stay: dirty, a save due, a save or book operation running, a name reserved, or failed. */
+    const held = name => isDirty(name) || timers.has(name) || inFlight.has(name) || operations.has(name)
+        || reserved.has(name) || unsavedSet.has(name) || loading.has(name);
+    /** Every name that must stay loaded for now, the app's pins included (open books, books with undo states). */
+    function pinnedNames() {
+        const out = new Set();
+        let extra = null;
+        try { extra = pinned(); } catch (e) { extra = null; }
+        for (const name of extra ?? []) out.add(name);
+        for (const name of copies.keys()) if (held(name)) out.add(name);
+        for (const name of timers.keys()) out.add(name);
+        for (const name of inFlight.keys()) out.add(name);
+        for (const name of operations.keys()) out.add(name);
+        for (const name of reserved) out.add(name);
+        for (const name of unsavedSet) out.add(name);
+        for (const name of loading.keys()) out.add(name);
+        return out;
+    }
+
+    /**
+     * Drops the oldest clean, unpinned working copies until the cache is within its bound (M2). Called after a read
+     * or a save finishes, never inside `change`: a pending save, a running operation or a label that is about to be
+     * written must not lose its copy. `settings.books[name]`, the book revision and the As imported record stay.
+     */
+    function evict() {
+        if (copies.size <= limit) return 0;
+        const keep = pinnedNames();
+        let dropped = 0;
+        for (const name of [...lru.keys()]) {
+            if (copies.size <= limit) break;
+            if (keep.has(name) || !copies.has(name)) continue;
+            // Home must still be able to draw the count without reading the book again.
+            if (!summaries.has(name) || summaries.get(name).revision !== bookVersion(name)) summarizeNow(name);
+            copies.delete(name);
+            bases.delete(name);
+            cacheSeen.delete(name);
+            lru.delete(name);
+            evictions++;
+            dropped++;
+        }
+        return dropped;
+    }
+
     async function get(name) {
-        if (copies.has(name)) return copies.get(name);
+        if (copies.has(name)) { touch(name); return copies.get(name); }
         if (!loading.has(name)) {
             loading.set(name, (async () => {
                 const data = await ctx().loadWorldInfo(name);
                 if (!data) return null;
                 data.entries ??= {};
-                if (!copies.has(name)) { copies.set(name, data); bases.set(name, json(data)); }
-                return copies.get(name);
-            })().finally(() => loading.delete(name)));
+                if (!copies.has(name)) {
+                    copies.set(name, data);
+                    bases.set(name, json(data));
+                    touch(name);
+                    summarizeNow(name);
+                }
+                return copies.get(name) ?? data;
+            })().finally(() => { loading.delete(name); evict(); }));
         }
         return loading.get(name);
     }
-    const peek = name => copies.get(name) ?? null;
+    const peek = name => {
+        const data = copies.get(name) ?? null;
+        if (data) touch(name);
+        return data;
+    };
 
     /**
      * The book is being opened or changed: keep its As imported copy first, once. The copy is taken synchronously
@@ -176,7 +294,7 @@ export function createLibrary({
         if (!data) return undefined;
         seen(name, data);
         let out;
-        try { out = fn(data); } finally { dirty(name); }
+        try { out = fn(data); } finally { dirty(name); touch(name); }
         scheduleTyping(name);
         if (!quiet) onChange();
         return out;
@@ -209,7 +327,7 @@ export function createLibrary({
                 if (ok === false) return false;
             }
             return true;
-        })().finally(() => inFlight.delete(name));
+        })().finally(() => { inFlight.delete(name); evict(); });
         inFlight.set(name, task);
         return task;
     }
@@ -306,8 +424,13 @@ export function createLibrary({
         bumpBook(name);
         version++;
         if (!isDirty(name) && !inFlight.has(name)) {
+            // No working copy is kept; the outside content is right here, so take its summary without a read. Home
+            // stays able to draw the new count, and the next open reads the book fresh.
+            if (data && typeof data === 'object') summaries.set(name, computeSummary(name, data));
+            else summaries.delete(name);
             copies.delete(name);
             bases.delete(name);
+            lru.delete(name);
             onChange();
             return;
         }
@@ -315,6 +438,8 @@ export function createLibrary({
         const conflicts = mergeOutside(mine, JSON.parse(base), JSON.parse(dataJson));
         bases.set(name, dataJson);
         dirty(name);
+        // Entries may have moved: the next Home ask takes a fresh summary from the merged copy (M2).
+        summaries.delete(name);
         schedule(name);
         onChange();
         onMerged(name, conflicts);
@@ -367,6 +492,8 @@ export function createLibrary({
         copies.delete(name);
         bases.delete(name);
         cacheSeen.delete(name);
+        summaries.delete(name);
+        lru.delete(name);
         revisions.delete(name);
         failures.delete(name);
         unsavedSet.delete(name);
@@ -389,6 +516,7 @@ export function createLibrary({
             checkDestination(clean);
             await writeOwn(clean, data);
             newCopy(clean);
+            summaries.set(clean, computeSummary(clean, data));
             await ctx().updateWorldInfoList();
             reused(clean);
             return clean;
@@ -402,6 +530,8 @@ export function createLibrary({
         editable(name);
         seen(name, old);
         copies.set(name, structuredClone(data));
+        touch(name);
+        summaries.delete(name);
         if (!bases.has(name)) bases.set(name, json(old));
         dirty(name);
         schedule(name);
@@ -421,6 +551,7 @@ export function createLibrary({
             checkDestination(clean);
             await writeOwn(clean, data);
             newCopy(clean);
+            summaries.set(clean, computeSummary(clean, data));
             await ctx().updateWorldInfoList();
             reused(clean);
             return clean;
@@ -437,6 +568,8 @@ export function createLibrary({
         copies.delete(name);
         bases.delete(name);
         cacheSeen.delete(name);
+        summaries.delete(name);
+        lru.delete(name);
         unsavedSet.delete(name);
         revisions.delete(name);
         bookVersions.delete(name);
@@ -464,6 +597,8 @@ export function createLibrary({
         const base = await sanitize(file.name.replace(/\.[^.]+$/, ''));
         if (!names().includes(base)) return null;
         copies.delete(base); // read it again from ST: its content may be new
+        summaries.delete(base);
+        lru.delete(base);
         reused(base);
         return base;
     });
@@ -481,6 +616,10 @@ export function createLibrary({
             newCopy(target);
             // The renamed book is the same book: what was worked out for the old name carries over to the new one.
             bookVersions.set(target, fromRevision);
+            const carried = summaries.get(from);
+            summaries.delete(from);
+            if (carried) summaries.set(target, { ...carried, revision: fromRevision });
+            lru.delete(from);
             // Primary links first, so ST's delete doesn't unlink the open character.
             const $ = globalThis.jQuery;
             if ($ && $('#character_world').val() === from) $('#character_world').val(target);
@@ -669,10 +808,23 @@ export function createLibrary({
 
     const edited = name => settings.books?.[name]?.edited ?? null;
 
+    /** The cache as it stands, for tests and the memory harness (M2): what is loaded, summarised and pinned. */
+    function stats() {
+        const pins = [...pinnedNames()].sort();
+        let bytes = 0;
+        for (const name of copies.keys()) bytes += bases.get(name)?.length ?? 0;
+        return {
+            copies: copies.size, summaries: summaries.size, pinned: pins, evictions,
+            maxCopies: limit, estimatedBytes: bytes,
+        };
+    }
+
     return {
         unsaved: name => unsavedSet.has(name),
         operationText, externalRevision: name => external.get(name) ?? 0,
         edited, names, get, peek, seen, change, bookVersion, get version() { return version; }, save, flush, onWorldInfoUpdated, nameProblem, create, replace, duplicate, remove, rename, busy, importFile,
         exportBook, isGlobal, setGlobal, links, invalidateLinks, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
+        /** Home's count without loading the book (M2); null when there is no fresh summary and no copy to take one. */
+        summary, invalidateSummary, stats,
     };
 }

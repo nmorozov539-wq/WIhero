@@ -204,6 +204,10 @@ const library = createLibrary({
         if (conflicts) globalThis.toastr?.warning(`${name} was also changed outside WI Hero while an edit was waiting to save. `
             + `${conflicts === 1 ? 'One entry' : `${conflicts} entries`} changed in both places keep${conflicts === 1 ? 's' : ''} WI Hero's version; the rest take the outside changes.`, 'WI Hero');
     },
+    // M2: Home draws a book's count from this summary instead of loading the book, and the library keeps the open
+    // book and any book with undo states loaded. `app` exists by the time either is asked (no book is read before it).
+    summarize: (name, data) => (app ? app.summarizeBook(name, data) : { entries: Object.keys(data?.entries ?? {}).length }),
+    pinned: () => app?.pinnedBooks?.() ?? [],
 });
 // An edit still inside its save delay is lost if the page goes away (a reload, or a phone switching apps): save it
 // now. Best effort, since the page may not live to see the save finish (review 2026-11-09, finding 5).

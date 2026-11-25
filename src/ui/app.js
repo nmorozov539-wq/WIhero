@@ -9,7 +9,7 @@ import { perf } from './perf.js';
 import { btn, html, createLayer, el, issueText, keyed } from './dom.js';
 import { ic } from './icons.js';
 import {
-    PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
+    PARAM_LIST, addEntry, bookTokens, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
     SORT_NAMES, isBlank, removeEntry, reorderEntries, search, setFolder, setParam, titleOf,
 } from './data.js';
 import { strategyColor } from './entry-page.js';
@@ -203,6 +203,28 @@ export function createApp(deps) {
     const momentsOf = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid) && isMoment(e));
     const linkable = (book, data) => [...entriesShown(book, data), ...momentsOf(book, data)];
     /**
+     * The small per-book summary the library keeps so Home never has to load a book just to show its count (M2).
+     * `entries` is what Home's rows and tiles show; `total` and `tokens` are there for a book header that has no
+     * working copy. The library calls this once per read, and again lazily after a change.
+     */
+    function summarizeBook(name, data) {
+        const shown = entriesShown(name, data);
+        return { entries: shown.length, total: entriesOf(data).length, tokens: bookTokens(shown) };
+    }
+    /**
+     * Books the library may not evict (M2): the open book in every tab, Hero's book, and any book whose undo/redo
+     * states still have to be applied to a working copy. Dirty, saving, failed and reserved books pin themselves.
+     */
+    function pinnedBooks() {
+        const out = new Set(undoHistory.booksWithStates());
+        for (const t of S.tabs) {
+            const p = t.history.at(-1);
+            if (p?.book) out.add(p.book);
+        }
+        if (S.hero.book) out.add(S.hero.book);
+        return [...out];
+    }
+    /**
      * The engine's model of a book, built once per change: a Hero draw asks for it several times (problems, the
      * panel, the inspector, the piece bar's checks). Only the library's working copies are kept; a trial copy (the
      * piece bar tries an edit on one first) is built fresh each time.
@@ -297,6 +319,11 @@ export function createApp(deps) {
     const countSpans = new Map(); // book → the span showing its count now
     function countInto(name, span, fmt = null) {
         if (fmt) span.dataset.bare = '1';
+        const text = n => (span.dataset.bare ? String(n) : `${n} ${n === 1 ? 'entry' : 'entries'}`);
+        // A summary Home already has is written now, with no read at all (M2): only a book with neither a summary
+        // nor a working copy falls back to the loader.
+        const known = library.summary?.(name);
+        if (known) { if (span.isConnected) span.textContent = text(known.entries); return; }
         countSpans.set(name, span);
         const generation = loader.generation();
         loader.enqueue(name).then(d => {
@@ -304,7 +331,9 @@ export function createApp(deps) {
             // write into a detached row or a row that now belongs to another draw.
             if (generation !== loader.generation()) return;
             const current = countSpans.get(name);
-            if (d && current?.isConnected) current.textContent = current.dataset.bare ? String(entriesShown(name, d).length) : (n => `${n} ${n === 1 ? 'entry' : 'entries'}`)(entriesShown(name, d).length);
+            if (!d || !current?.isConnected) return;
+            const fresh = library.summary?.(name);
+            current.textContent = text(fresh ? fresh.entries : entriesShown(name, d).length);
         }, () => {});
     }
     /** Drops queued counts, forgets their spans and makes in-flight count results stale. */
@@ -790,10 +819,11 @@ export function createApp(deps) {
         const set = new Set(hiddenIn(book));
         for (const u of uids) set.add(u);
         S.hiddenEntries.set(book, set);
+        library.invalidateSummary?.(book); // Home's retained count must not include the entries waiting on Undo
         const one = uids.length === 1 ? titleOf(data.entries[uids[0]]) : null;
         render();
         layer.toast(one ? `Deleted ${one}` : `Deleted ${uids.length} entries`, {
-            action: ['Undo', () => { const s = hiddenIn(book); for (const u of uids) s.delete(u); render(); }],
+            action: ['Undo', () => { const s = hiddenIn(book); for (const u of uids) s.delete(u); library.invalidateSummary?.(book); render(); }],
             onEnd: () => {
                 const s = hiddenIn(book);
                 const gone = uids.filter(u => s.has(u));
@@ -1197,6 +1227,8 @@ export function createApp(deps) {
 
     return {
         show, hide, toggle, isOpen, refresh, host, back, openBook,
+        /** For the library (M2): Home's count from a summary, and the books it may not evict. */
+        summarizeBook, pinnedBooks,
         /** For the in-ST checks. */
         get state() { return S; },
     };

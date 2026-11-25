@@ -195,12 +195,12 @@ if (perf) {
 }
 // Optional real save lifecycle, including ST's programmatic dropdown event on editor reload.
 if (params.has('saves')) {
-    const controls = globalThis.wiheroHarness = { writeDelay: 20, deleteDelay: 0, failDelete: false, snapshots };
+    const controls = globalThis.wiheroHarness = { writeDelay: 20, deleteDelay: 0, failDelete: false, snapshots, loads: 0 };
     const host = {
         getRequestHeaders: () => ({}), updateWorldInfoList: async () => {}, saveSettingsDebounced() {},
         characters: [], chatMetadata: {},
         getWorldInfoNames: () => [...books.keys()],
-        loadWorldInfo: async name => structuredClone(books.get(name)),
+        loadWorldInfo: async name => { controls.loads++; return structuredClone(books.get(name)); },
         reloadWorldInfoEditor: name => { if (!library.busy()) app.openBook(name); },
     };
     library = Object.setPrototypeOf(createLibrary({
@@ -214,6 +214,9 @@ if (params.has('saves')) {
             library.onWorldInfoUpdated(name, data);
         },
         onChange: () => app?.refresh(),
+        // M2, as index.js wires it: Home counts from summaries, and the open/undo books stay loaded.
+        summarize: (name, data) => app?.summarizeBook?.(name, data) ?? { entries: Object.keys(data?.entries ?? {}).length },
+        pinned: () => app?.pinnedBooks?.() ?? [],
     }), library);
 }
 app = createApp({
