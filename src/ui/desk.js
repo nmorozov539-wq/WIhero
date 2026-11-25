@@ -5,10 +5,12 @@
 import { btn, html, el, issueText, keyed, swEl } from './dom.js';
 import { ic, icNode, setIcon } from './icons.js';
 import {
-    MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, compareText, duplicateEntry, entriesOf, groupEntries, paramValue, search,
+    MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, compareText, duplicateEntry, entriesOf, groupEntries, paramValue,
     bookTokens, promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf, tokenGuess, tokensText,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
+import { createDebounced, SEARCH_LIMITS, searchCorpus } from './search.js';
+import { explainNode } from './explain-meta.js';
 import { perf } from './perf.js';
 import { createListWindow, WIN_LIMIT } from './window.js';
 
@@ -1354,7 +1356,13 @@ export function deskNormal(A) {
 
     // ---------------------------------------------------------------- search overlay (Ctrl K)
     function openSearch() { S.search = { query: S.search?.query ?? '', at: 0 }; A.render(); }
+    /**
+     * The desktop Ctrl K overlay (M4), like the phone one: no book is read on open, only loaded books are searched,
+     * the rest are offered as background reads, corpora are cached per revision, typing is debounced and the first run
+     * is immediate.
+     */
     function renderSearch() {
+        A.searchCancel(); // a previous overlay's background reads, if a draw rebuilt this one
         const ov = el('div', 'dsearch');
         const scrim = el('div', 'dscrim');
         scrim.addEventListener('click', () => { S.search = null; A.render(); });
@@ -1371,11 +1379,52 @@ export function deskNormal(A) {
         box.append(bar, res);
         ov.append(scrim, box);
         main.append(ov);
+        const owner = S.search;
         const names = A.visibleNames();
-        for (const n of names) A.need(n, { open: false });
+        const session = { loading: false, pending: 0, gen: A.searchGeneration() };
         const hero = S.mode === 'hero';
         const cur = hero ? A.heroBook() : A.page().book;
         let hits = [];
+        /** The books whose entries this overlay cannot see yet. */
+        const missing = () => names.reduce((n, name) => n + (library.peek(name) ? 0 : 1), 0);
+        const corpora = () => names.map(name => {
+            const data = library.peek(name);
+            return A.searchCache.book(name, data, bookFolderOf(settings, name), () => A.entriesShown(name, data), e => A.entryFolder(name, e));
+        });
+        const status = () => {
+            const left = missing();
+            if (!left) return null;
+            const note = el('div', 'snote');
+            if (session.loading && session.pending) {
+                note.append(el('span', '', `Searching ${left} more book${left === 1 ? '' : 's'}…`));
+                return note;
+            }
+            note.append(el('span', '', `${left} book${left === 1 ? '' : 's'} not searched yet`));
+            const all = btn('linkish', 'Search all books', loadAll, 'Search all books');
+            explainNode(all, 'search.all');
+            note.append(all);
+            return note;
+        };
+        /** Load every unloaded visible book as background work; each arrival searches the current query again. */
+        function loadAll() {
+            if (S.search !== owner) return;
+            const targets = names.filter(name => !library.peek(name));
+            if (!targets.length) return;
+            session.loading = true;
+            session.pending = targets.length;
+            const gen = (session.gen = A.searchGeneration());
+            for (const name of targets) {
+                const done = () => {
+                    // The overlay may have closed, or been rebuilt, while this read ran: never write into it then.
+                    if (S.search !== owner || gen !== A.searchGeneration()) return;
+                    session.pending--;
+                    if (!session.pending) session.loading = false;
+                    draw();
+                };
+                A.searchLoad(name).then(done, done);
+            }
+            draw();
+        }
         const open = (h, background) => {
             if (hero) { S.search = null; A.heroOpen(h, background); return; }
             if (h.kind === 'entry') {
@@ -1408,35 +1457,47 @@ export function deskNormal(A) {
             const h = hitAt(e.target);
             if (h) open(h, true);
         });
-        const run = () => {
+        const draw = () => {
+            if (S.search !== owner) return;
+            perf.count('searchRuns');
             S.search.query = input.value;
             res.innerHTML = '';
-            const books = names.map(n => ({ name: n, folder: bookFolderOf(settings, n), entries: library.peek(n) ? A.entriesShown(n, library.peek(n)) : [], folderOf: e => A.entryFolder(n, e) }));
-            hits = input.value.trim() ? search(books, input.value, cur).slice(0, 60) : [];
-            if (!input.value.trim()) { res.append(el('div', 'dsnone', cur ? 'Type to search every book. Entries of this book come first.' : 'Type to search every book. Books come first.')); return; }
-            if (!hits.length) { res.append(el('div', 'dsnone', 'Nothing found.')); return; }
-            S.search.at = Math.min(S.search.at ?? 0, hits.length - 1);
-            const rowAt = perf.begin('rowMount');
-            hits.forEach((h, i) => {
-                const r = el('div', `dsr${h.kind === 'entry' ? ` st-${strategyOf(h.entry)}` : ''}`);
-                r.setAttribute('role', 'option');
-                r.append(icNode(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder', 's'));
-                const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
-                const meta = h.kind === 'entry' ? `${h.book}${A.entryFolder(h.book, h.entry) ? ` · ${A.entryFolder(h.book, h.entry)}` : ''}${h.entry.key?.length ? ` · ${h.entry.key.join(', ')}` : ''}`
-                    : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
-                r.append(el('b', '', title), el('small', '', meta));
-                r.dataset.i = String(i);
-                res.append(r);
-                perf.count('rowMounts');
-            });
-            perf.end(rowAt);
+            // Build (or reuse) every book's corpus now, even for the empty query: the first keystroke then only scans.
+            const at = perf.begin('search');
+            const books = corpora();
+            hits = input.value.trim() ? searchCorpus(books, input.value, cur).slice(0, SEARCH_LIMITS.desktop) : [];
+            perf.end(at);
+            if (!input.value.trim()) res.append(el('div', 'dsnone', cur ? 'Type to search every book. Entries of this book come first.' : 'Type to search every book. Books come first.'));
+            else if (!hits.length) res.append(el('div', 'dsnone', 'Nothing found.'));
+            else {
+                S.search.at = Math.min(S.search.at ?? 0, hits.length - 1);
+                const rowAt = perf.begin('rowMount');
+                hits.forEach((h, i) => {
+                    const r = el('div', `dsr${h.kind === 'entry' ? ` st-${strategyOf(h.entry)}` : ''}`);
+                    r.setAttribute('role', 'option');
+                    r.append(icNode(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder', 's'));
+                    const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
+                    const meta = h.kind === 'entry' ? `${h.book}${A.entryFolder(h.book, h.entry) ? ` · ${A.entryFolder(h.book, h.entry)}` : ''}${h.entry.key?.length ? ` · ${h.entry.key.join(', ')}` : ''}`
+                        : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
+                    r.append(el('b', '', title), el('small', '', meta));
+                    r.dataset.i = String(i);
+                    res.append(r);
+                    perf.count('rowMounts');
+                });
+                perf.end(rowAt);
+            }
+            const note = status();
+            if (note) res.append(note);
             mark();
         };
-        input.addEventListener('input', () => { S.search.at = 0; run(); });
+        const lazy = createDebounced(draw, 130);
+        input.addEventListener('input', () => { S.search.query = input.value; S.search.at = 0; lazy.call(); });
         input.addEventListener('keydown', e => {
+            // The list on screen must belong to the query in the field before Enter or an arrow acts on it.
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') lazy.flush();
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); S.search.at = Math.max(0, Math.min(hits.length - 1, (S.search.at ?? 0) + (e.key === 'ArrowDown' ? 1 : -1))); mark(); } else if (e.key === 'Enter' && hits[S.search.at ?? 0]) { e.preventDefault(); open(hits[S.search.at ?? 0], e.ctrlKey || e.metaKey); }
         });
-        run();
+        draw();
         setTimeout(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 0);
     }
 

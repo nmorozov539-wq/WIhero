@@ -36,6 +36,7 @@ export const EXPLAIN = {
     'shell.tab.close': { navigate: 'native', text: 'Closes this tab. The entry stays in the book.' },
     'shell.book': { navigate: 'native', text: 'Opens the book picker. Picking another book only looks at it.' },
     'shell.search': { navigate: false, text: 'Searches every book\'s entries and key words.' },
+    'search.all': { navigate: false, text: 'Loads the books that are not searched yet in the background. Results update as they arrive; nothing in a book changes.' },
     'shell.widen': { navigate: false, text: 'Changes how much room the drawer takes.' },
     'shell.panel': { navigate: 'native', text: 'Opens or closes the list of every entry in the book.' },
     'shell.fit': { navigate: 'native', text: 'Brings every card into view.' },

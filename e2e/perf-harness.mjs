@@ -271,12 +271,18 @@ async function runOnce(run) {
         await page.keyboard.press('Escape');
 
         await step('search typing', async () => {
+            const before = await perfSnapshot();
             await $('.bsearch').click();
             await $('.search input').waitFor();
             await $('.search input').click();
             await page.keyboard.type('mill', { delay: 150 });
             await $('.res .item').first().waitFor({ timeout: 60000 });
-            return { results: await $('.res .item').count() };
+            const after = await perfSnapshot();
+            return {
+                results: await $('.res .item').count(),
+                searchRuns: after.searchRuns - before.searchRuns,
+                searchIndexBuilds: after.searchIndexBuilds - before.searchIndexBuilds,
+            };
         });
         currentStep = 'close search';
         await page.keyboard.press('Escape');

@@ -131,6 +131,42 @@ test('a foreground request promotes a queued load instead of queueing a second o
     assert.equal(loader.stats().started, 2);
 });
 
+test('cancelGroup drops only that group\'s queued loads and leaves the rest alone', async () => {
+    const { calls, load, finish } = deferredLoads();
+    const loader = createLoader({ load, concurrency: 1 });
+    loader.enqueue('count1');
+    loader.enqueue('count2', { group: 'counts' });
+    loader.enqueue('search1', { group: 'search' });
+    loader.enqueue('search2', { group: 'search' });
+    assert.deepEqual(calls, ['count1'], 'one background slot is busy with a count');
+    assert.equal(loader.size(), 3);
+
+    const gen = loader.groupGeneration('search');
+    assert.equal(loader.cancelGroup('search'), 2, 'both queued search reads are dropped');
+    assert.equal(loader.groupGeneration('search'), gen + 1, 'search callbacks can see they are stale');
+    assert.equal(loader.groupGeneration('counts'), 0, 'another group\'s generation is untouched');
+    assert.equal(loader.size(), 1, 'the queued count stays');
+
+    finish('count1');
+    await flush();
+    assert.deepEqual(calls, ['count1', 'count2'], 'the count after it still starts; no cancelled search read does');
+    finish('count2');
+    await flush();
+    assert.equal(loader.size(), 0);
+    assert.equal(loader.stats().cancelled, 2);
+});
+
+test('a grouped request shares an existing load without moving it into that group', async () => {
+    const { calls, load, finish } = deferredLoads();
+    const loader = createLoader({ load, concurrency: 1 });
+    loader.enqueue('Book');
+    const shared = loader.enqueue('Book', { group: 'search' });
+    assert.deepEqual(calls, ['Book']);
+    assert.equal(loader.cancelGroup('search'), 0, 'the running count load is not the search group\'s');
+    finish('Book', 'copy');
+    assert.equal(await shared, 'copy');
+});
+
 test('a failed load frees its slot and later work still runs', async () => {
     const calls = [];
     let rejectFirst;

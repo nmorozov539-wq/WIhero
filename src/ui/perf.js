@@ -10,9 +10,9 @@
 
 const COUNTERS = [
     'appRenders', 'canvasRenders', 'modelBuilds', 'routeComputes', 'rowMounts', 'saveAttempts',
-    'settingsSaves', 'historyCaptures', 'tokenCalls', 'serializedChars',
+    'settingsSaves', 'historyCaptures', 'tokenCalls', 'serializedChars', 'searchRuns', 'searchIndexBuilds',
 ];
-const REGIONS = ['model', 'clashScan', 'sort', 'rowMount', 'entryPage', 'canvasDraw', 'arrange', 'status', 'history', 'save'];
+const REGIONS = ['model', 'clashScan', 'sort', 'rowMount', 'search', 'entryPage', 'canvasDraw', 'arrange', 'status', 'history', 'save'];
 
 const counters = {};
 for (const name of COUNTERS) counters[name] = 0;

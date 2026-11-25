@@ -10,8 +10,9 @@ import { btn, html, createLayer, el, issueText, keyed } from './dom.js';
 import { ic } from './icons.js';
 import {
     PARAM_LIST, addEntry, bookTokens, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
-    SORT_NAMES, isBlank, removeEntry, reorderEntries, search, setFolder, setParam, titleOf,
+    SORT_NAMES, isBlank, removeEntry, reorderEntries, setFolder, setParam, titleOf,
 } from './data.js';
+import { createSearchCache } from './search.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook, offCanvasMoments } from './canvas-graph.js';
 import { canvasElementSig, canvasElements } from './canvas-sig.js';
@@ -60,7 +61,11 @@ function explainWouldAct(e) {
  *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }
  */
 export function createApp(deps) {
-    const { ctx, snapshots, hooks, settings, saveSettings } = deps;
+    const { ctx, snapshots, hooks, settings } = deps;
+    // Folders and book folders live in one mutable settings object, and every folder change is followed by a save.
+    // The save is the cheap signal search's corpus cache uses to rebuild once (M4); it is not per keystroke.
+    let settingsRevision = 0;
+    const saveSettings = () => { settingsRevision++; deps.saveSettings(); };
     // Undo history (history.js): every change through the library is looked at; Ctrl+Z, Ctrl+Shift+Z and the
     // canvas's arrows step through it.
     const undoHistory = createHistory({ library: deps.library, settings, saveSettings, held: () => !!S.hero.bar.edit });
@@ -68,6 +73,19 @@ export function createApp(deps) {
     // Every book read goes through here: counts are background work, the book being opened is foreground work (M1).
     // The library's own `get`/`loading` remains the single read path and still dedupes in-flight reads.
     const loader = createLoader({ load: name => library.get(name) });
+    // Search's per-book corpora (M4), keyed on the book revision (V1) and the settings revision above.
+    const searchCache = createSearchCache({ revision: name => library.bookVersion(name), stamp: () => settingsRevision });
+    /** Search's background reads share one loader group, so closing the overlay can drop only them (M4). */
+    const SEARCH_LOADS = 'search';
+    let searchWasOpen = false;
+    const searchLoad = name => loader.enqueue(name, { group: SEARCH_LOADS });
+    const searchCancel = () => loader.cancelGroup(SEARCH_LOADS);
+    const searchGeneration = () => loader.groupGeneration(SEARCH_LOADS);
+    /** A draw without the overlay means it is gone: its queued background reads go too, but Home's counts stay. */
+    function searchDrawn() {
+        if (S.search) searchWasOpen = true;
+        else if (searchWasOpen) { searchWasOpen = false; searchCancel(); }
+    }
     // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
     filterChoices.setProvider(() => {
         const c = ctx();
@@ -402,6 +420,7 @@ export function createApp(deps) {
     function render() {
         if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
+        searchDrawn();
         // One app render pass, Normal or Hero: renderHero is reached from here.
         perf.count('appRenders');
         undoHistory.touch(currentBook(), { redraw: true });
@@ -726,6 +745,7 @@ export function createApp(deps) {
         linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, onCanvas: onHeroCanvas, page, problemsOf, warningsOf, hasLogic,
         render: () => render(), renderTabs, saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         switchMode, tab, up, visibleNames, wiSettingsSheet,
+        searchCache, searchLoad, searchCancel, searchGeneration,
     }));
     function applyParam(...a) { return normal().applyParam(...a); }
     function bottomBar(...a) { return normal().bottomBar(...a); }
@@ -820,14 +840,22 @@ export function createApp(deps) {
         for (const u of uids) set.add(u);
         S.hiddenEntries.set(book, set);
         library.invalidateSummary?.(book); // Home's retained count must not include the entries waiting on Undo
+        searchCache.invalidate(book); // nor may search's corpus include them
         const one = uids.length === 1 ? titleOf(data.entries[uids[0]]) : null;
         render();
         layer.toast(one ? `Deleted ${one}` : `Deleted ${uids.length} entries`, {
-            action: ['Undo', () => { const s = hiddenIn(book); for (const u of uids) s.delete(u); library.invalidateSummary?.(book); render(); }],
+            action: ['Undo', () => {
+                const s = hiddenIn(book);
+                for (const u of uids) s.delete(u);
+                library.invalidateSummary?.(book);
+                searchCache.invalidate(book);
+                render();
+            }],
             onEnd: () => {
                 const s = hiddenIn(book);
                 const gone = uids.filter(u => s.has(u));
                 for (const u of gone) s.delete(u);
+                searchCache.invalidate(book);
                 const record = bookSettings(settings, book);
                 const folders = record.folders;
                 const mem = canvasMemory(record);
@@ -1212,6 +1240,7 @@ export function createApp(deps) {
         typing: () => typing(),
         renderEntryInto: (into, p, extra) => renderEntry(p, null, into, extra),
         heroBook: () => heroBook(),
+        searchCache, searchLoad, searchCancel, searchGeneration,
         // Search in Hero mode: an entry is found on its canvas (or opened in a tab), a book or folder switches the canvas.
         heroOpen: (h, background) => {
             if (h.kind === 'entry') {

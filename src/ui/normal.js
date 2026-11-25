@@ -2,8 +2,10 @@
 // the entry page. Moved out of app.js; it reaches the app only through the context given to it.
 import {
     MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, compareText, configOf, groupEntries, idOf, paramSummary,
-    bookTokens, paramText, paramValue, promptOrder, rekeyEntry, tokenGuess, tokensText, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
+    bookTokens, paramText, paramValue, promptOrder, rekeyEntry, tokenGuess, tokensText, setBookFolder, setFolder, setParam, strategyOf, titleOf,
 } from './data.js';
+import { createDebounced, SEARCH_LIMITS, searchCorpus } from './search.js';
+import { explainNode } from './explain-meta.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
 import { btn, delegatePress, el, html, keyed, longPress, swEl } from './dom.js';
@@ -29,6 +31,7 @@ export function createNormal(A) {
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
         linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
         saveSettings, settings, shadow, showOnCanvas, onCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
+        searchCache, searchLoad, searchCancel, searchGeneration,
     } = A;
 
     // One set of gesture listeners for every Home and book row (N2). The rows only carry a marker; the book or
@@ -831,7 +834,14 @@ export function createNormal(A) {
     }
 
     // ---------------------------------------------------------------- search
+    /**
+     * The phone search overlay (M4). Opening it reads no book: only the books already loaded are searched, and the rest
+     * are shown as "N books not searched yet" with a button that loads them as background work. Each book's lowercase
+     * corpus is built once per revision and reused on every keystroke; typing is debounced, and the first (empty)
+     * query runs at once.
+     */
     function renderSearch() {
+        searchCancel(); // a previous overlay's background reads, if a draw rebuilt this one
         const s = el('div', 'search');
         const bar = el('div', 'bar');
         bar.append(btn('round flat', ic('back'), () => { S.search = null; render(); }, 'Close search'));
@@ -843,36 +853,89 @@ export function createNormal(A) {
         const res = el('div', 'res');
         s.append(bar, res);
         main.append(s);
+        const owner = S.search;
         const names = visibleNames();
-        for (const n of names) need(n, { open: false });
-        const run = () => {
+        const session = { loading: false, pending: 0, gen: searchGeneration() };
+        /** The books whose entries this overlay cannot see yet. */
+        const missing = () => names.reduce((n, name) => n + (library.peek(name) ? 0 : 1), 0);
+        const corpora = () => names.map(name => {
+            const data = library.peek(name);
+            return searchCache.book(name, data, bookFolderOf(settings, name), () => entriesShown(name, data), e => entryFolder(name, e));
+        });
+        const status = () => {
+            const left = missing();
+            if (!left) return null;
+            const note = el('div', 'snote');
+            if (session.loading && session.pending) {
+                note.append(el('span', '', `Searching ${left} more book${left === 1 ? '' : 's'}…`));
+                return note;
+            }
+            note.append(el('span', '', `${left} book${left === 1 ? '' : 's'} not searched yet`));
+            const all = btn('linkish', 'Search all books', loadAll, 'Search all books');
+            explainNode(all, 'search.all');
+            note.append(all);
+            return note;
+        };
+        /** Load every unloaded visible book as background work; each arrival searches the current query again. */
+        function loadAll() {
+            if (S.search !== owner) return;
+            const targets = names.filter(name => !library.peek(name));
+            if (!targets.length) return;
+            session.loading = true;
+            session.pending = targets.length;
+            const gen = (session.gen = searchGeneration());
+            for (const name of targets) {
+                const done = () => {
+                    // The overlay may have closed, or been rebuilt, while this read ran: never write into it then.
+                    if (S.search !== owner || gen !== searchGeneration()) return;
+                    session.pending--;
+                    if (!session.pending) session.loading = false;
+                    draw();
+                };
+                searchLoad(name).then(done, done);
+            }
+            draw();
+        }
+        const draw = () => {
+            if (S.search !== owner) return;
+            perf.count('searchRuns');
             S.search.query = input.value;
             res.innerHTML = '';
-            const books = names.map(n => ({ name: n, folder: bookFolderOf(settings, n), entries: library.peek(n) ? entriesShown(n, library.peek(n)) : [], folderOf: e => entryFolder(n, e) }));
-            const hits = search(books, input.value, page().book);
-            if (!input.value.trim()) { res.append(el('div', 'empty-note', page().book ? 'Type to search every book: names, folders and key words. Entries of the open book come first.' : 'Type to search every book: names, folders and key words. Books come first.')); return; }
-            if (!hits.length) { res.append(el('div', 'empty-note', 'Nothing found.')); return; }
-            for (const h of hits.slice(0, 80)) {
-                const it = el('div', `item${h.kind === 'entry' ? ` ent st-${strategyOf(h.entry)}` : ''}`);
-                const i = el('div', 'ic');
-                setIcon(i, h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder');
-                const tx = el('div', 'txt');
-                const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
-                const meta = h.kind === 'entry' ? `${h.book}${entryFolder(h.book, h.entry) ? ` · ${entryFolder(h.book, h.entry)}` : ''}`
-                    : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
-                tx.append(el('div', 't', title), el('div', 'm', meta));
-                it.append(i, tx);
-                it.dataset.press = 'search';
-                it.dataset.kind = h.kind;
-                if (h.book) it.dataset.book = h.book;
-                if (h.kind === 'entry') it.dataset.uid = h.entry.uid;
-                if (h.folder) it.dataset.folder = h.folder;
-                res.append(it);
-                perf.count('rowMounts');
+            // Build (or reuse) every book's corpus now, even for the empty query: the first keystroke then only scans.
+            const at = perf.begin('search');
+            const books = corpora();
+            const hits = input.value.trim() ? searchCorpus(books, input.value, page().book) : [];
+            perf.end(at);
+            if (!input.value.trim()) {
+                res.append(el('div', 'empty-note', page().book ? 'Type to search every book: names, folders and key words. Entries of the open book come first.' : 'Type to search every book: names, folders and key words. Books come first.'));
+            } else if (!hits.length) {
+                res.append(el('div', 'empty-note', 'Nothing found.'));
+            } else {
+                for (const h of hits.slice(0, SEARCH_LIMITS.phone)) {
+                    const it = el('div', `item${h.kind === 'entry' ? ` ent st-${strategyOf(h.entry)}` : ''}`);
+                    const i = el('div', 'ic');
+                    setIcon(i, h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder');
+                    const tx = el('div', 'txt');
+                    const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
+                    const meta = h.kind === 'entry' ? `${h.book}${entryFolder(h.book, h.entry) ? ` · ${entryFolder(h.book, h.entry)}` : ''}`
+                        : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
+                    tx.append(el('div', 't', title), el('div', 'm', meta));
+                    it.append(i, tx);
+                    it.dataset.press = 'search';
+                    it.dataset.kind = h.kind;
+                    if (h.book) it.dataset.book = h.book;
+                    if (h.kind === 'entry') it.dataset.uid = h.entry.uid;
+                    if (h.folder) it.dataset.folder = h.folder;
+                    res.append(it);
+                    perf.count('rowMounts');
+                }
             }
+            const note = status();
+            if (note) res.append(note);
         };
-        input.addEventListener('input', run);
-        run();
+        const lazy = createDebounced(draw, 130);
+        input.addEventListener('input', () => { S.search.query = input.value; lazy.call(); });
+        draw();
         setTimeout(() => { if (shadow.activeElement !== input) input.focus(); }, 0);
     }
 
