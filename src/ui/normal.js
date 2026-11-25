@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
-import { btn, el, html, keyed, longPress, pressable, swEl } from './dom.js';
+import { btn, delegatePress, el, html, keyed, longPress, pressable, swEl } from './dom.js';
 import { ic, setIcon } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
 import { keywordClashes } from './clashes.js';
@@ -29,6 +29,48 @@ export function createNormal(A) {
         linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
         saveSettings, settings, shadow, showOnCanvas, onCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
     } = A;
+
+    // One set of gesture listeners for every Home and book row (N2). The rows only carry a marker; the book or
+    // entry is read from the row's dataset when the event happens, so a retained row never holds a stale handler.
+    delegatePress(main, resolvePress);
+
+    /** The gesture handlers for a marked row, resolved fresh at each event from its dataset. */
+    function resolvePress(node) {
+        if (node.dataset.press === 'book') {
+            const book = node.dataset.book;
+            if (!book) return null;
+            return {
+                onTap: () => {
+                    if (S.select) { toggleSel(book); return; }
+                    if (settings.openInHero) { S.hero.book = book; switchMode(); return; }
+                    openIn({ type: 'book', book });
+                },
+                onLong: () => {
+                    if (S.select) return;
+                    openIn({ type: 'book', book }, { newTab: true, background: true });
+                },
+            };
+        }
+        if (node.dataset.press === 'entry') {
+            const book = node.dataset.book;
+            const uid = Number(node.dataset.uid);
+            if (!book || !Number.isFinite(uid)) return null;
+            const entry = () => library.peek(book)?.entries?.[uid];
+            return {
+                onTap: () => {
+                    if (!entry()) return;
+                    if (S.select) { toggleSel(uid); return; }
+                    openIn({ type: 'entry', book, uid });
+                },
+                onLong: () => {
+                    if (S.select) { toggleSel(uid); return; }
+                    if (!entry()) return;
+                    openIn({ type: 'entry', book, uid }, { newTab: true, background: true });
+                },
+            };
+        }
+        return null;
+    }
 
     // ---------------------------------------------------------------- Home
     /**
@@ -219,21 +261,11 @@ export function createNormal(A) {
         setIcon(node, name, cls);
     }
 
-    /** Tap, long press and select mode, the same on a row and a tile. Handlers read the current state at event time. */
+    /** Marks a book row or tile for the delegated gestures and paints its current selection state. */
     function bookPress(node, name) {
+        node.dataset.press = 'book';
         node.dataset.book = name;
         paintBookPress(node, name);
-        pressable(node, () => {
-            const book = node.dataset.book;
-            if (!book) return;
-            if (S.select) { toggleSel(book); return; }
-            if (settings.openInHero) { S.hero.book = book; switchMode(); return; }
-            openIn({ type: 'book', book });
-        }, () => {
-            if (S.select) return;
-            const book = node.dataset.book;
-            if (book) openIn({ type: 'book', book }, { newTab: true, background: true });
-        });
     }
 
     /** Selection's row/tile state, in place: the `sel` class and its checkbox role. */
@@ -482,9 +514,11 @@ export function createNormal(A) {
         };
     }
 
-    /** A row's fixed shell. It keeps this node and its listeners; updateEntryRow fills in everything that changes. */
+    /** A row's fixed shell. It keeps this node; updateEntryRow fills in everything that changes. */
     function entryRow(book, uid) {
         const it = el('div', 'item ent');
+        it.dataset.press = 'entry';
+        it.dataset.book = book;
         it.dataset.uid = uid;
         const i = el('div', 'ic');
         const tx = el('div', 'txt');
@@ -492,18 +526,6 @@ export function createNormal(A) {
         t.append(el('span', 'nm'));
         tx.append(t, el('div', 'm'));
         it.append(i, tx);
-        // The row resolves the entry at event time: a title, key words, folder or even the entry can change while
-        // this node stays mounted.
-        const openRow = () => {
-            if (!library.peek(book)?.entries?.[uid]) return;
-            if (S.select) { toggleSel(uid); return; }
-            openIn({ type: 'entry', book, uid });
-        };
-        pressable(it, openRow, () => {
-            if (S.select) { toggleSel(uid); return; }
-            if (!library.peek(book)?.entries?.[uid]) return;
-            openIn({ type: 'entry', book, uid }, { newTab: true, background: true });
-        });
         perf.count('rowMounts');
         return it;
     }

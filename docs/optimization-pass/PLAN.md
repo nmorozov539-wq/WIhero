@@ -120,6 +120,8 @@ Desktop Node, warm, synthetic titles. A relative timing test pins the win withou
 
 **A2 — switch transform (`src/ui/app.css`).** `.switch::after` now transitions `transform`, and `.switch.on::after` uses `translateX(16px)`. `.panelBtn` keeps its `left` transition because its open position is not a fixed delta; it is a low-priority single element.
 
+**N2a — phone row delegation (`src/ui/dom.js`, `src/ui/normal.js`).** One `delegatePress(root, resolve)` on `main` replaces `pressable` on Home rows/tiles and Normal entry rows: 480 ms long press, 8 px cancel, `pressing`, button/check skip, click swallow and contextmenu, resolving the row's live book/uid at event time. Switch/more/order buttons keep their own listeners. Desktop `.drow`, search results and sheet rows stay on `pressable` for now.
+
 **N1b — keyed Home rows (`src/ui/normal.js`).** Home now keeps its `.view` too: book rows/tiles key by name, folders by folder, the header and notes by stable keys. Selection, badges, open/closed folders and labels update in place; the count span is never overwritten while a book is still loading, so an arriving count survives; scroll and focus persist. List/tiles switch keeps the view but replaces the rows.
 
 **N1a — keyed Normal book rows (`src/ui/app.js`, `src/ui/normal.js`).** A book page keeps its `.view` across a draw for the same `pageId`; the header, chips, off hint, group heads and entry rows are reconciled instead of rebuilt. Rows key by uid, group heads by book+folder, and selection/order/size/switch/problem/logic state update in place. Handlers late-bind the current entry by uid; scroll and focus survive. Home rows, the bars, the entry page and desktop panes still rebuild (N1b/N2/N3).
@@ -346,7 +348,7 @@ Dependencies:
 | 1 Hangs + cheap wins | ◐ H1 + H3 landed (clash scan fixed); entry-open gate now on entry-page render, not the scan; H2, A1, A2, C1–C9 landed; C10 is a measured intermediate with no scroll-counter change and its paint trace/device evidence outstanding |
 | 2 Typing path | ◐ T0–T5 landed; ST-host save/history evidence and the T3 patch-level follow-up outstanding |
 | 3 Hero per-draw | ✅ V1–V6 landed (ST chat-state e2e still unrun) |
-| 4 Normal retention | ◐ N1a/N1b keyed Home and book rows landed; N2–N5 pending |
+| 4 Normal retention | ◐ N1a/N1b keyed rows and N2a phone delegation landed; N2b desktop, N3–N5 pending |
 | 5 Memory/loading/search | ☐ |
 | 6 Launch/animation readiness | ☐ |
 
@@ -373,7 +375,7 @@ Dependencies:
 | 12 | V1 per-book revisions (landed) |
 | 13 | V2 `canvasSig` (landed); V3 retained chrome (landed) |
 | 14 | V4 + V5 overlay and link indexes (landed); V6 status patching (landed) |
-| 15 | N1 keyed rows (N1a/N1b landed); N2, N3 pending |
+| 15 | N1 keyed rows (N1a/N1b landed); N2a phone delegation landed; N2b/N3 pending |
 | 16 | N4 + N5 windowing and `content-visibility` |
 | 17 | M1 + M2 + M3 loader, eviction, counts |
 | 18 | M4 search |
@@ -975,6 +977,8 @@ If `CSS.supports('field-sizing', 'content')` is false, keep `fit()` but coalesce
 
 **Done when.** Long press, select mode, `swEl` stopPropagation, and taps on `button, .check` behave as before; row creation allocates no listeners.
 
+**Status.** ◐ N2a landed for the phone Home/book lists: `e2e/delegate.mjs` covers tap-open, long-press background tab with click swallowed, 8 px cancel, `.more`, switch-not-opening, select mode and the 1,000-entry book. Desktop `.drow` and search results still allocate per-row listeners (N2b).
+
 **Risk.** Medium. Migrate one surface at a time (book list first); keep `pressable` for sheets/menus until proven.
 
 **Source.** Qwen F7; DeepSeek #7.
@@ -1354,3 +1358,4 @@ Measure before committing to these:
 | 2026-11-25 | this commit | V6 | Status patched on retained cards: classes, line, badge, Moment tag, nav dot; e2e badges 6, canvas-sig 5 |
 | 2026-11-25 | this commit | N1a | Book page view and rows keyed by uid; scroll/focus/selection survive; e2e normal-rows 6 |
 | 2026-11-25 | this commit | N1b | Home view and rows/tiles keyed; counts survive; e2e home-rows 6 |
+| 2026-11-25 | this commit | N2a | Phone row gestures delegated to main; e2e delegate 11 |

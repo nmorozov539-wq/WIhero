@@ -109,6 +109,46 @@ export function pressable(node, onTap, onLong) {
     node.addEventListener('contextmenu', e => { if (onLong) e.preventDefault(); });
 }
 
+/**
+ * Tap and long press (480 ms) for a list of marked rows, delegated to `root`: one set of listeners for the whole
+ * list. The row is the nearest ancestor with `data-press`; `resolve(row)` is asked at event time and returns
+ * `{ onTap, onLong }`. Buttons and checks keep their own clicks, as in pressable(), and a long press swallows the
+ * click that ends it.
+ */
+export function delegatePress(root, resolve) {
+    let node = null;
+    let timer = null;
+    let long = false;
+    let sx = 0;
+    let sy = 0;
+    const end = () => { clearTimeout(timer); timer = null; node?.classList.remove('pressing'); };
+    root.addEventListener('pointerdown', e => {
+        if (e.button) return;
+        if (e.target.closest('button, .check')) return;
+        node = e.target.closest('[data-press]');
+        if (!node || !root.contains(node) || !resolve(node)) { node = null; return; }
+        long = false; sx = e.clientX; sy = e.clientY;
+        node.classList.add('pressing');
+        timer = setTimeout(() => {
+            long = true;
+            node?.classList.remove('pressing');
+            resolve(node)?.onLong?.();
+        }, 480);
+    });
+    root.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) end(); });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) root.addEventListener(type, end);
+    root.addEventListener('click', e => {
+        if (long) { e.preventDefault(); long = false; return; }
+        if (e.target.closest('button:not(.rowtap), .check')) return;
+        const it = e.target.closest('[data-press]');
+        if (it && root.contains(it)) resolve(it)?.onTap(e);
+    });
+    root.addEventListener('contextmenu', e => {
+        const it = e.target.closest('[data-press]');
+        if (it && resolve(it)?.onLong) e.preventDefault();
+    });
+}
+
 /** Long press (480 ms) on any node, a sheet row included; the tap that ends a long press goes nowhere. */
 export function longPress(node, fn) {
     let timer = null;
