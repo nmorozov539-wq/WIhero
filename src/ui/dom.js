@@ -31,12 +31,15 @@ export function btn(cls, content, fn, label) {
 /**
  * Keeps `box`'s keyed children in step with `items`: an existing key keeps its node and its listeners and is
  * updated in place, a new key gets a node from `make`, and a key no longer listed is removed. Order follows
- * `items`; the key is kept on the node's dataset.
+ * `items`; the key is kept on the node's dataset. Unused nodes are dropped before placement so removing the rows at
+ * the top of a window does not shift every retained node. `update` false skips an existing node's update (a scroll
+ * draw keeps its rows as they are); a node made by this call is always updated, since make() only builds the shell.
  * @param {HTMLElement} box
  * @param {Array<{ key: string, update?: (node: HTMLElement) => void }>} items
  * @param {(item: object) => HTMLElement} make
+ * @param {boolean} [update]
  */
-export function keyed(box, items, make) {
+export function keyed(box, items, make, update = true) {
     const old = new Map();
     for (const node of [...box.children]) {
         const key = node.dataset.key;
@@ -44,21 +47,23 @@ export function keyed(box, items, make) {
         if (old.has(key)) node.remove();
         else old.set(key, node);
     }
+    const wanted = new Set();
+    for (const item of items) wanted.add(String(item.key));
+    for (const [key, node] of old) if (!wanted.has(key)) { node.remove(); old.delete(key); }
     let at = box.firstChild;
-    const used = new Set();
     for (const item of items) {
         const key = String(item.key);
-        used.add(key);
         let node = old.get(key);
-        if (!node) {
+        const fresh = !node;
+        if (fresh) {
             node = make(item);
             node.dataset.key = key;
+            old.set(key, node);
         }
         if (node === at) at = at.nextSibling;
         else box.insertBefore(node, at);
-        item.update?.(node);
+        if (update || fresh) item.update?.(node);
     }
-    for (const [key, node] of old) if (!used.has(key)) node.remove();
 }
 
 /** An on/off switch. `fn(next)` is called with the new value; the caller redraws. */

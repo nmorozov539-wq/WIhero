@@ -11,8 +11,12 @@
 const COUNTERS = [
     'appRenders', 'canvasRenders', 'modelBuilds', 'routeComputes', 'rowMounts', 'saveAttempts',
     'settingsSaves', 'historyCaptures', 'tokenCalls', 'serializedChars', 'searchRuns', 'searchIndexBuilds',
+    // Windowing (src/ui/window.js): every draw, the draws that re-key the list, rows added/removed, layout reads and
+    // ResizeObserver callbacks. Plain integer increments, so a scroll frame can be attributed without a profiler.
+    'windowDraws', 'windowRangeDraws', 'windowSameDraws', 'windowForceDraws', 'windowRowsAdded',
+    'windowRowsRemoved', 'windowRectReads', 'windowRoCalls', 'windowRoChanged', 'windowGapPasses', 'windowScanItems',
 ];
-const REGIONS = ['model', 'clashScan', 'sort', 'rowMount', 'search', 'entryPage', 'canvasDraw', 'arrange', 'status', 'history', 'save'];
+const REGIONS = ['model', 'clashScan', 'sort', 'rowMount', 'search', 'entryPage', 'canvasDraw', 'arrange', 'status', 'history', 'save', 'windowDraw'];
 
 const counters = {};
 for (const name of COUNTERS) counters[name] = 0;

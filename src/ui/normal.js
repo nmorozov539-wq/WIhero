@@ -375,7 +375,7 @@ export function createNormal(A) {
     // ---------------------------------------------------------------- book page
     // Windowed book list (N4a). The header, chips and selection head stay mounted; the flat group-head/row/note list
     // is materialized only around the viewport, with a spacer for each skipped run. `src/ui/window.js` owns the range
-    // maths, the height cache and the focused-row pin; the estimates here are a 54 px entry row (the CSS min-height),
+    // maths, the height cache and the focused-row pin; the estimates here are a 56 px entry row (its measured height),
     // a 44 px folder head and a 96 px note. Books of 200 shown entries or fewer keep every row, as before.
     const bookWindows = new WeakMap();
     const windowRefs = [];
@@ -384,7 +384,7 @@ export function createNormal(A) {
     function bookWindow(v) {
         let win = bookWindows.get(v);
         if (!win) {
-            win = createListWindow(v, { defaultHeight: 54 });
+            win = createListWindow(v, { defaultHeight: 56 });
             bookWindows.set(v, win);
             windowRefs.push(typeof WeakRef === 'function' ? new WeakRef(win) : { deref: () => win });
         }
@@ -661,7 +661,7 @@ export function createNormal(A) {
     function entryItem(book, uid, model) {
         return {
             key: `entry:${uid}`,
-            est: 54,
+            est: 56,
             make: () => entryRow(book, uid),
             update: it => updateEntryRow(it, book, uid, model),
         };

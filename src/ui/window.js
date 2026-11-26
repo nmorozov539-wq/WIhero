@@ -8,11 +8,18 @@
 // stay in `prefix`. The desktop book list (desk.js) scrolls the `.bllist` itself and has no prefix. Both use the same
 // mechanics, so this module owns the range maths, the gap nodes, the height cache and the scroll rAF.
 import { el, keyed } from './dom.js';
+import { perf } from './perf.js';
 
 /** Books with more items than this keep every row (the old path); a window is only worth its spacers above it. */
 export const WIN_LIMIT = 200;
-/** Screens above and below the viewport: about four screens, ~50 rows at 390 × 844 or ~47 at 1366 × 768. */
-export const WIN_OVERSCAN = 1.5;
+/**
+ * Screens above and below the viewport. Half a screen still covers a normal wheel/fling frame, and the scroll rAF
+ * mounts the next range before the frame paints, so a 6,000 px jump is materialized rather than shown blank. The
+ * smaller window is what keeps a scroll frame out of the long-task range at 6× (G3).
+ */
+export const WIN_OVERSCAN = 0.5;
+/** Gap nodes carry this key prefix: they have no content and take their height from the cache, so they are not watched. */
+const GAP_KEY = 'win:gap:';
 
 /**
  * @param {HTMLElement} host the scrolling box whose keyed children are the list items
@@ -20,7 +27,7 @@ export const WIN_OVERSCAN = 1.5;
  *   `defaultHeight` is the estimate for an item with no `est`; `marginSelector` names items whose vertical margins
  *   are part of their layout height (a note or a folder head between rows).
  */
-export function createListWindow(host, { defaultHeight = 54, marginSelector = '.empty-note', overscan = WIN_OVERSCAN } = {}) {
+export function createListWindow(host, { defaultHeight = 56, marginSelector = '.empty-note', overscan = WIN_OVERSCAN } = {}) {
     const s = {
         heights: new Map(), prefix: [], body: [], byKey: new Map(), gaps: [], last: null,
         elByKey: new Map(), mounted: new Set(), ro: null, raf: 0, windowed: false, dirty: false,
@@ -48,19 +55,29 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
     host.addEventListener('focusout', onFocusOut);
     if (globalThis.ResizeObserver) {
         s.ro = new ResizeObserver(entries => {
+            perf.count('windowRoCalls');
             let changed = false;
             for (const en of entries) {
                 const key = en.target.dataset?.key;
-                if (key === undefined) continue;
-                const h = outerHeight(en.target);
-                if (h > 0 && Math.abs((s.heights.get(key) ?? -1) - h) > 0.5) { s.heights.set(key, h); changed = true; }
+                if (key === undefined || key.startsWith(GAP_KEY)) continue;
+                // The observer runs after layout, so its box size is a clean read; only a margin item needs the rect.
+                const box = en.borderBoxSize?.[0]?.blockSize ?? en.target.getBoundingClientRect().height;
+                const h = marginSelector && en.target.matches?.(marginSelector) ? outerHeight(en.target) : box;
+                if (!(h > 0)) continue;
+                // A first sighting that matches the estimate is not a correction: caching it must not schedule a draw.
+                const prev = s.heights.get(key);
+                const was = prev ?? estimateOf(key);
+                if (Math.abs(was - h) <= 0.5) { if (prev === undefined) s.heights.set(key, h); continue; }
+                s.heights.set(key, h);
+                changed = true;
             }
-            if (changed) { s.dirty = true; if (s.windowed) schedule(); }
+            if (changed) { perf.count('windowRoChanged'); s.dirty = true; if (s.windowed) schedule(); }
         });
     }
 
     /** A node's layout height, with an item's vertical margins included (margins are outside the box). */
     function outerHeight(n) {
+        perf.count('windowRectReads');
         const h = n.getBoundingClientRect().height;
         if (!marginSelector || !n.matches?.(marginSelector)) return h;
         const cs = getComputedStyle(n);
@@ -69,6 +86,14 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
 
     /** A known height, or the item's estimate: the cache replaces estimates as items mount and are measured. */
     const estimate = item => s.heights.get(String(item.key)) ?? item.est ?? defaultHeight;
+
+    /** The effective height of a key (measured, or its item's estimate) without building an item. */
+    function estimateOf(key) {
+        const i = s.byKey.get(key);
+        if (i !== undefined) return s.body[i].est ?? defaultHeight;
+        const item = s.prefix.find(p => String(p.key) === key);
+        return item?.est ?? defaultHeight;
+    }
 
     function rangeHeight(from, to) {
         let h = 0;
@@ -105,6 +130,17 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
      */
     function draw(force) {
         if (!host.isConnected || host.hidden || !s.windowed) return;
+        const at = perf.begin('windowDraw');
+        try {
+            drawWindow(force);
+        } finally {
+            perf.end(at);
+        }
+    }
+
+    function drawWindow(force) {
+        perf.count('windowDraws');
+        if (force) perf.count('windowForceDraws');
         const viewport = host.clientHeight || s.viewport || 844;
         if (viewport > 0) s.viewport = viewport;
         // Find the item carrying focus so it stays mounted even when the window has moved away from it.
@@ -124,6 +160,7 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
         let start = s.body.length;
         let end = 0;
         let started = false;
+        perf.count('windowScanItems', s.body.length);
         for (let i = 0; i < s.body.length; i++) {
             const h = estimate(s.body[i]);
             if (!started && y + h > from) { start = i; started = true; }
@@ -132,8 +169,9 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
         }
         if (end < start) end = start;
         const same = !force && s.last && s.last.start === start && s.last.end === end && s.last.focus === (focus ?? null);
-        if (same) { fixGaps(); return; }
+        if (same) { perf.count('windowSameDraws'); fixGaps(); return; }
 
+        perf.count('windowRangeDraws');
         const items = [...s.prefix];
         s.gaps = [];
         const addGap = (key, a, b) => {
@@ -163,44 +201,64 @@ export function createListWindow(host, { defaultHeight = 54, marginSelector = '.
         }
         s.anchorKey = start < end ? String(s.body[start].key) : (focus !== undefined ? s.focusKey : null);
         s.last = { start, end, focus: focus ?? null };
-        keyed(host, items, item => item.make());
+        // A scroll draw reuses the mounted rows as they are; only a paint/reveal (force) refreshes their content.
+        keyed(host, items, item => item.make(), force);
         s.elByKey.clear();
         for (const node of host.children) if (node.dataset.key !== undefined) s.elByKey.set(node.dataset.key, node);
         trimObserved();
-        // Measure only nodes new to this state; a retained node is already in the cache and watched by the observer.
+        // Measure new nodes only on the frame that paints the page (open, refresh, reveal). A scroll frame mounts rows
+        // with their estimate and lets the ResizeObserver cache the true height after layout; with the estimates at
+        // the real row height that is not a correction, so the frame does not schedule itself again.
         for (const node of host.children) {
             const key = node.dataset.key;
             if (key === undefined || s.mounted.has(node)) continue;
             s.mounted.add(node);
+            perf.count('windowRowsAdded');
+            if (key.startsWith(GAP_KEY)) continue;
             s.ro?.observe(node);
+            if (!force) continue;
             const h = outerHeight(node);
-            if (h > 0 && Math.abs((s.heights.get(key) ?? -1) - h) > 0.5) { s.heights.set(key, h); s.dirty = true; }
+            if (h > 0 && Math.abs((s.heights.get(key) ?? estimateOf(key)) - h) > 0.5) { s.heights.set(key, h); s.dirty = true; }
         }
-        fixGaps();
+        // Every gap's height follows its range, even when no row was re-measured; this is three style writes at most.
+        // A dirty cache corrects with the anchor held (fixGaps); otherwise the estimates and the anchor are already right.
+        if (s.dirty) fixGaps();
+        else setGapHeights();
     }
 
     /** Stops watching nodes the last keyed draw removed, so a rebuild does not retain them through the observer. */
     function trimObserved() {
         const live = new Set(host.children);
+        let gone = 0;
         for (const n of s.mounted) {
             if (live.has(n)) continue;
             s.mounted.delete(n);
             s.ro?.unobserve(n);
+            gone++;
         }
+        if (gone) perf.count('windowRowsRemoved', gone);
+    }
+
+    /** Sizes each gap from the current cache; returns whether any style actually changed. */
+    function setGapHeights() {
+        let wrote = false;
+        for (const gap of s.gaps) {
+            const node = s.elByKey.get(gap.key);
+            if (!node) continue;
+            const h = rangeHeight(gap.from, gap.to);
+            if (Math.abs((parseFloat(node.style.height) || 0) - h) > 0.5) { node.style.height = `${h}px`; wrote = true; }
+        }
+        return wrote;
     }
 
     /** Corrects the spacers from the height cache and holds the anchor item still while their heights change. */
     function fixGaps() {
         if (!s.dirty) return;
         s.dirty = false;
+        perf.count('windowGapPasses');
         const anchor = s.anchorKey !== null ? s.elByKey.get(s.anchorKey) : null;
         const before = anchor?.getBoundingClientRect().top;
-        for (const gap of s.gaps) {
-            const node = s.elByKey.get(gap.key);
-            if (!node) continue;
-            const h = rangeHeight(gap.from, gap.to);
-            if (Math.abs((parseFloat(node.style.height) || 0) - h) > 0.5) node.style.height = `${h}px`;
-        }
+        setGapHeights();
         const after = anchor?.getBoundingClientRect().top;
         if (anchor && Number.isFinite(before) && Number.isFinite(after) && Math.abs(after - before) > 0.5) {
             host.scrollTop += after - before;
