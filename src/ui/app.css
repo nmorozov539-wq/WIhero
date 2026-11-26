@@ -243,7 +243,7 @@ input.kbox:focus { border-color: var(--accent); }
 .content-h { display: flex; align-items: baseline; gap: 8px; padding: 16px 0 6px; }
 .content-h h2 { flex: 1; }
 .content-h small { color: var(--muted); font-size: var(--t-xs); }
-.en textarea { display: block; width: 100%; min-height: 200px; resize: none; border: none; background: none; color: var(--fg); font-family: var(--content-font, var(--serif)); font-size: calc(var(--fs) * 1.04); line-height: 1.65; padding: 0; user-select: text; -webkit-user-select: text; overflow: hidden; field-sizing: content; }
+.en textarea { display: block; width: 100%; min-height: 200px; max-height: min(70vh, 800px); resize: none; border: none; background: none; color: var(--fg); font-family: var(--content-font, var(--serif)); font-size: calc(var(--fs) * 1.04); line-height: 1.65; padding: 0; user-select: text; -webkit-user-select: text; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; field-sizing: content; }
 .en textarea::placeholder { color: var(--muted); opacity: .7; font-family: var(--sans); font-size: var(--t-m); }
 .en.off h1, .en.off .kbox, .en.off textarea { opacity: .45; }
 

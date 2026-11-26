@@ -180,6 +180,21 @@ export function createHistory({ library, settings, saveSettings, held = () => fa
             endRun(book, h, d);
         }
         if (held()) return;
+        // A quiet change starts or continues a typing run. Its pre-run state is already `cur` (a draw or the last
+        // boundary captured it) and its final state is taken once at the boundary, so the burst itself never has to
+        // stringify the whole book: one keystroke costs a timestamp update, not a whole-book copy.
+        if (quiet && ours && !redraw) {
+            const t = now();
+            const k = task();
+            const merge = h.undo.length && (h.task === k || (quiet && h.quiet && t - h.at < MERGE_MS));
+            if (!merge) remember(h, h.undo, h.cur);
+            clearRedo(h);
+            h.at = t;
+            h.quiet = true;
+            h.pending = true;
+            h.task = k;
+            return;
+        }
         // Same library version: the entries can't have changed, so only the settings are compared.
         const next = library.version === h.ver
             ? takeSettings(h, book)

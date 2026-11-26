@@ -39,7 +39,7 @@ export function createTokenCounter({
         timer = null;
         const old = pending;
         pending = null;
-        old?.resolve(null);
+        if (!old?.silent) old?.resolve(null);
     };
 
     /** One real tokenizer call per text, shared while it is in flight and cached if it returns a number. */
@@ -86,6 +86,23 @@ export function createTokenCounter({
         });
     };
 
+    /**
+     * The typing hot path: like `input`, but the caller only wants the eventual count and does not need a promise
+     * per keystroke. It also skips the exact-text cache probe here, because hashing a 100 KB value on every key
+     * costs more than the one deferred request it could save; `request` still checks the cache at the idle.
+     */
+    const feed = (text, done) => {
+        cancelTimer();
+        if (hidden() || !isActive()) return;
+        pending = { resolve: done, silent: true };
+        timer = setTimeout(() => {
+            timer = null;
+            pending = null;
+            if (hidden() || !isActive()) return;
+            request(text).then(n => done?.(n));
+        }, idleMs);
+    };
+
     /** A blur asks now; the hidden/inactive rule is the same as for a deferred input. */
     const flush = text => {
         cancelTimer();
@@ -93,5 +110,5 @@ export function createTokenCounter({
         return request(text);
     };
 
-    return { open, input, flush };
+    return { open, input, feed, flush };
 }

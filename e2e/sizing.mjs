@@ -1,5 +1,6 @@
 // The autosize fallback for browsers without `field-sizing: content`: the entry textarea is fitted in rAF, so a
-// 100 KB entry sizes from its content and grows on input. Runs in the perf harness, no SillyTavern needed.
+// short entry sizes from its content and a long one stops at the same cap as the CSS path and scrolls inside it.
+// Runs in the perf harness, no SillyTavern needed.
 import { createRequire } from 'node:module';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -43,19 +44,51 @@ try {
     const content = page.locator('#wihero-editor .en textarea');
     await content.waitFor();
     await page.waitForTimeout(100);
-    const before = await content.evaluate(el => ({ value: el.value.length, height: el.getBoundingClientRect().height, inline: el.style.height }));
+    const before = await content.evaluate(el => ({
+        value: el.value.length,
+        height: el.getBoundingClientRect().height,
+        client: el.clientHeight,
+        scroll: el.scrollHeight,
+        inline: el.style.height,
+        overflow: getComputedStyle(el).overflowY,
+        cap: Math.min(Math.round(innerHeight * 0.7), 800),
+    }));
     assert.ok(before.value >= 100000, 'the harness entry is 100 KB');
     assert.match(before.inline, /^\d+px$/, 'the fallback set its measured height');
-    assert.ok(before.height > 200, 'the textarea grew past its minimum');
+    assert.ok(Math.abs(before.height - before.cap) <= 1, `the long box is capped (${before.height} vs ${before.cap})`);
+    assert.equal(before.overflow, 'auto', 'the capped box scrolls inside');
+    assert.ok(before.scroll > before.client, 'the 100 KB text is taller than the capped box');
     await content.focus();
     await content.evaluate(el => el.setSelectionRange(el.value.length, el.value.length));
     await page.keyboard.insertText('\nThe mill keeps one more hour.');
     await page.waitForTimeout(100);
-    const after = await content.evaluate(el => ({ value: el.value.length, height: el.getBoundingClientRect().height }));
+    const after = await content.evaluate(el => ({
+        value: el.value.length,
+        height: el.getBoundingClientRect().height,
+        scroll: el.scrollHeight,
+        cap: Math.min(Math.round(innerHeight * 0.7), 800),
+    }));
     assert.ok(after.value > before.value, 'the typed text is in the entry');
-    assert.ok(after.height > before.height, 'one frame later the textarea grew again');
+    assert.ok(Math.abs(after.height - after.cap) <= 1, 'the box stays capped instead of growing past it');
+    assert.ok(after.scroll >= before.scroll, 'the content still grows inside the scroller');
+
+    // A short entry still sizes to its own content, below the cap.
+    const short = await page.evaluate(() => new Promise(resolve => {
+        const ta = document.querySelector('#wihero-editor').shadowRoot.querySelector('.en textarea');
+        ta.value = 'A short entry.';
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+            height: ta.getBoundingClientRect().height,
+            client: ta.clientHeight,
+            scroll: ta.scrollHeight,
+            cap: Math.min(Math.round(innerHeight * 0.7), 800),
+        })));
+    }));
+    assert.ok(short.height < short.cap, `a short entry is below the cap (${short.height} vs ${short.cap})`);
+    assert.ok(short.height >= 200, 'the short entry keeps its minimum height');
+    assert.ok(short.scroll <= short.client, 'a short entry does not scroll');
     assert.deepEqual(errors, []);
-    console.log('PASS: without field-sizing, the 100 KB entry textarea is measured on the first frame and grows on input');
+    console.log(`PASS: without field-sizing, the 100 KB entry is capped at ${Math.round(before.height)}px (${before.scroll}px inside), stays capped while typing, and a short entry still fits its content`);
 } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));

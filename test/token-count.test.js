@@ -43,6 +43,36 @@ test('token count: input is deferred and the burst keeps only the last text', as
     assert.deepEqual(calls, ['r'], 'one request, for the last text only');
 });
 
+test('token count: feed keeps only the last text and reports once', async () => {
+    const { calls, tokens } = counting();
+    const counter = createTokenCounter({ tokens, idleMs: 20 });
+    const seen = [];
+    counter.feed('a', n => seen.push(['a', n]));
+    counter.feed('b', n => seen.push(['b', n]));
+    const last = counter.feed('c', n => seen.push(['c', n]));
+    assert.equal(last, undefined, 'feed is fire-and-forget');
+    await wait(40);
+    assert.deepEqual(calls, ['c'], 'one request, for the last text only');
+    assert.deepEqual(seen, [['c', 3]], 'the replaced feeds are not reported');
+});
+
+test('token count: feed shares the cache and reports a failure as null', async () => {
+    const { calls, tokens } = counting(9);
+    const counter = createTokenCounter({ tokens, idleMs: 10 });
+    assert.equal(await counter.open('cached'), 9);
+    const seen = [];
+    counter.feed('cached', n => seen.push(n));
+    await wait(25);
+    assert.deepEqual(seen, [9], 'a cached text resolves without another call');
+    assert.equal(calls.length, 1);
+
+    const failing = createTokenCounter({ tokens: async () => { throw new Error('no tokenizer'); }, idleMs: 10 });
+    const failed = [];
+    failing.feed('x', n => failed.push(n));
+    await wait(25);
+    assert.deepEqual(failed, [null], 'a failure is reported, not cached');
+});
+
 test('token count: flush cancels the timer and asks once', async () => {
     const { calls, tokens } = counting();
     const counter = createTokenCounter({ tokens, idleMs: 30 });

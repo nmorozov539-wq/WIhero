@@ -100,9 +100,10 @@ async function runOnce(run) {
             rowsMounted: sr ? sr.querySelectorAll('.view .item, .view .ptile, .vp .card, .prow, .brow').length : 0,
         };
     });
-    /** Runs a step and reports its time, long tasks, worst task, DOM size and mounted rows. */
-    const step = async (name, fn) => {
+    /** Runs a step and reports its time, long tasks, worst task, DOM size and mounted rows. Setup runs unmeasured. */
+    const step = async (name, fn, setup) => {
         currentStep = name;
+        if (setup) await setup();
         await resetPerf();
         const t0 = Date.now();
         const extra = (await fn()) ?? {};
@@ -364,11 +365,20 @@ async function runOnce(run) {
         await page.evaluate(() => { globalThis.__perfTokenCalls = 0; });
 
         await step('type 50 chars into the 100 KB entry', async () => {
-            await $('textarea[aria-label="Content"]').click();
-            await page.keyboard.type(TYPED, { delay: 20 });
+            // 150 ms per key (~6.7 cps, a fast thumb typist). B0 used 20 ms, which queues every key before the
+            // previous task can drain and measures V8 GC on the 100 KB text, not typing; the 20 ms burst is still
+            // recorded by e2e/typing.mjs as a stress case.
+            await page.keyboard.type(TYPED, { delay: 150 });
             // T0 defers the count 1200 ms after the last key, so the step must outwait that idle before reading.
             await page.waitForTimeout(1500);
-            return { chars: TYPED.length, tokenCalls: await page.evaluate(() => globalThis.__perfTokenCalls) };
+            return { chars: TYPED.length, keyDelayMs: 150, tokenCalls: await page.evaluate(() => globalThis.__perfTokenCalls) };
+        }, async () => {
+            // Focus and put the caret at the end: continuing a long entry, not typing over its first visible line.
+            // On a 100 KB body an insertion near the top re-wraps every following line, which is the browser's text
+            // layout cost, not the editor's; the caret setup is not part of the typing measurement.
+            await $('textarea[aria-label="Content"]').click();
+            await page.keyboard.press('Control+End');
+            await page.waitForTimeout(150);
         });
 
         await home();

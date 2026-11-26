@@ -432,14 +432,17 @@ export function renderEntryPage(main, o) {
         tokens: o.tokens,
         isActive: () => content.isConnected,
     });
+    // The guess is only a hint until the real count lands. Writing it on every key dirties the page layout a second
+    // time per key, which on a 100 KB entry is a large part of the typing cost, so the deferred count writes both the
+    // number (when it resolves) and the guess (when the tokenizer has nothing to say).
     const showCount = (text, n) => {
-        if (typeof n === 'number' && content.value === text) tk.textContent = `${n} tokens`;
+        if (content.value !== text) return;
+        tk.textContent = typeof n === 'number' ? `${n} tokens` : `${tokenGuess(text)} tokens`;
     };
     const content = autoText(text0, 'Type here', text => {
         if (version) o.changeMask(version.name, text);
         else o.change(x => { x.content = text; }, true);
-        tk.textContent = `${tokenGuess(text)} tokens`;
-        counter.input(text).then(n => showCount(text, n));
+        counter.feed(text, n => showCount(text, n));
     });
     explainNode(content, 'blocked.input', { title: version ? `Mask ${version.name}` : 'Content', text: 'Edits the entry text.' });
     content.addEventListener('blur', () => {
@@ -472,9 +475,11 @@ function autoText(value, placeholder, onInput) {
     ta.placeholder = placeholder;
     ta.setAttribute('aria-label', 'Content');
     if (!FIELD_SIZING) {
-        // The browser cannot size the box from its content: fit it, at most once per frame.
+        // The browser cannot size the box from its content: fit it, at most once per frame. Past the same cap the
+        // CSS uses, the box scrolls internally instead of making the entry page tens of thousands of pixels tall.
         let frame = 0;
-        const fit = () => { frame = 0; ta.style.height = 'auto'; ta.style.height = `${Math.max(ta.scrollHeight, 200)}px`; };
+        const cap = () => Math.max(200, Math.min(Math.round(window.innerHeight * 0.7), 800));
+        const fit = () => { frame = 0; ta.style.height = 'auto'; ta.style.height = `${Math.min(Math.max(ta.scrollHeight, 200), cap())}px`; };
         const fitSoon = () => { if (!frame) frame = requestAnimationFrame(fit); };
         ta.addEventListener('input', () => { onInput(ta.value); fitSoon(); });
         frame = requestAnimationFrame(fit);
