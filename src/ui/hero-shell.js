@@ -311,10 +311,9 @@ export function createHeroShell(A) {
     function canvasSig(book, model) {
         const memory = canvasMemory(bookSettings(settings, book));
         const c = ctx();
-        // Chat state on still draws once when it is toggled, because the cards are built with or without status nodes.
-        // After that a new message only patches badges (canvas.patchStatus); chat identity is here, chat content is
-        // not, since it does not move a card.
-        const chatKey = [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, H.chatState ? 1 : 0];
+        // Chat state on and off patch the cards' status badges in place (canvas.patchStatus); it is not geometry, so
+        // it is not here. Chat identity is, because a different chat belongs to different cards.
+        const chatKey = [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null];
         return canvasInputSig({
             model,
             elements: () => canvasElements(book, library.peek(book), model, e => entryFolder(book, e)),
@@ -352,14 +351,22 @@ export function createHeroShell(A) {
             if (H.legend) kept.vp.append(legendBox());
             const sig = canvasSig(keepBook, modelOf(keepBook, kept.data));
             heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
+            // Show chat state patched the cards rather than being part of the signature: an internal draw (Tidy, a
+            // flash, a layer flip) asks the cached view for the current state, so keep it current here too.
+            const cache = kept.cache;
+            if (cache && cache.chatState !== H.chatState) {
+                cache.chatState = H.chatState;
+                cache.status = H.chatState ? chatStatus(keepBook) : () => null;
+            }
             if (sig !== kept.sig) {
                 kept.cache = heroView(keepBook, canvasData(keepBook, kept.data));
                 heroCanvas.render();
                 undoHistory.settle(keepBook);
                 kept.sig = sig;
             } else {
-                // Same cards and links: a chat that moved its badges only patches those in place, no routing.
-                if (H.chatState) heroCanvas.patchStatus(chatStatus(keepBook));
+                // Same cards and links: a chat change (including Show chat state itself) only patches the badges and
+                // card state in place, with no routing and no card recreation.
+                heroCanvas.patchStatus(H.chatState ? chatStatus(keepBook) : () => null);
                 heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
             }
             heroAround(keepBook, kept.data);

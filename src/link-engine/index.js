@@ -47,12 +47,28 @@ export function createLinkEngine(options = {}) {
         for (const [id, r] of next) {
             const o = rects.get(id);
             if (!o) dirty.push(r);
-            else if (o.x !== r.x || o.y !== r.y || o.w !== r.w || o.h !== r.h || o.pass !== r.pass || o.members !== r.members) dirty.push(o, r);
+            else if (o.x !== r.x || o.y !== r.y || o.w !== r.w || o.h !== r.h || o.pass !== r.pass || !sameMembers(o.members, r.members)) dirty.push(o, r);
         }
         for (const [id, o] of rects) if (!next.has(id)) dirty.push(o);
         rects = next;
         buckets = null;
         if (dirty.length) grid = null;
+    }
+
+    /** Pack frames are rebuilt with a fresh member Set each draw; the same members are not a moved obstacle. */
+    function sameMembers(a, b) {
+        if (a === b) return true;
+        if (!a || !b) return false;
+        const size = x => (x.size ?? x.length ?? -1);
+        if (size(a) !== size(b)) return false;
+        if (typeof a.has === 'function') {
+            if (typeof b.has !== 'function') return false;
+            for (const id of a) if (!b.has(id)) return false;
+            return true;
+        }
+        const list = typeof b.has === 'function' ? [...b] : b;
+        for (const id of a) if (!list.includes(id)) return false;
+        return true;
     }
 
     // ---- which obstacles a link may enter

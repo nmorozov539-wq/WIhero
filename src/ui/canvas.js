@@ -206,6 +206,7 @@ export function mountCanvas(vp, d) {
     let hit = null;
     let flashTimer = null;
     let handlesRaf = 0;
+    let linkSeq = 0; // a deferred first draw of a big canvas: a later draw makes its frame stale
     let cam = null;
     // Transient overlays that add document-level away listeners (Place an entry here, the pack-name box). Each one
     // registers its own removal, so pause()/dispose() can drop it even when its own click never came.
@@ -254,6 +255,9 @@ export function mountCanvas(vp, d) {
         perf.end(arrangeAt);
         if (JSON.stringify(mem) !== before) d.save();
         CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [], byLid: new Map(), ln: new Map(), hit: new Map(), statusTargets: [] };
+        // A first open has no camera: fit before the cards go in, so the fit's layout read is on an empty world
+        // instead of forcing a layout of every card just built. The frame that paints them lays out once anyway.
+        if (!camera()) fit(true);
         world.innerHTML = '';
         OV_NODES = null; // the nodes it named are gone with the old canvas
         drawn++;
@@ -493,10 +497,13 @@ export function mountCanvas(vp, d) {
             CV.ln.set(q.def.id, nodes);
             return pts;
         };
-        const drawQueued = () => {
-            const routed = LINKS.layout(queue.map(q => q.def));
+        const drawQueued = (from = 0, to = queue.length) => {
+            // Cumulative defs: the engine caches everything before `to`, so each later batch only routes its own new
+            // links and does not see the earlier ones as removed.
+            const routed = LINKS.layout(queue.slice(0, to).map(q => q.def));
             perf.count('routeComputes', routed.changed.length);
-            for (const q of queue) {
+            for (let i = from; i < to; i++) {
+                const q = queue[i];
                 const { x, a, then, def } = q;
                 owning(`${x.from} ${x.to}`, () => {
                     const pts = lineOf(q);
@@ -653,7 +660,25 @@ export function mountCanvas(vp, d) {
             if (p) drawEdge(x, tip(p, 2), p.n, x.kind === 'ride' ? tip(p, 3) : tip(p, 2));
             fading = false;
         }
-        drawQueued();
+        // On the first draw of a big canvas, routing every new link (hundreds of lattice searches) is most of the
+        // task that blocks the open: let the cards and ports paint first, then route and draw the links in a few
+        // batches. The first card is visible and usable at once; the canvas is the same when the links arrive. A
+        // later draw makes this frame stale, and small canvases keep the single synchronous draw.
+        const firstBig = drawn === 1 && queue.length >= 200;
+        if (firstBig) {
+            const token = ++linkSeq;
+            const BATCH = 40;
+            let at = 0;
+            const next = () => {
+                if (disposed || token !== linkSeq || !CV) return;
+                const to = Math.min(queue.length, at + BATCH);
+                drawQueued(at, to);
+                at = to;
+                if (at < queue.length) setTimeout(next, 0);
+                else drawShaping();
+            };
+            requestAnimationFrame(() => setTimeout(next, 120));
+        } else drawQueued();
 
         // Ports, on top of the cards: socket = in, knob = out (VISUAL 7.2).
         for (const [key, ports] of P) {
@@ -691,7 +716,6 @@ export function mountCanvas(vp, d) {
         owner = '';
         world.prepend(lk);
         world.append(pt);
-        if (!camera()) fit(true);
         applyView();
         drawOverlay();
         if (d.desk && hoverKey && CV.R.has(hoverKey)) showHandles(hoverKey);

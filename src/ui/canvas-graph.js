@@ -323,6 +323,32 @@ export function layout(m, g, ids, { dir = TB } = {}) {
  * Changes `pos`.
  */
 export function placeNew(m, g, ids, pos, center, { dir = TB } = {}) {
+    // One index of the occupied spots, so finding a free one does not scan every card on the canvas: a candidate
+    // only has to look at its own cell and the eight around it. The cell is the spacing itself, so any spot that
+    // would overlap is in one of those nine (the tests pin the layouts this keeps exactly as they were).
+    const CELL_W = CW + 24;
+    const CELL_H = CH + 24;
+    const cells = new Map();
+    const cellOf = (x, y) => `${Math.floor(x / CELL_W)},${Math.floor(y / CELL_H)}`;
+    const occupy = p => {
+        const key = cellOf(p.x, p.y);
+        let list = cells.get(key);
+        if (!list) cells.set(key, list = []);
+        list.push(p);
+    };
+    for (const k of ids) if (pos[k]) occupy(pos[k]);
+    const taken = p => {
+        const cx = Math.floor(p.x / CELL_W);
+        const cy = Math.floor(p.y / CELL_H);
+        for (let j = cy - 1; j <= cy + 1; j++) {
+            for (let i = cx - 1; i <= cx + 1; i++) {
+                const list = cells.get(`${i},${j}`);
+                if (!list) continue;
+                for (const q of list) if (Math.abs(q.x - p.x) < CELL_W && Math.abs(q.y - p.y) < CELL_H) return true;
+            }
+        }
+        return false;
+    };
     // Pack frames (members' box plus its margins) are taken space too, for cards that aren't members.
     const frames = g.packs.map(name => {
         const keys = new Set(m.packMembers(name).map(e => e.id));
@@ -332,7 +358,7 @@ export function placeNew(m, g, ids, pos, center, { dir = TB } = {}) {
     }).filter(Boolean);
     const inFrame = (id, p) => frames.some(f => !f.keys.has(id) && p.x < f.x1 + 24 && p.x + CW > f.x0 - 24 && p.y < f.y1 + 24 && p.y + CH > f.y0 - 24);
     let current = null;
-    const free = p => !inFrame(current, p) && ![...ids].some(k => pos[k] && Math.abs(pos[k].x - p.x) < CW + 24 && Math.abs(pos[k].y - p.y) < CH + 24);
+    const free = p => !inFrame(current, p) && !taken(p);
     const added = [];
     for (const id of ids) {
         if (pos[id]) continue;
@@ -358,6 +384,7 @@ export function placeNew(m, g, ids, pos, center, { dir = TB } = {}) {
             spot = p;
         }
         pos[id] = spot;
+        occupy(spot);
         added.push(id);
     }
     return added;

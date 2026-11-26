@@ -155,26 +155,28 @@ if (targets.moment) {
     ok('a Moment tag is patched from HAPPENED to NOT YET without a draw');
 }
 
-// Show chat state still redraws once each way: the cards are built with or without status nodes.
+// Show chat state patches in place too (V6 follow-up): the cards are built with their status nodes, so turning it
+// off and on keeps the same card node and does not draw the canvas.
 const beforeToggle = await renders();
 await page.evaluate(() => {
     wihero.app.state.hero.chatState = false;
     wihero.app.refresh();
 });
 await page.waitForTimeout(200);
-const offRenders = await renders();
-assert.equal(offRenders, beforeToggle + 1, 'turning Show chat state off drew once');
+assert.equal(await renders(), beforeToggle, 'turning Show chat state off did not draw');
 current = await probe(target.key);
-assert.doesNotMatch(current.cls, /\bholding\b/, 'the off draw has no status class');
+assert.equal(current.probe, 'same', 'the off toggle kept the card node');
+assert.doesNotMatch(current.cls, /\bholding\b/, 'the off toggle patched the status class away');
 await page.evaluate(() => {
     wihero.app.state.hero.chatState = true;
     wihero.app.refresh();
 });
 await page.waitForTimeout(200);
-assert.equal(await renders(), offRenders + 1, 'turning Show chat state on drew once');
+assert.equal(await renders(), beforeToggle, 'turning Show chat state on did not draw');
 current = await probe(target.key);
-assert.match(current.cls, /\bholding\b/, 'the on draw came back with its status class');
-ok('Show chat state draws once off and once on');
+assert.equal(current.probe, 'same', 'the on toggle kept the card node');
+assert.match(current.cls, /\bholding\b/, 'the on toggle patched its status class back');
+ok('Show chat state patches off and on without a draw or a new card');
 
 assert.deepEqual(errors, []);
 ok('no errors in the page');

@@ -132,8 +132,10 @@ export function createHeroInspector(A) {
                 return;
             }
             inspectorFor(book, data);
-            canvas().phoneFocus?.();
+            // Bring the card up first (that reads the view's size and moves the camera), then dim the rest: doing
+            // the focus classes first makes the reveal's size read force a style recalc of every card just dimmed.
             canvas().reveal(key, 0.5);
+            canvas().phoneFocus?.();
             return;
         }
         render();

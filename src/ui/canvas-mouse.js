@@ -85,9 +85,12 @@ export function mouseInput(C, I) {
             const v = C.camera();
             if (!v) return;
             const r = vp.getBoundingClientRect();
-            C.gesture(true, 250);
             const step = wheelMove(e, d.wheel?.() ?? 'zoom');
+            // A wheel zoom changes the scale, which rasterizes the world again either way; making it its own GPU
+            // layer first only re-rasterizes the whole scene per step (measured at 6×). Panning still promotes it,
+            // because a move is a transform the compositor can reuse.
             if (step.zoom) { C.zoomAt(step.zoom, e.clientX - r.left, e.clientY - r.top, true); return; }
+            C.gesture(true, 250);
             v.tx += step.pan[0];
             v.ty += step.pan[1];
             C.viewLater();
