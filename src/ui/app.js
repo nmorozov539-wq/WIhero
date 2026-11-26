@@ -77,6 +77,7 @@ export function createApp(deps) {
     const loader = createLoader({ load: name => library.get(name) });
     // Search's per-book corpora (M4), keyed on the book revision (V1) and the settings revision above.
     const searchCache = createSearchCache({ revision: name => library.bookVersion(name), stamp: () => settingsRevision });
+    const stopSearchDropWatch = library.onCopyDrop?.(name => searchCache.invalidate(name)) ?? (() => {});
     /** Search's background reads share one loader group, so closing the overlay can drop only them (M4). */
     const SEARCH_LOADS = 'search';
     let searchWasOpen = false;
@@ -86,7 +87,13 @@ export function createApp(deps) {
     /** A draw without the overlay means it is gone: its queued background reads go too, but Home's counts stay. */
     function searchDrawn() {
         if (S.search) searchWasOpen = true;
-        else if (searchWasOpen) { searchWasOpen = false; searchCancel(); }
+        else if (searchWasOpen) {
+            searchWasOpen = false;
+            searchCancel();
+            // Corpora contain the original entry objects. Once the overlay closes there is no reason for search to
+            // keep any working copy alive; reopening rebuilds only the copies still owned by the library.
+            searchCache.clear();
+        }
     }
     // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
     filterChoices.setProvider(() => {
@@ -1341,6 +1348,8 @@ export function createApp(deps) {
         pendingRender = false;
         cancelCounts();
         loader.cancel();
+        stopSearchDropWatch();
+        searchCache.clear();
         life.dispose();
         try { layer.close(); } catch { /* a closing layer has nothing left to do */ }
         layer.dispose?.();
@@ -1365,6 +1374,7 @@ export function createApp(deps) {
         summarizeBook, pinnedBooks,
         /** For the in-ST checks. */
         get state() { return S; },
+        get searchCacheSize() { return searchCache.size(); },
     };
 }
 

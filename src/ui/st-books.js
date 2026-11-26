@@ -154,6 +154,13 @@ export function createLibrary({
     const summaries = new Map();
     /** name → when it was last read or written, oldest first: the eviction order. */
     const lru = new Map();
+    /** Search and other derived caches can release entry references at the same moment a working copy leaves. */
+    const copyDropListeners = new Set();
+    const dropCopy = name => {
+        if (!copies.delete(name)) return false;
+        for (const fn of [...copyDropListeners]) fn(name);
+        return true;
+    };
     const limit = Math.max(1, Math.floor(maxCopies) || MAX_COPIES);
     let evictions = 0;
 
@@ -237,7 +244,7 @@ export function createLibrary({
             if (keep.has(name) || !copies.has(name)) continue;
             // Home must still be able to draw the count without reading the book again.
             if (!summaries.has(name) || summaries.get(name).revision !== bookVersion(name)) summarizeNow(name);
-            copies.delete(name);
+            dropCopy(name);
             bases.delete(name);
             cacheSeen.delete(name);
             lru.delete(name);
@@ -428,7 +435,7 @@ export function createLibrary({
             // stays able to draw the new count, and the next open reads the book fresh.
             if (data && typeof data === 'object') summaries.set(name, computeSummary(name, data));
             else summaries.delete(name);
-            copies.delete(name);
+            dropCopy(name);
             bases.delete(name);
             lru.delete(name);
             onChange();
@@ -489,7 +496,7 @@ export function createLibrary({
     // A destination can still have a stale working copy after an outside delete. Its new content is a new
     // history generation, even though our own host event is deliberately ignored.
     function newCopy(name) {
-        copies.delete(name);
+        dropCopy(name);
         bases.delete(name);
         cacheSeen.delete(name);
         summaries.delete(name);
@@ -565,7 +572,7 @@ export function createLibrary({
         timers.delete(name);
         const result = await WI.deleteWorldInfo(name);
         if (result === false) throw new Error(`Could not delete ${name}. The book and its backups were kept.`);
-        copies.delete(name);
+        dropCopy(name);
         bases.delete(name);
         cacheSeen.delete(name);
         summaries.delete(name);
@@ -596,7 +603,7 @@ export function createLibrary({
         // Overwritten under the same name (ST asked first), or not imported at all.
         const base = await sanitize(file.name.replace(/\.[^.]+$/, ''));
         if (!names().includes(base)) return null;
-        copies.delete(base); // read it again from ST: its content may be new
+        dropCopy(base); // read it again from ST: its content may be new
         summaries.delete(base);
         lru.delete(base);
         reused(base);
@@ -630,7 +637,7 @@ export function createLibrary({
             invalidateLinks();
             const deleted = await WI.deleteWorldInfo(from);
             if (deleted === false) throw new Error(`Saved a copy as ${target}, but could not delete ${from}. Both books were kept; the rename is incomplete.`);
-            copies.delete(from);
+            dropCopy(from);
             bases.delete(from);
             cacheSeen.delete(from);
             revisions.delete(from);
@@ -826,5 +833,7 @@ export function createLibrary({
         exportBook, isGlobal, setGlobal, links, invalidateLinks, unlink, linkChat, chatOpen, chatBook, wiSettings, setWiSetting,
         /** Home's count without loading the book (M2); null when there is no fresh summary and no copy to take one. */
         summary, invalidateSummary, stats,
+        /** Releases derived data with the working copy; returns an unsubscribe function. */
+        onCopyDrop(fn) { copyDropListeners.add(fn); return () => copyDropListeners.delete(fn); },
     };
 }

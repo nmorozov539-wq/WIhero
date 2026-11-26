@@ -79,7 +79,9 @@ export function searchCorpus(books, query, currentBook) {
  * The revision alone is not enough: a book removed and made again under the same name starts its revisions at 0, and
  * folders live in mutable settings; `data` identity and `stamp` cover both without walking the book.
  *
- * The app invalidates a book when its *visible* entries change without a revision (the Undo-toast hidden set).
+ * These records contain the original entry objects. The app therefore invalidates them when the library evicts the
+ * corresponding working copy, clears all of them when search closes, and also invalidates a book when its *visible*
+ * entries change without a revision (the Undo-toast hidden set).
  * @param {{ revision?: (name: string) => number, stamp?: () => number }} [o]
  */
 export function createSearchCache({ revision = () => 0, stamp = () => 0 } = {}) {

@@ -100,6 +100,19 @@ test('the oldest clean copy is evicted first, and a peek counts as use', async (
     assert.deepEqual(settings.books.b1, { folders: {} }, 'and so does its settings record');
 });
 
+test('working-copy eviction tells derived caches to release that book', async () => {
+    const { library } = setup({ count: 5, maxCopies: 2 });
+    const dropped = [];
+    const stop = library.onCopyDrop(name => dropped.push(name));
+    await library.get('b0');
+    await library.get('b1');
+    await library.get('b2');
+    assert.deepEqual(dropped, ['b0'], 'the derived-cache hook follows the actual LRU eviction');
+    stop();
+    await library.get('b3');
+    assert.deepEqual(dropped, ['b0'], 'an unsubscribed cache is not retained as a listener');
+});
+
 test('the bound defaults to MAX_COPIES and stats reports it', async () => {
     const { library } = setup({ count: MAX_COPIES + 3 });
     for (let i = 0; i < MAX_COPIES + 3; i++) await library.get(`b${i}`);

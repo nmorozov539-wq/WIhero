@@ -206,7 +206,13 @@ export function mountCanvas(vp, d) {
     let hit = null;
     let flashTimer = null;
     let handlesRaf = 0;
-    let linkSeq = 0; // a deferred first draw of a big canvas: a later draw makes its frame stale
+    // The first big draw owns its deferred link frame/timer. Every full draw revokes that ownership before replacing
+    // CV/world, and pause parks it just like the canvas's other asynchronous work.
+    let linkSeq = 0;
+    let linkRaf = 0;
+    let linkTimer = null;
+    let linkPending = false;
+    let linkRedraw = false;
     let cam = null;
     // Transient overlays that add document-level away listeners (Place an entry here, the pack-name box). Each one
     // registers its own removal, so pause()/dispose() can drop it even when its own click never came.
@@ -236,6 +242,17 @@ export function mountCanvas(vp, d) {
         world.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${v.scale})`;
         zl.textContent = `${Math.round(v.scale * 100)}%`;
     }
+
+    /** Cancels a partial first-big-draw fill. Its replacement must draw all links before this flag can clear. */
+    function cancelDeferredLinks(redraw = false) {
+        linkSeq++;
+        if (linkRaf) { cancelAnimationFrame(linkRaf); linkRaf = 0; }
+        if (linkTimer !== null) { clearTimeout(linkTimer); linkTimer = null; }
+        const interrupted = linkPending;
+        linkPending = false;
+        if (redraw && interrupted) linkRedraw = true;
+        return interrupted;
+    }
     function viewCenter() {
         const v = camera() ?? { tx: 20, ty: 20, scale: 0.78 };
         const w = vp.clientWidth || 390;
@@ -245,6 +262,10 @@ export function mountCanvas(vp, d) {
 
     function render() {
         if (disposed) return;
+        // A render owns a new CV and new SVG layers even when it is not another "first" draw. Revoke the old draw
+        // unconditionally, so one of its batches can never populate the new indexes while writing detached layers.
+        cancelDeferredLinks();
+        linkRedraw = false;
         perf.count('canvasRenders');
         const drawAt = perf.begin('canvasDraw');
         const { m, problems = new Set(), status = () => null, chatState = false } = d.book();
@@ -462,6 +483,7 @@ export function mountCanvas(vp, d) {
         // Links are laid out together (so they keep a lane apart and cross cleanly), then drawn: drawEdge queues one,
         // and `then(pts)` runs once it's drawn, with its points (pills sit on them).
         const queue = [];
+        CV.queue = queue;
         const linkIds = new Set();
         const drawEdge = (x, endPt, endN, rawEnd, then = null) => {
             const a = portOf(x.from, x.fromPort);
@@ -472,7 +494,7 @@ export function mountCanvas(vp, d) {
             linkIds.add(id);
             const shape = mem.cards[x.from]?.links?.[linkKey(x)] ?? null;
             const s0 = tip(a, 7);
-            queue.push({
+            const queued = {
                 x: fading ? { ...x, fade: true } : x, a, then,
                 def: {
                     id,
@@ -481,7 +503,9 @@ export function mountCanvas(vp, d) {
                     owner: new Set([...allow(x.from, x.to), `${x.from}#stack`, `${x.to}#stack`]),
                     shape,
                 },
-            });
+            };
+            queue.push(queued);
+            CV.byLid.set(id, queued);
         };
         // A link that ends on a junction (an AND or OR point off the card) doesn't end on its card.
         const isJunction = (pt, x) => { const p = portOf(x.to, x.port); return !p || Math.hypot(pt[0] - p.x, pt[1] - p.y) > 6; };
@@ -527,8 +551,6 @@ export function mountCanvas(vp, d) {
         };
         // Draws some links again after a layout (a dot being dragged): their lines and hit paths, not their pills.
         // The maps keep this to the changed link's own nodes instead of scanning every link in the canvas.
-        CV.queue = queue;
-        for (const q of queue) CV.byLid.set(q.def.id, q);
         CV.relink = ids => {
             for (const id of ids) {
                 const q = CV.byLid.get(id);
@@ -666,18 +688,27 @@ export function mountCanvas(vp, d) {
         // later draw makes this frame stale, and small canvases keep the single synchronous draw.
         const firstBig = drawn === 1 && queue.length >= 200;
         if (firstBig) {
-            const token = ++linkSeq;
+            const token = linkSeq;
+            const view = CV;
             const BATCH = 40;
             let at = 0;
+            linkPending = true;
+            const later = (fn, delay) => {
+                linkTimer = setTimeout(() => { linkTimer = null; fn(); }, delay);
+            };
             const next = () => {
-                if (disposed || token !== linkSeq || !CV) return;
+                if (disposed || paused || token !== linkSeq || CV !== view) return;
                 const to = Math.min(queue.length, at + BATCH);
                 drawQueued(at, to);
                 at = to;
-                if (at < queue.length) setTimeout(next, 0);
-                else drawShaping();
+                if (at < queue.length) later(next, 0);
+                else { linkPending = false; drawShaping(); }
             };
-            requestAnimationFrame(() => setTimeout(next, 120));
+            linkRaf = requestAnimationFrame(() => {
+                linkRaf = 0;
+                if (disposed || paused || token !== linkSeq || CV !== view) return;
+                later(next, 120);
+            });
         } else drawQueued();
 
         // Ports, on top of the cards: socket = in, knob = out (VISUAL 7.2).
@@ -1379,6 +1410,7 @@ export function mountCanvas(vp, d) {
         paused = true;
         const live = !!liveRaf;
         const flashed = hit != null;
+        const links = cancelDeferredLinks(true);
         if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); }
         if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
         if (handlesRaf) { cancelAnimationFrame(handlesRaf); handlesRaf = 0; }
@@ -1391,7 +1423,7 @@ export function mountCanvas(vp, d) {
         // A camera pan writes memory through saveCamera and leaves only its delayed save: flush that now.
         if (camTimer) { clearTimeout(camTimer); camTimer = null; d.save(); }
         if (flashed) hit = null;
-        return !!(interrupted || live || flashed);
+        return !!(interrupted || live || flashed || links);
     }
     /** The page is visible again. The app redraws when `pause()` owed one; the flag itself only re-allows frames. */
     function resume() {
@@ -1423,8 +1455,10 @@ export function mountCanvas(vp, d) {
         render, fit, centerOn, reveal, tidy, flip, pointAt, screenRect, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
         shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(), patchStatus,
         picked: () => [...picked], setPicked, phoneFocus, pause, resume, dispose,
+        /** A paused partial progressive draw needs one full render even when the Hero input signature is unchanged. */
+        needsRender: () => linkRedraw,
         /** Diagnostics for the motion harness: what the canvas still has running or parked. */
-        pending: () => ({ paused, view: !!viewRaf, live: !!liveRaf, ...input.pending() }),
+        pending: () => ({ paused, view: !!viewRaf, live: !!liveRaf, links: linkPending, ...input.pending() }),
         get view() { return CV; }, get camera() { return camera(); },
     };
 }

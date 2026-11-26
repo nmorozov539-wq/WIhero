@@ -106,8 +106,14 @@ test('the corpus cache reuses a book until its revision, working copy or setting
     assert.equal(builds, 4, 'a different working copy is not the old book');
 
     cache.invalidate('Book');
+    assert.equal(cache.size(), 0, 'invalidation releases the corpus and its entry references');
     cache.book('Book', { entries: {} }, '', entriesOf, folderOf);
     assert.equal(builds, 5, 'the hidden-entry set can drop one book');
+    cache.clear();
+    assert.equal(cache.size(), 0, 'closing search releases every corpus');
+    const reopened = cache.book('Book', data, '', entriesOf, folderOf);
+    assert.deepEqual(searchCorpus([reopened], 'mill', null).map(h => h.entry.comment), ['Mill'], 'reopening rebuilds the same ranked hit');
+    assert.equal(builds, 6);
 });
 
 test('the debounce runs a burst once, and flush runs the pending query now', () => {

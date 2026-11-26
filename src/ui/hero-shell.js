@@ -358,8 +358,9 @@ export function createHeroShell(A) {
                 cache.chatState = H.chatState;
                 cache.status = H.chatState ? chatStatus(keepBook) : () => null;
             }
-            if (sig !== kept.sig) {
-                kept.cache = heroView(keepBook, canvasData(keepBook, kept.data));
+            const canvasOwed = heroCanvas.needsRender?.();
+            if (sig !== kept.sig || canvasOwed) {
+                if (sig !== kept.sig) kept.cache = heroView(keepBook, canvasData(keepBook, kept.data));
                 heroCanvas.render();
                 undoHistory.settle(keepBook);
                 kept.sig = sig;
