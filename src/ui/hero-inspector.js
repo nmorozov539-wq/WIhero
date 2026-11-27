@@ -27,6 +27,19 @@ export function createHeroInspector(A) {
         saveSettings, settings, canvas, isRenderQueued, dropPiece,
     } = A;
 
+    // The `.insp` shell kept for one selection: its container and header stay; the body is drawn again in place.
+    let inspShell = null;
+
+    /** Drops the kept inspector shell (the selection closed or moved to another one). */
+    function dropInspector() {
+        if (!inspShell) return;
+        inspShell.shell.remove();
+        inspShell = null;
+    }
+
+    /** Terminal teardown: the retained inspector shell goes. */
+    const dispose = dropInspector;
+
     /**
      * The inspector's "Take off canvas": a card placed by hand comes off; a linked card stays while it has links, and
      * the button says why (`why`: what to remove first) instead of hiding.
@@ -118,10 +131,11 @@ export function createHeroInspector(A) {
                 canvas().reveal(key);
                 return;
             }
-            main.querySelector('.insp')?.remove();
             inspectorFor(book, data);
-            canvas().phoneFocus?.();
+            // Bring the card up first (that reads the view's size and moves the camera), then dim the rest: doing
+            // the focus classes first makes the reveal's size read force a style recalc of every card just dimmed.
             canvas().reveal(key, 0.5);
+            canvas().phoneFocus?.();
             return;
         }
         render();
@@ -145,6 +159,11 @@ export function createHeroInspector(A) {
 
     function inspectorFor(book, data, box = main) {
         const I = H.insp;
+        if (!I) { dropInspector(); return; }
+        // The same book and card in the same column keep the `.insp` shell and its header; the body is drawn again.
+        const reuse = inspShell && inspShell.book === book && inspShell.key === I.key && inspShell.box === box;
+        if (inspShell && !reuse) dropInspector();
+        const kept = reuse ? inspShell : null;
         const view = canvas()?.view;
         const shown = linkable(book, data);
         const others = except => shown.filter(x => x.uid !== except).map(x => ({ uid: x.uid, title: titleOf(x), dot: strategyColor(x) }));
@@ -165,21 +184,23 @@ export function createHeroInspector(A) {
         I.focusText = false;
         if (I.key.startsWith('greet:')) {
             const g = chatGreetings(data).find(x => x.key === I.key);
-            if (!g) { H.insp = null; return; }
+            if (!g) { H.insp = null; dropInspector(); return; }
             const r = greetingRules(data, g.ref);
             const byUid = uid => entriesOf(data).find(x => x.uid === uid);
             const usedBy = r.usedBy.map(byUid).filter(Boolean);
             const gwhy = [];
             if (r.gatesFor.length || r.closesFor.length) gwhy.push('Remove its Opens and Closes (above).');
             if (usedBy.length) gwhy.push(`Remove the pieces in other entries that point at it: ${[...new Set(usedBy.map(titleOf))].join(', ')}.`);
-            renderGreetingInspector(box, {
+            const out = renderGreetingInspector(box, {
                 ...common, g, others: others(null), takeOff: takeOffFor(book, g.title, gwhy),
                 rules: { gatesFor: r.gatesFor, closesFor: r.closesFor, usedBy: r.usedBy.map(byUid).filter(Boolean).map(x => ({ title: titleOf(x), key: cardKey(x), dot: strategyColor(x) })) },
+                shell: kept?.shell, head: kept?.head,
             });
+            inspShell = { book, key: I.key, box, shell: out.shell, head: out.head };
             return;
         }
         const e = shown.find(x => cardKey(x) === I.key);
-        if (!e) { H.insp = null; return; }
+        if (!e) { H.insp = null; dropInspector(); return; }
         const model = modelOf(book, data);
         const node = model.byStKey.get(`${book}.${e.uid}`);
         const lines = node ? logicLines(node, model) : [];
@@ -207,8 +228,9 @@ export function createHeroInspector(A) {
             if (sw) pathOf = { name: nameOf(sw.fork), id: model.nodes.get(sw.fork)?.id, open: () => dropPiece(book, 'switch', { card: stateKeyToCard(sw.fork) }) };
         }
         const mem = canvasMemory(bookSettings(settings, book));
-        renderInspector(box, {
+        const out = renderInspector(box, {
             ...common, entry: e,
+            shell: kept?.shell, head: kept?.head,
             setText: v => library.change(book, d => { d.entries[e.uid].content = v; }, { quiet: true }), config: configOf(e) ?? {}, title: isMoment(e) ? momentName(e) : titleOf(e), open: I.open, lines, sources, outgoing, pathOf,
             inspectAt: (key, piece) => inspect(book, key, piece),
             happened: isMoment(e) && H.chatState ? !!chatStatus(book)(I.key)?.happened : null,
@@ -236,6 +258,7 @@ export function createHeroInspector(A) {
             renamedMask: (from, to) => { if (mem.cards[I.key]?.layer === from) { mem.cards[I.key].layer = to; saveSettings(); } },
             tracker: trackerContext({ book, node, model, hooks, ctx, layer, editBook: fn => editBook(book, fn), after: () => render(), toast: t => layer.toast(t) }),
         });
+        inspShell = { book, key: I.key, box, shell: out.shell, head: out.head };
     }
 
     /**
@@ -270,5 +293,5 @@ export function createHeroInspector(A) {
         canvas()?.centerOn(key);
     }
 
-    return { chatGreetings, inspect, inspectorFor, onCanvas, showOnCanvas };
+    return { chatGreetings, dropInspector, dispose, inspect, inspectorFor, onCanvas, showOnCanvas };
 }

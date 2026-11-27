@@ -260,6 +260,20 @@ test('moving a card near a link reroutes it; moving one far away does not', () =
     assert.deepEqual(e.layout(defs).changed, []);
 });
 
+test('a rebuilt pack frame with the same members does not reroute its links', () => {
+    const A = card('A', 20, 80); const B = card('B', 320, 80);
+    const frame = { id: 'F', x: 0, y: 40, w: 520, h: 200, pass: 'members', members: new Set(['A', 'B']) };
+    const defs = [def('a', at(A, 'right'), at(B, 'left'))];
+    const e = createLinkEngine();
+    e.setObstacles([A, B, frame]);
+    e.layout(defs);
+    // canvas.js builds the obstacle list again on every draw: same numbers, a new Set.
+    e.setObstacles([A, B, { ...frame, members: new Set(['A', 'B']) }]);
+    assert.deepEqual(e.layout(defs).changed, []);
+    e.setObstacles([A, B, { ...frame, members: new Set(['A']) }]);
+    assert.deepEqual(e.layout(defs).changed, ['a'], 'a member leaving the frame is a real move');
+});
+
 test('the example books: no link enters a card, on phones and on desktop', () => {
     for (const file of ['WIHero-Sample.json', 'WIHero-N1.json']) {
         for (const dir of [TB, LR]) {

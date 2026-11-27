@@ -3,13 +3,15 @@
 // mounted canvas; the rest of the app reads it through canvas(). Moved out of app.js; it reaches the app only
 // through the context given to it.
 import { bookSettings, cardKey, entriesOf } from './data.js';
-import { btn, el, html } from './dom.js';
+import { btn, el, html, keyed } from './dom.js';
 import { canvasBook } from './canvas-graph.js';
+import { canvasElements, canvasInputSig } from './canvas-sig.js';
 import { canvasMemory, mountCanvas } from './canvas.js';
 import { closedText } from './logic-text.js';
 import { entryStatus, slotValues, writtenText } from '../engine/turn.js';
-import { ic } from './icons.js';
+import { ic, setIcon } from './icons.js';
 import { explainNode } from './explain-meta.js';
+import { blockingUids } from './model-issues.js';
 import { mountPieceBar } from './piecebar.js';
 import { strategyColor } from './entry-page.js';
 
@@ -21,7 +23,7 @@ import { strategyColor } from './entry-page.js';
 export function createHeroShell(A) {
     const {
         newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
-        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
+        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas, startExplain,
         stopExplain, explainDrawn, strip, tabbar, visibleNames, desk, deadCount, deadSheet, undoHistory, historyStep,
@@ -36,16 +38,21 @@ export function createHeroShell(A) {
         return H.book;
     }
 
-    const blockingUids = (book, model) => new Set(model.issues
-        .filter(i => !i.warning && i.blocking !== false && i.stKey?.startsWith(`${book}.`))
-        .map(i => Number(i.stKey.slice(book.length + 1))));
-
     /** The canvas's view of a book, worked out once per draw. */
-    function heroData(book, data) {
+    function canvasData(book, data) {
         const problems = blockingUids(book, modelOf(book, data));
         const live = entriesOf(data).filter(e => !hiddenIn(book).has(e.uid));
         const m = canvasBook({ entries: Object.fromEntries(live.map(e => [e.uid, e])) }, { folderOf: e => entryFolder(book, e), problems, greetings: chatGreetings(data) });
-        return { m, memory: canvasMemory(bookSettings(settings, book)), problems, chatState: H.chatState, status: H.chatState ? chatStatus(book) : () => null };
+        return { m, memory: canvasMemory(bookSettings(settings, book)), problems };
+    }
+
+    /** The canvas's view plus the open chat's card states, as mountCanvas asks for them. */
+    function heroData(book, data) {
+        return heroView(book, canvasData(book, data));
+    }
+
+    function heroView(book, canvas) {
+        return { ...canvas, chatState: H.chatState, status: H.chatState ? chatStatus(book) : () => null };
     }
 
     /** D17: each card's state in the open chat, at its latest message. Cards of books the chat doesn't use get none. */
@@ -61,7 +68,7 @@ export function createHeroShell(A) {
             if (!key.startsWith('id:')) return null;
             const node = model.nodes.get(`${book}/${key.slice(3)}`);
             if (!node) return null;
-            const s = entryStatus(node, state, chat, model);
+            const s = entryStatus(node, state, chat, model, node.masks.some(m => m.written) ? (values ??= slotValues(model, state, chat)) : null);
             return {
                 fired: state.fired[node.key] ?? 0,
                 closed: s.status === 'closed' ? closedText(state.closed[node.key].by, nameOf) : null,
@@ -75,76 +82,169 @@ export function createHeroShell(A) {
         };
     }
 
-    function renderHeroTabs() {
-        const mk = (label, active, onOpen, onClose, { icon, dot, explain = 'shell.tab.entry' } = {}) => {
-            const b = el('button', `tab${active ? ' active' : ''}${icon ? ' fixed' : ''}`);
-            b.type = 'button';
-            if (icon) { b.innerHTML = ic(icon); b.setAttribute('aria-label', label); } else {
-                if (dot) { const d = el('i', 'sd'); d.style.background = dot; b.append(d); }
-                b.append(el('span', 'name', label));
-            }
-            explainNode(b, explain, { title: label });
-            if (S.desk) b.title = label;
-            if (S.desk && onClose) {
-                // Desktop: × on hover too, and middle-click closes.
-                b.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); onClose(); } });
-                b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-            }
-            if ((active || S.desk) && onClose) {
-                const x = el('span', 'x');
-                x.innerHTML = ic('x');
-                x.setAttribute('role', 'button');
-                x.setAttribute('aria-label', 'Close tab');
-                explainNode(x, 'shell.tab.close', { title: label });
-                x.addEventListener('click', e => { e.stopPropagation(); onClose(); });
-                b.append(x);
-            }
-            b.addEventListener('click', onOpen);
-            strip.append(b);
-        };
-        mk('Canvas', H.active === 'canvas', () => { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } }, null, { icon: 'canvas', explain: 'shell.tab.canvas' });
-        mk('Preview', H.active === 'preview', () => { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } }, null, { icon: 'eye', explain: 'shell.tab.preview' });
-        if (H.guide) mk('Guide', H.active === 'guide', () => {
+    // A Hero entry tab's key comes from its tab object, so reordering and closing other tabs never renames it (its
+    // entry can change under nav.go, but the node stays).
+    let heroTabSeq = 0;
+    const heroTabKeys = new WeakMap();
+    function heroTabKey(t) {
+        let key = heroTabKeys.get(t);
+        if (!key) { key = `entry:${++heroTabSeq}`; heroTabKeys.set(t, key); }
+        return key;
+    }
+    const heroTabByKey = key => H.tabs.find(t => heroTabKey(t) === key) ?? null;
+
+    function openHeroTabByKey(key) {
+        if (key === 'canvas') { if (H.active !== 'canvas') { H.active = 'canvas'; render(); } return; }
+        if (key === 'preview') { if (H.active !== 'preview') { H.active = 'preview'; H.panel = false; render(); } return; }
+        if (key === 'guide') {
             if (H.explain) stopExplain();
             if (H.active !== 'guide') { H.active = 'guide'; render(); }
-        }, () => { H.guide = null; if (H.active === 'guide') H.active = 'canvas'; render(); }, { icon: 'help', explain: 'shell.tab.guide' });
+            return;
+        }
+        const t = heroTabByKey(key);
+        if (!t) return;
+        const i = H.tabs.indexOf(t);
+        if (i >= 0 && H.active !== i) { H.active = i; render(); }
+    }
+
+    function closeHeroTabByKey(key) {
+        if (key === 'guide') {
+            H.guide = null;
+            if (H.active === 'guide') H.active = 'canvas';
+            render();
+            return;
+        }
+        const t = heroTabByKey(key);
+        const i = t ? H.tabs.indexOf(t) : -1;
+        if (i >= 0) closeHeroTab(i);
+    }
+
+    function paintHeroTab(b, item) {
+        b.className = `tab${item.active ? ' active' : ''}${item.icon ? ' fixed' : ''}`;
+        if (!item.icon) {
+            let dot = b.querySelector(':scope > .sd');
+            if (item.dot) {
+                if (!dot) { dot = el('i', 'sd'); b.prepend(dot); }
+                dot.style.background = item.dot;
+            } else dot?.remove();
+            let name = b.querySelector(':scope > .name');
+            if (!name) { name = el('span', 'name'); b.insertBefore(name, b.querySelector(':scope > .x')); }
+            name.textContent = item.label;
+        }
+        if (S.desk) b.title = item.label;
+        else b.removeAttribute('title');
+        explainNode(b, item.explain, { title: item.label });
+        const x = b.querySelector(':scope > .x');
+        if (item.close && (item.active || S.desk)) {
+            if (!x) {
+                const close = el('span', 'x');
+                close.innerHTML = ic('x');
+                close.setAttribute('role', 'button');
+                close.setAttribute('aria-label', 'Close tab');
+                close.addEventListener('click', e => { e.stopPropagation(); closeHeroTabByKey(item.key); });
+                b.append(close);
+            }
+            explainNode(b.querySelector(':scope > .x'), 'shell.tab.close', { title: item.label });
+        } else x?.remove();
+    }
+
+    function renderHeroTabs() {
+        const items = [
+            { key: 'canvas', icon: 'canvas', label: 'Canvas', active: H.active === 'canvas', explain: 'shell.tab.canvas' },
+            { key: 'preview', icon: 'eye', label: 'Preview', active: H.active === 'preview', explain: 'shell.tab.preview' },
+        ];
+        if (H.guide) items.push({ key: 'guide', icon: 'help', label: 'Guide', active: H.active === 'guide', explain: 'shell.tab.guide', close: true });
         H.tabs.forEach((t, i) => {
             const e = library.peek(t.book)?.entries[t.uid];
-            mk(e ? (e.comment || 'New entry') : 'Entry', H.active === i, () => { if (H.active !== i) { H.active = i; render(); } }, () => closeHeroTab(i), { dot: e ? strategyColor(e) : null });
+            items.push({
+                key: heroTabKey(t),
+                label: e ? (e.comment || 'New entry') : 'Entry',
+                active: H.active === i,
+                dot: e ? strategyColor(e) : null,
+                explain: 'shell.tab.entry',
+                close: true,
+            });
+        });
+        keyed(strip, items.map(item => ({ ...item, update: b => paintHeroTab(b, item) })), item => {
+            const b = el('button', 'tab');
+            b.type = 'button';
+            if (item.icon) {
+                b.innerHTML = ic(item.icon);
+                b.setAttribute('aria-label', item.label);
+            }
+            // Desktop: × on hover too, and middle-click closes.
+            b.addEventListener('auxclick', e => {
+                if (!S.desk || e.button !== 1) return;
+                e.preventDefault();
+                closeHeroTabByKey(item.key);
+            });
+            b.addEventListener('mousedown', e => { if (S.desk && e.button === 1) e.preventDefault(); });
+            b.addEventListener('click', () => openHeroTabByKey(item.key));
+            return b;
         });
         if (S.desk) heroTabsRight();
+        else tabbar.querySelector(':scope > .tright')?.remove();
         revealActiveTab();
     }
 
     /** Desktop (LAYOUT "Desktop: Hero mode", Tab row): the book picker, Search and Widen/Drawer size. The mode switch is
      * only in ☰, one guarded door on each side (LAYOUT "Mode switch"). */
     function heroTabsRight() {
-        const right = el('div', 'tright');
+        let right = tabbar.querySelector(':scope > .tright');
+        if (!right) { right = el('div', 'tright'); tabbar.append(right); }
         const book = heroBook();
-        const bp = btn('tbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
-        explainNode(bp, 'shell.book');
-        bp.querySelector('span').textContent = book ?? 'No book';
-        bp.title = 'Switch book';
-        const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
-        explainNode(sb, 'shell.search');
-        const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
-        eq.title = 'Explain (?)';
         const wide = deskSettings().heroWide !== false;
-        const wb = btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => {
-            deskSettings().heroWide = !wide;
-            saveSettings();
-            H.dlist = null; // the list and the inspector start as the new size has them
-            H.dinsp = null;
-            render();
-            requestAnimationFrame(() => heroCanvas?.fit());
-        }, wide ? 'Drawer size' : 'Widen');
-        explainNode(wb, 'shell.widen', { title: wide ? 'Drawer size' : 'Widen' });
-        wb.title = wide ? 'Drawer size' : 'Widen';
+        const items = [];
         // The canvas picker lives above the left panel's status footer. Keep switching available in other views
         // and when the entry list is hidden.
-        if (H.active !== 'canvas' || !listShown() || !book) right.append(bp);
-        right.append(sb, eq, wb);
-        tabbar.append(right);
+        if (H.active !== 'canvas' || !listShown() || !book) {
+            items.push({
+                key: 'hero-book',
+                update: bp => {
+                    bp.querySelector('span').textContent = book ?? 'No book';
+                    bp.title = 'Switch book';
+                },
+            });
+        }
+        items.push({ key: 'hero-search' });
+        items.push({ key: 'hero-explain' });
+        items.push({
+            key: 'hero-widen',
+            update: wb => {
+                setIcon(wb, wide ? 'restore' : 'expand');
+                const label = wide ? 'Drawer size' : 'Widen';
+                wb.title = label;
+                wb.setAttribute('aria-label', label);
+                explainNode(wb, 'shell.widen', { title: label });
+            },
+        });
+        keyed(right, items, item => {
+            if (item.key === 'hero-book') {
+                const bp = btn('tbook', html`${ic('book', 's')}<span></span>${ic('down', 's')}`, () => bookPicker(), 'Switch book');
+                explainNode(bp, 'shell.book');
+                bp.title = 'Switch book';
+                return bp;
+            }
+            if (item.key === 'hero-search') {
+                const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => { S.search = { query: '', at: 0 }; render(); }, 'Search (Ctrl K)');
+                explainNode(sb, 'shell.search');
+                return sb;
+            }
+            if (item.key === 'hero-explain') {
+                const eq = btn('iconbtn explainq', ic('help'), () => (H.explain ? stopExplain() : startExplain()), 'Explain: click something to learn about it');
+                eq.title = 'Explain (?)';
+                return eq;
+            }
+            return btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => {
+                const now = deskSettings().heroWide !== false;
+                deskSettings().heroWide = !now;
+                saveSettings();
+                H.dlist = null; // the list and the inspector start as the new size has them
+                H.dinsp = null;
+                render();
+                requestAnimationFrame(() => heroCanvas?.fit());
+            }, wide ? 'Drawer size' : 'Widen');
+        });
     }
 
     function closeHeroTab(i) {
@@ -205,16 +305,23 @@ export function createHeroShell(A) {
 
     /**
      * What the canvas draws from, as one string: when a Hero draw finds it unchanged (a piece bar step that only
-     * changes the strip, the inspector opening, the panel), the cards and links stay as they are. The camera is left
-     * out: it moves without a draw. Show chat state always draws, since the chat moves under it.
+     * changes the strip, the inspector opening, the panel), the cards and links stay as they are. The entry side is
+     * already on the model; only the saved cards, hidden entries and chat identity are read here.
      */
-    function canvasSig(book) {
-        if (H.chatState) return null;
-        const bs = settings.books?.[book] ?? {};
-        const { camera, ...canvas } = bs.canvas ?? {};
-        const top = Object.entries(settings).filter(([k, v]) => k !== 'books' && (v === null || typeof v !== 'object'));
+    function canvasSig(book, model) {
+        const memory = canvasMemory(bookSettings(settings, book));
         const c = ctx();
-        return JSON.stringify([library.version, { ...bs, canvas }, top, [...hiddenIn(book)], c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null]);
+        // Chat state on and off patch the cards' status badges in place (canvas.patchStatus); it is not geometry, so
+        // it is not here. Chat identity is, because a different chat belongs to different cards.
+        const chatKey = [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null];
+        return canvasInputSig({
+            model,
+            elements: () => canvasElements(book, library.peek(book), model, e => entryFolder(book, e)),
+            cards: memory.cards,
+            placed: memory.placed,
+            hidden: hiddenIn(book),
+            chat: chatKey,
+        });
     }
     /** The canvas kept between Hero draws of the same book: { book, data, vp, sig, data() cache }. */
     let heroMount = null;
@@ -238,17 +345,36 @@ export function createHeroShell(A) {
         if (kept) {
             need(keepBook); // Also prune Moments just taken off this retained canvas.
             // Same canvas: everything around it is drawn again (cheap), the cards and links only if they changed.
-            for (const n of [...main.children]) if (n !== kept.vp) n.remove();
+            // The kept panel and inspector shells stay where they are (their nodes carry data-retained).
+            for (const n of [...main.children]) if (n !== kept.vp && !n.dataset?.retained) n.remove();
             kept.vp.querySelector('.legend')?.remove();
             if (H.legend) kept.vp.append(legendBox());
-            const sig = canvasSig(keepBook);
+            const sig = canvasSig(keepBook, modelOf(keepBook, kept.data));
             heroCanvas.overlay(null); // the piece bar sets its own again, as on a fresh canvas
-            if (sig === null || sig !== kept.sig) { kept.cache = null; heroCanvas.render(); undoHistory.settle(keepBook); kept.sig = canvasSig(keepBook); } // a draw can place cards
-            else heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
+            // Show chat state patched the cards rather than being part of the signature: an internal draw (Tidy, a
+            // flash, a layer flip) asks the cached view for the current state, so keep it current here too.
+            const cache = kept.cache;
+            if (cache && cache.chatState !== H.chatState) {
+                cache.chatState = H.chatState;
+                cache.status = H.chatState ? chatStatus(keepBook) : () => null;
+            }
+            const canvasOwed = heroCanvas.needsRender?.();
+            if (sig !== kept.sig || canvasOwed) {
+                if (sig !== kept.sig) kept.cache = heroView(keepBook, canvasData(keepBook, kept.data));
+                heroCanvas.render();
+                undoHistory.settle(keepBook);
+                kept.sig = sig;
+            } else {
+                // Same cards and links: a chat change (including Show chat state itself) only patches the badges and
+                // card state in place, with no routing and no card recreation.
+                heroCanvas.patchStatus(H.chatState ? chatStatus(keepBook) : () => null);
+                heroCanvas.refreshShaping(); // the strip picked another part or dot of the line it shapes
+            }
             heroAround(keepBook, kept.data);
             return;
         }
         main.innerHTML = '';
+        heroCanvas?.dispose?.();
         heroCanvas = null;
         heroMount = null;
         if (typeof H.active === 'number') {
@@ -324,14 +450,14 @@ export function createHeroShell(A) {
             tapEmpty: () => {
                 if (H.panel) { H.panel = false; panelState(); }
                 if (S.desk) { H.insp = null; heroInspector(book, data); return; }
-                if (H.insp) { H.insp = null; main.querySelector('.insp')?.remove(); heroCanvas?.phoneFocus?.(); }
+                if (H.insp) { H.insp = null; dropInspector(); heroCanvas?.phoneFocus?.(); }
             },
             ...(S.desk ? deskCanvas(book, data) : {}),
         });
         heroMount = mount;
         heroCanvas.render();
         undoHistory.settle(book); // cards the draw placed on its own are not an edit
-        mount.sig = canvasSig(book); // after the draw, which can place cards
+        mount.sig = canvasSig(book, modelOf(book, data)); // after the draw, which can place cards
         heroAround(book, data);
     }
     /** Undo and redo on the canvas (Ctrl+Z, Ctrl+Shift+Z on desktop), greyed out when there is nothing to step to. */
@@ -357,8 +483,8 @@ export function createHeroShell(A) {
      * instead (Features 8); the ☰ menu keeps both rows. Nothing when no branch is dead.
      */
     function checksChip(book, data) {
-        // Counted again only when a book changed (library.version), or its pending deletes did.
-        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}`;
+        // Counted again only when a book changed (library.bookVersion(book)), or its pending deletes did.
+        const sig = `${book}|${library.bookVersion(book)}|${[...hiddenIn(book)].join(',')}`;
         if (checksMemo?.data !== data || checksMemo.sig !== sig) checksMemo = { data, sig, n: deadCount(book, data) };
         const dead = checksMemo.n;
         if (!dead) return [];
@@ -390,6 +516,7 @@ export function createHeroShell(A) {
         mountPieceBar(barApi(book));
         if (S.desk) { heroInspector(book, data); if (S.search) desk().renderSearch(); return; }
         if (H.insp?.book === book) inspectorFor(book, data);
+        else dropInspector();
     }
     function legendBox() {
         const lg = el('div', 'legend');
@@ -402,8 +529,15 @@ export function createHeroShell(A) {
         return lg;
     }
 
+    /** Terminal teardown (A4): the mounted canvas, its gestures, timers, observers and indexes. */
+    function dispose() {
+        heroCanvas?.dispose?.();
+        heroCanvas = null;
+        heroMount = null;
+    }
+
     return {
         canvas: () => heroCanvas,
-        chatStatus, heroBack, heroBook, heroData, openHeroTab, renderHero, renderHeroTabs, closeHeroTab,
+        chatStatus, heroBack, heroBook, heroData, openHeroTab, renderHero, renderHeroTabs, closeHeroTab, dispose,
     };
 }

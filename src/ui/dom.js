@@ -1,6 +1,6 @@
 // Small DOM helpers and the shared overlays (LAYOUT "Sheets and toasts"): sheets from the bottom over a dimmed
 // backdrop, the ☰ menu sheet, a one-line text form, and toasts, some with Undo.
-import { ic } from './icons.js';
+import { ic, icNode } from './icons.js';
 import { Html } from './html.js';
 import { explainNode } from './explain-meta.js';
 
@@ -20,11 +20,50 @@ export function el(tag, cls, text) {
 export function btn(cls, content, fn, label) {
     const b = el('button', cls);
     b.type = 'button';
-    if (content instanceof Html) b.innerHTML = content.markup;
+    if (content instanceof Html && content.icon) b.append(icNode(content.icon.name, content.icon.cls));
+    else if (content instanceof Html) b.innerHTML = content.markup;
     else b.textContent = content ?? '';
     if (label) b.setAttribute('aria-label', label);
     if (fn) b.addEventListener('click', fn);
     return b;
+}
+
+/**
+ * Keeps `box`'s keyed children in step with `items`: an existing key keeps its node and its listeners and is
+ * updated in place, a new key gets a node from `make`, and a key no longer listed is removed. Order follows
+ * `items`; the key is kept on the node's dataset. Unused nodes are dropped before placement so removing the rows at
+ * the top of a window does not shift every retained node. `update` false skips an existing node's update (a scroll
+ * draw keeps its rows as they are); a node made by this call is always updated, since make() only builds the shell.
+ * @param {HTMLElement} box
+ * @param {Array<{ key: string, update?: (node: HTMLElement) => void }>} items
+ * @param {(item: object) => HTMLElement} make
+ * @param {boolean} [update]
+ */
+export function keyed(box, items, make, update = true) {
+    const old = new Map();
+    for (const node of [...box.children]) {
+        const key = node.dataset.key;
+        if (key === undefined) { node.remove(); continue; }
+        if (old.has(key)) node.remove();
+        else old.set(key, node);
+    }
+    const wanted = new Set();
+    for (const item of items) wanted.add(String(item.key));
+    for (const [key, node] of old) if (!wanted.has(key)) { node.remove(); old.delete(key); }
+    let at = box.firstChild;
+    for (const item of items) {
+        const key = String(item.key);
+        let node = old.get(key);
+        const fresh = !node;
+        if (fresh) {
+            node = make(item);
+            node.dataset.key = key;
+            old.set(key, node);
+        }
+        if (node === at) at = at.nextSibling;
+        else box.insertBefore(node, at);
+        if (update || fresh) item.update?.(node);
+    }
 }
 
 /** An on/off switch. `fn(next)` is called with the new value; the caller redraws. */
@@ -73,6 +112,46 @@ export function pressable(node, onTap, onLong) {
         onTap(e);
     });
     node.addEventListener('contextmenu', e => { if (onLong) e.preventDefault(); });
+}
+
+/**
+ * Tap and long press (480 ms) for a list of marked rows, delegated to `root`: one set of listeners for the whole
+ * list. The row is the nearest ancestor with `data-press`; `resolve(row)` is asked at event time and returns
+ * `{ onTap, onLong }`. Buttons and checks keep their own clicks, as in pressable(), and a long press swallows the
+ * click that ends it.
+ */
+export function delegatePress(root, resolve) {
+    let node = null;
+    let timer = null;
+    let long = false;
+    let sx = 0;
+    let sy = 0;
+    const end = () => { clearTimeout(timer); timer = null; node?.classList.remove('pressing'); };
+    root.addEventListener('pointerdown', e => {
+        if (e.button) return;
+        if (e.target.closest('button, .check')) return;
+        node = e.target.closest('[data-press]');
+        if (!node || !root.contains(node) || !resolve(node)) { node = null; return; }
+        long = false; sx = e.clientX; sy = e.clientY;
+        node.classList.add('pressing');
+        timer = setTimeout(() => {
+            long = true;
+            node?.classList.remove('pressing');
+            resolve(node)?.onLong?.();
+        }, 480);
+    });
+    root.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) end(); });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) root.addEventListener(type, end);
+    root.addEventListener('click', e => {
+        if (long) { e.preventDefault(); long = false; return; }
+        if (e.target.closest('button:not(.rowtap), .check')) return;
+        const it = e.target.closest('[data-press]');
+        if (it && root.contains(it)) resolve(it)?.onTap(e);
+    });
+    root.addEventListener('contextmenu', e => {
+        const it = e.target.closest('[data-press]');
+        if (it && resolve(it)?.onLong) e.preventDefault();
+    });
 }
 
 /** Long press (480 ms) on any node, a sheet row included; the tap that ends a long press goes nowhere. */
@@ -288,6 +367,19 @@ export function createLayer(layer, toastBox) {
     const flushToast = () => { if (current) endToast(false); };
 
     const api = { sheet, opt, askText, toast, flushToast, close, isOpen, scrim, layer, pop, onClose: null, explainActive: () => false };
+    /** Terminal teardown: drops the open layer, its waiting toast and the two page-level remember listeners. */
+    function dispose() {
+        clearTimeout(timer);
+        timer = null;
+        current = null;
+        closers.length = 0;
+        layer.innerHTML = '';
+        toastBox.innerHTML = '';
+        root.removeEventListener('pointerdown', remember, true);
+        root.removeEventListener('contextmenu', remember, true);
+        api.onClose = null;
+    }
+    api.dispose = dispose;
     return api;
 }
 

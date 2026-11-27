@@ -9,6 +9,7 @@ import {
 import { FAMILY_COLOR, logicSummary } from './logic-text.js';
 import { slotsOf, valueLine } from './tracker-ui.js';
 import { rawConfig as configOf } from '../engine/model.js';
+import { createTokenCounter } from './token-count.js';
 
 const STRATEGY_COLOR = { keys: 'var(--s-key)', perm: 'var(--s-perm)', vec: 'var(--s-vec)', off: 'var(--s-off)' };
 export const strategyColor = e => STRATEGY_COLOR[strategyOf(e)];
@@ -427,56 +428,102 @@ export function renderEntryPage(main, o) {
             en.append(box);
         }
     }
-    const count = text => o.tokens(text).then(n => { if (typeof n === 'number') tk.textContent = `${n} tokens`; }).catch(() => {});
-    let countTimer = null;
+    const counter = createTokenCounter({
+        tokens: o.tokens,
+        isActive: () => content.isConnected,
+    });
+    // The guess is only a hint until the real count lands. Writing it on every key dirties the page layout a second
+    // time per key, which on a 100 KB entry is a large part of the typing cost, so the deferred count writes both the
+    // number (when it resolves) and the guess (when the tokenizer has nothing to say).
+    const showCount = (text, n) => {
+        if (content.value !== text) return;
+        tk.textContent = typeof n === 'number' ? `${n} tokens` : `${tokenGuess(text)} tokens`;
+    };
     const content = autoText(text0, 'Type here', text => {
         if (version) o.changeMask(version.name, text);
         else o.change(x => { x.content = text; }, true);
-        tk.textContent = `${tokenGuess(text)} tokens`;
-        clearTimeout(countTimer);
-        countTimer = setTimeout(() => count(text), 500);
+        counter.feed(text, n => showCount(text, n));
     });
     explainNode(content, 'blocked.input', { title: version ? `Mask ${version.name}` : 'Content', text: 'Edits the entry text.' });
+    content.addEventListener('blur', () => {
+        const text = content.value;
+        counter.flush(text).then(n => showCount(text, n));
+    });
     en.append(content);
-    count(text0);
+    counter.open(text0).then(n => showCount(text0, n));
     if (!o.hero) storyLogic();
+
+    // Cold book: the page is drawn without marks, then the clash scan warms off the task and this patches the key
+    // words in place. A page rebuilt (or left by Back) before then is detached, so it is not patched.
+    if (o.clash && o.clashWhenReady) {
+        o.clashWhenReady(() => {
+            if (!v.isConnected) return;
+            for (const chip of v.querySelectorAll('[data-clash-word]')) applyClashChip(chip, chip.dataset.clashWord, o.clash);
+            for (const n of v.querySelectorAll('.clashnote')) fillClashNote(n, o.clash);
+        });
+    }
 
     if (o.fresh) setTimeout(() => { if (!h1.textContent) h1.focus(); }, 30);
     return v;
 }
+
+const FIELD_SIZING = typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('field-sizing', 'content');
 
 function autoText(value, placeholder, onInput) {
     const ta = el('textarea');
     ta.value = value;
     ta.placeholder = placeholder;
     ta.setAttribute('aria-label', 'Content');
-    const fit = () => { ta.style.height = 'auto'; ta.style.height = `${Math.max(ta.scrollHeight, 200)}px`; };
-    ta.addEventListener('input', () => { onInput(ta.value); fit(); });
-    requestAnimationFrame(fit);
+    if (!FIELD_SIZING) {
+        // The browser cannot size the box from its content: fit it, at most once per frame. Past the same cap the
+        // CSS uses, the box scrolls internally instead of making the entry page tens of thousands of pixels tall.
+        let frame = 0;
+        const cap = () => Math.max(200, Math.min(Math.round(window.innerHeight * 0.7), 800));
+        const fit = () => { frame = 0; ta.style.height = 'auto'; ta.style.height = `${Math.min(Math.max(ta.scrollHeight, 200), cap())}px`; };
+        const fitSoon = () => { if (!frame) frame = requestAnimationFrame(fit); };
+        ta.addEventListener('input', () => { onInput(ta.value); fitSoon(); });
+        frame = requestAnimationFrame(fit);
+    } else {
+        ta.addEventListener('input', () => onInput(ta.value));
+    }
     return ta;
 }
 
 /** Marks a key word chip that also fires other entries (the keyword clash finder). */
 function markClash(chip, word, clash) {
-    const others = clash?.(word) ?? [];
-    if (others.length) {
-        chip.classList.add('clash');
-        chip.title = `Also fires ${others.join(', ')}`;
-    }
+    chip.dataset.clashWord = word;
+    applyClashChip(chip, word, clash);
     return chip;
 }
 
+/** Re-applies one chip's mark; `clash` may have gained its result since the page was drawn. */
+function applyClashChip(chip, word, clash) {
+    const others = clash?.(word) ?? [];
+    chip.classList.toggle('clash', others.length > 0);
+    if (others.length) chip.title = `Also fires ${others.join(', ')}`;
+    else chip.removeAttribute('title');
+}
+
+/** note node → its key words, so a deferred clash pass can rebuild it. */
+const clashNoteKeys = new WeakMap();
+
 /** A line under the key words naming what each clashing word also fires: "mill also fires Old Mill". */
 function clashNote(keys, clash) {
-    const lines = (keys ?? []).map(k => [k, clash?.(k) ?? []]).filter(([, o]) => o.length);
     const n = el('div', 'clashnote');
+    clashNoteKeys.set(n, [...(keys ?? [])]);
+    fillClashNote(n, clash);
+    return n;
+}
+
+/** Fills a clash note from the current resolver (empty while the scan is still warming). */
+function fillClashNote(n, clash) {
+    const lines = (clashNoteKeys.get(n) ?? []).map(k => [k, clash?.(k) ?? []]).filter(([, o]) => o.length);
     n.hidden = !lines.length;
-    for (const [k, o] of lines) {
+    n.replaceChildren(...lines.map(([k, o]) => {
         const r = el('div');
         r.append(el('b', '', k), document.createTextNode(` also fires ${o.join(', ')}`));
-        n.append(r);
-    }
-    return n;
+        return r;
+    }));
 }
 
 /** The key word box: chips, tapped into a comma-separated line. */

@@ -3,7 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "test": "node --test"
+        "test": "node --test",
+        "perf": "node tools/perf/run.mjs",
+        "perf:smoke": "node tools/perf/run.mjs --smoke"
     },
     "license": "AGPL-3.0-only"
 }

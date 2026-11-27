@@ -6,7 +6,8 @@ import { createLinkEngine } from '../link-engine/index.js';
 import { addDot, moveDot, normalize, removeDot, setSegment, toCanvas } from '../link-engine/shape.js';
 import { btn, el } from './dom.js';
 import { explainNode } from './explain-meta.js';
-import { ic } from './icons.js';
+import { ic, setIcon } from './icons.js';
+import { perf } from './perf.js';
 import { wireInput } from './canvas-input.js';
 
 const FAMILY_VAR = { open: 'var(--p-open)', close: 'var(--p-close)', glue: 'var(--p-glue)', mask: 'var(--p-mask)', pack: 'var(--p-pack)' };
@@ -96,6 +97,79 @@ export function arrange(m, memory, center, dir = TB) {
 const LINKS = createLinkEngine({ grid: G });
 /** Where a link's hand-made shape is kept: on its source card, `canvas.cards[<from>].links[<this>]`. */
 export const linkKey = x => `${x.fromPort}>${x.to}${x.mask != null ? `@${x.mask}` : ''}`;
+
+/**
+ * The text a normal card's `k` line shows, from its entry and chat status. The draw and patchStatus both use it, so
+ * a status change can rewrite the line without a redraw and cannot drift from what the draw made.
+ */
+export function cardLine(e, st, si) {
+    if (st?.closed) return { kind: 'closed', text: `CLOSED · by ${st.closed}` };
+    if (typeof st?.value === 'string') {
+        return { kind: 'value', text: `${st.mask ? `${st.mask}: ` : ''}${st.value.replace(/\s+/g, ' ')}`, title: st.value };
+    }
+    if (si) return { kind: 'mask', text: `mask: ${e.masks[si - 1].name}` };
+    return { kind: 'keys', text: e.strategy === 'perm' ? 'permanent' : e.keys.join(', ') || 'no key words', by: e.by };
+}
+
+/** Draws a card line into its `.k` node: the draw's first pass and patchStatus's later ones. */
+function drawCardLine(k, line) {
+    k.classList.toggle('wval', line.kind === 'value');
+    if (line.kind === 'value') k.title = line.title;
+    else k.removeAttribute('title');
+    k.textContent = '';
+    if (line.kind === 'closed') k.append(el('span', 'cl', line.text));
+    else if (line.kind === 'value' || line.kind === 'mask') k.textContent = line.text;
+    else {
+        if (line.by) k.insertAdjacentHTML('beforeend', ic(line.by === 'user' ? 'user' : 'bot'));
+        k.append(el('span', '', line.text));
+    }
+}
+
+/** A card's small badge: its fired count, else its Once or delayed-close sign; null when it has none. */
+export function cardBadge(e, st) {
+    if (st?.fired) return { cls: 'fired', text: `${st.fired}×`, title: null };
+    if (e.once) return { cls: 'badge1', text: '1×', title: null };
+    if (e.closesAfter != null) {
+        return {
+            cls: 'badge1',
+            text: e.closesAfter ? `+${e.closesAfter}` : '1×',
+            title: e.closesAfter
+                ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires`
+                : 'Closes after it first fires',
+        };
+    }
+    return null;
+}
+
+/** Whether two card states would draw the same badges and classes. */
+function sameStatus(a, b) {
+    a ??= {};
+    b ??= {};
+    return a.fired === b.fired && a.closed === b.closed && a.holding === b.holding
+        && a.waiting === b.waiting && a.happened === b.happened && a.mask === b.mask && a.value === b.value;
+}
+
+/** Puts a card's badge on, changes it, or takes it off; it never rebuilds the card. */
+function setCardBadge(rec, st) {
+    const spec = cardBadge(rec.e, st);
+    if (!spec) {
+        if (rec.badge) { rec.badge.remove(); rec.badge = null; }
+        return;
+    }
+    if (!rec.badge) {
+        const b = el('span', spec.cls, spec.text);
+        rec.badge = b;
+        const after = rec.hold ?? rec.text;
+        if (after?.parentNode) after.after(b);
+        else rec.card.append(b);
+    } else {
+        rec.badge.className = spec.cls;
+        rec.badge.textContent = spec.text;
+    }
+    if (spec.title) rec.badge.title = spec.title;
+    else rec.badge.removeAttribute('title');
+}
+
 /** The smallest zoom a phone's first open and Fit go to (LAYOUT "Canvas"). */
 export const PHONE_FLOOR = 0.8;
 export { holdSpace, wheelMove } from './canvas-mouse.js';
@@ -122,13 +196,31 @@ export function mountCanvas(vp, d) {
     zl.addEventListener('click', () => zoomTo(1));
     vp.append(tools, zl);
     // Focus and find-in-page can scroll even an overflow:hidden box; the camera is the only way to move.
-    vp.addEventListener('scroll', () => { vp.scrollTop = 0; vp.scrollLeft = 0; });
+    const keepScroll = () => { vp.scrollTop = 0; vp.scrollLeft = 0; };
+    vp.addEventListener('scroll', keepScroll);
     let CV = null;
     let drawn = 0; // full draws so far: a card drag notices one made under it
+    let paused = false; // the page (or the editor host) is hidden: frames and timers are parked (A3)
+    let disposed = false;
     let moving = null;
     let hit = null;
     let flashTimer = null;
+    let handlesRaf = 0;
+    // The first big draw owns its deferred link frame/timer. Every full draw revokes that ownership before replacing
+    // CV/world, and pause parks it just like the canvas's other asynchronous work.
+    let linkSeq = 0;
+    let linkRaf = 0;
+    let linkTimer = null;
+    let linkPending = false;
+    let linkRedraw = false;
     let cam = null;
+    // Transient overlays that add document-level away listeners (Place an entry here, the pack-name box). Each one
+    // registers its own removal, so pause()/dispose() can drop it even when its own click never came.
+    const transients = new Set();
+    function dropTransients() {
+        for (const drop of [...transients]) drop();
+        transients.clear();
+    }
     /** Desktop: the cards selected on the canvas (click, Shift/Ctrl-click, a drag on empty canvas). */
     let picked = new Set();
 
@@ -150,6 +242,17 @@ export function mountCanvas(vp, d) {
         world.style.transform = `translate(${v.tx}px, ${v.ty}px) scale(${v.scale})`;
         zl.textContent = `${Math.round(v.scale * 100)}%`;
     }
+
+    /** Cancels a partial first-big-draw fill. Its replacement must draw all links before this flag can clear. */
+    function cancelDeferredLinks(redraw = false) {
+        linkSeq++;
+        if (linkRaf) { cancelAnimationFrame(linkRaf); linkRaf = 0; }
+        if (linkTimer !== null) { clearTimeout(linkTimer); linkTimer = null; }
+        const interrupted = linkPending;
+        linkPending = false;
+        if (redraw && interrupted) linkRedraw = true;
+        return interrupted;
+    }
     function viewCenter() {
         const v = camera() ?? { tx: 20, ty: 20, scale: 0.78 };
         const w = vp.clientWidth || 390;
@@ -158,13 +261,26 @@ export function mountCanvas(vp, d) {
     }
 
     function render() {
+        if (disposed) return;
+        // A render owns a new CV and new SVG layers even when it is not another "first" draw. Revoke the old draw
+        // unconditionally, so one of its batches can never populate the new indexes while writing detached layers.
+        cancelDeferredLinks();
+        linkRedraw = false;
+        perf.count('canvasRenders');
+        const drawAt = perf.begin('canvasDraw');
         const { m, problems = new Set(), status = () => null, chatState = false } = d.book();
         const mem = memory();
         const before = JSON.stringify(mem);
+        const arrangeAt = perf.begin('arrange');
         const { g, ids, R, P } = arrange(m, mem, viewCenter(), d.dir ?? TB);
+        perf.end(arrangeAt);
         if (JSON.stringify(mem) !== before) d.save();
-        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [] };
+        CV = { m, g, R, P, ids, links: [], conds: [], rowsAt: [], byLid: new Map(), ln: new Map(), hit: new Map(), statusTargets: [] };
+        // A first open has no camera: fit before the cards go in, so the fit's layout read is on an empty world
+        // instead of forcing a layout of every card just built. The frame that paints them lays out once anyway.
+        if (!camera()) fit(true);
         world.innerHTML = '';
+        OV_NODES = null; // the nodes it named are gone with the old canvas
         drawn++;
         // Every node is tagged with the cards it belongs to (data-of): a card drag moves a card's own nodes and
         // hides the links to other cards, without drawing the canvas again (dragFrame).
@@ -234,7 +350,7 @@ export function mountCanvas(vp, d) {
                 c.dataset.id = e.id;
                 Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
                 const gr = el('div', 'grip gicon');
-                gr.innerHTML = ic('chat');
+                setIcon(gr, 'chat');
                 gr.dataset.grip = e.id;
                 gr.setAttribute('aria-label', `Move ${e.title}`);
                 c.append(gr, el('div', 'tag', e.greeting.missing ? 'START · MISSING' : 'START'), el('div', 't', e.title),
@@ -246,24 +362,29 @@ export function mountCanvas(vp, d) {
             if (e.moment) {
                 // A Moment (VISUAL 7.5): a short card with a spark, MOMENT over its name, its phrases in quotes in the
                 // content font. No strategy stripe. With chat state on: happened, or not yet.
+                const statusAt = chatState ? perf.begin('status') : null;
                 const st = chatState ? status(e.id) : null;
+                perf.end(statusAt);
                 const c = el('div', `card moment${hit === e.id ? ' hit' : ''}${moving === e.id ? ' moving' : ''}${picked.has(e.id) ? ' picked' : ''}${st?.happened ? ' happened' : ''}`);
                 c.dataset.id = e.id;
                 Object.assign(c.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${CW}px`, height: `${CH}px` });
                 const gr = el('div', 'grip gicon');
-                gr.innerHTML = ic('spark');
+                setIcon(gr, 'spark');
                 gr.dataset.grip = e.id;
                 gr.setAttribute('aria-label', `Move ${e.title}`);
                 const who = e.moment.by === 'user' ? ' · YOU' : e.moment.by === 'char' ? ' · CHARACTER' : '';
-                const tag = st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${who}`;
-                c.append(gr, el('div', 'tag', tag), el('div', 't', e.title),
+                const tag = el('div', 'tag', st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${who}`);
+                c.append(gr, tag, el('div', 't', e.title),
                     el('div', 'k gk', e.moment.phrases.length ? e.moment.phrases.map(p => `“${p}”`).join(' · ') : 'no phrases yet'));
+                CV.statusTargets.push({ e, card: c, grip: gr, text: tag, moment: true, who, st });
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This Moment has a problem'; c.append(b); }
                 put(world, c);
                 continue;
             }
             const si = layerOf(e);
+            const statusAt = chatState ? perf.begin('status') : null;
             const st = chatState ? status(e.id) : null;
+            perf.end(statusAt);
             for (let i = Math.min(2, e.masks.length); i >= 1; i--) {
                 const b = el('div', 'layercard');
                 Object.assign(b.style, { left: `${r.x + 6 * i}px`, top: `${r.y - 6 * i}px` });
@@ -281,21 +402,16 @@ export function mountCanvas(vp, d) {
             gr.setAttribute('aria-label', `Move ${e.title}`);
             c.append(gr, el('div', 't', e.title));
             const k = el('div', 'k');
-            if (st?.closed) k.append(el('span', 'cl', `CLOSED · by ${st.closed}`));
-            else if (typeof st?.value === 'string') { k.classList.add('wval'); k.textContent = `${st.mask ? `${st.mask}: ` : ''}${st.value.replace(/\s+/g, ' ')}`; k.title = st.value; }
-            else if (si) k.textContent = `mask: ${e.masks[si - 1].name}`;
-            else {
-                if (e.by) k.insertAdjacentHTML('beforeend', ic(e.by === 'user' ? 'user' : 'bot'));
-                k.append(el('span', '', e.strategy === 'perm' ? 'permanent' : e.keys.join(', ') || 'no key words'));
-            }
+            drawCardLine(k, cardLine(e, st, si));
             c.append(k);
-            if (e.glue?.mode === 'hold') c.append(el('i', 'hold'));
-            if (st?.fired) c.append(el('span', 'fired', `${st.fired}×`));
-            else if (e.once) c.append(el('span', 'badge1', '1×'));
-            else if (e.closesAfter != null) {
-                const b = el('span', 'badge1', e.closesAfter ? `+${e.closesAfter}` : '1×');
-                b.title = e.closesAfter ? `Closes ${e.closesAfter} message${e.closesAfter === 1 ? '' : 's'} after it first fires` : 'Closes after it first fires';
-                c.append(b);
+            let hold = null;
+            if (e.glue?.mode === 'hold') { hold = el('i', 'hold'); c.append(hold); }
+            const badge = cardBadge(e, st);
+            let badgeNode = null;
+            if (badge) {
+                badgeNode = el('span', badge.cls, badge.text);
+                if (badge.title) badgeNode.title = badge.title;
+                c.append(badgeNode);
             }
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
             if (e.note) {
@@ -305,6 +421,7 @@ export function mountCanvas(vp, d) {
                 c.append(n);
             }
             put(world, c);
+            let navText = null;
             if (r.nav) {
                 const n = el('div', `mnav${r.nav.v ? ' v' : ''}`);
                 Object.assign(n.style, { left: `${r.nav.x}px`, top: `${r.nav.y}px` });
@@ -316,9 +433,11 @@ export function mountCanvas(vp, d) {
                 const nx = btn('', ic('right'), null, 'Next layer');
                 nx.dataset.flip = e.id; nx.dataset.d = 1;
                 explainNode(nx, 'canvas.maskFlip', { title: 'Next layer', text: 'Shows the next version of this card\'s text.' });
-                n.append(pv, el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`), nx);
+                navText = el('span', '', `${si ? `${si}/${e.masks.length}` : 'main'}${active && active === si ? ' •' : ''}`);
+                n.append(pv, navText, nx);
                 put(world, n);
             }
+            CV.statusTargets.push({ e, card: c, grip: gr, text: k, badge: badgeNode, hold, navText, si, st });
         }
 
         owner = '';
@@ -364,6 +483,7 @@ export function mountCanvas(vp, d) {
         // Links are laid out together (so they keep a lane apart and cross cleanly), then drawn: drawEdge queues one,
         // and `then(pts)` runs once it's drawn, with its points (pills sit on them).
         const queue = [];
+        CV.queue = queue;
         const linkIds = new Set();
         const drawEdge = (x, endPt, endN, rawEnd, then = null) => {
             const a = portOf(x.from, x.fromPort);
@@ -374,7 +494,7 @@ export function mountCanvas(vp, d) {
             linkIds.add(id);
             const shape = mem.cards[x.from]?.links?.[linkKey(x)] ?? null;
             const s0 = tip(a, 7);
-            queue.push({
+            const queued = {
                 x: fading ? { ...x, fade: true } : x, a, then,
                 def: {
                     id,
@@ -383,7 +503,9 @@ export function mountCanvas(vp, d) {
                     owner: new Set([...allow(x.from, x.to), `${x.from}#stack`, `${x.to}#stack`]),
                     shape,
                 },
-            });
+            };
+            queue.push(queued);
+            CV.byLid.set(id, queued);
         };
         // A link that ends on a junction (an AND or OR point off the card) doesn't end on its card.
         const isJunction = (pt, x) => { const p = portOf(x.to, x.port); return !p || Math.hypot(pt[0] - p.x, pt[1] - p.y) > 6; };
@@ -394,17 +516,24 @@ export function mountCanvas(vp, d) {
             const pts = [];
             for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
             path(pts, q.x.kind, undefined, faint(q.x), LINKS.path(q.def.id).d);
-            for (const n of [...lk.childNodes].slice(n0)) { n.dataset.lid = q.def.id; n.classList.add('ln'); }
+            const nodes = [...lk.childNodes].slice(n0);
+            for (const n of nodes) { n.dataset.lid = q.def.id; n.classList.add('ln'); }
+            CV.ln.set(q.def.id, nodes);
             return pts;
         };
-        const drawQueued = () => {
-            LINKS.layout(queue.map(q => q.def));
-            for (const q of queue) {
+        const drawQueued = (from = 0, to = queue.length) => {
+            // Cumulative defs: the engine caches everything before `to`, so each later batch only routes its own new
+            // links and does not see the earlier ones as removed.
+            const routed = LINKS.layout(queue.slice(0, to).map(q => q.def));
+            perf.count('routeComputes', routed.changed.length);
+            for (let i = from; i < to; i++) {
+                const q = queue[i];
                 const { x, a, then, def } = q;
                 owning(`${x.from} ${x.to}`, () => {
                     const pts = lineOf(q);
                     // A wide, invisible copy of the line takes taps and drops (the piece bar edits a link through it).
                     const hp = sv('path', { d: LINKS.path(def.id).d, class: 'lhit' });
+                    CV.hit.set(def.id, hp);
                     hp.dataset.link = CV.links.push({ kind: x.kind, from: x.from, to: x.to, mask: x.mask ?? null, id: def.id, key: linkKey(x) }) - 1;
                     hp.dataset.ends = `${x.from}>${x.to}`;
                     hp.dataset.kind = x.kind;
@@ -421,13 +550,14 @@ export function mountCanvas(vp, d) {
             }
         };
         // Draws some links again after a layout (a dot being dragged): their lines and hit paths, not their pills.
-        CV.queue = queue;
+        // The maps keep this to the changed link's own nodes instead of scanning every link in the canvas.
         CV.relink = ids => {
-            for (const q of queue) {
-                if (!ids.has(q.def.id)) continue;
-                for (const n of [...lk.querySelectorAll('.ln')]) if (n.dataset.lid === q.def.id) n.remove();
+            for (const id of ids) {
+                const q = CV.byLid.get(id);
+                if (!q) continue;
+                for (const n of CV.ln.get(id) ?? []) n.remove();
                 owning(`${q.x.from} ${q.x.to}`, () => lineOf(q));
-                for (const n of lk.querySelectorAll('.lhit')) if (n.dataset.lid === q.def.id) n.setAttribute('d', LINKS.path(q.def.id).d);
+                CV.hit.get(id)?.setAttribute('d', LINKS.path(id).d);
             }
         };
         /** The point `d` back from the end of a line. */
@@ -552,7 +682,34 @@ export function mountCanvas(vp, d) {
             if (p) drawEdge(x, tip(p, 2), p.n, x.kind === 'ride' ? tip(p, 3) : tip(p, 2));
             fading = false;
         }
-        drawQueued();
+        // On the first draw of a big canvas, routing every new link (hundreds of lattice searches) is most of the
+        // task that blocks the open: let the cards and ports paint first, then route and draw the links in a few
+        // batches. The first card is visible and usable at once; the canvas is the same when the links arrive. A
+        // later draw makes this frame stale, and small canvases keep the single synchronous draw.
+        const firstBig = drawn === 1 && queue.length >= 200;
+        if (firstBig) {
+            const token = linkSeq;
+            const view = CV;
+            const BATCH = 40;
+            let at = 0;
+            linkPending = true;
+            const later = (fn, delay) => {
+                linkTimer = setTimeout(() => { linkTimer = null; fn(); }, delay);
+            };
+            const next = () => {
+                if (disposed || paused || token !== linkSeq || CV !== view) return;
+                const to = Math.min(queue.length, at + BATCH);
+                drawQueued(at, to);
+                at = to;
+                if (at < queue.length) later(next, 0);
+                else { linkPending = false; drawShaping(); }
+            };
+            linkRaf = requestAnimationFrame(() => {
+                linkRaf = 0;
+                if (disposed || paused || token !== linkSeq || CV !== view) return;
+                later(next, 120);
+            });
+        } else drawQueued();
 
         // Ports, on top of the cards: socket = in, knob = out (VISUAL 7.2).
         for (const [key, ports] of P) {
@@ -590,7 +747,6 @@ export function mountCanvas(vp, d) {
         owner = '';
         world.prepend(lk);
         world.append(pt);
-        if (!camera()) fit(true);
         applyView();
         drawOverlay();
         if (d.desk && hoverKey && CV.R.has(hoverKey)) showHandles(hoverKey);
@@ -598,15 +754,58 @@ export function mountCanvas(vp, d) {
         // Phones have no hover: the card whose inspector is open is the focused one, and the rest dims as on desktop.
         if (!d.desk) phoneFocus();
         drawShaping();
+        perf.end(drawAt);
+    }
+
+    /**
+     * Updates the badges and card state of the cards already drawn, without rebuilding them or touching links. A chat
+     * message changes these on every card that shows the chat's state, and routing has nothing to do with them.
+     */
+    function patchStatus(statusFor) {
+        if (!CV) return;
+        const at = perf.begin('status');
+        for (const rec of CV.statusTargets) {
+            const st = statusFor(rec.e.id);
+            if (sameStatus(rec.st, st)) continue;
+            rec.st = st;
+            if (rec.moment) {
+                rec.card.classList.toggle('happened', !!st?.happened);
+                rec.text.textContent = st ? (st.happened ? 'HAPPENED' : 'NOT YET') : `MOMENT${rec.who}`;
+                continue;
+            }
+            rec.card.classList.toggle('closed', !!st?.closed);
+            rec.card.classList.toggle('waiting', !!st?.waiting);
+            rec.card.classList.toggle('holding', !!st?.holding);
+            rec.grip.classList.toggle('ring', (rec.e.strategy === 'vec' && !rec.e.off) || !!st?.waiting);
+            drawCardLine(rec.text, cardLine(rec.e, st, rec.si));
+            setCardBadge(rec, st);
+            if (rec.navText) {
+                const active = st?.mask ? rec.e.masks.findIndex(x => x.name === st.mask) + 1 : 0;
+                rec.navText.textContent = `${rec.si ? `${rec.si}/${rec.e.masks.length}` : 'main'}${active && active === rec.si ? ' •' : ''}`;
+            }
+        }
+        perf.end(at);
     }
 
     // ---- the piece bar's overlay: dimmed cards, the cards a piece is on, and a link's loose end (pieces-one-by-one)
     let OV = null;
+    /** The nodes the overlay put classes on, so clearing it touches only those. */
+    let OV_NODES = null;
     const keyOf = n => n.dataset.id ?? (n.dataset.pack ? `pack:${n.dataset.pack}` : null);
-    function drawOverlay() {
+    /** Takes an overlay off without walking every card: `overlay(null)` on an already-clear canvas is a no-op. */
+    function clearOverlay() {
         world.querySelectorAll('.ov').forEach(n => n.remove());
-        vp.classList.toggle('arming', !!OV?.dim);
+        vp.classList.remove('arming');
+        if (OV_NODES) for (const n of OV_NODES) { n.classList.remove('dim', 'sel', 'target'); }
+        OV_NODES = null;
+    }
+    function drawOverlay() {
+        if (!OV) { clearOverlay(); return; }
+        world.querySelectorAll('.ov').forEach(n => n.remove());
+        vp.classList.toggle('arming', !!OV.dim);
+        OV_NODES ??= new Set();
         for (const n of world.querySelectorAll('.card[data-id], .packframe[data-pack]')) {
+            OV_NODES.add(n);
             const k = keyOf(n);
             const sel = !!OV?.sel?.has(k);
             // Asked once per card while this overlay stands: a loose end being dragged redraws it on every move.
@@ -629,7 +828,11 @@ export function mountCanvas(vp, d) {
         world.append(h);
     }
     /** Sets the overlay: { dim(key) → bool, sel: Set, loose: { from, at: [x, y], color }, onLoose(hit) }. */
-    function overlay(o) { OV = o; drawOverlay(); }
+    function overlay(o) {
+        if (o == null && OV == null && !OV_NODES) return; // nothing drawn: a tap must not walk the cards
+        OV = o ?? null;
+        drawOverlay();
+    }
     /** Where a loose end starts: below its card. */
     function looseStart(key) {
         const r = CV?.R.get(key);
@@ -772,7 +975,10 @@ export function mountCanvas(vp, d) {
         drawHandles();
         // Phones: a line just picked has its ghost dots brought into view once the strip has taken its room (half
         // the screen). A mouse has room to spare, and moving the view under it would be a surprise.
-        if (!d.desk && was !== SH.l.id) requestAnimationFrame(() => showHandlesOf(SH?.l.id));
+        if (!d.desk && was !== SH.l.id) {
+            if (handlesRaf) cancelAnimationFrame(handlesRaf);
+            handlesRaf = requestAnimationFrame(() => { handlesRaf = 0; showHandlesOf(SH?.l.id); });
+        }
     }
     function showHandlesOf(id) {
         const v = camera();
@@ -846,6 +1052,7 @@ export function mountCanvas(vp, d) {
         liveRaf = 0;
         if (!SH) return;
         const { changed } = LINKS.layout(CV.queue.map(q => q.def));
+        perf.count('routeComputes', changed.length);
         CV.relink(new Set([...changed, SH.l.id]));
         drawHandles();
     }
@@ -939,11 +1146,18 @@ export function mountCanvas(vp, d) {
         b.innerHTML = ic('plus', 's');
         b.append('Place an entry here');
         Object.assign(b.style, { left: `${Math.min(Math.max(at.x - r.left, 90), r.width - 90)}px`, top: `${at.y - r.top}px` });
-        const drop = () => { b.remove(); vp.removeEventListener('pointerdown', away, true); };
+        let timer = 0;
+        const drop = () => {
+            clearTimeout(timer);
+            transients.delete(drop);
+            b.remove();
+            vp.removeEventListener('pointerdown', away, true);
+        };
         const away = ev => { if (!b.contains(ev.target)) drop(); };
         b.addEventListener('click', () => { drop(); then(pointAt(at.x, at.y)); });
         vp.append(b);
-        setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
+        transients.add(drop);
+        timer = setTimeout(() => vp.addEventListener('pointerdown', away, true), 0);
     }
     /** P with several cards picked (desktop): the pack-name box under them, as after a phone's lasso. */
     function packPrompt() {
@@ -980,7 +1194,13 @@ export function mountCanvas(vp, d) {
         box.style.left = `${Math.max(8, Math.min(x, r.width - 300))}px`;
         box.style.top = `${Math.min(y + 8, r.height - 44)}px`;
         vp.append(box);
-        const done = () => { box.remove(); document.removeEventListener('pointerdown', away, true); };
+        let timer = 0;
+        const done = () => {
+            clearTimeout(timer);
+            transients.delete(done);
+            box.remove();
+            document.removeEventListener('pointerdown', away, true);
+        };
         const away = ev => { if (!ev.composedPath().includes(box)) done(); };
         input.addEventListener('keydown', ev => {
             ev.stopPropagation();
@@ -1001,7 +1221,8 @@ export function mountCanvas(vp, d) {
             input.placeholder = `Pack these ${uids.length}, or drag one to move them all`;
             box.classList.add('phone');
         }
-        setTimeout(() => { document.addEventListener('pointerdown', away, true); if (d.desk) input.focus(); }, 0);
+        transients.add(done);
+        timer = setTimeout(() => { document.addEventListener('pointerdown', away, true); if (d.desk) input.focus(); }, 0);
     }
 
     /** Desktop selection; `quiet` leaves telling the app to the tap that follows. */
@@ -1167,7 +1388,7 @@ export function mountCanvas(vp, d) {
     }
 
     // The input (canvas-input.js) reaches the canvas only through this.
-    wireInput({
+    const input = wireInput({
         vp, world, d, camera, saveCamera, applyView, viewLater, gesture, memory, toWorld, zoomAt, render, setPicked,
         drawOverlay, dotTo, addDotAt, removeShapeDot, hideHandles, showHandles, applyFocus, clearFocus, lineUnder, hitAt,
         markTarget, tapAt, pointAt, placeOffer, lassoPrompt,
@@ -1179,10 +1400,65 @@ export function mountCanvas(vp, d) {
         get hoverKey() { return hoverKey; }, set hoverKey(v) { hoverKey = v; }, get focusKey() { return focusKey; },
     });
 
+    /**
+     * Parks the canvas while the page is hidden (A3): pending frames and timers are cancelled, the camera a pan
+     * already reached and the positions a card drag already moved stay (and save once), and the transient parts of a
+     * gesture (guides, a box, a half-made link) are dropped. Returns true when a draw is owed once visible.
+     */
+    function pause() {
+        if (paused) return false;
+        paused = true;
+        const live = !!liveRaf;
+        const flashed = hit != null;
+        const links = cancelDeferredLinks(true);
+        if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); }
+        if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
+        if (handlesRaf) { cancelAnimationFrame(handlesRaf); handlesRaf = 0; }
+        if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+        if (gestureTimer) { clearTimeout(gestureTimer); gestureTimer = null; }
+        vp.classList.remove('gesture');
+        // A Place button or pack-name box adds its own document listener: it goes with the transient state.
+        dropTransients();
+        const interrupted = input.pause();
+        // A camera pan writes memory through saveCamera and leaves only its delayed save: flush that now.
+        if (camTimer) { clearTimeout(camTimer); camTimer = null; d.save(); }
+        if (flashed) hit = null;
+        return !!(interrupted || live || flashed || links);
+    }
+    /** The page is visible again. The app redraws when `pause()` owed one; the flag itself only re-allows frames. */
+    function resume() {
+        if (!paused) return false;
+        paused = false;
+        return true;
+    }
+
+    /** Terminal teardown (A4): all of pause(), then every listener and reference this mount owns. */
+    function dispose() {
+        if (disposed) return;
+        pause();
+        disposed = true;
+        dropTransients();
+        input.dispose();
+        vp.removeEventListener('scroll', keepScroll);
+        world.innerHTML = '';
+        CV = null;
+        OV = null;
+        OV_NODES = null;
+        SH = null;
+        hit = null;
+        moving = null;
+        cam = null;
+        picked = new Set();
+    }
+
     return {
         render, fit, centerOn, reveal, tidy, flip, pointAt, screenRect, overlay, looseStart, hitAt, markTarget, zoomAt, zoomTo, packPrompt,
-        shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(),
-        picked: () => [...picked], setPicked, phoneFocus,
+        shapeState, patchShape, removeShapeDot, resetShape, refreshShaping: () => drawShaping(), patchStatus,
+        picked: () => [...picked], setPicked, phoneFocus, pause, resume, dispose,
+        /** A paused partial progressive draw needs one full render even when the Hero input signature is unchanged. */
+        needsRender: () => linkRedraw,
+        /** Diagnostics for the motion harness: what the canvas still has running or parked. */
+        pending: () => ({ paused, view: !!viewRaf, live: !!liveRaf, links: linkPending, ...input.pending() }),
         get view() { return CV; }, get camera() { return camera(); },
     };
 }

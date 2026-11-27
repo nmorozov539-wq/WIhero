@@ -9,7 +9,7 @@ import { PORT } from './canvas-graph.js';
 import { addLink } from './links.js';
 import { addPiece, bookEditor, greetingName, hasPiece, packsOf } from './pieces.js';
 import { canvasMemory } from './canvas.js';
-import { editExisting, startPiece } from './piecebar.js';
+import { disposePieceBar, editExisting, startPiece } from './piecebar.js';
 import { el } from './dom.js';
 import { isMoment } from '../engine/model.js';
 import { strategyColor } from './entry-page.js';
@@ -73,7 +73,7 @@ export function createHeroBar(A) {
         const data = () => library.peek(book);
         const nameOfId = id => { const x = entriesOf(data()).find(y => idOf(y) === id); return x ? titleOf(x) : id; };
         return {
-            B: H.bar, main, root, canvas: canvas(), layer, desk: S.desk,
+            B: H.bar, book, main, root, canvas: canvas(), layer, desk: S.desk,
             data, editor: () => bookEditor(data()),
             act: (fn, { quiet = false } = {}) => barAct(book, fn, quiet),
             snapshot: () => ({ book, entries: structuredClone(data().entries), original: data().originalData === undefined ? undefined : structuredClone(data().originalData), settings: structuredClone(bookSettings(settings, book)) }),
@@ -323,5 +323,12 @@ export function createHeroBar(A) {
         if (changed) e.dirty = true;
         render();
     }
-    return { barAct, barApi, barTap, createEntry, dropPiece, nodeOf, openStrip, placePicker, shaping, shapeSet };
+    /** Terminal teardown: the retained bar, its observer and the strip state go. */
+    function dispose() {
+        disposePieceBar(H.bar);
+        H.bar.armed = null;
+        H.bar.edit = null;
+    }
+
+    return { barAct, barApi, barTap, createEntry, dispose, dropPiece, nodeOf, openStrip, placePicker, shaping, shapeSet };
 }

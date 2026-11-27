@@ -1,0 +1,755 @@
+[
+  {
+    "step": "cold Home",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 121,
+    "firstTabMs": 113,
+    "firstRowMs": 121,
+    "appRenders": 1,
+    "longTasks": 1,
+    "longTaskMs": 51,
+    "worstMs": 51,
+    "domNodes": 550,
+    "rowsMounted": 41
+  },
+  {
+    "step": "earliest tap on a book (no loading wait)",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 183,
+    "appRenders": 1,
+    "longTasks": 1,
+    "longTaskMs": 113,
+    "worstMs": 113,
+    "domNodes": 1613,
+    "rowsMounted": 147
+  },
+  {
+    "step": "warm Home (Home to book to Home)",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 253,
+    "appRenders": 3,
+    "longTasks": 0,
+    "longTaskMs": 0,
+    "worstMs": 0,
+    "domNodes": 554,
+    "rowsMounted": 41
+  },
+  {
+    "step": "Home settled (no redraw for 1 s)",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 1019,
+    "appRenders": 0,
+    "longTasks": 0,
+    "longTaskMs": 0,
+    "worstMs": 0,
+    "domNodes": 554,
+    "rowsMounted": 41,
+    "quietMs": 1017
+  },
+  {
+    "step": "open the 1,000-entry book",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 333,
+    "appRenders": 1,
+    "longTasks": 1,
+    "longTaskMs": 224,
+    "worstMs": 224,
+    "domNodes": 10459,
+    "rowsMounted": 980,
+    "perf": {
+      "appRenders": 1,
+      "canvasRenders": 0,
+      "modelBuilds": 1,
+      "routeComputes": 0,
+      "rowMounts": 980,
+      "saveAttempts": 0,
+      "settingsSaves": 0,
+      "historyCaptures": 1,
+      "tokenCalls": 0,
+      "serializedChars": 0,
+      "modelMs": 22.4,
+      "modelCalls": 1,
+      "clashScanMs": 0,
+      "clashScanCalls": 0,
+      "sortMs": 0.2,
+      "sortCalls": 1,
+      "rowMountMs": 66.8,
+      "rowMountCalls": 1,
+      "entryPageMs": 0,
+      "entryPageCalls": 0,
+      "canvasDrawMs": 0,
+      "canvasDrawCalls": 0,
+      "arrangeMs": 0,
+      "arrangeCalls": 0,
+      "statusMs": 0,
+      "statusCalls": 0,
+      "historyMs": 4.9,
+      "historyCalls": 1,
+      "saveMs": 0,
+      "saveCalls": 0
+    }
+  },
+  {
+    "step": "scroll the book page",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 568,
+    "appRenders": 0,
+    "longTasks": 0,
+    "longTaskMs": 0,
+    "worstMs": 0,
+    "domNodes": 10459,
+    "rowsMounted": 980
+  },
+  {
+    "step": "open an entry",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 2266,
+    "appRenders": 1,
+    "longTasks": 1,
+    "longTaskMs": 2163,
+    "worstMs": 2163,
+    "domNodes": 94,
+    "rowsMounted": 0,
+    "perf": {
+      "appRenders": 1,
+      "canvasRenders": 0,
+      "modelBuilds": 0,
+      "routeComputes": 0,
+      "rowMounts": 0,
+      "saveAttempts": 0,
+      "settingsSaves": 0,
+      "historyCaptures": 0,
+      "tokenCalls": 1,
+      "serializedChars": 0,
+      "modelMs": 0,
+      "modelCalls": 0,
+      "clashScanMs": 2102.6,
+      "clashScanCalls": 1,
+      "sortMs": 0,
+      "sortCalls": 0,
+      "rowMountMs": 0,
+      "rowMountCalls": 0,
+      "entryPageMs": 2105.4,
+      "entryPageCalls": 1,
+      "canvasDrawMs": 0,
+      "canvasDrawCalls": 0,
+      "arrangeMs": 0,
+      "arrangeCalls": 0,
+      "statusMs": 0,
+      "statusCalls": 0,
+      "historyMs": 0.3,
+      "historyCalls": 1,
+      "saveMs": 0,
+      "saveCalls": 0
+    }
+  },
+  {
+    "step": "A–Z sort",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 794,
+    "appRenders": 1,
+    "longTasks": 1,
+    "longTaskMs": 209,
+    "worstMs": 209,
+    "domNodes": 10459,
+    "rowsMounted": 980,
+    "sort": "az"
+  },
+  {
+    "step": "search typing",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 1125,
+    "appRenders": 1,
+    "longTasks": 1,
+    "longTaskMs": 253,
+    "worstMs": 253,
+    "domNodes": 11026,
+    "rowsMounted": 980,
+    "results": 80
+  },
+  {
+    "step": "Hero mode opening Perf Big",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 848,
+    "appRenders": 0,
+    "longTasks": 1,
+    "longTaskMs": 501,
+    "worstMs": 501,
+    "domNodes": 10408,
+    "rowsMounted": 676,
+    "cards": 676
+  },
+  {
+    "step": "tap a card",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 277,
+    "appRenders": 0,
+    "longTasks": 2,
+    "longTaskMs": 208,
+    "worstMs": 124,
+    "domNodes": 10457,
+    "rowsMounted": 676
+  },
+  {
+    "step": "pan the canvas",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 3525,
+    "appRenders": 0,
+    "longTasks": 11,
+    "longTaskMs": 894,
+    "worstMs": 112,
+    "domNodes": 10457,
+    "rowsMounted": 676
+  },
+  {
+    "step": "inspector toggle (chat state off)",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 431,
+    "appRenders": 0,
+    "longTasks": 1,
+    "longTaskMs": 63,
+    "worstMs": 63,
+    "domNodes": 10408,
+    "rowsMounted": 676
+  },
+  {
+    "step": "Show chat state on",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 931,
+    "appRenders": 0,
+    "longTasks": 1,
+    "longTaskMs": 441,
+    "worstMs": 441,
+    "domNodes": 10408,
+    "rowsMounted": 676,
+    "chatState": true
+  },
+  {
+    "step": "inspector toggle (chat state on)",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 728,
+    "appRenders": 0,
+    "longTasks": 4,
+    "longTaskMs": 607,
+    "worstMs": 271,
+    "domNodes": 10408,
+    "rowsMounted": 676
+  },
+  {
+    "step": "type 50 chars into the 100 KB entry",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 2983,
+    "appRenders": 0,
+    "longTasks": 0,
+    "longTaskMs": 0,
+    "worstMs": 0,
+    "domNodes": 103,
+    "rowsMounted": 0,
+    "chars": 50,
+    "tokenCalls": 1
+  },
+  {
+    "step": "leave Home and close",
+    "label": "measured-native-browser",
+    "machine": {
+      "platform": "linux",
+      "arch": "x64",
+      "cpu": "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+      "node": "26.13.0",
+      "browser": "chromium 158.0.8127.36"
+    },
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "cpuRate": 1,
+    "profile": {
+      "books": 40,
+      "entries": 150,
+      "big": 1000,
+      "canvas": 500,
+      "keys": "shared",
+      "keyCount": 4,
+      "long": 100000,
+      "chats": 240
+    },
+    "seeded": {
+      "books": 41,
+      "bigEntries": 1000,
+      "placedCards": 500,
+      "longEntryChars": 100000,
+      "chatMessages": 481
+    },
+    "ms": 16,
+    "appRenders": 0,
+    "longTasks": 0,
+    "longTaskMs": 0,
+    "worstMs": 0,
+    "domNodes": 559,
+    "rowsMounted": 41
+  }
+]

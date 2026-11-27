@@ -20,18 +20,31 @@ const KIND_ICON = { lock: 'lock', wait: 'clock', greeting: 'chat' };
 /** Each piece's icon in its header (#39), so pieces aren't told apart by color alone. */
 const PIECE_ICON = { gate: 'popen', gatesFor: 'popen', closeGate: 'pclose', closesFor: 'pclose', glue: 'pglue', switch: 'pswitch', masks: 'pmask', packs: 'tag', once: 'ponce', by: 'pby', written: 'ptrack' };
 
-/** The sheet itself: a grab bar that toggles and drags between half and full height. */
+/**
+ * The sheet itself: a grab bar that toggles and drags between half and full height. `x.shell` keeps the `.insp`
+ * node (and its header, passed back by the caller) across draws of the same selection; its body is built again.
+ * @returns {{ shell: HTMLElement, body: HTMLElement }}
+ */
 function frame(box, x, cls) {
-    const sh = el('div', `insp ${cls}${x.full ? ' full' : ''}`);
+    let sh = x.shell;
+    if (sh) {
+        sh.className = `insp ${cls}${x.full ? ' full' : ''}`;
+        sh.style.height = '';
+        sh.replaceChildren();
+    } else {
+        sh = el('div', `insp ${cls}${x.full ? ' full' : ''}`);
+    }
+    // A phone inspector is a direct child of main: Hero's redraw keeps the kept shells where they are.
+    sh.dataset.retained = '1';
     sh.setAttribute('role', x.desk ? 'region' : 'dialog');
     if (x.desk) {
         // Desktop (LAYOUT "Inspector (right column)"): docked, no grab bar.
         const body = el('div', 'ibody');
         sh.append(body);
-        box.append(sh);
+        if (sh.parentNode !== box) box.append(sh);
         if (x.scroll) requestAnimationFrame(() => { body.scrollTop = x.scroll; });
         body.addEventListener('scroll', () => x.onScroll?.(body.scrollTop));
-        return body;
+        return { shell: sh, body };
     }
     const grab = el('div', 'igrab');
     grab.append(el('i'));
@@ -58,10 +71,10 @@ function frame(box, x, cls) {
     });
     const body = el('div', 'ibody');
     sh.append(grab, body);
-    box.append(sh);
+    if (sh.parentNode !== box) box.append(sh);
     if (x.scroll) requestAnimationFrame(() => { body.scrollTop = x.scroll; });
     body.addEventListener('scroll', () => x.onScroll?.(body.scrollTop));
-    return body;
+    return { shell: sh, body };
 }
 
 /** Runs a removal and says so; Ctrl+Z or the canvas's undo arrow takes it back. */
@@ -158,9 +171,10 @@ export function pickTarget(layer, o) {
  */
 export function renderInspector(box, x) {
     const { layer, entry: e, config: c } = x;
-    const body = frame(box, x, 'entry');
+    const { shell, body } = frame(box, x, 'entry');
 
-    const head = el('div', 'ihead');
+    const head = x.head ?? el('div', 'ihead');
+    head.replaceChildren();
     const d = el('i', 'sd');
     d.style.background = strategyColor(e);
     const h = el('h2', '', x.title);
@@ -210,7 +224,7 @@ export function renderInspector(box, x) {
             explainNode(data, 'inspector.data', { title: 'Data' });
             foot.append(data);
             body.append(foot);
-            return;
+            return { shell, head };
         }
     }
 
@@ -392,6 +406,7 @@ export function renderInspector(box, x) {
     explainNode(data, 'inspector.data', { title: 'Data' });
     foot.append(data);
     body.append(foot);
+    return { shell, head };
 }
 
 /**
@@ -807,8 +822,9 @@ function rowsEditor(box, x, get, set, update, isGate, self = false) {
  */
 export function renderGreetingInspector(box, x) {
     const { layer, g, rules } = x;
-    const body = frame(box, x, 'greet');
-    const head = el('div', 'ihead');
+    const { shell, body } = frame(box, x, 'greet');
+    const head = x.head ?? el('div', 'ihead');
+    head.replaceChildren();
     const icn = el('i', 'gicon');
     icn.innerHTML = ic('chat');
     head.append(icn, el('h2', '', g.title), btn('round flat', ic('x'), x.close, 'Close the inspector'));
@@ -864,4 +880,5 @@ export function renderGreetingInspector(box, x) {
         foot.append(off);
         body.append(foot);
     }
+    return { shell, head };
 }

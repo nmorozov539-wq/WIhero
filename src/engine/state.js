@@ -61,6 +61,18 @@ export function readState(value, { at = -1, keyOfId = id => id, renamed = {} } =
     return Object.keys(renamed).length ? renameBooks(state, renamed) : state;
 }
 
+/**
+ * Only the tracker values a stored snapshot wrote (what `readState(value, options)?.wrote` gives), without the
+ * dozen structuredClones of reading the whole state. The map is the snapshot's own: read it, don't change it.
+ * With book renames in play the full reader does the key mapping.
+ */
+export function readWrote(value, options = {}) {
+    if (options.renamed && Object.keys(options.renamed).length) return readState(value, options)?.wrote;
+    if (!isObject(value)) return undefined;
+    if (value.v === STATE_VERSION) return isObject(value.wrote) ? value.wrote : {};
+    return value.v === 1 ? {} : undefined; // a v1 snapshot has no written values
+}
+
 /** Book renames, applied to every state key (`Old/x` → `New/x`, and `Old.3` in round). */
 function renameBooks(state, renamed) {
     const map = key => {

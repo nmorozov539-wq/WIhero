@@ -1,18 +1,22 @@
 // Normal mode's views (LAYOUT "Normal mode"): Home, the book page with its bottom bar and selection, search, and
 // the entry page. Moved out of app.js; it reaches the app only through the context given to it.
 import {
-    MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, configOf, groupEntries, idOf, paramSummary,
-    bookTokens, paramText, paramValue, promptOrder, rekeyEntry, tokenGuess, tokensText, search, setBookFolder, setFolder, setParam, strategyOf, titleOf,
+    MIXED, PARAM_LIST, bookFolderOf, bookSettings, cardKey, commonValue, compareText, configOf, groupEntries, idOf, paramSummary,
+    bookTokens, paramText, paramValue, promptOrder, rekeyEntry, tokenGuess, tokensText, setBookFolder, setFolder, setParam, strategyOf, titleOf,
 } from './data.js';
+import { createDebounced, SEARCH_LIMITS, searchCorpus } from './search.js';
+import { explainNode } from './explain-meta.js';
 import { bookEditor } from './pieces.js';
 import { trackerContext } from './tracker-ui.js';
-import { btn, el, html, longPress, pressable, swEl } from './dom.js';
-import { ic } from './icons.js';
+import { btn, delegatePress, el, html, keyed, longPress, swEl } from './dom.js';
+import { ic, setIcon } from './icons.js';
 import { closedText, logicLines } from './logic-text.js';
-import { keywordClashes } from './clashes.js';
+import { cachedClashes, keywordClashes } from './clashes.js';
 import { editParam, paramRow, renderEntryPage, strategyColor } from './entry-page.js';
+import { perf } from './perf.js';
 import { entryStatus } from '../engine/turn.js';
 import { isObject } from '../engine/util.js';
+import { createListWindow, WIN_LIMIT } from './window.js';
 
 /**
  * @param {object} A The app's context (destructured below): its state, the library and hooks, and the app
@@ -27,194 +31,748 @@ export function createNormal(A) {
         entryFolder, entryMenu, folderSheet, hiddenIn, homePlus, hooks, importBook, layer, leave, library, linkText,
         linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, page, problemsOf, warningsOf, hasLogic, render, renderTabs,
         saveSettings, settings, shadow, showOnCanvas, onCanvas, sortBy, switchMode, tab, up, visibleNames, wiSettingsSheet,
+        searchCache, searchLoad, searchCancel, searchGeneration,
     } = A;
 
+    // One set of gesture listeners for every Home and book row (N2). The rows only carry a marker; the book or
+    // entry is read from the row's dataset when the event happens, so a retained row never holds a stale handler.
+    delegatePress(main, resolvePress);
+
+    /** The gesture handlers for a marked row, resolved fresh at each event from its dataset. */
+    function resolvePress(node) {
+        if (node.dataset.press === 'book') {
+            const book = node.dataset.book;
+            if (!book) return null;
+            return {
+                onTap: () => {
+                    if (S.select) { toggleSel(book); return; }
+                    if (settings.openInHero) { S.hero.book = book; switchMode(); return; }
+                    openIn({ type: 'book', book });
+                },
+                onLong: () => {
+                    if (S.select) return;
+                    openIn({ type: 'book', book }, { newTab: true, background: true });
+                },
+            };
+        }
+        if (node.dataset.press === 'entry') {
+            const book = node.dataset.book;
+            const uid = Number(node.dataset.uid);
+            if (!book || !Number.isFinite(uid)) return null;
+            const entry = () => library.peek(book)?.entries?.[uid];
+            return {
+                onTap: () => {
+                    if (!entry()) return;
+                    if (S.select) { toggleSel(uid); return; }
+                    openIn({ type: 'entry', book, uid });
+                },
+                onLong: () => {
+                    if (S.select) { toggleSel(uid); return; }
+                    if (!entry()) return;
+                    openIn({ type: 'entry', book, uid }, { newTab: true, background: true });
+                },
+            };
+        }
+        if (node.dataset.press === 'search') {
+            const kind = node.dataset.kind;
+            const book = node.dataset.book;
+            const uid = Number(node.dataset.uid);
+            const folder = node.dataset.folder;
+            if (kind === 'entry' && book && Number.isFinite(uid)) {
+                return {
+                    onTap: () => openIn({ type: 'entry', book, uid }, { newTab: true }),
+                    onLong: () => openIn({ type: 'entry', book, uid }, { newTab: true, background: true }),
+                };
+            }
+            if (kind === 'book' && book) {
+                return {
+                    onTap: () => openIn({ type: 'book', book }, { newTab: true }),
+                    onLong: () => openIn({ type: 'book', book }, { newTab: true, background: true }),
+                };
+            }
+            if (kind === 'folder' && book && folder) {
+                return {
+                    onTap: () => { S.collapsed.delete(`${book}:folder:${folder}`); openIn({ type: 'book', book }, { newTab: true }); },
+                };
+            }
+            if (kind === 'folder' && !book && folder) {
+                return {
+                    onTap: () => { S.collapsed.delete(`home:${folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); },
+                };
+            }
+            return null;
+        }
+        return null;
+    }
+
     // ---------------------------------------------------------------- Home
-    function renderHome() {
-        const v = el('div', 'view');
-        main.append(v);
+    /**
+     * Home, reconciled into a retained `.view` (N1b). The header, folder heads, rows and tiles are keyed, so a draw
+     * for the same page keeps their nodes and listeners. Rows key by book name and tiles by book name inside a keyed
+     * grid; switching between list and tiles uses different keys, so those nodes are rebuilt.
+     */
+    function renderHome(view = null) {
+        cancelClashWarm();
+        const v = view ?? el('div', 'view');
+        if (!view) main.append(v);
         const names = visibleNames();
         const tiles = settings.homeView === 'tiles';
-        const books = list => {
-            if (!tiles) { for (const n of list) v.append(bookRow(n)); return; }
-            const g = el('div', 'ptiles');
-            for (const n of list) g.append(bookTile(n));
-            if (list.length) v.append(g);
-        };
-        if (S.select) v.append(selHead(names, 'books'));
-        else {
-            const h = el('div', 'head');
-            // List or tiles, the phone's own choice (desktop keeps its own under settings.desk).
-            const toTiles = !tiles;
-            h.append(el('h1', '', 'World Info'),
-                btn('round flat', ic(toTiles ? 'grid' : 'rows'), () => { settings.homeView = toTiles ? 'tiles' : 'list'; saveSettings(); render(); }, toTiles ? 'Show books as tiles' : 'Show books as a list'),
-                btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
-            v.append(h);
-        }
+        const items = [];
+        if (S.select) {
+            items.push({
+                key: 'selhead',
+                make: () => el('div', 'selhead'),
+                update: h => h.replaceChildren(...selHead(names, 'books').childNodes),
+            });
+        } else items.push(homeHeadItem(tiles));
+        items.push(noteItem('books-label', 'Books', 'section'));
         // A folder shows while it holds a book shown here, or nothing at all (a new folder, #40).
-        const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => a.localeCompare(b));
+        const folders = Object.keys(settings.bookFolders).filter(f => !settings.bookFolders[f].length || settings.bookFolders[f].some(n => names.includes(n))).sort((a, b) => compareText(a, b));
         const loose = names.filter(n => !bookFolderOf(settings, n));
-        v.append(el('div', 'section', 'Books'));
-        books(loose);
+        homeBooks(items, loose, tiles, 'loose');
         for (const f of folders) {
-            const list = settings.bookFolders[f].filter(n => names.includes(n)).sort((a, b) => a.localeCompare(b));
+            const list = settings.bookFolders[f].filter(n => names.includes(n)).sort((a, b) => compareText(a, b));
             const key = `home:${f}`;
             const open = !S.collapsed.has(key);
-            v.append(sectionHead(`${f} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list : null));
-            if (open) books(list);
+            items.push(homeFolderHeadItem(f, `${f} · ${list.length}`, open));
+            if (open) homeBooks(items, list, tiles, `folder:${f}`);
         }
-        if (!names.length) v.append(el('div', 'empty-note', 'No books yet. Tap + to make the first one.'));
+        if (!names.length) items.push(noteItem('home-empty', 'No books yet. Tap + to make the first one.'));
+        const rowAt = perf.begin('rowMount');
+        keyed(v, items, item => item.make());
+        perf.end(rowAt);
+    }
+
+    /** Adds a list's rows, or one keyed tile grid for it. A different view type uses different keys, so it replaces. */
+    function homeBooks(items, list, tiles, scope) {
+        if (!tiles) {
+            for (const n of list) items.push(bookRowItem(n));
+            return;
+        }
+        if (!list.length) return;
+        items.push({
+            key: `tiles:${scope}`,
+            make: () => el('div', 'ptiles'),
+            update: g => keyed(g, list.map(n => bookTileItem(n)), item => item.make()),
+        });
+    }
+
+    function bookRowItem(name) {
+        return { key: `row:${name}`, make: () => bookRow(name), update: it => updateBookRow(it, name) };
+    }
+
+    function bookTileItem(name) {
+        return { key: `tile:${name}`, make: () => bookTile(name), update: t => updateBookTile(t, name) };
+    }
+
+    /** Home's header: kept, with its title and the list/tiles button's icon and label updated in place. */
+    function homeHeadItem(tiles) {
+        // List or tiles, the phone's own choice (desktop keeps its own under settings.desk), read at click time.
+        const toggle = () => {
+            settings.homeView = settings.homeView === 'tiles' ? 'list' : 'tiles';
+            saveSettings();
+            render();
+        };
+        return {
+            key: 'head',
+            make() {
+                const h = el('div', 'head');
+                const viewBtn = btn('round flat', '', toggle, 'Show books as tiles');
+                paintIcon(viewBtn, tiles ? 'rows' : 'grid');
+                h.append(el('h1', '', 'World Info'), viewBtn, btn('round flat', ic('gear'), wiSettingsSheet, 'World Info settings'));
+                return h;
+            },
+            update(h) {
+                h.querySelector(':scope > h1').textContent = 'World Info';
+                const viewBtn = h.querySelector(':scope > button');
+                paintIcon(viewBtn, tiles ? 'rows' : 'grid');
+                viewBtn.setAttribute('aria-label', tiles ? 'Show books as a list' : 'Show books as tiles');
+            },
+        };
+    }
+
+    /** A folder's head on Home. Folding and select-all read the current folder and selection at event time. */
+    function homeFolderHeadItem(folder, text, open) {
+        const key = `home:${folder}`;
+        const current = () => (settings.bookFolders[folder] ?? []).filter(n => visibleNames().includes(n)).sort((a, b) => compareText(a, b));
+        const toggle = () => {
+            if (S.collapsed.has(key)) S.collapsed.delete(key); else S.collapsed.add(key);
+            render();
+        };
+        return {
+            key: `folder:${folder}`,
+            make() {
+                const s = el('div', 'section');
+                s.append(btn('', html`${ic('right')}<span></span>`, toggle));
+                return s;
+            },
+            update(s) {
+                let c = s.querySelector(':scope > .check');
+                if (S.select) {
+                    if (!c) {
+                        c = check(true);
+                        c.setAttribute('role', 'checkbox');
+                        c.addEventListener('click', () => {
+                            if (!S.select) return;
+                            const list = current();
+                            const all = list.length && list.every(x => S.select.has(x));
+                            for (const x of list) all ? S.select.delete(x) : S.select.add(x);
+                            render();
+                        });
+                        s.prepend(c);
+                    }
+                    const list = current();
+                    const all = list.length && list.every(x => S.select.has(x));
+                    c.classList.toggle('on', all);
+                    if (all) setIcon(c, 'check'); else c.replaceChildren();
+                    c.setAttribute('aria-label', `Select ${folder}`);
+                } else c?.remove();
+                const b = s.querySelector(':scope > button');
+                b.querySelector('span').textContent = text;
+                b.classList.toggle('open', open);
+                b.setAttribute('aria-expanded', String(open));
+            },
+        };
     }
 
     /** Entry count and status badges, shared by a book's row and its tile. */
     function bookMeta(name) {
         const m = el('div', 'm');
-        const data = library.peek(name);
-        const count = el('span', '', data ? `${entriesShown(name, data).length} entries` : '…');
-        if (!data) countInto(name, count);
+        const summary = library.summary?.(name);
+        // The summary answers without the book loaded; without one, a loaded copy can (the harness's stand-in
+        // library has no summaries), otherwise the loader fills it in.
+        const data = summary ? null : library.peek(name);
+        const count = el('span', '', summary ? `${summary.entries} entries` : data ? `${entriesShown(name, data).length} entries` : '…');
+        if (!summary && !data) countInto(name, count);
         m.append(count);
-        const global = library.isGlobal(name);
-        const lt = linkText(name);
-        if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; m.append(u); }
-        if (global) m.append(el('span', 'badge g', 'Global'));
-        if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); m.append(l); }
-        if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; m.append(o); }
+        updateBookMeta(m, name);
         return m;
     }
 
-    /** Tap, long press and select mode, the same on a row and a tile. */
+    /**
+     * Count and badges on a retained row/tile. The count span is written only when the book's summary is known (or it
+     * is loaded here); until then `countInto` owns its text, so a draw cannot put "…" back over a count that just
+     * arrived. A summary means Home never reads a book just for its count (M2).
+     */
+    function updateBookMeta(m, name) {
+        const count = m.querySelector(':scope > span:not(.badge)');
+        const summary = library.summary?.(name);
+        const data = summary ? null : library.peek(name);
+        if (summary) count.textContent = `${summary.entries} entries`;
+        else if (data) count.textContent = `${entriesShown(name, data).length} entries`;
+        const global = library.isGlobal(name);
+        const lt = linkText(name);
+        const want = [];
+        if (library.unsaved?.(name)) want.push({ cls: 'u', text: 'Not saved', title: 'Saving failed. Your edits are kept here; the next change tries again' });
+        if (global) want.push({ cls: 'g', text: 'Global' });
+        if (lt) want.push({ cls: 'l', text: lt, icon: 'chain' });
+        if (!global && !lt) want.push({ cls: 'o', text: 'Off', title: 'No chat uses it. Open the book to use it in a chat or make it global' });
+        const have = new Map();
+        for (const n of [...m.querySelectorAll(':scope > .badge')]) {
+            const cls = [...n.classList].find(c => c !== 'badge');
+            if (!cls || have.has(cls)) n.remove();
+            else have.set(cls, n);
+        }
+        let at = count;
+        for (const b of want) {
+            let n = have.get(b.cls);
+            if (!n) {
+                n = el('span', `badge ${b.cls}`);
+                if (b.icon) { setIcon(n, b.icon, 's'); n.append(el('span')); }
+            }
+            if (b.icon) n.querySelector(':scope > span').textContent = b.text;
+            else n.textContent = b.text;
+            if (b.title) n.title = b.title; else n.removeAttribute('title');
+            at.after(n);
+            at = n;
+        }
+        for (const [cls, n] of have) if (!want.some(b => b.cls === cls)) n.remove();
+    }
+
+    /** The book icon, or its check mark in select mode, replaced only when it changes. */
+    function paintBookIcon(box, picked) {
+        paintIcon(box, picked ? 'check' : 'book');
+    }
+
+    function paintIcon(node, name, cls = '') {
+        const want = `${name}:${cls}`;
+        if (node.dataset.icon === want) return;
+        node.dataset.icon = want;
+        setIcon(node, name, cls);
+    }
+
+    /** Marks a book row or tile for the delegated gestures and paints its current selection state. */
     function bookPress(node, name) {
+        node.dataset.press = 'book';
         node.dataset.book = name;
-        if (S.select) { node.setAttribute('role', 'checkbox'); node.setAttribute('aria-checked', String(!!S.select.has(name))); }
-        pressable(node, () => {
-            if (S.select) { toggleSel(name); return; }
-            if (settings.openInHero) { S.hero.book = name; switchMode(); return; }
-            openIn({ type: 'book', book: name });
-        }, S.select ? null : () => openIn({ type: 'book', book: name }, { newTab: true, background: true }));
+        paintBookPress(node, name);
+    }
+
+    /** Selection's row/tile state, in place: the `sel` class and its checkbox role. */
+    function paintBookPress(node, name) {
+        const picked = !!S.select?.has(name);
+        node.classList.toggle('sel', picked);
+        if (S.select) {
+            node.setAttribute('role', 'checkbox');
+            node.setAttribute('aria-checked', String(picked));
+        } else {
+            node.removeAttribute('role');
+            node.removeAttribute('aria-checked');
+        }
+        return picked;
     }
 
     function bookRow(name) {
-        // In select mode a tap selects the row: it lights up and its book icon becomes a check mark (#42).
-        const picked = !!S.select?.has(name);
-        const it = el('div', `item${picked ? ' sel' : ''}`);
-        const i = el('div', 'ic');
-        i.innerHTML = ic(picked ? 'check' : 'book');
+        const it = el('div', 'item');
         const tx = el('div', 'txt');
-        tx.append(el('div', 't', name), bookMeta(name));
-        it.append(i, tx);
-        if (!S.select) it.append(btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`));
+        tx.append(el('div', 't'), bookMeta(name));
+        it.append(el('div', 'ic'), tx);
         bookPress(it, name);
+        perf.count('rowMounts');
         return it;
+    }
+
+    function updateBookRow(it, name) {
+        const picked = paintBookPress(it, name);
+        paintBookIcon(it.querySelector(':scope > .ic'), picked);
+        it.querySelector(':scope > .txt > .t').textContent = name;
+        updateBookMeta(it.querySelector(':scope > .txt > .m'), name);
+        let more = it.querySelector(':scope > .more');
+        if (S.select) { more?.remove(); return; }
+        if (!more) {
+            more = btn('more', ic('more'), () => bookMenu(name, { fromHome: true }), `${name} actions`);
+            it.append(more);
+        }
+        more.setAttribute('aria-label', `${name} actions`);
     }
 
     /** Home's tile view on phones: two to a row, the name on up to two lines, then the count and badges. */
     function bookTile(name) {
-        const picked = !!S.select?.has(name);
-        const t = el('div', `ptile${picked ? ' sel' : ''}`);
+        const t = el('div', 'ptile');
         const top = el('div', 'pt');
-        const i = el('div', 'ic');
-        i.innerHTML = ic(picked ? 'check' : 'book');
-        top.append(i);
-        if (!S.select) top.append(btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`));
-        t.append(top, el('div', 't', name), bookMeta(name));
+        top.append(el('div', 'ic'));
+        t.append(top, el('div', 't'), bookMeta(name));
         bookPress(t, name);
+        perf.count('rowMounts');
         return t;
     }
 
+    function updateBookTile(t, name) {
+        const picked = paintBookPress(t, name);
+        paintBookIcon(t.querySelector(':scope > .pt > .ic'), picked);
+        t.querySelector(':scope > .t').textContent = name;
+        updateBookMeta(t.querySelector(':scope > .m'), name);
+        const top = t.querySelector(':scope > .pt');
+        let more = top.querySelector(':scope > .more');
+        if (S.select) { more?.remove(); return; }
+        if (!more) {
+            more = btn('more', ic('more'), e => { e.stopPropagation(); bookMenu(name, { fromHome: true }); }, `${name} actions`);
+            top.append(more);
+        }
+        more.setAttribute('aria-label', `${name} actions`);
+    }
+
     // ---------------------------------------------------------------- book page
-    function renderBook(p) {
-        const v = el('div', 'view');
-        main.append(v);
-        const data = need(p.book);
-        if (!library.names().includes(p.book) && !data) { v.append(el('div', 'empty-note', 'This book was deleted or renamed.')); return; }
-        if (!data) { v.append(el('div', 'empty-note', loadingNote(p.book))); return; }
+    // Windowed book list (N4a). The header, chips and selection head stay mounted; the flat group-head/row/note list
+    // is materialized only around the viewport, with a spacer for each skipped run. `src/ui/window.js` owns the range
+    // maths, the height cache and the focused-row pin; the estimates here are a 56 px entry row (its measured height),
+    // a 44 px folder head and a 96 px note. Books of 200 shown entries or fewer keep every row, as before.
+    const bookWindows = new WeakMap();
+    const windowRefs = [];
+
+    /** The mounted-height cache and window state for one retained book `.view`. */
+    function bookWindow(v) {
+        let win = bookWindows.get(v);
+        if (!win) {
+            win = createListWindow(v, { defaultHeight: 56 });
+            bookWindows.set(v, win);
+            windowRefs.push(typeof WeakRef === 'function' ? new WeakRef(win) : { deref: () => win });
+        }
+        return win;
+    }
+
+    /** Terminal teardown (A4): every retained phone window's scroll/focus listener and ResizeObserver. */
+    function dispose() {
+        cancelClashWarm();
+        for (const ref of windowRefs) ref.deref()?.dispose();
+        windowRefs.length = 0;
+    }
+
+    // G1: the clash scan warms only after the book page has been quiet for a moment, so it never extends the draw,
+    // the first scroll or a tap; opening an entry before then draws unmarked and patches its marks when the scan
+    // lands. One pending warm at a time; a draw for another book (or Home/search) cancels it, and data replaces or a
+    // revision bump are re-read when it runs.
+    const CLASH_QUIET_MS = 700;
+    let clashWarm = null;
+    const skipSig = skip => (skip?.size ? [...skip].sort((a, b) => a - b).join(',') : '');
+    function cancelClashWarm() {
+        if (!clashWarm) return;
+        clashWarm.cancel();
+        clashWarm = null;
+    }
+    /**
+     * Restarts the quiet wait. The timer is the contract: an idle callback fires in the short gaps between wheel
+     * events (and the windowed list starves it on a busy page), so it would not give the page a real quiet window.
+     */
+    function armClashWarm(w) {
+        if (w.timer) clearTimeout(w.timer);
+        w.timer = setTimeout(w.run, CLASH_QUIET_MS);
+    }
+    /** Pushes the warm back past another book-page interaction (pointer, wheel, scroll or key). */
+    function deferClashWarm(book, data) {
+        if (settings.markClashes === false || !data) return;
+        if (cachedClashes(data, hiddenIn(book), library.bookVersion(book))) return;
+        if (clashWarm?.data === data) { armClashWarm(clashWarm); return; }
+        scheduleClashWarm(book, data);
+    }
+    /** Warms the cache, or calls `onResult` as soon as it is known. Returns nothing; the warm is book-level work. */
+    function scheduleClashWarm(book, data, onResult = null) {
+        if (settings.markClashes === false || !data) return;
+        const skip = hiddenIn(book);
+        const revision = library.bookVersion(book);
+        const known = cachedClashes(data, skip, revision);
+        if (known) { onResult?.(known); return; }
+        const sig = skipSig(skip);
+        if (clashWarm?.data === data && clashWarm.revision === revision && clashWarm.sig === sig) {
+            if (onResult) clashWarm.done.add(onResult);
+            return;
+        }
+        cancelClashWarm();
+        const w = { book, data, revision, sig, done: new Set(), timer: 0, run: null, cancel: null };
+        if (onResult) w.done.add(onResult);
+        w.run = () => {
+            if (clashWarm !== w) return;
+            if (w.timer) { clearTimeout(w.timer); w.timer = 0; }
+            clashWarm = null;
+            if (settings.markClashes === false) return;
+            // The captured data is the one to scan; the revision and skip set are read again, so a result that lands
+            // after an edit is cached for the book as it is now (and the cache itself never serves stale marks).
+            if (library.peek(book) !== data) return;
+            const result = keywordClashes(data, hiddenIn(book), library.bookVersion(book));
+            for (const fn of w.done) fn(result);
+        };
+        w.cancel = () => {
+            if (w.timer) { clearTimeout(w.timer); w.timer = 0; }
+        };
+        armClashWarm(w);
+        clashWarm = w;
+    }
+
+    /** Any interaction with the book page pushes its clash warm past the quiet window. Attached once per view. */
+    const clashWatched = new WeakSet();
+    function watchClashQuiet(v, book) {
+        if (clashWatched.has(v)) return;
+        clashWatched.add(v);
+        const defer = () => {
+            if (!v.isConnected || v.hidden) return;
+            const p = page();
+            if (p?.type !== 'book' || p.book !== book) return;
+            deferClashWarm(book, library.peek(book));
+        };
+        for (const type of ['pointerdown', 'wheel', 'scroll', 'keydown']) v.addEventListener(type, defer, { passive: true });
+    }
+
+    /** Forgets the window (a loading/empty page): the next book list starts from the whole body again. */
+    function resetBookWindow(v) {
+        bookWindows.get(v)?.reset();
+    }
+
+    /**
+     * Draws the book page. A retained `.view` from the same page is reconciled: its header, chips, group heads and rows
+     * are updated in place, and rows are keyed by uid, so a refresh keeps every row node and its listeners (N1a). A new
+     * page gets a new view and only its window of rows is mounted (N4a).
+     */
+    function renderBook(p, view = null) {
+        const v = view ?? el('div', 'view');
+        if (!view) main.append(v);
         const book = p.book;
+        const data = need(book);
+        const lost = !library.names().includes(book) && !data;
+        if (lost || !data) {
+            resetBookWindow(v);
+            keyed(v, [noteItem('empty', lost ? 'This book was deleted or renamed.' : loadingNote(book))], item => item.make());
+            return;
+        }
         const model = modelOf(book, data);
         const all = entriesShown(book, data);
         const shown = all.filter(e => S.showOff || !e.disable);
-
-        if (S.select) v.append(selHead(shown.map(e => e.uid), 'entries'));
+        const prefix = [];
+        if (S.select) prefix.push(selectHeadItem(shown.map(e => e.uid)));
         else {
-            const h = el('div', 'head');
-            if (tab().history.length > 1) h.append(btn('round flat', ic('back'), back, 'Back'));
-            const bn = el('button', 'bkname');
-            bn.type = 'button';
-            bn.append(el('h1', '', book), el('span', 'car', '▾'));
-            bn.addEventListener('click', () => bookMenu(book, { fromPage: true }));
-            h.append(bn);
-            v.append(h);
-            const chips = el('div', 'bkchips');
-            const global = library.isGlobal(book);
-            const g = btn(`chip2${global ? ' on' : ''}`, html`<i class="dot"></i><span>Global</span>`, () => {
-                library.setGlobal(book, !global);
-                layer.toast(!global ? `${book} is active everywhere` : `${book} is no longer global`);
-                render();
-            }, 'Active globally');
-            g.setAttribute('aria-pressed', String(global));
-            const lk = btn('chip2', html`${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links');
-            lk.querySelector('span').textContent = linkText(book) || 'Not linked';
-            chips.append(g, lk);
-            chips.append(el('span', 'bksize', `${all.length} ${all.length === 1 ? 'entry' : 'entries'} · ${tokensText(bookTokens(all))}`));
-            v.append(chips);
+            prefix.push(bookHeadItem(book), bookChipsItem(book, all));
             const off = offHint(book);
-            if (off) v.append(off);
+            if (off) prefix.push({ key: 'off', make: () => off });
         }
 
+        const body = [];
         const groups = groupEntries(shown, sortBy(), e => entryFolder(book, e));
         for (const f of bookSettings(settings, book).folderList ?? []) if (!groups.some(([g]) => g === f)) groups.push([f, []]);
-        groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
+        groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
         for (const [g, list] of groups) {
             const key = `${book}:folder:${g}`;
             const open = !S.collapsed.has(key);
             if (g) {
-                const head = sectionHead(`${g} · ${list.length}`, open, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); render(); }, S.select ? list.map(e => e.uid) : null);
-                if (!S.select) head.append(btn('add', ic('plus', 's'), () => newEntry(book, g), `New entry in ${g}`));
-                v.append(head);
+                body.push(groupHeadItem(book, g, `${g} · ${list.length}`, key, open));
                 if (!open) continue;
-            } else if (groups.length > 1) {
-                v.append(el('div', 'section', 'No folder'));
-            }
-            for (const e of list) v.append(entryRow(book, e, model));
+            } else if (groups.length > 1) body.push(noteItem('nofolder', 'No folder', 'section'));
+            for (const e of list) body.push(entryItem(book, e.uid, model));
         }
-        if (!shown.length) v.append(el('div', 'empty-note', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
+        if (!shown.length) body.push(noteItem('empty', all.length ? 'Every entry is off, and off entries are hidden (☰ menu).' : 'No entries yet. Tap + to write the first one.'));
+
+        const rowAt = view ? null : perf.begin('rowMount');
+        bookWindow(v).paint(prefix, body, body.length > WIN_LIMIT);
+        perf.end(rowAt);
+        // After the page has been quiet: an early entry open draws unmarked and patches from the cache later (G1).
+        watchClashQuiet(v, book);
+        scheduleClashWarm(book, data);
     }
 
-    function entryRow(book, e, model) {
-        const picked = !!S.select?.has(e.uid);
-        const it = el('div', `item ent st-${strategyOf(e)}${picked ? ' sel' : ''}`);
-        it.dataset.uid = e.uid;
-        if (S.select) { it.setAttribute('role', 'checkbox'); it.setAttribute('aria-checked', String(picked)); }
-        // Just the strategy stripe (no icon: it was the same on every row), and the teal dot desktop shows for an
-        // entry with story logic.
+    /** An empty note, or the "No folder" divider: one text line keyed like the other book-page children. */
+    function noteItem(key, text, cls = 'empty-note') {
+        return {
+            key,
+            est: cls === 'empty-note' ? 96 : 44,
+            make: () => el('div', cls, text),
+            update: n => { n.textContent = text; },
+        };
+    }
+
+    /** The book's header (Back and its name): updated in place, so its menu listener and focus survive a draw. */
+    function bookHeadItem(book) {
+        return {
+            key: 'head',
+            make() {
+                const h = el('div', 'head');
+                const bn = el('button', 'bkname');
+                bn.type = 'button';
+                bn.append(el('h1', '', book), el('span', 'car', '▾'));
+                bn.addEventListener('click', () => bookMenu(book, { fromPage: true }));
+                h.append(bn);
+                return h;
+            },
+            update(h) {
+                const wantBack = tab().history.length > 1;
+                let backBtn = h.querySelector(':scope > [aria-label="Back"]');
+                if (wantBack && !backBtn) h.prepend(btn('round flat', ic('back'), back, 'Back'));
+                else if (!wantBack) backBtn?.remove();
+                const bn = h.querySelector(':scope > .bkname');
+                bn.querySelector('h1').textContent = book;
+                bn.querySelector('.car').textContent = '▾';
+            },
+        };
+    }
+
+    /** Global, Links and the entry/token count: their text, class and aria update without replacing the chips. */
+    function bookChipsItem(book, all) {
+        const toggleGlobal = () => {
+            const global = library.isGlobal(book);
+            library.setGlobal(book, !global);
+            layer.toast(!global ? `${book} is active everywhere` : `${book} is no longer global`);
+            render();
+        };
+        return {
+            key: 'chips',
+            make() {
+                const chips = el('div', 'bkchips');
+                chips.append(
+                    btn('chip2', html`<i class="dot"></i><span>Global</span>`, toggleGlobal, 'Active globally'),
+                    btn('chip2', html`${ic('chain', 's')}<span></span>`, () => linksSheet(book), 'Links'),
+                    el('span', 'bksize'),
+                );
+                return chips;
+            },
+            update(chips) {
+                const global = library.isGlobal(book);
+                const g = chips.children[0];
+                const lk = chips.children[1];
+                g.classList.toggle('on', global);
+                g.setAttribute('aria-pressed', String(global));
+                lk.querySelector('span').textContent = linkText(book) || 'Not linked';
+                chips.children[2].textContent = `${all.length} ${all.length === 1 ? 'entry' : 'entries'} · ${tokensText(bookTokens(all))}`;
+            },
+        };
+    }
+
+    /** Selection's own header: kept as a node, its buttons rebuilt for the current selection. */
+    function selectHeadItem(uids) {
+        return {
+            key: 'selhead',
+            make: () => el('div', 'selhead'),
+            update: h => h.replaceChildren(...selHead(uids, 'entries').childNodes),
+        };
+    }
+
+    /**
+     * A folder's group head. Its fold, select-all and add listener read the current state at event time; the label,
+     * open class, aria and checkbox are updated on each draw.
+     */
+    function groupHeadItem(book, folder, text, key, open) {
+        const uidsNow = () => {
+            const data = library.peek(book);
+            if (!data) return [];
+            return entriesShown(book, data).filter(e => (S.showOff || !e.disable) && entryFolder(book, e) === folder).map(e => e.uid);
+        };
+        const toggle = () => {
+            if (S.collapsed.has(key)) S.collapsed.delete(key); else S.collapsed.add(key);
+            render();
+        };
+        return {
+            key: `head:${key}`,
+            est: 44,
+            make() {
+                const s = el('div', 'section');
+                const b = btn('', html`${ic('right')}<span></span>`, toggle);
+                b.querySelector('span').textContent = text;
+                s.append(b);
+                return s;
+            },
+            update(s) {
+                let c = s.querySelector(':scope > .check');
+                if (S.select) {
+                    if (!c) {
+                        c = check(true);
+                        c.setAttribute('role', 'checkbox');
+                        c.addEventListener('click', () => {
+                            const uids = uidsNow();
+                            const all = uids.length && uids.every(x => S.select.has(x));
+                            for (const x of uids) all ? S.select.delete(x) : S.select.add(x);
+                            render();
+                        });
+                        s.prepend(c);
+                    }
+                    const uids = uidsNow();
+                    const all = uids.length && uids.every(x => S.select.has(x));
+                    c.classList.toggle('on', all);
+                    if (all) setIcon(c, 'check'); else c.replaceChildren();
+                    c.setAttribute('aria-label', `Select ${text}`);
+                } else c?.remove();
+                const b = s.querySelector(':scope > button');
+                b.classList.toggle('open', open);
+                b.setAttribute('aria-expanded', String(open));
+                b.querySelector('span').textContent = text;
+                let add = s.querySelector(':scope > .add');
+                if (!S.select) {
+                    if (!add) { add = btn('add', ic('plus', 's'), () => newEntry(book, folder), `New entry in ${folder}`); s.append(add); }
+                } else add?.remove();
+            },
+        };
+    }
+
+    function entryItem(book, uid, model) {
+        return {
+            key: `entry:${uid}`,
+            est: 56,
+            make: () => entryRow(book, uid),
+            update: it => updateEntryRow(it, book, uid, model),
+        };
+    }
+
+    /** A row's fixed shell. It keeps this node; updateEntryRow fills in everything that changes. */
+    function entryRow(book, uid) {
+        const it = el('div', 'item ent');
+        it.dataset.press = 'entry';
+        it.dataset.book = book;
+        it.dataset.uid = uid;
         const i = el('div', 'ic');
-        if (picked) i.innerHTML = ic('check');
         const tx = el('div', 'txt');
         const t = el('div', 't');
-        t.append(el('span', 'nm', titleOf(e)));
-        if (hasLogic(e, model.byStKey.get(`${book}.${e.uid}`))) { const d = el('i', 'ldot'); d.title = 'Has story logic'; t.append(d); }
-        if (problemsOf(model, e.uid, book).length) { const b = el('span', 'bang', '!'); b.title = 'This entry has a problem'; t.append(b); }
-        tx.append(t, el('div', 'm', e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`));
+        t.append(el('span', 'nm'));
+        tx.append(t, el('div', 'm'));
         it.append(i, tx);
-        // Prompt order sort: the Order parameter on the row, tap to change it.
-        if (!S.select && sortBy() === 'prompt') {
-            const ob = btn('ordb', String(promptOrder(e)), () => layer.askText({
-                title: `Order: ${titleOf(e)}`, value: String(promptOrder(e)), type: 'number',
-                check: v => (Number.isInteger(Number(v)) && v.trim() !== '' ? null : 'A whole number'),
-                done: v => library.change(book, d => setParam(d, e.uid, ORDER_PARAM, Number(v))),
-            }), `Order ${promptOrder(e)}: where ${titleOf(e)} goes in the prompt`);
-            it.append(ob);
-        }
-        // Largest first: each row's rough size.
-        if (!S.select && sortBy() === 'size') it.append(el('span', 'tokn', `${tokenGuess(e.content)} tk`));
-        if (!S.select) {
-            it.append(swEl(!e.disable, on => library.change(book, d => { d.entries[e.uid].disable = !on; }), `${titleOf(e)} on`));
-            it.append(btn('more', ic('more'), () => entryMenu(book, e.uid), `${titleOf(e)} actions`));
-        }
-        pressable(it, () => {
-            if (S.select) { toggleSel(e.uid); return; }
-            openIn({ type: 'entry', book, uid: e.uid });
-        }, S.select ? null : () => openIn({ type: 'entry', book, uid: e.uid }, { newTab: true, background: true }));
+        perf.count('rowMounts');
         return it;
+    }
+
+    /** Brings a retained row's title, keys, stripe, marks, extras, switch and selection up to date. */
+    function updateEntryRow(it, book, uid, model) {
+        const e = library.peek(book)?.entries?.[uid];
+        if (!e) return;
+        const picked = !!S.select?.has(uid);
+        for (const cls of [...it.classList]) if (cls.startsWith('st-')) it.classList.remove(cls);
+        it.classList.add(`st-${strategyOf(e)}`);
+        it.classList.toggle('sel', picked);
+        if (S.select) {
+            it.setAttribute('role', 'checkbox');
+            it.setAttribute('aria-checked', String(picked));
+        } else {
+            it.removeAttribute('role');
+            it.removeAttribute('aria-checked');
+        }
+        // Just the strategy stripe (no icon: it was the same on every row), and the check mark in selection.
+        const box = it.querySelector(':scope > .ic');
+        if (picked) { if (!box.firstChild) setIcon(box, 'check'); }
+        else box.replaceChildren();
+        const tx = it.querySelector(':scope > .txt');
+        const t = tx.querySelector(':scope > .t');
+        t.querySelector(':scope > .nm').textContent = titleOf(e);
+        const logic = hasLogic(e, model.byStKey.get(`${book}.${uid}`));
+        let ldot = t.querySelector(':scope > .ldot');
+        if (logic) {
+            if (!ldot) {
+                ldot = el('i', 'ldot');
+                t.insertBefore(ldot, t.querySelector(':scope > .bang'));
+            }
+            ldot.title = 'Has story logic';
+        } else ldot?.remove();
+        const problem = problemsOf(model, uid, book).length > 0;
+        let bang = t.querySelector(':scope > .bang');
+        if (problem) {
+            if (!bang) { bang = el('span', 'bang', '!'); t.append(bang); }
+            bang.title = 'This entry has a problem';
+        } else bang?.remove();
+        tx.querySelector(':scope > .m').textContent = e.constant ? 'Permanent' : `${(e.key ?? []).join(', ') || 'No key words'}${e.vectorized ? ' · vectorized' : ''}`;
+        const firstOf = (...selectors) => {
+            for (const sel of selectors) { const n = it.querySelector(`:scope > ${sel}`); if (n) return n; }
+            return null;
+        };
+        // Prompt order sort: the Order parameter on the row, tap to change it.
+        const wantOrder = !S.select && sortBy() === 'prompt';
+        let ordb = it.querySelector(':scope > .ordb');
+        if (wantOrder) {
+            if (!ordb) {
+                ordb = btn('ordb', '', () => orderPress(book, uid));
+                it.insertBefore(ordb, firstOf('.tokn', '.switch', '.more'));
+            }
+            ordb.textContent = String(promptOrder(e));
+            ordb.setAttribute('aria-label', `Order ${promptOrder(e)}: where ${titleOf(e)} goes in the prompt`);
+        } else ordb?.remove();
+        // Largest first: each row's rough size.
+        const wantSize = !S.select && sortBy() === 'size';
+        let tokn = it.querySelector(':scope > .tokn');
+        if (wantSize) {
+            if (!tokn) { tokn = el('span', 'tokn'); it.insertBefore(tokn, firstOf('.switch', '.more')); }
+            tokn.textContent = `${tokenGuess(e.content)} tk`;
+        } else tokn?.remove();
+        const wantSwitch = !S.select;
+        let sw = it.querySelector(':scope > .switch');
+        if (wantSwitch) {
+            if (!sw) {
+                sw = swEl(false, on => library.change(book, d => {
+                    const cur = d.entries?.[uid];
+                    if (cur) cur.disable = !on;
+                }), 'On');
+                it.insertBefore(sw, firstOf('.more'));
+            }
+            sw.classList.toggle('on', !e.disable);
+            sw.setAttribute('aria-checked', String(!e.disable));
+            sw.setAttribute('aria-label', `${titleOf(e)} on`);
+        } else sw?.remove();
+        let more = it.querySelector(':scope > .more');
+        if (wantSwitch) {
+            if (!more) { more = btn('more', ic('more'), () => entryMenu(book, uid), `${titleOf(e)} actions`); it.append(more); }
+            more.setAttribute('aria-label', `${titleOf(e)} actions`);
+        } else more?.remove();
+    }
+
+    /** The Order button's form reads the entry again when it opens, so a retained row never edits a stale copy. */
+    function orderPress(book, uid) {
+        const e = library.peek(book)?.entries?.[uid];
+        if (!e) return;
+        layer.askText({
+            title: `Order: ${titleOf(e)}`, value: String(promptOrder(e)), type: 'number',
+            check: v => (Number.isInteger(Number(v)) && v.trim() !== '' ? null : 'A whole number'),
+            done: v => library.change(book, d => setParam(d, uid, ORDER_PARAM, Number(v))),
+        });
     }
 
     /**
@@ -246,26 +804,9 @@ export function createNormal(A) {
         return paramSummary({ ...defaults, extensions: defaults.by ? { wihero: { by: defaults.by } } : undefined });
     };
 
-    function sectionHead(text, open, onToggle, selectable) {
-        const s = el('div', 'section');
-        if (selectable) {
-            const all = selectable.length && selectable.every(x => S.select.has(x));
-            const c = check(all);
-            c.setAttribute('role', 'checkbox');
-            c.setAttribute('aria-label', `Select ${text}`);
-            c.addEventListener('click', () => { for (const x of selectable) all ? S.select.delete(x) : S.select.add(x); render(); });
-            s.append(c);
-        }
-        const b = btn(open ? 'open' : '', html`${ic('right')}<span></span>`, onToggle);
-        b.querySelector('span').textContent = text;
-        b.setAttribute('aria-expanded', String(open));
-        s.append(b);
-        return s;
-    }
-
     function check(on) {
         const c = el('span', `check${on ? ' on' : ''}`);
-        if (on) c.innerHTML = ic('check');
+        if (on) setIcon(c, 'check');
         return c;
     }
 
@@ -380,7 +921,15 @@ export function createNormal(A) {
     }
 
     // ---------------------------------------------------------------- search
+    /**
+     * The phone search overlay (M4). Opening it reads no book: only the books already loaded are searched, and the rest
+     * are shown as "N books not searched yet" with a button that loads them as background work. Each book's lowercase
+     * corpus is built once per revision and reused on every keystroke; typing is debounced, and the first (empty)
+     * query runs at once.
+     */
     function renderSearch() {
+        cancelClashWarm();
+        searchCancel(); // a previous overlay's background reads, if a draw rebuilt this one
         const s = el('div', 'search');
         const bar = el('div', 'bar');
         bar.append(btn('round flat', ic('back'), () => { S.search = null; render(); }, 'Close search'));
@@ -392,37 +941,89 @@ export function createNormal(A) {
         const res = el('div', 'res');
         s.append(bar, res);
         main.append(s);
+        const owner = S.search;
         const names = visibleNames();
-        for (const n of names) need(n, { open: false });
-        const run = () => {
+        const session = { loading: false, pending: 0, gen: searchGeneration() };
+        /** The books whose entries this overlay cannot see yet. */
+        const missing = () => names.reduce((n, name) => n + (library.peek(name) ? 0 : 1), 0);
+        const corpora = () => names.map(name => {
+            const data = library.peek(name);
+            return searchCache.book(name, data, bookFolderOf(settings, name), () => entriesShown(name, data), e => entryFolder(name, e));
+        });
+        const status = () => {
+            const left = missing();
+            if (!left) return null;
+            const note = el('div', 'snote');
+            if (session.loading && session.pending) {
+                note.append(el('span', '', `Searching ${left} more book${left === 1 ? '' : 's'}…`));
+                return note;
+            }
+            note.append(el('span', '', `${left} book${left === 1 ? '' : 's'} not searched yet`));
+            const all = btn('linkish', 'Search all books', loadAll, 'Search all books');
+            explainNode(all, 'search.all');
+            note.append(all);
+            return note;
+        };
+        /** Load every unloaded visible book as background work; each arrival searches the current query again. */
+        function loadAll() {
+            if (S.search !== owner) return;
+            const targets = names.filter(name => !library.peek(name));
+            if (!targets.length) return;
+            session.loading = true;
+            session.pending = targets.length;
+            const gen = (session.gen = searchGeneration());
+            for (const name of targets) {
+                const done = () => {
+                    // The overlay may have closed, or been rebuilt, while this read ran: never write into it then.
+                    if (S.search !== owner || gen !== searchGeneration()) return;
+                    session.pending--;
+                    if (!session.pending) session.loading = false;
+                    draw();
+                };
+                searchLoad(name).then(done, done);
+            }
+            draw();
+        }
+        const draw = () => {
+            if (S.search !== owner) return;
+            perf.count('searchRuns');
             S.search.query = input.value;
             res.innerHTML = '';
-            const books = names.map(n => ({ name: n, folder: bookFolderOf(settings, n), entries: library.peek(n) ? entriesShown(n, library.peek(n)) : [], folderOf: e => entryFolder(n, e) }));
-            const hits = search(books, input.value, page().book);
-            if (!input.value.trim()) { res.append(el('div', 'empty-note', page().book ? 'Type to search every book: names, folders and key words. Entries of the open book come first.' : 'Type to search every book: names, folders and key words. Books come first.')); return; }
-            if (!hits.length) { res.append(el('div', 'empty-note', 'Nothing found.')); return; }
-            for (const h of hits.slice(0, 80)) {
-                const it = el('div', `item${h.kind === 'entry' ? ` ent st-${strategyOf(h.entry)}` : ''}`);
-                const i = el('div', 'ic');
-                i.innerHTML = ic(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder');
-                const tx = el('div', 'txt');
-                const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
-                const meta = h.kind === 'entry' ? `${h.book}${entryFolder(h.book, h.entry) ? ` · ${entryFolder(h.book, h.entry)}` : ''}`
-                    : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
-                tx.append(el('div', 't', title), el('div', 'm', meta));
-                it.append(i, tx);
-                const behind = h.kind === 'entry' ? { type: 'entry', book: h.book, uid: h.entry.uid } : h.kind === 'book' ? { type: 'book', book: h.book } : null;
-                pressable(it, () => {
-                    if (h.kind === 'entry') openIn({ type: 'entry', book: h.book, uid: h.entry.uid }, { newTab: true });
-                    else if (h.kind === 'book') openIn({ type: 'book', book: h.book }, { newTab: true });
-                    else if (h.book) { S.collapsed.delete(`${h.book}:folder:${h.folder}`); openIn({ type: 'book', book: h.book }, { newTab: true }); }
-                    else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; render(); }
-                }, behind && (() => openIn(behind, { newTab: true, background: true })));
-                res.append(it);
+            // Build (or reuse) every book's corpus now, even for the empty query: the first keystroke then only scans.
+            const at = perf.begin('search');
+            const books = corpora();
+            const hits = input.value.trim() ? searchCorpus(books, input.value, page().book) : [];
+            perf.end(at);
+            if (!input.value.trim()) {
+                res.append(el('div', 'empty-note', page().book ? 'Type to search every book: names, folders and key words. Entries of the open book come first.' : 'Type to search every book: names, folders and key words. Books come first.'));
+            } else if (!hits.length) {
+                res.append(el('div', 'empty-note', 'Nothing found.'));
+            } else {
+                for (const h of hits.slice(0, SEARCH_LIMITS.phone)) {
+                    const it = el('div', `item${h.kind === 'entry' ? ` ent st-${strategyOf(h.entry)}` : ''}`);
+                    const i = el('div', 'ic');
+                    setIcon(i, h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder');
+                    const tx = el('div', 'txt');
+                    const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
+                    const meta = h.kind === 'entry' ? `${h.book}${entryFolder(h.book, h.entry) ? ` · ${entryFolder(h.book, h.entry)}` : ''}`
+                        : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
+                    tx.append(el('div', 't', title), el('div', 'm', meta));
+                    it.append(i, tx);
+                    it.dataset.press = 'search';
+                    it.dataset.kind = h.kind;
+                    if (h.book) it.dataset.book = h.book;
+                    if (h.kind === 'entry') it.dataset.uid = h.entry.uid;
+                    if (h.folder) it.dataset.folder = h.folder;
+                    res.append(it);
+                    perf.count('rowMounts');
+                }
             }
+            const note = status();
+            if (note) res.append(note);
         };
-        input.addEventListener('input', run);
-        run();
+        const lazy = createDebounced(draw, 130);
+        input.addEventListener('input', () => { S.search.query = input.value; lazy.call(); });
+        draw();
         setTimeout(() => { if (shadow.activeElement !== input) input.focus(); }, 0);
     }
 
@@ -455,6 +1056,14 @@ export function createNormal(A) {
             }
         }
         S.ui.condition = !!p.condition;
+        // Clash marks resolve from the cache the book page warmed (G1). A cold book renders the page unmarked first
+        // and applies the marks when that scan lands, so the scan is never on the entry-open task.
+        const markClashes = settings.markClashes !== false;
+        const skip = hiddenIn(book);
+        let clashes = markClashes ? cachedClashes(data, skip, library.bookVersion(book)) : null;
+        const clashCold = markClashes && !clashes;
+        const clash = markClashes ? key => (clashes ? clashes.of(e.uid, key) : []) : null;
+        const entryAt = perf.begin('entryPage');
         renderEntryPage(into, {
             entry: e,
             bookName: book,
@@ -464,7 +1073,8 @@ export function createNormal(A) {
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             // Keyword clash marking can be turned off (☰ menu, Display); the ☰ menu's Keyword clashes row stays.
-            clash: settings.markClashes === false ? null : (cl => key => cl.of(e.uid, key))(keywordClashes(data, hiddenIn(book))),
+            clash,
+            clashWhenReady: clashCold ? apply => scheduleClashWarm(book, data, result => { clashes = result; apply(); }) : null,
             lines,
             incoming: [...incoming],
             closed,
@@ -507,7 +1117,8 @@ export function createNormal(A) {
             ...extra,
             tokens: text => (ctx().getTokenCountAsync ? ctx().getTokenCountAsync(text) : Promise.resolve(null)),
         });
+        perf.end(entryAt);
     }
 
-    return { applyParam, bottomBar, bulkEdit, check, defaultsSheet, defaultsSummary, renderBook, renderEntry, renderHome, renderSearch, selBar };
+    return { applyParam, bottomBar, bulkEdit, check, defaultsSheet, defaultsSummary, dispose, renderBook, renderEntry, renderHome, renderSearch, selBar };
 }

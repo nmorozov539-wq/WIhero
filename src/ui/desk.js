@@ -2,16 +2,25 @@
 // a list, a book as two panes (its entries on the left, one entry, the bulk pane or Book settings on the right),
 // Ctrl/Shift-click selection instead of a selection mode, the search overlay and the keys. Phones never get here.
 // Everything it needs from the app comes in `A` (see app.js deskApi).
-import { btn, html, el, issueText, swEl } from './dom.js';
-import { ic } from './icons.js';
+import { btn, html, el, issueText, keyed, swEl } from './dom.js';
+import { ic, icNode, setIcon } from './icons.js';
 import {
-    MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, duplicateEntry, entriesOf, groupEntries, paramValue, search,
+    MIXED, PARAM_LIST, bookFolderOf, bookSettings, commonValue, compareText, duplicateEntry, entriesOf, groupEntries, paramValue,
     bookTokens, promptOrder, reorderEntries, setParam, setBookFolder, setFolder, strategyOf, titleOf, tokenGuess, tokensText,
 } from './data.js';
 import { paramGrid, strategyColor } from './entry-page.js';
+import { createDebounced, SEARCH_LIMITS, searchCorpus } from './search.js';
+import { explainNode } from './explain-meta.js';
+import { perf } from './perf.js';
+import { createListWindow, WIN_LIMIT } from './window.js';
 
 const LIST_W = { def: 270, min: 200, max: 460 };
 const NARROW = 640;
+// The desktop list's fixed row shapes (`app.css`): `.brow` is 32 px, a `.blfold` head is 28 px plus its 8 px top
+// margin, and the "nothing matches" note is about 46 px. Measured rows replace these as the window mounts them.
+const BROW_EST = 32;
+const FOLDER_EST = 36;
+const NOTE_EST = 46;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const dateText = t => {
     if (!t) return '';
@@ -22,6 +31,17 @@ const dateText = t => {
     if (days < 7) return `${days} days ago`;
     return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 };
+
+/**
+ * The Home list's order: one key per book, then the comparison the list always used. Decorating keeps `val` to one
+ * call per book (an Entries sort would otherwise count a book's entries again for every comparison).
+ */
+export function homeSort(list, key, dir, val) {
+    return list
+        .map(n => [val(n, key), n])
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0) * dir)
+        .map(([, n]) => n);
+}
 
 /** A drag handle on a column's edge: drag to resize between min and max, double-click to reset. */
 export function resizer(get, set, { min, max, def, side = 'right', onEnd }) {
@@ -88,65 +108,158 @@ export function deskNormal(A) {
         openBook(book, { sel: uid });
     }
 
+    // Keyed by what opened the tab: Home, a book tab by its book, an entry tab by its entry. The key survives walking
+    // that tab's history, so entering a book and going back to the list keeps the same node and listeners.
+    const tabBaseKey = t => {
+        if (t.home) return 'home';
+        const root = t.history[0] ?? pageOf(t);
+        if (root.type === 'book') return `book:${root.book}`;
+        if (root.type === 'entry') return `entry:${root.book}:${root.uid}`;
+        return `tab:${t.id}`;
+    };
+    function keyedTabs() {
+        const seen = new Map();
+        return S.tabs.map(t => {
+            const base = tabBaseKey(t);
+            const n = (seen.get(base) ?? 0) + 1;
+            seen.set(base, n);
+            return { key: n === 1 ? base : `${base}#${n}`, tab: t };
+        });
+    }
+    const tabByKey = key => keyedTabs().find(x => x.key === key)?.tab ?? null;
+
+    function paintTab(b, t, active) {
+        const p = pageOf(t);
+        const label = tabLabel(p);
+        b.className = `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`;
+        b.dataset.tab = t.id;
+        if (t.home) { b.title = 'Home'; return; }
+        const e = p.type === 'entry' ? library.peek(p.book)?.entries[p.uid] : null;
+        let dot = b.querySelector(':scope > .sd');
+        if (e) {
+            if (!dot) { dot = el('i', 'sd'); b.prepend(dot); }
+            dot.style.background = strategyColor(e);
+        } else dot?.remove();
+        let bookIcon = b.querySelector(':scope > .tbi');
+        if (p.type === 'book') {
+            if (!bookIcon) b.insertAdjacentHTML('afterbegin', ic('book', 's tbi'));
+        } else bookIcon?.remove();
+        const x = b.querySelector(':scope > .x');
+        let name = b.querySelector(':scope > .name');
+        if (!name) { name = el('span', 'name'); b.insertBefore(name, x); }
+        name.textContent = label;
+        let badge = b.querySelector(':scope > .badge.u');
+        if (p.book && library.unsaved?.(p.book)) {
+            if (!badge) { badge = el('span', 'badge u', 'Not saved'); b.insertBefore(badge, x); }
+        } else badge?.remove();
+        b.title = label;
+    }
+
+    function renderTabsRight(tabbar) {
+        let right = tabbar.querySelector(':scope > .tright');
+        if (!right) { right = el('div', 'tright'); tabbar.append(right); }
+        const wide = desk().normalWide === true;
+        keyed(right, [
+            { key: 'desk-search' },
+            {
+                key: 'desk-widen',
+                update: b => {
+                    setIcon(b, wide ? 'restore' : 'expand');
+                    const label = wide ? 'Drawer size' : 'Widen';
+                    b.title = label;
+                    b.setAttribute('aria-label', label);
+                },
+            },
+        ], item => {
+            if (item.key === 'desk-search') return btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
+            // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
+            return btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => {
+                const now = desk().normalWide === true;
+                desk().normalWide = !now;
+                save();
+                A.render();
+            }, wide ? 'Drawer size' : 'Widen');
+        });
+    }
+
     let dragTab = null;
     function renderTabs(strip, tabbar) {
-        for (const t of S.tabs) {
-            const p = pageOf(t);
-            const active = t.id === S.active;
-            const b = el('button', `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`);
+        keyed(strip, keyedTabs().map(item => ({
+            key: item.key,
+            update: b => paintTab(b, item.tab, item.tab.id === S.active),
+        })), item => {
+            const b = el('button', 'tab');
             b.type = 'button';
-            b.dataset.tab = t.id;
-            if (t.home) {
+            if (item.key === 'home') {
                 b.innerHTML = ic('home');
                 b.setAttribute('aria-label', 'Home');
-                b.title = 'Home';
-            } else {
-                if (p.type === 'entry') {
-                    const e = library.peek(p.book)?.entries[p.uid];
-                    if (e) { const d = el('i', 'sd'); d.style.background = strategyColor(e); b.append(d); }
-                } else if (p.type === 'book') b.insertAdjacentHTML('beforeend', ic('book', 's tbi'));
-                b.append(el('span', 'name', tabLabel(p)));
-                if (p.book && library.unsaved?.(p.book)) b.append(el('span', 'badge u', 'Not saved'));
-                b.title = tabLabel(p);
-                const x = el('span', 'x');
-                x.innerHTML = ic('x');
-                x.setAttribute('role', 'button');
-                x.setAttribute('aria-label', 'Close tab');
-                x.addEventListener('click', e => { e.stopPropagation(); A.closeTab(t.id); });
-                b.append(x);
-                b.draggable = true;
-                b.addEventListener('dragstart', e => { dragTab = t.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', tabLabel(p)); });
-                b.addEventListener('dragend', () => { dragTab = null; });
-                b.addEventListener('dragover', e => { if (dragTab && dragTab !== t.id) { e.preventDefault(); b.classList.add('dropping'); } });
-                b.addEventListener('dragleave', () => b.classList.remove('dropping'));
-                b.addEventListener('drop', e => {
-                    e.preventDefault();
-                    const from = S.tabs.findIndex(x => x.id === dragTab);
-                    if (from < 0) return;
-                    const [moved] = S.tabs.splice(from, 1);
-                    S.tabs.splice(S.tabs.findIndex(x => x.id === t.id) + (from <= S.tabs.findIndex(x => x.id === t.id) ? 1 : 0), 0, moved);
-                    A.renderTabs();
+                b.addEventListener('click', () => {
+                    const now = tabByKey(item.key);
+                    if (!now || S.active === now.id) return;
+                    now.history = [{ type: 'home' }];
+                    A.leave(); S.active = now.id; S.select = null; S.search = null; A.render();
                 });
-                // Middle-click closes.
-                b.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); A.closeTab(t.id); } });
-                b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-                b.addEventListener('contextmenu', e => { e.preventDefault(); tabMenu(t); });
+                return b;
             }
-            b.addEventListener('click', () => {
-                if (t.home && active) return;
-                if (t.home) t.history = [{ type: 'home' }];
-                if (S.active !== t.id) { A.leave(); S.active = t.id; S.select = null; S.search = null; A.render(); }
+            b.draggable = true;
+            const x = el('span', 'x');
+            x.innerHTML = ic('x');
+            x.setAttribute('role', 'button');
+            x.setAttribute('aria-label', 'Close tab');
+            x.addEventListener('click', e => {
+                e.stopPropagation();
+                const now = tabByKey(item.key);
+                if (now) A.closeTab(now.id);
             });
-            strip.append(b);
-        }
-        const right = el('div', 'tright');
-        const sb = btn('tsearch', html`${ic('search', 's')}<span>Search</span><kbd>Ctrl K</kbd>`, () => openSearch(), 'Search (Ctrl K)');
-        // Widen (LAYOUT "Size and place"): the space between ST's side panels, remembered.
-        const wide = desk().normalWide === true;
-        const wb = btn('iconbtn', ic(wide ? 'restore' : 'expand'), () => { desk().normalWide = !wide; save(); A.render(); }, wide ? 'Drawer size' : 'Widen');
-        wb.title = wide ? 'Drawer size' : 'Widen';
-        right.append(sb, wb);
-        tabbar.append(right);
+            b.append(x);
+            b.addEventListener('click', () => {
+                const now = tabByKey(item.key);
+                if (!now || S.active === now.id) return;
+                A.leave(); S.active = now.id; S.select = null; S.search = null; A.render();
+            });
+            b.addEventListener('dragstart', e => {
+                const now = tabByKey(item.key);
+                if (!now) return;
+                dragTab = now.id;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', tabLabel(pageOf(now)));
+            });
+            b.addEventListener('dragend', () => {
+                dragTab = null;
+                for (const n of strip.querySelectorAll('.dropping')) n.classList.remove('dropping');
+            });
+            b.addEventListener('dragover', e => {
+                const now = tabByKey(item.key);
+                if (dragTab && now && dragTab !== now.id) { e.preventDefault(); b.classList.add('dropping'); }
+            });
+            b.addEventListener('dragleave', () => b.classList.remove('dropping'));
+            b.addEventListener('drop', e => {
+                e.preventDefault();
+                b.classList.remove('dropping');
+                const now = tabByKey(item.key);
+                const from = S.tabs.findIndex(t => t.id === dragTab);
+                const to = now ? S.tabs.findIndex(t => t.id === now.id) : -1;
+                if (from < 0 || to < 0) return;
+                const [moved] = S.tabs.splice(from, 1);
+                S.tabs.splice(S.tabs.findIndex(t => t.id === now.id) + (from <= to ? 1 : 0), 0, moved);
+                A.renderTabs();
+            });
+            // Middle-click closes.
+            b.addEventListener('auxclick', e => {
+                if (e.button !== 1) return;
+                e.preventDefault();
+                const now = tabByKey(item.key);
+                if (now) A.closeTab(now.id);
+            });
+            b.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+            b.addEventListener('contextmenu', e => {
+                e.preventDefault();
+                const now = tabByKey(item.key);
+                if (now) tabMenu(now);
+            });
+            return b;
+        });
+        renderTabsRight(tabbar);
     }
     function tabMenu(t) {
         layer.sheet(null, sh => {
@@ -170,14 +283,31 @@ export function deskNormal(A) {
     }
 
     // ---------------------------------------------------------------- render
+    /** The book page kept between draws: { page, book, data, model, sig, wrap, left, right, listWin }. */
+    let bookMount = null;
+
+    /** Terminal teardown (A4): the retained desktop list's window observer and scroll work. */
+    function dispose() {
+        bookMount?.listWin?.dispose();
+        bookMount = null;
+        main.innerHTML = '';
+    }
+
     function render() {
         const p = A.page();
-        main.innerHTML = '';
         // The page's name: Hero's three-column grid (and anything else keyed on it) must not outlive Hero.
         main.dataset.page = `desk:${p.type}`;
-        if (p.type === 'home') renderHome();
-        else if (p.type === 'book') renderBook(p);
-        else renderEntryTab(p);
+        // A book page whose left list's inputs are unchanged keeps its wrap, list and rows (N3); only the right pane
+        // is drawn again. Anything else is built from scratch, as before.
+        if (!(p.type === 'book' && reuseBook(p))) {
+            // N3a replaces the whole `.bk` mount on a signature change: drop the old list window and its observer.
+            bookMount?.listWin?.dispose();
+            bookMount = null;
+            main.innerHTML = '';
+            if (p.type === 'home') renderHome();
+            else if (p.type === 'book') renderBook(p);
+            else renderEntryTab(p);
+        }
         if (S.search) renderSearch();
     }
 
@@ -226,11 +356,13 @@ export function deskNormal(A) {
 
         // Folders first, in name order; "Not in a folder" last, and only while a book is in it or one is being dragged
         // (it is where a book is dropped to take it out of its folder). Empty folders still show, as drop targets.
-        const folders = Object.keys(settings.bookFolders).sort((a, b) => a.localeCompare(b));
+        const folders = Object.keys(settings.bookFolders).sort((a, b) => compareText(a, b));
         const groups = folders.map(f => [f, settings.bookFolders[f].filter(n => shown.includes(n))]);
         const loose = shown.filter(n => !bookFolderOf(settings, n));
         if (groups.length) groups.push(['', loose]); else groups.push([null, loose]);
         const order = shown; // for Shift ranges
+        // One set of gesture listeners for the rows, tiles and folder drop targets in this Home draw (N2b).
+        homeGestures(v, sel, order);
         const body = el('div', view === 'list' ? 'dlist' : 'dtiles-wrap');
         v.append(body);
         let table = null;
@@ -252,9 +384,9 @@ export function deskNormal(A) {
         const sorted = list => {
             if (view !== 'list') return list;
             const s = S.homeSort ?? { key: 'name', dir: 1 };
-            const val = n => (s.key === 'entries' ? (library.peek(n) ? A.entriesShown(n, library.peek(n)).length : -1)
-                : s.key === 'edited' ? (library.edited?.(n) ?? 0) : s.key === 'active' ? (library.isGlobal(n) ? 2 : A.linkText(n) ? 1 : 0) : n.toLowerCase());
-            return [...list].sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * s.dir);
+            const val = (n, k) => (k === 'entries' ? (library.summary?.(n)?.entries ?? (library.peek(n) ? A.entriesShown(n, library.peek(n)).length : -1))
+                : k === 'edited' ? (library.edited?.(n) ?? 0) : k === 'active' ? (library.isGlobal(n) ? 2 : A.linkText(n) ? 1 : 0) : n.toLowerCase());
+            return homeSort(list, s.key, s.dir, val);
         };
         for (const [f, list] of groups) {
             const key = `home:${f ?? ''}`;
@@ -266,14 +398,19 @@ export function deskNormal(A) {
                 if (!f && !list.length) fh.classList.add('dloose');
                 fh.querySelector('small').textContent = list.length;
                 fh.setAttribute('aria-expanded', String(open));
-                dropTarget(fh, name => { setBookFolder(settings, name, f); save(); A.render(); layer.toast(f ? `Moved to ${f}` : 'Taken out of its folder'); });
+                fh.dataset.folder = f ?? '';
                 if (table) { const r = el('div', `drow dgroup${fh.classList.contains('dloose') ? ' dloose' : ''}`); r.append(fh); target.append(r); } else target.append(fh);
             }
             if (!open) continue;
-            if (table) for (const n of sorted(list)) target.append(bookRow(n, sel, order));
-            else {
+            if (table) {
+                const rowAt = perf.begin('rowMount');
+                for (const n of sorted(list)) target.append(bookRow(n, sel));
+                perf.end(rowAt);
+            } else {
                 const grid = el('div', 'dtiles');
-                for (const n of list) grid.append(bookTile(n, sel, order));
+                const rowAt = perf.begin('rowMount');
+                for (const n of list) grid.append(bookTile(n, sel));
+                perf.end(rowAt);
                 if (!list.length) grid.append(el('div', `dempty${f ? '' : ' dloose'}`, f ? 'Drag books here.' : 'Drop here to take it out of its folder.'));
                 target.append(grid);
             }
@@ -288,31 +425,93 @@ export function deskNormal(A) {
             done: n => { settings.bookFolders[n] = []; save(); A.render(); },
         });
     }
-    function dropTarget(node, drop) {
-        node.addEventListener('dragover', e => { if (dragBooks) { e.preventDefault(); node.classList.add('dropping'); } });
-        node.addEventListener('dragleave', () => node.classList.remove('dropping'));
-        node.addEventListener('drop', e => { e.preventDefault(); node.classList.remove('dropping'); const list = dragBooks; dragBooks = null; for (const n of list ?? []) drop(n); });
-    }
     let dragBooks = null;
-    /** Click, Ctrl/middle-click, Shift-click, right-click and drag on a book (tile or row). */
-    function bookGestures(node, name, sel, order) {
+    /** Marks a Home book row or tile for the delegated gestures (N2b). */
+    function bookPress(node, name) {
+        node.dataset.dpress = 'book';
         node.dataset.book = name;
         node.tabIndex = 0;
         node.draggable = true;
-        node.addEventListener('dragstart', e => { dragBooks = sel?.has(name) ? [...sel] : [name]; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', name); main.querySelector('.dhome')?.classList.add('dragging'); });
-        node.addEventListener('dragend', () => { dragBooks = null; main.querySelector('.dhome')?.classList.remove('dragging'); });
-        node.addEventListener('click', e => {
-            if (e.target.closest('.dcheck, .more')) return;
+    }
+    /**
+     * One set of gesture listeners for Home's book rows and tiles, and the folder heads they drop on. Each event
+     * resolves the live row from `[data-dpress]` and the book name from its dataset.
+     */
+    function homeGestures(v, sel, order) {
+        const bookOf = e => {
+            const node = e.target.closest('[data-dpress="book"]');
+            return node && v.contains(node) ? node.dataset.book : null;
+        };
+        const folderOf = e => {
+            const fh = e.target.closest('.dfolder');
+            return fh && v.contains(fh) ? fh : null;
+        };
+        v.addEventListener('click', e => {
+            const name = bookOf(e);
+            if (!name || e.target.closest('.dcheck, .more')) return;
             if (e.shiftKey && sel?.size) { rangeSelect(name, order); return; }
             if (e.shiftKey) { toggleBook(name); return; }
             if (e.ctrlKey || e.metaKey) { openFromHome(name, true); return; }
             if (sel?.size) { toggleBook(name); return; }
             openFromHome(name, false);
         });
-        node.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); openFromHome(name, true); } });
-        node.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
-        node.addEventListener('keydown', e => { if (e.key === 'Enter') openFromHome(name, e.ctrlKey); else if (e.key === ' ') { e.preventDefault(); toggleBook(name); } });
-        node.addEventListener('contextmenu', e => { e.preventDefault(); bookMenu(name); });
+        v.addEventListener('auxclick', e => {
+            if (e.button !== 1) return;
+            const name = bookOf(e);
+            if (name) { e.preventDefault(); openFromHome(name, true); }
+        });
+        v.addEventListener('mousedown', e => { if (e.button === 1 && bookOf(e)) e.preventDefault(); });
+        v.addEventListener('keydown', e => {
+            const name = bookOf(e);
+            if (!name) return;
+            if (e.key === 'Enter') openFromHome(name, e.ctrlKey);
+            else if (e.key === ' ') { e.preventDefault(); toggleBook(name); }
+        });
+        v.addEventListener('contextmenu', e => {
+            const name = bookOf(e);
+            if (!name) return;
+            e.preventDefault();
+            bookMenu(name);
+        });
+        v.addEventListener('dragstart', e => {
+            const name = bookOf(e);
+            if (!name) return;
+            dragBooks = sel?.has(name) ? [...sel] : [name];
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', name);
+            main.querySelector('.dhome')?.classList.add('dragging');
+        });
+        v.addEventListener('dragend', () => {
+            dragBooks = null;
+            main.querySelector('.dhome')?.classList.remove('dragging');
+            for (const n of v.querySelectorAll('.dfolder.dropping')) n.classList.remove('dropping');
+        });
+        // Folder heads take a dragged book: dragover and drop bubble here from the head the pointer is over.
+        v.addEventListener('dragover', e => {
+            const fh = folderOf(e);
+            if (!fh || !dragBooks) return;
+            e.preventDefault();
+            fh.classList.add('dropping');
+        });
+        v.addEventListener('dragleave', e => {
+            const fh = folderOf(e);
+            if (fh && !fh.contains(e.relatedTarget)) fh.classList.remove('dropping');
+        });
+        v.addEventListener('drop', e => {
+            const fh = folderOf(e);
+            if (!fh) return;
+            e.preventDefault();
+            fh.classList.remove('dropping');
+            const list = dragBooks;
+            dragBooks = null;
+            const folder = fh.dataset.folder ?? '';
+            for (const n of list ?? []) {
+                setBookFolder(settings, n, folder);
+                save();
+                A.render();
+                layer.toast(folder ? `Moved to ${folder}` : 'Taken out of its folder');
+            }
+        });
     }
     function openFromHome(name, background) {
         if (settings.openInHero && !background) { A.openHero(name); return; }
@@ -342,22 +541,24 @@ export function deskNormal(A) {
         const lt = A.linkText(name);
         if (library.unsaved?.(name)) { const u = el('span', 'badge u', 'Not saved'); u.title = 'Saving failed. Your edits are kept here; the next change tries again'; out.push(u); }
         if (global) out.push(el('span', 'badge g', 'Global'));
-        if (lt) { const l = el('span', 'badge l'); l.innerHTML = ic('chain', 's'); l.append(lt); out.push(l); }
+        if (lt) { const l = el('span', 'badge l'); setIcon(l, 'chain', 's'); l.append(lt); out.push(l); }
         if (!global && !lt) { const o = el('span', 'badge o', 'Off'); o.title = 'No chat uses it. Open the book to use it in a chat or make it global'; out.push(o); }
         return out;
     }
     function countSpan(name) {
-        const data = library.peek(name);
-        const s = el('span', 'cnt', data ? plural(A.entriesShown(name, data).length, 'entry', 'entries') : '…');
-        if (!data) A.countInto(name, s);
+        const summary = library.summary?.(name);
+        const data = summary ? null : library.peek(name);
+        const n = summary ? summary.entries : data ? A.entriesShown(name, data).length : null;
+        const s = el('span', 'cnt', n === null ? '…' : plural(n, 'entry', 'entries'));
+        if (n === null) A.countInto(name, s);
         return s;
     }
-    function bookTile(name, sel, order) {
+    function bookTile(name, sel) {
         const on = !!sel?.has(name);
         const t = el('div', `tile${on ? ' sel' : ''}`);
         t.setAttribute('role', 'button');
         const top = el('div', 'tt');
-        top.insertAdjacentHTML('beforeend', ic('book', 's'));
+        top.append(icNode('book', 's'));
         top.append(el('b', '', name));
         t.append(top);
         const chips = el('div', 'tchips');
@@ -370,29 +571,33 @@ export function deskNormal(A) {
         t.append(m);
         t.append(check(on, () => toggleBook(name), `Select ${name}`));
         t.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));
-        bookGestures(t, name, sel, order);
+        bookPress(t, name);
+        perf.count('rowMounts');
         return t;
     }
-    function bookRow(name, sel, order) {
+    function bookRow(name, sel) {
         const on = !!sel?.has(name);
         const r = el('div', `drow dbook${on ? ' sel' : ''}`);
         r.setAttribute('role', 'row');
         const c0 = el('span', 'c0');
         c0.append(check(on, () => toggleBook(name), `Select ${name}`));
         const nm = el('span', 'c-name');
-        nm.insertAdjacentHTML('beforeend', ic('book', 's'));
+        nm.append(icNode('book', 's'));
         nm.append(el('b', '', name));
         const act = el('span', 'c-active');
         act.append(...statusChips(name));
         const n = el('span', 'c-entries');
-        const data = library.peek(name);
-        n.textContent = data ? String(A.entriesShown(name, data).length) : '…';
-        if (!data) A.countInto(name, n, d => String(d));
+        const summary = library.summary?.(name);
+        const loaded = summary ? null : library.peek(name);
+        const entries = summary ? summary.entries : loaded ? A.entriesShown(name, loaded).length : null;
+        n.textContent = entries === null ? '…' : String(entries);
+        if (entries === null) A.countInto(name, n, d => String(d));
         r.append(c0, nm, act, n, el('span', 'c-edited', dateText(library.edited?.(name)) || '–'));
         const more = el('span', 'c-more');
         more.append(btn('more', ic('more', 's'), e => { e.stopPropagation(); bookMenu(name, e.currentTarget); }, `${name} actions`));
         r.append(more);
-        bookGestures(r, name, sel, order);
+        bookPress(r, name);
+        perf.count('rowMounts');
         return r;
     }
     function bookMenu(name, at) {
@@ -415,6 +620,79 @@ export function deskNormal(A) {
     const listW = () => Math.max(LIST_W.min, Math.min(LIST_W.max, desk().listW ?? LIST_W.def));
     const narrow = () => (A.root.clientWidth || 9999) < NARROW;
 
+    /**
+     * Everything the left list draws that reusing its nodes would not update in place. A change to any of `key`
+     * rebuilds the list as before. `multi` is recorded because the rows' markup follows it, but updateRows refreshes
+     * that markup, so a change of selection mode alone is applied in place.
+     */
+    function listSig(p, data, model) {
+        const folders = bookSettings(settings, p.book);
+        const collapsed = [...S.collapsed].filter(k => k.startsWith(`${p.book}:folder:`)).sort().join('\n');
+        const assignments = Object.entries(folders.folders ?? {}).map(([k, v]) => `${k}=${v}`).join('\n');
+        return {
+            key: [
+                p.book,
+                data,
+                library.bookVersion(p.book),
+                model,
+                A.sortBy(),
+                S.showOff,
+                p.q ?? '',
+                collapsed,
+                narrow(),
+                listW(),
+                (folders.folderList ?? []).join('\n'),
+                assignments,
+                library.isGlobal(p.book),
+                A.linkText(p.book),
+                library.chatOpen(),
+            ],
+            // Row markup follows the selection mode; updateRows reconciles it, so it never forces a rebuild.
+            multi: p.select?.size > 1,
+        };
+    }
+    function sameListSig(a, b) {
+        if (!a || !b || a.key.length !== b.key.length) return false;
+        return a.key.every((v, i) => v === b.key[i]);
+    }
+
+    /** The wrap's classes and width, both on a new book page and on a kept one. */
+    function paintBook(wrap, p) {
+        const isNarrow = narrow();
+        // A narrow drawer works like the phone: the list fills the book, an entry fills it with ← back to the list.
+        // With nothing picked yet there is no entry to show, so the list shows.
+        if (isNarrow && p.sel == null && !p.pane && !(p.select?.size > 1)) p.listOpen = true;
+        wrap.classList.toggle('narrow', isNarrow);
+        wrap.classList.toggle('lpage', isNarrow && !!p.listOpen);
+        wrap.style.setProperty('--lw', `${listW()}px`);
+        return isNarrow;
+    }
+
+    /** The rows' selection markup for p.sel/p.select, without touching the rows themselves. */
+    function updateRows(mount, p) {
+        const multi = p.select?.size > 1;
+        for (const r of mount.left.querySelectorAll('.brow')) {
+            const on = multi ? p.select.has(Number(r.dataset.uid)) : p.sel === Number(r.dataset.uid);
+            r.classList.toggle('on', on);
+            r.setAttribute('aria-selected', String(on));
+        }
+    }
+
+    /** Keeps the book page when its list inputs match; draws the right pane and the selection and returns the mount. */
+    function reuseBook(p) {
+        const mount = bookMount;
+        if (!mount || mount.page !== p) return null;
+        const data = A.need(p.book);
+        if (!data || data !== mount.data) return null;
+        const model = A.modelOf(p.book, data);
+        if (!sameListSig(listSig(p, data, model), mount.sig)) return null;
+        for (const child of [...main.children]) if (child !== mount.wrap) child.remove();
+        paintBook(mount.wrap, p);
+        updateRows(mount, p);
+        renderPane(mount.right, p, p.book, data, A.entriesShown(p.book, data));
+        return mount;
+    }
+
     function renderBook(p) {
         const data = A.need(p.book);
         const wrap = el('div', 'bk');
@@ -426,14 +704,7 @@ export function deskNormal(A) {
         const all = A.entriesShown(book, data);
         if (p.sel != null && !data.entries[p.sel]) p.sel = null;
         if (p.select) for (const u of [...p.select]) if (!data.entries[u] || A.hiddenIn(book).has(u)) p.select.delete(u);
-        const isNarrow = narrow();
-        // A narrow drawer works like the phone: the list fills the book, an entry fills it with ← back to the list.
-        // With nothing picked yet there is no entry to show, so the list shows.
-        if (isNarrow && p.sel == null && !p.pane && !(p.select?.size > 1)) p.listOpen = true;
-        const listPage = isNarrow && !!p.listOpen;
-        wrap.classList.toggle('narrow', isNarrow);
-        wrap.classList.toggle('lpage', listPage);
-        wrap.style.setProperty('--lw', `${listW()}px`);
+        const isNarrow = paintBook(wrap, p);
 
         const left = el('aside', 'bl');
         wrap.append(left);
@@ -442,7 +713,14 @@ export function deskNormal(A) {
         }
         const right = el('section', 'br');
         wrap.append(right);
-        bookList(left, p, book, data, model, all);
+        bookMount = { page: p, book, data, model, sig: listSig(p, data, model), wrap, left, right, listWin: null };
+        bookMount.listWin = bookList(left, p, book, data, model, all);
+        renderPane(right, p, book, data, all);
+    }
+
+    /** The right pane: Book settings, the bulk pane, one entry, or the "pick an entry" note. */
+    function renderPane(right, p, book, data, all) {
+        right.innerHTML = '';
         if (p.pane === 'settings') bookSettingsPane(right, p, book, data);
         else if (p.select?.size > 1) bulkPane(right, p, book, data);
         else if (p.sel != null) entryPane(right, p, book, data, all);
@@ -456,7 +734,7 @@ export function deskNormal(A) {
     /** The entries in the order the left pane shows them (folders as they are open). */
     function listOrder(book, data, shown) {
         const groups = groupEntries(shown, A.sortBy(), e => A.entryFolder(book, e));
-        groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
+        groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
         const out = [];
         for (const [g, list] of groups) if (!g || !S.collapsed.has(`${book}:folder:${g}`)) out.push(...list.map(e => e.uid));
         return out;
@@ -502,37 +780,76 @@ export function deskNormal(A) {
         list.setAttribute('aria-label', `Entries of ${book}`);
         list.setAttribute('aria-multiselectable', 'true');
         left.append(list);
+        listGestures(list, p, book);
+        // A bounded window of rows (N4b), the same mechanics as the phone list (N4a) without its header prefix: the
+        // `.bllist` itself scrolls, `.brow` is 32 px and a folder head 36 px including its margin. The window state is
+        // per list, so N3a's replacement of the whole `.bk` mount drops it (render() disposes the old one).
+        const win = createListWindow(list, { defaultHeight: BROW_EST, marginSelector: '.empty-note, .blfold' });
         let order = [];
         const shownNow = () => {
             const q = (p.q ?? '').trim().toLowerCase();
             return all.filter(e => (S.showOff || !e.disable || e.uid === p.sel) && (!q || titleOf(e).toLowerCase().includes(q) || (e.key ?? []).some(k => k.toLowerCase().includes(q))));
         };
-        function fill() {
-            list.innerHTML = '';
-            const shown = shownNow();
-            const groups = groupEntries(shown, A.sortBy(), e => A.entryFolder(book, e));
-            for (const fl of bookSettings(settings, book).folderList ?? []) if (!groups.some(([x]) => x === fl)) groups.push([fl, []]);
-            groups.sort(([a], [b]) => (a !== '') - (b !== '') || a.localeCompare(b));
-            order = [];
-            for (const [grp, items] of groups) {
-                const key = `${book}:folder:${grp}`;
-                const open = !S.collapsed.has(key);
-                if (grp) {
+        /** A keyed entry row; its window `update` only refreshes the two a11y counters. */
+        const rowItem = (e) => {
+            const item = { key: `entry:${e.uid}`, est: BROW_EST, make: () => entryRow(p, book, e, model, item), update: r => paintRowAria(r, item) };
+            return item;
+        };
+        /** A folder head: fold and add read the live state at click time; the node is rebuilt with the list. */
+        const folderItem = (grp, items) => {
+            const key = `${book}:folder:${grp}`;
+            const open = !S.collapsed.has(key);
+            return {
+                key: `head:${key}`,
+                est: FOLDER_EST,
+                make() {
                     const fh = el('div', `blfold${open ? ' open' : ''}`);
-                    const t = btn('ft', html`${ic('right', 's')}<span></span><small></small>`, () => { open ? S.collapsed.add(key) : S.collapsed.delete(key); fill(); });
+                    const t = btn('ft', html`${ic('right', 's')}<span></span><small></small>`, () => {
+                        if (S.collapsed.has(key)) S.collapsed.delete(key); else S.collapsed.add(key);
+                        fill();
+                    });
                     t.querySelector('span').textContent = grp;
                     t.querySelector('small').textContent = items.length;
                     t.setAttribute('aria-expanded', String(open));
                     fh.append(t, btn('fadd', ic('plus', 's'), () => newEntry(p, book, grp), `New entry in ${grp}`));
-                    entryDrop(fh, book, grp, p);
-                    list.append(fh);
-                    if (!open) continue;
+                    fh.dataset.folder = grp;
+                    return fh;
+                },
+            };
+        };
+        function fill() {
+            // A filter, sort, folder or data change rebuilds the list, as before; a scroll only redraws the window.
+            list.innerHTML = '';
+            const shown = shownNow();
+            const groups = groupEntries(shown, A.sortBy(), e => A.entryFolder(book, e));
+            for (const fl of bookSettings(settings, book).folderList ?? []) if (!groups.some(([x]) => x === fl)) groups.push([fl, []]);
+            groups.sort(([a], [b]) => (a !== '') - (b !== '') || compareText(a, b));
+            order = [];
+            const body = [];
+            let pos = 0;
+            for (const [grp, items] of groups) {
+                if (grp) {
+                    body.push(folderItem(grp, items));
+                    if (S.collapsed.has(`${book}:folder:${grp}`)) continue;
                 }
-                for (const e of items) { order.push(e.uid); list.append(entryRow(p, book, e, model)); }
+                for (const e of items) {
+                    const item = rowItem(e);
+                    item.pos = ++pos;
+                    order.push(e.uid);
+                    body.push(item);
+                }
             }
-            if (!shown.length) list.append(el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'));
-            // Drop on the empty list: No folder.
-            entryDrop(list, book, '', p, true);
+            for (const item of body) if (item.pos !== undefined) item.size = pos;
+            if (!shown.length) {
+                body.push({
+                    key: 'none',
+                    est: NOTE_EST,
+                    make: () => el('div', 'blnone', all.length ? (p.q ? 'Nothing matches.' : 'Every entry is off, and off entries are hidden (☰ menu).') : 'No entries yet.'),
+                });
+            }
+            const rowAt = perf.begin('rowMount');
+            win.paint([], body, body.length > WIN_LIMIT);
+            perf.end(rowAt);
         }
         fill();
         list.addEventListener('keydown', e => listKeys(e, p, book, () => order));
@@ -554,9 +871,19 @@ export function deskNormal(A) {
             foot.append(b);
         }
         left.append(foot);
+        return win;
     }
 
-    function entryRow(p, book, e, model) {
+    /**
+     * A row's place in the whole visible order (across folders), so assistive tech knows the listbox holds more than
+     * the mounted window. The folder heads between them are not options and do not count.
+     */
+    function paintRowAria(r, item) {
+        r.setAttribute('aria-setsize', String(item.size ?? 0));
+        r.setAttribute('aria-posinset', String(item.pos ?? 0));
+    }
+
+    function entryRow(p, book, e, model, item = null) {
         const multi = p.select?.size > 1;
         const on = multi ? p.select.has(e.uid) : p.sel === e.uid;
         const r = el('div', `brow st-${strategyOf(e)}${on ? ' on' : ''}${e.disable ? ' off' : ''}`);
@@ -590,55 +917,154 @@ export function deskNormal(A) {
         const sw = swEl(!e.disable, v => library.change(book, d => { d.entries[e.uid].disable = !v; }), `${titleOf(e)} on`);
         sw.classList.add('sm');
         r.append(sw, btn('more', ic('more', 's'), ev => { ev.stopPropagation(); entryMenu(p, book, e.uid, ev.currentTarget); }, `${titleOf(e)} actions`));
-        r.addEventListener('click', ev => {
-            if (ev.target.closest('button')) return;
-            if (ev.ctrlKey || ev.metaKey) { toggleSel(p, e.uid); return; }
-            if (ev.shiftKey) { rangeSel(p, book, e.uid); return; }
-            select(p, e.uid);
-        });
-        r.addEventListener('dblclick', ev => { if (!ev.target.closest('button')) openEntryTab(book, e.uid); });
-        r.addEventListener('auxclick', ev => { if (ev.button === 1) { ev.preventDefault(); openEntryTab(book, e.uid, { background: true }); } });
-        r.addEventListener('mousedown', ev => { if (ev.button === 1) ev.preventDefault(); });
-        r.addEventListener('contextmenu', ev => { ev.preventDefault(); entryMenu(p, book, e.uid); });
-        r.addEventListener('dragstart', ev => {
-            dragEntries = { book, uids: p.select?.has(e.uid) ? [...p.select] : [e.uid] };
-            ev.dataTransfer.effectAllowed = 'move';
-            ev.dataTransfer.setData('text/plain', titleOf(e));
-        });
-        r.addEventListener('dragend', () => { dragEntries = null; });
-        rowDrop(r, p, book, e);
+        if (item) paintRowAria(r, item);
+        perf.count('rowMounts');
         return r;
     }
     let dragEntries = null;
+    let dropRow = null;
+    const clearDropRow = () => { dropRow?.classList.remove('dropbefore', 'dropafter'); dropRow = null; };
+    const overHalf = (r, ev) => { const b = r.getBoundingClientRect(); return ev.clientY > b.top + b.height / 2; };
 
     /**
+     * One set of gesture listeners for the desktop book list's entry rows and its folder drop targets (N2b). The row
+     * is resolved from `.brow`/`data-uid` at event time; the switch, ⋯ and Order box keep their own listeners.
+     *
      * Drag to reorder (#42): dropping on a row puts the dragged entries just above or below it. Only in the Order
      * sort, where the list shows ST's order; it writes displayIndex, never the Order parameter. A row in another
      * folder takes them into that folder too. Ctrl+Z puts both back.
      */
-    function rowDrop(r, p, book, e) {
-        const ok = () => !!dragEntries && dragEntries.book === book && A.sortBy() === 'order' && !dragEntries.uids.includes(e.uid);
-        const below = ev => { const b = r.getBoundingClientRect(); return ev.clientY > b.top + b.height / 2; };
-        const clear = () => r.classList.remove('dropbefore', 'dropafter');
-        r.addEventListener('dragover', ev => {
-            if (!ok()) return;
+    function listGestures(list, p, book) {
+        const rowOf = e => {
+            const r = e.target.closest('.brow');
+            return r && list.contains(r) ? r : null;
+        };
+        const folderHeadOf = e => {
+            const fh = e.target.closest('.blfold');
+            return fh && list.contains(fh) ? fh : null;
+        };
+        const uidOf = r => Number(r?.dataset.uid);
+        list.addEventListener('click', e => {
+            const r = rowOf(e);
+            if (!r || e.target.closest('button')) return;
+            const uid = uidOf(r);
+            if (!Number.isFinite(uid)) return;
+            if (e.ctrlKey || e.metaKey) { toggleSel(p, uid); return; }
+            if (e.shiftKey) { rangeSel(p, book, uid); return; }
+            select(p, uid);
+        });
+        list.addEventListener('dblclick', e => {
+            const r = rowOf(e);
+            if (!r || e.target.closest('button')) return;
+            const uid = uidOf(r);
+            if (Number.isFinite(uid)) openEntryTab(book, uid);
+        });
+        list.addEventListener('auxclick', e => {
+            if (e.button !== 1) return;
+            const r = rowOf(e);
+            if (!r) return;
+            e.preventDefault();
+            const uid = uidOf(r);
+            if (Number.isFinite(uid)) openEntryTab(book, uid, { background: true });
+        });
+        list.addEventListener('mousedown', e => { if (e.button === 1 && rowOf(e)) e.preventDefault(); });
+        list.addEventListener('contextmenu', e => {
+            const r = rowOf(e);
+            if (!r) return;
+            e.preventDefault();
+            const uid = uidOf(r);
+            if (Number.isFinite(uid)) entryMenu(p, book, uid);
+        });
+        list.addEventListener('dragstart', e => {
+            const r = rowOf(e);
+            if (!r) return;
+            const uid = uidOf(r);
+            const entry = library.peek(book)?.entries?.[uid];
+            if (!entry) return;
+            dragEntries = { book, uids: p.select?.has(uid) ? [...p.select] : [uid] };
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', titleOf(entry));
+        });
+        list.addEventListener('dragend', () => {
+            dragEntries = null;
+            clearDropRow();
+            list.classList.remove('dropping');
+            for (const n of list.querySelectorAll('.blfold.dropping')) n.classList.remove('dropping');
+        });
+        const dropInFolder = (folder, ev) => {
             ev.preventDefault();
             ev.stopPropagation();
-            const after = below(ev);
+            const data = library.peek(book);
+            for (const u of dragEntries.uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], folder);
+            dragEntries = null;
+            save();
+            A.render();
+            layer.toast(folder ? `Moved to ${folder}` : 'Moved to No folder');
+        };
+        list.addEventListener('dragover', e => {
+            if (!dragEntries || dragEntries.book !== book) return;
+            const fh = folderHeadOf(e);
+            if (fh) {
+                e.preventDefault();
+                list.classList.remove('dropping');
+                clearDropRow();
+                fh.classList.add('dropping');
+                return;
+            }
+            const r = rowOf(e);
+            if (!r) {
+                clearDropRow();
+                // The empty list (or its note) is the No folder target.
+                if (e.target === list || e.target.closest('.blnone')) {
+                    e.preventDefault();
+                    list.classList.add('dropping');
+                }
+                return;
+            }
+            const uid = uidOf(r);
+            if (A.sortBy() !== 'order' || !Number.isFinite(uid) || dragEntries.uids.includes(uid)) { clearDropRow(); return; }
+            e.preventDefault();
+            e.stopPropagation();
+            const after = overHalf(r, e);
+            if (dropRow && dropRow !== r) clearDropRow();
+            dropRow = r;
             r.classList.toggle('dropafter', after);
             r.classList.toggle('dropbefore', !after);
         });
-        r.addEventListener('dragleave', clear);
-        r.addEventListener('drop', ev => {
-            clear();
-            if (!ok()) return;
-            ev.preventDefault();
-            ev.stopPropagation();
-            const after = below(ev);
+        list.addEventListener('dragleave', e => {
+            const fh = folderHeadOf(e);
+            if (fh && !fh.contains(e.relatedTarget)) fh.classList.remove('dropping');
+            if (!list.contains(e.relatedTarget)) { list.classList.remove('dropping'); clearDropRow(); }
+        });
+        list.addEventListener('drop', e => {
+            const fh = folderHeadOf(e);
+            if (fh) {
+                fh.classList.remove('dropping');
+                list.classList.remove('dropping');
+                if (!dragEntries || dragEntries.book !== book) return;
+                dropInFolder(fh.dataset.folder ?? '', e);
+                return;
+            }
+            clearDropRow();
+            const r = rowOf(e);
+            if (!r) {
+                list.classList.remove('dropping');
+                // Dropped on the empty list or its note: No folder.
+                if ((e.target === list || e.target.closest('.blnone')) && dragEntries?.book === book) dropInFolder('', e);
+                return;
+            }
+            if (!dragEntries || dragEntries.book !== book || A.sortBy() !== 'order') return;
+            const uid = uidOf(r);
+            if (!Number.isFinite(uid) || dragEntries.uids.includes(uid)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const after = overHalf(r, e);
             const { uids } = dragEntries;
             dragEntries = null;
             const data = library.peek(book);
-            const folder = A.entryFolder(book, e);
+            const entry = data.entries[uid];
+            if (!entry) return;
+            const folder = A.entryFolder(book, entry);
             const oldFolders = new Map();
             for (const u of uids) {
                 const x = data.entries[u];
@@ -648,31 +1074,11 @@ export function deskNormal(A) {
             }
             if (oldFolders.size) save();
             let moved = null;
-            library.change(book, d => { moved = reorderEntries(d, uids, e.uid, after); }, { quiet: true });
+            library.change(book, d => { moved = reorderEntries(d, uids, uid, after); }, { quiet: true });
             A.render();
             if (!moved && !oldFolders.size) return;
             const n = uids.length;
             layer.toast(n === 1 ? `Moved ${titleOf(data.entries[uids[0]] ?? {})}` : `Moved ${n} entries`);
-        });
-    }
-    function entryDrop(node, book, folder, p, onlySelf = false) {
-        node.addEventListener('dragover', e => {
-            if (!dragEntries || dragEntries.book !== book || (onlySelf && e.target !== node && !e.target.classList?.contains('blnone'))) return;
-            e.preventDefault();
-            node.classList.add('dropping');
-        });
-        node.addEventListener('dragleave', () => node.classList.remove('dropping'));
-        node.addEventListener('drop', e => {
-            node.classList.remove('dropping');
-            if (!dragEntries || dragEntries.book !== book) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const data = library.peek(book);
-            for (const u of dragEntries.uids) if (data.entries[u]) setFolder(settings, book, data.entries[u], folder);
-            dragEntries = null;
-            save();
-            A.render();
-            layer.toast(folder ? `Moved to ${folder}` : 'Moved to No folder');
         });
     }
 
@@ -687,7 +1093,13 @@ export function deskNormal(A) {
         reveal(uid);
         if (focusTitle) setTimeout(() => main.querySelector('.br .en h1')?.focus(), 0);
     }
-    const reveal = uid => requestAnimationFrame(() => main.querySelector(`.brow[data-uid="${uid}"]`)?.scrollIntoView({ block: 'nearest' }));
+    // A selected/moved row may be outside the mounted window: scroll the window around it, mount it, then bring it into
+    // view. A row that is already mounted takes the plain path (one scrollIntoView, as before).
+    const reveal = uid => requestAnimationFrame(() => {
+        const row = main.querySelector(`.bllist .brow[data-uid="${uid}"]`);
+        if (row) { row.scrollIntoView({ block: 'nearest' }); return; }
+        bookMount?.listWin?.reveal(`entry:${uid}`);
+    });
     function toggleSel(p, uid) {
         const s = p.select ?? new Set(p.sel != null ? [p.sel] : []);
         s.has(uid) ? s.delete(uid) : s.add(uid);
@@ -951,7 +1363,13 @@ export function deskNormal(A) {
 
     // ---------------------------------------------------------------- search overlay (Ctrl K)
     function openSearch() { S.search = { query: S.search?.query ?? '', at: 0 }; A.render(); }
+    /**
+     * The desktop Ctrl K overlay (M4), like the phone one: no book is read on open, only loaded books are searched,
+     * the rest are offered as background reads, corpora are cached per revision, typing is debounced and the first run
+     * is immediate.
+     */
     function renderSearch() {
+        A.searchCancel(); // a previous overlay's background reads, if a draw rebuilt this one
         const ov = el('div', 'dsearch');
         const scrim = el('div', 'dscrim');
         scrim.addEventListener('click', () => { S.search = null; A.render(); });
@@ -968,11 +1386,52 @@ export function deskNormal(A) {
         box.append(bar, res);
         ov.append(scrim, box);
         main.append(ov);
+        const owner = S.search;
         const names = A.visibleNames();
-        for (const n of names) A.need(n, { open: false });
+        const session = { loading: false, pending: 0, gen: A.searchGeneration() };
         const hero = S.mode === 'hero';
         const cur = hero ? A.heroBook() : A.page().book;
         let hits = [];
+        /** The books whose entries this overlay cannot see yet. */
+        const missing = () => names.reduce((n, name) => n + (library.peek(name) ? 0 : 1), 0);
+        const corpora = () => names.map(name => {
+            const data = library.peek(name);
+            return A.searchCache.book(name, data, bookFolderOf(settings, name), () => A.entriesShown(name, data), e => A.entryFolder(name, e));
+        });
+        const status = () => {
+            const left = missing();
+            if (!left) return null;
+            const note = el('div', 'snote');
+            if (session.loading && session.pending) {
+                note.append(el('span', '', `Searching ${left} more book${left === 1 ? '' : 's'}…`));
+                return note;
+            }
+            note.append(el('span', '', `${left} book${left === 1 ? '' : 's'} not searched yet`));
+            const all = btn('linkish', 'Search all books', loadAll, 'Search all books');
+            explainNode(all, 'search.all');
+            note.append(all);
+            return note;
+        };
+        /** Load every unloaded visible book as background work; each arrival searches the current query again. */
+        function loadAll() {
+            if (S.search !== owner) return;
+            const targets = names.filter(name => !library.peek(name));
+            if (!targets.length) return;
+            session.loading = true;
+            session.pending = targets.length;
+            const gen = (session.gen = A.searchGeneration());
+            for (const name of targets) {
+                const done = () => {
+                    // The overlay may have closed, or been rebuilt, while this read ran: never write into it then.
+                    if (S.search !== owner || gen !== A.searchGeneration()) return;
+                    session.pending--;
+                    if (!session.pending) session.loading = false;
+                    draw();
+                };
+                A.searchLoad(name).then(done, done);
+            }
+            draw();
+        }
         const open = (h, background) => {
             if (hero) { S.search = null; A.heroOpen(h, background); return; }
             if (h.kind === 'entry') {
@@ -986,34 +1445,66 @@ export function deskNormal(A) {
             } else { S.collapsed.delete(`home:${h.folder}`); S.search = null; S.active = S.tabs[0].id; S.tabs[0].history = [{ type: 'home' }]; A.render(); }
         };
         const mark = () => res.querySelectorAll('.dsr').forEach((n, i) => { n.classList.toggle('at', i === S.search.at); if (i === S.search.at) n.scrollIntoView({ block: 'nearest' }); });
-        const run = () => {
+        // One set of listeners for every result row (N2b); the hit is read from the row's index at event time.
+        const hitAt = node => {
+            const r = node.closest?.('.dsr');
+            if (!r || !res.contains(r)) return null;
+            const i = Number(r.dataset.i);
+            return Number.isFinite(i) ? hits[i] ?? null : null;
+        };
+        res.addEventListener('mousemove', e => {
+            const r = e.target.closest('.dsr');
+            if (!r) return;
+            const i = Number(r.dataset.i);
+            if (S.search.at !== i) { S.search.at = i; mark(); }
+        });
+        res.addEventListener('click', e => { const h = hitAt(e.target); if (h) open(h, e.ctrlKey || e.metaKey); });
+        res.addEventListener('auxclick', e => {
+            if (e.button !== 1) return;
+            const h = hitAt(e.target);
+            if (h) open(h, true);
+        });
+        const draw = () => {
+            if (S.search !== owner) return;
+            perf.count('searchRuns');
             S.search.query = input.value;
             res.innerHTML = '';
-            const books = names.map(n => ({ name: n, folder: bookFolderOf(settings, n), entries: library.peek(n) ? A.entriesShown(n, library.peek(n)) : [], folderOf: e => A.entryFolder(n, e) }));
-            hits = input.value.trim() ? search(books, input.value, cur).slice(0, 60) : [];
-            if (!input.value.trim()) { res.append(el('div', 'dsnone', cur ? 'Type to search every book. Entries of this book come first.' : 'Type to search every book. Books come first.')); return; }
-            if (!hits.length) { res.append(el('div', 'dsnone', 'Nothing found.')); return; }
-            S.search.at = Math.min(S.search.at ?? 0, hits.length - 1);
-            hits.forEach((h, i) => {
-                const r = el('div', `dsr${h.kind === 'entry' ? ` st-${strategyOf(h.entry)}` : ''}`);
-                r.setAttribute('role', 'option');
-                r.insertAdjacentHTML('beforeend', ic(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder', 's'));
-                const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
-                const meta = h.kind === 'entry' ? `${h.book}${A.entryFolder(h.book, h.entry) ? ` · ${A.entryFolder(h.book, h.entry)}` : ''}${h.entry.key?.length ? ` · ${h.entry.key.join(', ')}` : ''}`
-                    : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
-                r.append(el('b', '', title), el('small', '', meta));
-                r.addEventListener('mousemove', () => { if (S.search.at !== i) { S.search.at = i; mark(); } });
-                r.addEventListener('click', e => open(h, e.ctrlKey || e.metaKey));
-                r.addEventListener('auxclick', e => { if (e.button === 1) open(h, true); });
-                res.append(r);
-            });
+            // Build (or reuse) every book's corpus now, even for the empty query: the first keystroke then only scans.
+            const at = perf.begin('search');
+            const books = corpora();
+            hits = input.value.trim() ? searchCorpus(books, input.value, cur).slice(0, SEARCH_LIMITS.desktop) : [];
+            perf.end(at);
+            if (!input.value.trim()) res.append(el('div', 'dsnone', cur ? 'Type to search every book. Entries of this book come first.' : 'Type to search every book. Books come first.'));
+            else if (!hits.length) res.append(el('div', 'dsnone', 'Nothing found.'));
+            else {
+                S.search.at = Math.min(S.search.at ?? 0, hits.length - 1);
+                const rowAt = perf.begin('rowMount');
+                hits.forEach((h, i) => {
+                    const r = el('div', `dsr${h.kind === 'entry' ? ` st-${strategyOf(h.entry)}` : ''}`);
+                    r.setAttribute('role', 'option');
+                    r.append(icNode(h.kind === 'entry' ? 'entry' : h.kind === 'book' ? 'book' : 'folder', 's'));
+                    const title = h.kind === 'entry' ? titleOf(h.entry) : h.kind === 'book' ? h.book : h.folder;
+                    const meta = h.kind === 'entry' ? `${h.book}${A.entryFolder(h.book, h.entry) ? ` · ${A.entryFolder(h.book, h.entry)}` : ''}${h.entry.key?.length ? ` · ${h.entry.key.join(', ')}` : ''}`
+                        : h.kind === 'book' ? 'Book' : h.book ? `Folder in ${h.book}` : 'Book folder';
+                    r.append(el('b', '', title), el('small', '', meta));
+                    r.dataset.i = String(i);
+                    res.append(r);
+                    perf.count('rowMounts');
+                });
+                perf.end(rowAt);
+            }
+            const note = status();
+            if (note) res.append(note);
             mark();
         };
-        input.addEventListener('input', () => { S.search.at = 0; run(); });
+        const lazy = createDebounced(draw, 130);
+        input.addEventListener('input', () => { S.search.query = input.value; S.search.at = 0; lazy.call(); });
         input.addEventListener('keydown', e => {
+            // The list on screen must belong to the query in the field before Enter or an arrow acts on it.
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') lazy.flush();
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); S.search.at = Math.max(0, Math.min(hits.length - 1, (S.search.at ?? 0) + (e.key === 'ArrowDown' ? 1 : -1))); mark(); } else if (e.key === 'Enter' && hits[S.search.at ?? 0]) { e.preventDefault(); open(hits[S.search.at ?? 0], e.ctrlKey || e.metaKey); }
         });
-        run();
+        draw();
         setTimeout(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 0);
     }
 
@@ -1063,5 +1554,5 @@ export function deskNormal(A) {
         return false;
     }
 
-    return { render, renderTabs, back, key, openBook, openEntryTab, showInBook, openSearch, renderSearch };
+    return { render, renderTabs, back, key, openBook, openEntryTab, showInBook, openSearch, renderSearch, dispose };
 }

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {
     CH, CW, G, LR, buildGraph, canvasBook, canvasSet, withFrames, computePorts, layout, nodeRects, placeNew, snap,
 } from '../src/ui/canvas-graph.js';
-import { arrange, linkKey } from '../src/ui/canvas.js';
+import { arrange, cardBadge, cardLine, linkKey } from '../src/ui/canvas.js';
 import { createLinkEngine, crosses } from '../src/link-engine/index.js';
 
 const sample = () => JSON.parse(fs.readFileSync(new URL('../examples/WIHero-Sample.json', import.meta.url), 'utf8'));
@@ -384,6 +384,22 @@ test('delayed closing: a close row naming the card itself is a badge, not a link
     const g = buildGraph(m);
     assert.ok(!g.edges.some(x => x.from === x.to), 'no self link');
     assert.ok(g.edges.some(x => x.from === 'id:bell' && x.to === 'id:fog'));
+
+    // The line and badge helpers the draw shares with patchStatus.
+    const subject = { masks: [{ name: 'old' }], strategy: 'keys', keys: ['fog', 'mist'], by: null };
+    assert.deepEqual(cardLine(subject, { closed: 'Once, after it fired' }, 0), { kind: 'closed', text: 'CLOSED · by Once, after it fired' });
+    assert.deepEqual(cardLine(subject, { value: '  5\n coins ', mask: 'Gold' }, 0), { kind: 'value', text: 'Gold:  5 coins ', title: '  5\n coins ' });
+    assert.deepEqual(cardLine(subject, { value: 'plain' }, 0), { kind: 'value', text: 'plain', title: 'plain' });
+    assert.deepEqual(cardLine(subject, null, 1), { kind: 'mask', text: 'mask: old' });
+    assert.deepEqual(cardLine(subject, null, 0), { kind: 'keys', text: 'fog, mist', by: null });
+    assert.deepEqual(cardLine({ masks: [], strategy: 'perm', keys: [] }, null, 0), { kind: 'keys', text: 'permanent', by: undefined });
+    assert.deepEqual(cardLine({ masks: [], strategy: 'keys', keys: [] }, null, 0), { kind: 'keys', text: 'no key words', by: undefined });
+    assert.deepEqual(cardBadge(fog, { fired: 2 }), { cls: 'fired', text: '2×', title: null });
+    assert.deepEqual(cardBadge({ closesAfter: 3 }, null), { cls: 'badge1', text: '+3', title: 'Closes 3 messages after it first fires' });
+    assert.deepEqual(cardBadge({ once: true, closesAfter: 3 }, null), { cls: 'badge1', text: '1×', title: null });
+    assert.deepEqual(cardBadge({ closesAfter: 0 }, null), { cls: 'badge1', text: '1×', title: 'Closes after it first fires' });
+    assert.equal(cardBadge({}, null), null);
+    assert.equal(cardBadge({ once: true }, { fired: 1 }).cls, 'fired', 'fired wins over once');
 });
 
 test('packs with coincident bounds get stable separate header rows without moving their cards', () => {

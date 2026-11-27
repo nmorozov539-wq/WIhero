@@ -20,7 +20,6 @@
   --fg: var(--SmartThemeBodyColor, #e4e2da);
   --tint: var(--SmartThemeBlurTintColor, #1d1e22);
   --accent: var(--SmartThemeQuoteColor, #e3913a);
-  --blur: var(--SmartThemeBlurStrength, 10px);
   --shadow: var(--SmartThemeShadowColor, rgba(0, 0, 0, .5));
   --bar: color-mix(in srgb, var(--fg) 4%, transparent);
   --surface: color-mix(in srgb, var(--fg) 8%, transparent);
@@ -39,7 +38,9 @@
 
   position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
   background: var(--tint); color: var(--fg);
-  -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
+  /* No live backdrop blur: the tint is laid over its own opaque color instead. A blurred box as big as the
+     drawer or the window is re-blurred on every frame anything inside it moves (desktop had this right). */
+  background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b);
   font-family: var(--sans); font-size: var(--t-m); line-height: 1.35;
   user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
 }
@@ -80,6 +81,8 @@ svg.i.s { width: 16px; height: 16px; }
 /* ---------- Main ---------- */
 .main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .view { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; }
+/* A pane that is off screen keeps its DOM but takes no space and cannot be focused (N3b). */
+.view[hidden] { display: none; }
 .head { display: flex; align-items: center; gap: 8px; padding: 14px 8px 8px 16px; }
 .head h1 { margin: 0; font-size: var(--t-l); font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .head > h1 { flex: 1; }
@@ -132,9 +135,9 @@ svg.i.s { width: 16px; height: 16px; }
 
 /* Toggle: a light knob; the On track is the accent mixed about half with the background */
 .switch { width: 40px; height: 24px; border-radius: 12px; background: var(--line); position: relative; flex-shrink: 0; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: left .15s, background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: #d9d8d3; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s; } /* the knob colour snaps; only transform animates (A5) */
 .switch.on { background: color-mix(in srgb, var(--accent) 50%, var(--tint)); }
-.switch.on::after { left: 19px; background: #fbfaf7; } /* the knob stays light on every theme */
+.switch.on::after { transform: translateX(16px); background: #fbfaf7; } /* the knob stays light on every theme */
 
 /* Book page */
 .bkname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
@@ -240,7 +243,7 @@ input.kbox:focus { border-color: var(--accent); }
 .content-h { display: flex; align-items: baseline; gap: 8px; padding: 16px 0 6px; }
 .content-h h2 { flex: 1; }
 .content-h small { color: var(--muted); font-size: var(--t-xs); }
-.en textarea { display: block; width: 100%; min-height: 200px; resize: none; border: none; background: none; color: var(--fg); font-family: var(--content-font, var(--serif)); font-size: calc(var(--fs) * 1.04); line-height: 1.65; padding: 0; user-select: text; -webkit-user-select: text; overflow: hidden; }
+.en textarea { display: block; width: 100%; min-height: 200px; max-height: min(70vh, 800px); resize: none; border: none; background: none; color: var(--fg); font-family: var(--content-font, var(--serif)); font-size: calc(var(--fs) * 1.04); line-height: 1.65; padding: 0; user-select: text; -webkit-user-select: text; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; field-sizing: content; }
 .en textarea::placeholder { color: var(--muted); opacity: .7; font-family: var(--sans); font-size: var(--t-m); }
 .en.off h1, .en.off .kbox, .en.off textarea { opacity: .45; }
 
@@ -249,7 +252,7 @@ input.kbox:focus { border-color: var(--accent); }
 .layer > * { pointer-events: auto; }
 .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); }
 .scrim.clear { background: rgba(0, 0, 0, .2); }
-.sheet, .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); }
+.sheet, .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 18px 18px 0 0; padding: 6px 0 14px; max-height: 78%; overflow-y: auto; overscroll-behavior: contain; animation: up .18s ease-out; box-shadow: 0 -6px 24px var(--shadow); }
 @keyframes up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 8px; }
@@ -289,6 +292,8 @@ input.kbox:focus { border-color: var(--accent); }
 .search .bar { display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--bar); }
 .search input { flex: 1; min-width: 0; height: 44px; border-radius: 22px; border: 1px solid var(--accent); background: var(--surface); color: var(--fg); padding: 0 16px; user-select: text; -webkit-user-select: text; }
 .search .res { flex: 1; overflow-y: auto; }
+.snote { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 10px; color: var(--muted); font-size: var(--t-s); }
+.snote .linkish { padding: 0; color: var(--accent); font-weight: 600; }
 
 /* ---------- Hero mode: the canvas (VISUAL 7) ---------- */
 .wih {
@@ -300,7 +305,7 @@ input.kbox:focus { border-color: var(--accent); }
 @supports (color: rgb(from red r g b)) {
   .wih { --canvas: rgb(from var(--tint) r g b); }
 }
-.modebtn { display: flex; align-items: center; gap: 12px; width: calc(100% - 20px); margin: 4px 10px 6px; min-height: 50px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; transition: background .15s, border-color .15s; }
+.modebtn { display: flex; align-items: center; gap: 12px; width: calc(100% - 20px); margin: 4px 10px 6px; min-height: 50px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; } /* armed colours snap: no background/border transition (A5) */
 .modebtn span { flex: 1; }
 .modebtn.arm { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 500; font-size: var(--t-s); }
 
@@ -309,6 +314,9 @@ input.kbox:focus { border-color: var(--accent); }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 /* While a finger pans or pinches, the world is its own GPU layer (canvas.js gesture) */
 .vp.gesture .world { will-change: transform; }
+/* A parked editor (hidden page or hidden host) keeps no promotion, even if a class is left over (A4). */
+.wih[data-paused] .vp.gesture .world,
+.wih[data-paused] .card.moving { will-change: auto; }
 svg.lk, svg.pt { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 svg.pt { z-index: 3; }
 svg.pt .port { pointer-events: all; cursor: pointer; }
@@ -363,7 +371,7 @@ svg.lk path.head { stroke-width: 0; }
 .plabel { position: absolute; z-index: 3; transform: translate(-50%, -50%); font-size: 10px; font-weight: 700; color: var(--p-pack); background: var(--canvas); padding: 0 4px; border-radius: 4px; pointer-events: none; text-transform: uppercase; letter-spacing: .04em; }
 .canvas-tools { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
 .canvas-tools button, .panelBtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: flex; align-items: center; justify-content: center; }
-.panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: left .22s ease; }
+.panelBtn { position: absolute; left: 10px; top: 10px; z-index: 11; border-radius: 22px; transition: transform .22s ease; } /* moves by transform; see .panelBtn.open (A5) */
 /* Undo and redo on the canvas: beside the entries button, top left. */
 /* Phone: undo and redo in a row at the bottom right, in thumb reach, under the zoom column; the top left keeps
    only the panel button and the legend. Desktop keeps them top left. */
@@ -379,7 +387,6 @@ svg.lk path.head { stroke-width: 0; }
 .checkchip svg { color: var(--warn); }
 .checkchip.dead svg { color: var(--bad); }
 [data-desk="1"] .checkchip { right: 10px; top: 10px; height: 28px; }
-.panelBtn.open { left: calc(100% - 54px); }
 .zlabel { position: absolute; left: 10px; bottom: 10px; z-index: 6; font: inherit; font-size: var(--t-xs); color: var(--muted); background: var(--card); padding: 4px 8px; border-radius: 8px; border: 0; cursor: pointer; }
 .zlabel:hover { color: var(--fg); }
 .cv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: var(--t-s); padding: 40px; pointer-events: none; line-height: 1.5; }
@@ -391,7 +398,10 @@ svg.lk path.head { stroke-width: 0; }
 /* The entry panel (Obsidian style) */
 .panel { position: absolute; left: 0; top: 0; bottom: 0; width: calc(100% - 64px); max-width: 420px; z-index: 10; background: linear-gradient(var(--bar), var(--bar)), var(--canvas); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; transition: transform .22s ease; box-shadow: 8px 0 30px var(--shadow); }
-.panelBtn.open { left: min(calc(100% - 54px), 430px); }
+/* Phone Hero: from left 10px to min(100% - 54px, 430px) without animating `left`. The containing block is the
+   full drawer width on a phone, so the delta is the viewport width minus the 10px inset and the 54px right edge,
+   clamped at the same 430px open position. The desktop open class is never set (the button is a flex child). */
+.panelBtn.open { transform: translateX(min(calc(100vw - 64px), 420px)); }
 .panel.closed { transform: translateX(-102%); box-shadow: none; }
 .panel .phead { display: flex; align-items: center; gap: 6px; padding: 10px 8px 4px 16px; min-height: 64px; }
 .panel .phead input { flex: 1; min-width: 0; height: 38px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 0 14px; font-size: var(--t-s); user-select: text; -webkit-user-select: text; }
@@ -560,7 +570,16 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .prow.greet .nm { display: flex; flex-direction: column; }
 .prow.greet .nm small { color: var(--muted); font-size: var(--t-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--content-font, var(--serif)); font-style: italic; }
 
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* Reduced motion (A3). This sheet lives in the editor's shadow root, so `*` reaches only the editor's own tree and
+   never ST's page. The canvas keeps its non-motion feedback (dimming, the inspection outline); only transitions and
+   animations go, and a status/toast still reads because its element and text stay. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+/* A hidden page (phone switching apps, a background tab) parks motion instead of finishing it off screen. app.js
+   sets the attribute from the visibility change and clears it when the page or the editor is visible again. */
+.wih[data-paused], .wih[data-paused] *, .wih[data-paused]::before, .wih[data-paused]::after,
+.wih[data-paused] *::before, .wih[data-paused] *::after { animation-play-state: paused !important; transition: none !important; }
 @media (min-width: 700px) { .en { max-width: 760px; } }
 
 /* Preview (N5, LAYOUT "Preview tab", VISUAL 8) */
@@ -611,7 +630,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 /* Over the canvas, the card as it will land: its size at this zoom, on the grid (Features 3). */
 .dragghost.real { margin: 0; min-height: 0; padding: .4em .6em .4em 2.2em; white-space: normal; font-weight: 600; display: flex; align-items: center; line-height: 1.2; border-width: 2px; }
 /* Drop here to cancel a drag from the entry panel */
-.dropcancel { position: absolute; left: 50%; top: 78%; z-index: 59; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: color-mix(in srgb, var(--bad) 75%, transparent); box-shadow: 0 6px 20px var(--shadow); transition: transform .12s, background .12s; }
+.dropcancel { position: absolute; left: 50%; top: 78%; z-index: 59; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: color-mix(in srgb, var(--bad) 75%, transparent); box-shadow: 0 6px 20px var(--shadow); transition: transform .12s; } /* the red-on-hover colour snaps (A5) */
 .dropcancel svg { width: 28px; height: 28px; }
 .dropcancel.over { transform: scale(1.18); background: var(--bad); }
 /* An Undo toast's time left: its outline drains */
@@ -775,11 +794,11 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .lbtn:hover:not(:disabled) { background: var(--raised); color: var(--fg); }
 .switch.sm { width: 30px; height: 18px; }
 .switch.sm::after { top: 3px; left: 3px; width: 12px; height: 12px; }
-.switch.sm.on::after { left: 15px; }
+.switch.sm.on::after { transform: translateX(12px); } /* 30px track, 12px knob, 3px inset: fixed 12px delta */
 .sp { flex: 1; }
 .colresize { width: 6px; margin: 0 -3px; cursor: col-resize; z-index: 4; flex-shrink: 0; position: relative; }
-.colresize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: transparent; transition: background .1s; }
-.colresize:hover::after, .colresize.on::after { background: var(--accent); }
+.colresize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: var(--accent); opacity: 0; transition: opacity .1s; }
+.colresize:hover::after, .colresize.on::after { opacity: 1; }
 
 /* Home */
 .dhome { padding-bottom: 24px; }
@@ -841,6 +860,10 @@ kbd { font: inherit; font-size: 10.5px; padding: 1px 5px; border: 1px solid var(
 .drow .c-name b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .drow .c-active { display: flex; gap: 4px; }
 .drow .c-entries, .drow .c-edited { color: var(--muted); }
+
+/* Long lists: each row is its own layout/paint scope. Measured intermediate, not a substitute for retention.
+   Do not put paint containment on .card: sticky notes sit above the card box and would be clipped. */
+.item, .ptile, .drow { contain: layout style paint; }
 
 /* Book: two panes */
 .bk { position: relative; flex: 1; min-height: 0; display: flex; --lw: 270px; }
@@ -1036,7 +1059,9 @@ select.pgc option { background: var(--tint); color: var(--fg); }
 /* The card's ⋯ at the end of the hover handles: its menu. */
 .hh.hmore { width: auto; height: 14px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; background: var(--card); color: var(--muted); font-style: normal; font-size: 11px; line-height: 1; letter-spacing: 1px; cursor: pointer; }
 .hh.hmore:hover { color: var(--fg); }
-.vp.focusdim [data-of]:not(.lit) { opacity: .22; transition: opacity .15s; }
+.vp.focusdim [data-of]:not(.lit) { opacity: .22; }
+/* The fade is only on the few nodes that are lit: a transition on every card dims thousands of elements at once,
+   which the browser animates one by one (a long task on a big canvas). The final look is the same. */
 .vp.focusdim [data-of].lit { transition: opacity .15s; }
 .card.picked { outline: 2px solid var(--accent); outline-offset: 2px; }
 .linkguide { overflow: visible; pointer-events: none; position: absolute; left: 0; top: 0; }
@@ -1069,13 +1094,6 @@ select.pgc option { background: var(--tint); color: var(--fg); }
   .tsearch span, .tsearch kbd { display: none; }
   .tbook { max-width: 150px; }
 }
-
-/* Desktop: no backdrop blur. Without a GPU (many laptops), a blurred box as big as the drawer or the window is blurred
-   again on every frame anything inside it moves: Hero's canvas fell to a few frames a second. The tint is laid over
-   its own opaque color instead. */
-.wih[data-desk="1"], [data-desk="1"] .sheet, [data-desk="1"] .dlg { -webkit-backdrop-filter: none; backdrop-filter: none; }
-.wih[data-desk="1"] { background: var(--tint); background: linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
-[data-desk="1"] .sheet, [data-desk="1"] .dlg { background: linear-gradient(var(--surface), var(--surface)), var(--tint); background: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--tint), var(--tint)), rgb(from var(--tint) r g b); }
 
 /* Desktop piece bar: the fold arrow sits inside the bar, at its right end, so it never covers the canvas; on a
    narrow canvas (1366 × 768 with both columns) the hint goes first, then the key letters, so Wait is never cut. */

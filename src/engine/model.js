@@ -37,13 +37,23 @@ export function rawConfig(entry) {
 
 const isGreetingRef = x => isObject(x) && 'greeting' in x;
 
+// Normalized configs by the raw object they came from. A hit hands back the same { config, ui, legacy } object, so
+// every caller that changes a config must clone it first (bookEditor.config, setParam's spread) or write through
+// writeConfig, which clones. Read-only callers share it.
+const normCache = new WeakMap();
+
 /**
- * Reads a stored config in the current shape (BUILD_SPEC 2.3). Returns a new object; the input is untouched.
+ * Reads a stored config in the current shape (BUILD_SPEC 2.3). The returned object is cached by `raw`: the same
+ * raw object gives the same result, so the input is untouched and callers must clone before they mutate.
+ * `reread` ignores the cache and replaces it: buildModel asks for it, because ST edits an entry's config in place
+ * and the object's identity alone cannot show that.
  * Anything it doesn't recognize is left for buildModel to report.
  * @returns {{ config: any, ui: object, legacy: boolean }}
  */
-export function normalize(raw) {
+export function normalize(raw, reread = false) {
     if (!isObject(raw)) return { config: raw, ui: {}, legacy: false };
+    const hit = reread ? null : normCache.get(raw);
+    if (hit) return hit;
     const c = clone(raw);
     const ui = {};
     let legacy = false;
@@ -126,7 +136,9 @@ export function normalize(raw) {
             return m;
         });
     }
-    return { config: c, ui, legacy };
+    const result = { config: c, ui, legacy };
+    normCache.set(raw, result);
+    return result;
 }
 
 const FIELDS = ['id', 'gate', 'gatesFor', 'closeGate', 'closesFor', 'glue', 'switch', 'masks', 'packs', 'once', 'by', 'gatedBy', 'moment', 'dice', 'note', 'written'];
@@ -163,7 +175,7 @@ export function buildModel(entries, options = {}) {
     for (const entry of entries ?? []) {
         const raw = rawConfig(entry);
         if (raw === undefined || raw === null) continue;
-        const { config } = normalize(raw);
+        const { config } = normalize(raw, true);
         if (isObject(config) && Object.keys(config).length === 0) continue; // only UI fields: plain World Info
         const node = {
             key: null, stKey: stKey(entry), book: entry.world, uid: entry.uid, id: null, label: label(entry),

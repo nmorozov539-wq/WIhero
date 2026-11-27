@@ -1,6 +1,16 @@
 // Phone-speed profile of opening WI Hero (not a pass/fail check): CPU throttled 6x, 390 × 844, many books.
 // Makes 40 "Stress" books if they aren't there (and leaves them). Prints how long Home takes to settle, how many times it redraws, the long tasks, and whether a tap lands.
+//
+// It seeds a real library, so it must only ever run against a throwaway SillyTavern profile. Set
+// PERF_ALLOW_SEED=1 to say you have one; without it this exits before any request.
 import { chromium } from 'playwright';
+
+if (process.env.PERF_ALLOW_SEED !== '1') {
+    console.error('e2e/perf.mjs seeds 40 persistent "Stress" books and changes settings in a real SillyTavern profile.');
+    console.error('Run it only against a throwaway SillyTavern, never your own library. Set PERF_ALLOW_SEED=1 to allow it.');
+    process.exit(1);
+}
+console.error('Note: e2e/perf.mjs creates 40 persistent "Stress" books in a throwaway SillyTavern profile.');
 
 const ST_URL = process.env.ST_URL || 'http://127.0.0.1:8000';
 const RATE = Number(process.env.CPU_RATE || 6);
@@ -38,9 +48,22 @@ await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE });
 await page.evaluate(() => {
     window.__perf = { long: [], renders: 0 };
     new PerformanceObserver(l => { for (const e of l.getEntries()) window.__perf.long.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false });
+    // L1: the editor host is created by the chunk, after the drawer opens, so watch the body until it exists.
+    const watchMain = main => new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('view')) window.__perf.renders++; })
+        .observe(main, { childList: true });
     const host = document.getElementById('wihero-editor');
-    new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('view')) window.__perf.renders++; })
-        .observe(host.shadowRoot.querySelector('.main'), { childList: true });
+    const main = host?.shadowRoot?.querySelector('.main');
+    if (main) watchMain(main);
+    else {
+        new MutationObserver((ms, observer) => {
+            const ready = document.getElementById('wihero-editor')?.shadowRoot?.querySelector('.main');
+            if (!ready) return;
+            observer.disconnect();
+            // The first Home view may have drawn before the host could be watched: count it.
+            if (ready.querySelector(':scope > .view')) window.__perf.renders++;
+            watchMain(ready);
+        }).observe(document.body, { childList: true });
+    }
 });
 const t0 = Date.now();
 await page.click('#WI-SP-button .drawer-toggle');

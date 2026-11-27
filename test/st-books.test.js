@@ -19,6 +19,98 @@ function setup(fail) {
     return { library, saved, errors, books };
 }
 
+/** A library whose writeBook keeps every payload it received, for the save-cadence tests. */
+function setupWrites() {
+    const books = { Book: { entries: { 0: { uid: 0, key: ['a'], content: 'A' } } } };
+    const settings = { books: {} };
+    const writes = [];
+    let settingsSaves = 0;
+    const ctx = {
+        getWorldInfoNames: () => Object.keys(books),
+        loadWorldInfo: async name => structuredClone(books[name]),
+        reloadWorldInfoEditor: () => {},
+    };
+    const library = createLibrary({
+        ctx: () => ctx, WI: {}, powerUser: null, settings, saveSettings: () => { settingsSaves++; },
+        writeBook: async (name, data) => { writes.push(structuredClone(data)); books[name] = data; },
+    });
+    return { library, books, settings, writes, settingsSaves: () => settingsSaves };
+}
+
+test('typing coalesces into one save with one settings save, and the final data is what writeBook got', async () => {
+    const { library, settings, writes, settingsSaves } = setupWrites();
+    await library.get('Book');
+    const changes = 4;
+    for (let i = 0; i < changes; i++) {
+        library.change('Book', d => { d.entries[0].content += 'x'; }, { quiet: true });
+        await new Promise(resolve => setTimeout(resolve, 60));
+    }
+    // The fourth change stretches the debounce to SAVE_DELAY_MAX (1000 ms).
+    await new Promise(resolve => setTimeout(resolve, 1400));
+    await library.flush();
+    assert.equal(writes.length, 1, 'continuous changes coalesced into fewer saves than changes');
+    assert.ok(writes.length < changes);
+    assert.equal(writes[0].entries[0].content, 'Axxxx');
+    assert.equal(library.peek('Book').entries[0].content, 'Axxxx');
+    assert.equal(settingsSaves(), 1, 'edited and any adopted UI fields share one settings save');
+    assert.equal(typeof settings.books.Book.edited, 'number');
+});
+
+test('a change after idle still saves after the short delay', async () => {
+    const { library, writes } = setupWrites();
+    await library.get('Book');
+    library.change('Book', d => { d.entries[0].content = 'B'; }, { quiet: true });
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await library.flush();
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].entries[0].content, 'B');
+});
+
+test('adopted UI fields and the edited date are saved together once', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const books = { Book: { entries: { 0: { uid: 0, extensions: { wihero: { id: 'e', folder: 'Old' } } } } } };
+    const settings = { books: {} };
+    let settingsSaves = 0;
+    const ctx = { getWorldInfoNames: () => Object.keys(books), loadWorldInfo: async name => structuredClone(books[name]) };
+    const library = createLibrary({ ctx: () => ctx, WI: {}, settings, saveSettings: () => { settingsSaves++; },
+        writeBook: async () => {} });
+    await library.get('Book');
+    library.change('Book', d => { d.entries[0].content = 'B'; }, { quiet: true });
+    await library.flush();
+    assert.equal(settingsSaves, 1);
+    assert.equal(settings.books.Book.folders['id:e'], 'Old');
+    assert.equal(typeof settings.books.Book.edited, 'number');
+});
+
+test('a pending native cache edit is merged before the save that follows', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const books = { Book: { entries: { 0: { uid: 0, key: ['a'], content: 'A' }, 1: { uid: 1, key: ['b'], content: 'B' } } } };
+    const cache = new Map([['Book', structuredClone(books.Book)]]);
+    const writes = [];
+    const merged = [];
+    const ctx = {
+        getWorldInfoNames: () => Object.keys(books),
+        loadWorldInfo: async name => structuredClone(books[name]),
+        reloadWorldInfoEditor: () => {},
+    };
+    const library = createLibrary({
+        ctx: () => ctx, WI: { worldInfoCache: cache }, settings: { books: {} }, saveSettings() {},
+        writeBook: async (name, data) => { writes.push(structuredClone(data)); books[name] = data; cache.set(name, data); },
+        onMerged: (name, n) => merged.push([name, n]),
+    });
+    await library.get('Book');
+    // ST's debounced native save has updated its cache; its WORLDINFO_UPDATED event has not fired yet.
+    cache.get('Book').entries[1].content = 'B native';
+    cache.get('Book').entries[2] = { uid: 2, key: ['c'], content: 'C native' };
+    library.change('Book', d => { d.entries[0].content = 'A mine'; }, { quiet: true });
+    await library.flush();
+    assert.deepEqual(merged, [['Book', 0]]);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].entries[0].content, 'A mine');
+    assert.equal(writes[0].entries[1].content, 'B native');
+    assert.equal(writes[0].entries[2].content, 'C native');
+});
+
 test('a failed save is reported and the edit is kept; flush rejects so a book action stops', async t => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     let failing = true;
@@ -113,6 +205,17 @@ test('mergeOutside: top-level fields follow the same rule', () => {
     const outside = { entries: {}, name: 'y', extra: 3 };
     mergeOutside(mine, base, outside);
     assert.deepEqual(mine, { entries: {}, name: 'y', extra: 2 });
+});
+
+test('mergeOutside: a JSON-string base reads the same as the object it came from', () => {
+    const base = { entries: { 0: { uid: 0, content: 'A' }, 1: { uid: 1, content: 'B' } }, name: 'x' };
+    const mine = structuredClone(base);
+    mine.entries[0].content = 'A mine';
+    const outside = structuredClone(base);
+    outside.entries[1].content = 'B outside';
+    assert.equal(mergeOutside(mine, JSON.parse(JSON.stringify(base)), outside), 0);
+    assert.equal(mine.entries[0].content, 'A mine');
+    assert.equal(mine.entries[1].content, 'B outside');
 });
 
 test('a book whose save failed for good is marked unsaved until a save works; flush tries it again', async t => {
@@ -219,3 +322,81 @@ test('delete waits for an active write before removing the book', async t => {
     assert.deepEqual(order, ['write', 'delete']);
     assert.equal(library.peek('Book'), null);
 });
+
+// ---- links (C8): one index per pass, same order and shape as the per-book scan
+
+function setupLinks() {
+    const characters = [
+        { name: 'Ada', avatar: 'Ada.png', data: { extensions: { world: 'Book' } } },
+        { name: 'Bob', avatar: 'Bob.png', data: { extensions: { world: 'Other' } } },
+        { name: 'Cid', avatar: 'Cid.png', data: { extensions: { world: 'Book' } } },
+    ];
+    const charLore = [
+        { name: 'Ada', extraBooks: ['Book', 'Other'] },
+        { name: 'Bob', extraBooks: ['Book'] },
+        { name: 'Zed', extraBooks: ['Book'] },
+    ];
+    const chatMetadata = { world_info: 'Book' };
+    const ctx = {
+        characters, chatMetadata, getWorldInfoNames: () => [], getRequestHeaders: () => ({}),
+        saveMetadata: async () => {},
+    };
+    const WI = {
+        METADATA_KEY: 'world_info', world_info: { charLore },
+        charSetAuxWorlds: (file, extraBooks) => { const l = charLore.find(x => x.name === file); if (l) l.extraBooks = extraBooks; },
+    };
+    const library = createLibrary({ ctx: () => ctx, WI, settings: { books: {} }, saveSettings() {}, writeBook: async () => {} });
+    return { library, characters, charLore, chatMetadata };
+}
+
+test('links: characters, extra books and the open chat keep their order; a character link hides its aux duplicate', () => {
+    const { library } = setupLinks();
+    assert.deepEqual(library.links('Book'), [
+        { kind: 'char', name: 'Ada', avatar: 'Ada.png' },
+        { kind: 'char', name: 'Cid', avatar: 'Cid.png' },
+        { kind: 'aux', name: 'Bob', file: 'Bob' },
+        { kind: 'aux', name: 'Zed', file: 'Zed' },
+        { kind: 'chat', name: 'This chat' },
+    ]);
+    assert.deepEqual(library.links('Other'), [
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+        { kind: 'aux', name: 'Ada', file: 'Ada' },
+    ]);
+    assert.deepEqual(library.links('Missing'), []);
+});
+
+test('links: an in-place character edit is seen once the index is invalidated', () => {
+    const { library, characters } = setupLinks();
+    assert.ok(library.links('Book').some(l => l.kind === 'char' && l.name === 'Ada'));
+    characters[0].data.extensions.world = 'Other';
+    library.invalidateLinks();
+    assert.deepEqual(library.links('Book'), [
+        { kind: 'char', name: 'Cid', avatar: 'Cid.png' },
+        { kind: 'aux', name: 'Ada', file: 'Ada' },
+        { kind: 'aux', name: 'Bob', file: 'Bob' },
+        { kind: 'aux', name: 'Zed', file: 'Zed' },
+        { kind: 'chat', name: 'This chat' },
+    ]);
+    assert.deepEqual(library.links('Other'), [
+        { kind: 'char', name: 'Ada', avatar: 'Ada.png' },
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+    ]);
+});
+
+test('links: linkChat and unlink invalidate the index', async () => {
+    const { library, charLore, chatMetadata } = setupLinks();
+    library.links('Other');
+    await library.linkChat('Other');
+    assert.equal(chatMetadata.world_info, 'Other');
+    assert.deepEqual(library.links('Other').at(-1), { kind: 'chat', name: 'This chat' });
+
+    assert.ok(library.links('Book').some(l => l.kind === 'aux' && l.name === 'Bob'));
+    await library.unlink('Book', { kind: 'aux', name: 'Bob', file: 'Bob' });
+    assert.deepEqual(charLore.find(l => l.name === 'Bob').extraBooks, []);
+    assert.ok(!library.links('Book').some(l => l.kind === 'aux' && l.name === 'Bob'));
+
+    await library.unlink('Other', { kind: 'chat', name: 'This chat' });
+    assert.equal(chatMetadata.world_info, undefined);
+    assert.ok(!library.links('Other').some(l => l.kind === 'chat'));
+});
+

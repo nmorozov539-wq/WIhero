@@ -3,15 +3,21 @@
 // mode (LAYOUT "Shared" and "Normal mode"). Its own styles live in a shadow root, so ST's CSS and WI Hero's can't
 // clash; ST's theme variables still come through.
 import { createHistory, withHistory } from './history.js';
+import { createLoader } from './loader.js';
 import { buildModel, isMoment } from '../engine/model.js';
-import { btn, html, createLayer, el, issueText } from './dom.js';
+import { perf } from './perf.js';
+import { btn, html, createLayer, el, issueText, keyed } from './dom.js';
 import { ic } from './icons.js';
 import {
-    PARAM_LIST, addEntry, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
-    SORT_NAMES, isBlank, removeEntry, reorderEntries, search, setFolder, setParam, titleOf,
+    PARAM_LIST, addEntry, bookTokens, copyBookSettings, filterChoices, bookSettings, cardKey, configOf, deleteBookSettings, entriesOf, folderOf,
+    SORT_NAMES, isBlank, removeEntry, reorderEntries, setFolder, setParam, titleOf,
 } from './data.js';
+import { createSearchCache } from './search.js';
+import { createPageMotion } from './page-motion.js';
+import { createDisposer } from './lifecycle.js';
 import { strategyColor } from './entry-page.js';
 import { canvasBook, offCanvasMoments } from './canvas-graph.js';
+import { canvasElementSig, canvasElements } from './canvas-sig.js';
 import { canvasMemory } from './canvas.js';
 import { bookEditor, packsOf, renamePack } from './pieces.js';
 import { getStringHash } from '../engine/util.js';
@@ -19,6 +25,7 @@ import { greetingFpOf, greetingSignature } from '../chat-state.js';
 import { createPreview } from './preview-view.js';
 import { createHeroPanel } from './hero-panel.js';
 import { createMenus } from './menus.js';
+import { groupIssues, problemsOf, warningsOf } from './model-issues.js';
 import { createHeroShell } from './hero-shell.js';
 import { createHeroDesk } from './hero-desk.js';
 import { createNormal } from './normal.js';
@@ -56,18 +63,45 @@ function explainWouldAct(e) {
  *   { ctx, library, snapshots, hooks, settings, saveSettings, entryTemplate, cssUrl, openStEditor(), onVisible(open) }
  */
 export function createApp(deps) {
-    const { ctx, snapshots, hooks, settings, saveSettings } = deps;
+    const { ctx, snapshots, hooks, settings } = deps;
+    // Folders and book folders live in one mutable settings object, and every folder change is followed by a save.
+    // The save is the cheap signal search's corpus cache uses to rebuild once (M4); it is not per keystroke.
+    let settingsRevision = 0;
+    const saveSettings = () => { settingsRevision++; deps.saveSettings(); };
     // Undo history (history.js): every change through the library is looked at; Ctrl+Z, Ctrl+Shift+Z and the
     // canvas's arrows step through it.
     const undoHistory = createHistory({ library: deps.library, settings, saveSettings, held: () => !!S.hero.bar.edit });
     const library = withHistory(deps.library, undoHistory);
+    // Every book read goes through here: counts are background work, the book being opened is foreground work (M1).
+    // The library's own `get`/`loading` remains the single read path and still dedupes in-flight reads.
+    const loader = createLoader({ load: name => library.get(name) });
+    // Search's per-book corpora (M4), keyed on the book revision (V1) and the settings revision above.
+    const searchCache = createSearchCache({ revision: name => library.bookVersion(name), stamp: () => settingsRevision });
+    const stopSearchDropWatch = library.onCopyDrop?.(name => searchCache.invalidate(name)) ?? (() => {});
+    /** Search's background reads share one loader group, so closing the overlay can drop only them (M4). */
+    const SEARCH_LOADS = 'search';
+    let searchWasOpen = false;
+    const searchLoad = name => loader.enqueue(name, { group: SEARCH_LOADS });
+    const searchCancel = () => loader.cancelGroup(SEARCH_LOADS);
+    const searchGeneration = () => loader.groupGeneration(SEARCH_LOADS);
+    /** A draw without the overlay means it is gone: its queued background reads go too, but Home's counts stay. */
+    function searchDrawn() {
+        if (S.search) searchWasOpen = true;
+        else if (searchWasOpen) {
+            searchWasOpen = false;
+            searchCancel();
+            // Corpora contain the original entry objects. Once the overlay closes there is no reason for search to
+            // keep any working copy alive; reopening rebuilds only the copies still owned by the library.
+            searchCache.clear();
+        }
+    }
     // The character filter's choices: ST's characters (by file name, as ST stores them) and tags.
-    filterChoices.get = () => {
+    filterChoices.setProvider(() => {
         const c = ctx();
         const chars = (c.characters ?? []).filter(x => x?.avatar).map(x => ({ key: String(x.avatar).replace(/\.[^.]+$/, ''), name: x.name }));
         const tags = (c.tags ?? []).filter(t => t?.id !== undefined).map(t => ({ key: t.id, name: t.name }));
         return { chars, tags };
-    };
+    });
 
     // ---------------------------------------------------------------- DOM
     const host = document.createElement('div');
@@ -96,19 +130,50 @@ export function createApp(deps) {
     shadow.append(link, root);
     document.body.append(host);
     const layer = createLayer(layerBox, toastBox);
+    // Everything the editor owns outside its retained DOM: page-motion and window listeners, the theme and width
+    // observers, and a pending focus/redraw timer. `destroy()` runs it once (A4); `hide()` stays non-destructive.
+    const life = createDisposer();
+    let destroyed = false;
+
+    // Optional motion and background draws pause while the page is hidden (A3). The listener belongs to the editor
+    // chunk, so a never-opened editor pays nothing; a missing visibility API is the visible path. The same attribute
+    // also parks CSS motion, and `hide()` keeps it on while the host itself is hidden.
+    const pageMotion = createPageMotion();
+    let themeWatch = null;
+    function syncPaused() { root.toggleAttribute('data-paused', pageMotion.hidden() || host.hidden); }
+    syncPaused();
+    life.add(pageMotion.listen(() => onPageChange()));
+
+    // The tone is read once per theme change, not on every draw. The cache lives here so two apps never share it.
+    let tone = null;
+    // The first draw can land before app.css does: read the tone again when the stylesheet arrives.
+    link.addEventListener('load', () => { tone = null; if (!host.hidden) render(); });
+    if (globalThis.MutationObserver) {
+        const clearTone = () => { tone = null; };
+        themeWatch = new MutationObserver(clearTone);
+        const themeAttrs = { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] };
+        themeWatch.observe(document.documentElement, themeAttrs);
+        if (document.body) themeWatch.observe(document.body, themeAttrs);
+        life.add(() => themeWatch?.disconnect());
+    }
+    function toneNow() {
+        return (tone ??= toneOf(root));
+    }
 
     // Keys typed in WI Hero are its own: ST's hotkeys (arrows swipe, Enter sends) never see them.
     for (const type of ['keydown', 'keyup', 'keypress']) {
         host.addEventListener(type, e => e.stopPropagation());
         // An inert transaction view can leave focus on the page body; keep its keys out of ST too.
-        window.addEventListener(type, e => {
+        const keepKeys = e => {
             if (!host.hidden && library.operationText?.()) { e.preventDefault(); e.stopImmediatePropagation(); }
-        }, true);
+        };
+        window.addEventListener(type, keepKeys, true);
+        life.add(() => window.removeEventListener(type, keepKeys, true));
     }
     // Escape is Back while WI Hero is open, wherever the focus is (LAYOUT "Back").
     // Desktop keys (LAYOUT "Keys"): Ctrl K anywhere while WI Hero is open, the rest inside it.
-    window.addEventListener('keydown', e => {
-        if (library.operationText?.() || !S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
+    const onWindowKeys = e => {
+        if (destroyed || library.operationText?.() || !S.desk || host.hidden || e.defaultPrevented || e.key === 'Escape') return;
         if (document.querySelector('.popup[open], dialog[open]')) return;
         // In Hero mode a click on the list or the canvas can leave the focus on the page itself.
         const inside = e.composedPath().includes(host) || (S.mode === 'hero' && document.activeElement === document.body);
@@ -130,9 +195,11 @@ export function createApp(deps) {
         if (!inside && !ctrlK) return;
         const took = S.mode === 'hero' ? heroKey(e) : deskN.key(e);
         if (took) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
-    window.addEventListener('keydown', e => {
-        if (library.operationText?.() || e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
+    };
+    window.addEventListener('keydown', onWindowKeys, true);
+    life.add(() => window.removeEventListener('keydown', onWindowKeys, true));
+    const onWindowEscape = e => {
+        if (destroyed || library.operationText?.() || e.key !== 'Escape' || host.hidden || e.defaultPrevented) return;
         if (document.querySelector('.popup[open], dialog[open]')) return; // an ST popup over everything
         if (e.composedPath()[0]?.dataset?.ownEscape) return; // a field that cancels its own edit with Escape
         // Escape ends explain mode by itself, and never closes WI Hero.
@@ -145,7 +212,9 @@ export function createApp(deps) {
         e.preventDefault();
         e.stopPropagation();
         back();
-    }, true);
+    };
+    window.addEventListener('keydown', onWindowEscape, true);
+    life.add(() => window.removeEventListener('keydown', onWindowEscape, true));
 
     // ---------------------------------------------------------------- state (nothing here is saved, D6)
     let tabUid = 0;
@@ -167,7 +236,14 @@ export function createApp(deps) {
     };
     const deskQuery = window.matchMedia?.('(min-width: 1001px)');
     S.desk = !!deskQuery?.matches;
-    deskQuery?.addEventListener?.('change', () => { S.desk = deskQuery.matches; layer.close(); if (!host.hidden) render(); else pendingRender = true; });
+    const onDeskWidth = () => {
+        S.desk = deskQuery.matches;
+        layer.close();
+        if (!host.hidden) render();
+        else pendingRender = true;
+    };
+    deskQuery?.addEventListener?.('change', onDeskWidth);
+    if (deskQuery?.addEventListener) life.add(() => deskQuery.removeEventListener('change', onDeskWidth));
     const deskSettings = () => (settings.desk ??= {});
     const tab = () => S.tabs.find(t => t.id === S.active) ?? S.tabs[0];
     const page = (t = tab()) => t.history.at(-1);
@@ -180,6 +256,28 @@ export function createApp(deps) {
     const entriesShown = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid) && !isMoment(e));
     const momentsOf = (book, data) => entriesOf(data).filter(e => !hiddenIn(book).has(e.uid) && isMoment(e));
     const linkable = (book, data) => [...entriesShown(book, data), ...momentsOf(book, data)];
+    /**
+     * The small per-book summary the library keeps so Home never has to load a book just to show its count (M2).
+     * `entries` is what Home's rows and tiles show; `total` and `tokens` are there for a book header that has no
+     * working copy. The library calls this once per read, and again lazily after a change.
+     */
+    function summarizeBook(name, data) {
+        const shown = entriesShown(name, data);
+        return { entries: shown.length, total: entriesOf(data).length, tokens: bookTokens(shown) };
+    }
+    /**
+     * Books the library may not evict (M2): the open book in every tab, Hero's book, and any book whose undo/redo
+     * states still have to be applied to a working copy. Dirty, saving, failed and reserved books pin themselves.
+     */
+    function pinnedBooks() {
+        const out = new Set(undoHistory.booksWithStates());
+        for (const t of S.tabs) {
+            const p = t.history.at(-1);
+            if (p?.book) out.add(p.book);
+        }
+        if (S.hero.book) out.add(S.hero.book);
+        return [...out];
+    }
     /**
      * The engine's model of a book, built once per change: a Hero draw asks for it several times (problems, the
      * panel, the inspector, the piece bar's checks). Only the library's working copies are kept; a trial copy (the
@@ -194,12 +292,19 @@ export function createApp(deps) {
         const own = library.peek(book) === data;
         const kept = own ? models.get(data) : null;
         const greets = greetingSignature(openCharacter(), getStringHash);
-        if (kept && kept.book === book && kept.version === library.version && kept.greets === greets) return kept.model;
+        if (kept && kept.book === book && kept.version === library.bookVersion(book) && kept.greets === greets) return kept.model;
+        const at = perf.begin('model');
         const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })));
-        if (own) models.set(data, { book, version: library.version, greets, model });
+        perf.end(at);
+        perf.count('modelBuilds');
+        model.issuesByStKey = groupIssues(model.issues);
+        if (own) {
+            // The canvas's entry side changes with the model, not with an inspector tap; build it here once.
+            model.canvasElementSig = canvasElementSig(canvasElements(book, data, model, e => folderOf(settings, book, e)));
+            models.set(data, { book, version: library.bookVersion(book), greets, model });
+        }
         return model;
     };
-    const problemsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && !i.warning && i.blocking !== false);
     /**
      * Whether an entry has story logic, its own or put on it by other entries (a switch's paths, Closes for,
      * Gates for): the list's teal dot.
@@ -208,8 +313,6 @@ export function createApp(deps) {
         const c = configOf(e);
         return (!!c && Object.keys(c).some(k => k !== 'id')) || !!(node && (node.closes.length || node.opens.all.length));
     };
-    /** An entry's warnings and non-blocking notes, for the entry page and the inspector (problemsOf has the rest). */
-    const warningsOf = (model, uid, book) => model.issues.filter(i => i.stKey === `${book}.${uid}` && (i.warning || i.blocking === false));
     const linkText = name => { const l = library.links(name); return l.length ? `${l[0].name}${l.length > 1 ? ` +${l.length - 1}` : ''}` : ''; };
     const entryFolder = (book, e) => folderOf(settings, book, e);
 
@@ -227,7 +330,7 @@ export function createApp(deps) {
             if (open) library.seen(book);
             const record = bookSettings(settings, book);
             const mem = canvasMemory(record);
-            const orphaned = offCanvasMoments(data, mem);
+            const orphaned = offCanvasMoments(data, mem, library.bookVersion(book));
             if (orphaned.length) {
                 library.change(book, d => {
                     for (const e of orphaned) {
@@ -250,7 +353,7 @@ export function createApp(deps) {
                 if (open) layer.toast(`Could not load ${book}: ${why}`);
                 scheduleRender();
             };
-            library.get(book).then(d => {
+            loader.enqueue(book, { foreground: true }).then(d => {
                 if (!d) { if (library.names().includes(book)) fail('it came back empty'); else waiting.delete(book); return; }
                 waiting.delete(book);
                 scheduleRender();
@@ -263,34 +366,60 @@ export function createApp(deps) {
 
     /**
      * Home's entry counts: books load in the background, a few at a time, and each count is written into its row
-     * as it comes in. Nothing is redrawn, so the list scrolls and taps while books are still loading.
+     * as it comes in. Nothing is redrawn, so the list scrolls and taps while books are still loading. The loader
+     * starts an open book ahead of this queue (M1), and leaving Home or replacing the list cancels what has not
+     * started yet and makes running count results stale (M3).
      */
-    const counting = [];
-    let countsRunning = 0;
     const countSpans = new Map(); // book → the span showing its count now
     function countInto(name, span, fmt = null) {
         if (fmt) span.dataset.bare = '1';
+        const text = n => (span.dataset.bare ? String(n) : `${n} ${n === 1 ? 'entry' : 'entries'}`);
+        // A summary Home already has is written now, with no read at all (M2): only a book with neither a summary
+        // nor a working copy falls back to the loader.
+        const known = library.summary?.(name);
+        if (known) { if (span.isConnected) span.textContent = text(known.entries); return; }
         countSpans.set(name, span);
-        if (!counting.includes(name)) counting.push(name);
-        pumpCounts();
+        const generation = loader.generation();
+        loader.enqueue(name).then(d => {
+            // A draw after leaving Home or replacing its list starts a new generation: an older count must not
+            // write into a detached row or a row that now belongs to another draw.
+            if (generation !== loader.generation()) return;
+            const current = countSpans.get(name);
+            if (!d || !current?.isConnected) return;
+            const fresh = library.summary?.(name);
+            current.textContent = text(fresh ? fresh.entries : entriesShown(name, d).length);
+        }, () => {});
     }
-    function pumpCounts() {
-        while (countsRunning < 3 && counting.length) {
-            const name = counting.shift();
-            countsRunning++;
-            library.get(name).then(d => {
-                const span = countSpans.get(name);
-                if (d && span?.isConnected) span.textContent = span.dataset.bare ? String(entriesShown(name, d).length) : (n => `${n} ${n === 1 ? 'entry' : 'entries'}`)(entriesShown(name, d).length);
-            }, () => {}).finally(() => { countsRunning--; pumpCounts(); });
-        }
+    /** Drops queued counts, forgets their spans and makes in-flight count results stale. */
+    function cancelCounts() {
+        countSpans.clear();
+        loader.cancel();
     }
 
-    /** One redraw on the next frame, however many things asked for it. */
+    /** One redraw on the next frame, however many things asked for it. A hidden page parks it instead (A3). */
     let renderQueued = false;
+    let renderFrame = 0;
     function scheduleRender() {
-        if (renderQueued) return;
+        if (destroyed || renderQueued) return;
+        if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         renderQueued = true;
-        requestAnimationFrame(() => { renderQueued = false; refresh(); });
+        renderFrame = requestAnimationFrame(() => { renderFrame = 0; renderQueued = false; refresh(); });
+    }
+    /** A frame that was already queued when the page hid waits for visibility instead of drawing behind it. */
+    function parkRender() {
+        if (renderFrame) { cancelAnimationFrame(renderFrame); renderFrame = 0; }
+        if (renderQueued) { renderQueued = false; pendingRender = true; }
+    }
+    /** The page went hidden or came back: park draws and canvas frames while hidden, catch up once visible. */
+    function onPageChange() {
+        syncPaused();
+        if (pageMotion.hidden()) {
+            parkRender();
+            if (heroCanvas()?.pause?.()) pendingRender = true;
+            return;
+        }
+        heroCanvas()?.resume?.();
+        if (pendingRender) refresh();
     }
 
     // ---------------------------------------------------------------- render
@@ -309,20 +438,35 @@ export function createApp(deps) {
         return !!text;
     }
     function refresh() {
+        if (destroyed) return;
         if (syncOperation()) { pendingRender = true; return; }
-        if (host.hidden) { pendingRender = true; return; }
+        if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         if (typing()) { pendingRender = true; renderTabs(); return; }
         render();
     }
     // A narrow drawer (desk.js) lays the book out as list then entry: crossing that width (Chat width, a side panel
     // beside a widened drawer) draws again.
     let wasNarrow = null;
-    if (globalThis.ResizeObserver) new ResizeObserver(() => {
-        const n = root.clientWidth > 0 && root.clientWidth < 640;
-        if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
-        wasNarrow = n;
-    }).observe(root);
-    root.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !typing()) render(); }, 0));
+    let appRO = null;
+    if (globalThis.ResizeObserver) {
+        appRO = new ResizeObserver(() => {
+            const n = root.clientWidth > 0 && root.clientWidth < 640;
+            if (wasNarrow !== null && n !== wasNarrow && S.desk && S.mode === 'normal') refresh();
+            wasNarrow = n;
+        });
+        appRO.observe(root);
+        life.add(() => appRO?.disconnect());
+    }
+    let focusTimer = 0;
+    root.addEventListener('focusout', () => {
+        clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+            focusTimer = 0;
+            if (destroyed) return;
+            if (pendingRender && !typing()) refresh();
+        }, 0);
+    });
+    life.add(() => clearTimeout(focusTimer));
 
     /** The book on screen: Hero's, or the page's in Normal mode. */
     const currentBook = () => (S.mode === 'hero' ? S.hero.book : page()?.book) ?? null;
@@ -337,30 +481,92 @@ export function createApp(deps) {
         return true;
     }
 
+    // Phone Normal keeps the last list page (Home or a book) as a live `.view`, and draws an entry page in a second
+    // `.view` beside it (N3b). The pane that is not on screen is hidden, not removed: Back returns to the same rows,
+    // scroll and focus. At most one list pane is kept; another page discards it and draws from scratch.
+    let listPane = null; // { id, page, node, focus }
+
     function render() {
+        if (destroyed) return;
+        if (host.hidden || pageMotion.hidden()) { pendingRender = true; return; }
         if (syncOperation()) { pendingRender = true; return; }
         pendingRender = false;
+        searchDrawn();
+        // One app render pass, Normal or Hero: renderHero is reached from here.
+        perf.count('appRenders');
         undoHistory.touch(currentBook(), { redraw: true });
         root.dataset.colors = settings.colorMode ?? 'standard';
-        root.dataset.tone = toneOf(root);
+        root.dataset.tone = toneNow();
         root.style.setProperty('--content-font', settings.contentFont === 'sans' ? 'var(--sans)' : 'var(--serif)');
         root.dataset.mode = S.mode;
         shape();
-        if (S.mode === 'hero') { renderHero(); return; }
-        if (S.desk) { renderTabs(); deskN.render(); return; }
+        if (S.mode === 'hero') { cancelCounts(); renderHero(); return; }
+        if (S.desk) { cancelCounts(); renderTabs(); deskN.render(); return; }
         renderTabs();
         const p = page();
-        const old = main.querySelector('.view');
-        if (old && main.dataset.page === pageId(p)) p.scroll = old.scrollTop;
-        main.innerHTML = '';
-        main.dataset.page = pageId(p);
-        if (p.type === 'entry') renderEntry(p);
-        else if (p.type === 'book') renderBook(p);
-        else renderHome();
-        if (p.type !== 'entry') main.append(S.select ? selBar(p) : bottomBar(p));
+        // Outside Home the count spans are gone or about to go: no queued count should keep loading books (M3).
+        if (p.type !== 'home') cancelCounts();
+        const id = pageId(p);
+        const entry = p.type === 'entry';
+        // An entry opened from a book page keeps that page's list while the entry is shown. The list belongs to the
+        // same tab; an entry from a new tab or a deep link has none and rebuilds on Back, as before.
+        const listId = entry ? `${tab().id}:book:${p.book}:` : id;
+        const retained = listPane && listPane.id === listId && listPane.node?.isConnected && listPane.node.parentNode === main ? listPane : null;
+        if (!retained) listPane = null;
+
+        const oldEntry = [...main.children].find(n => n !== listPane?.node && n.classList?.contains('view') && n.dataset.pane === 'entry') ?? null;
+        if (oldEntry && main.dataset.page === id) p.scroll = oldEntry.scrollTop;
+
+        // A list page for the same page keeps its `.view` and is reconciled (N1a/N1b); from an entry it is shown
+        // again with the scroll, focus and rows it had.
+        const keepList = !entry && !!retained;
+        if (keepList) {
+            retained.node.hidden = false;
+            // A draw for the page already on screen keeps its current scroll, as N1a/N1b did.
+            if (main.dataset.page === id) p.scroll = retained.node.scrollTop;
+            // Back to the retained list: put its scroll back before the keyed draw, so the window is computed for
+            // the right place even on an engine that reset scrollTop while the pane was display:none.
+            else if (p.scroll) retained.node.scrollTop = p.scroll;
+            for (const child of [...main.children]) if (child !== retained.node) child.remove();
+        } else if (listPane && entry) {
+            // Save the list's scroll and focus before hiding it, then leave only the list under the entry.
+            if (!listPane.node.hidden) {
+                listPane.page.scroll = listPane.node.scrollTop;
+                const a = shadow.activeElement;
+                listPane.focus = a && listPane.node.contains(a) ? a : null;
+                listPane.node.hidden = true;
+            }
+            for (const child of [...main.children]) if (child !== listPane.node) child.remove();
+        } else {
+            listPane = null;
+            main.innerHTML = '';
+        }
+        main.dataset.page = id;
+        const restoreFocus = keepList ? retained.focus : null;
+        if (entry) {
+            renderEntry(p);
+            const node = [...main.children].find(n => n !== listPane?.node && n.classList?.contains('view')) ?? null;
+            if (node) { node.dataset.pane = 'entry'; node.dataset.page = id; }
+            if (node && p.scroll) node.scrollTop = p.scroll;
+        } else {
+            // The bottom/selection bar takes its height out of the `.view`. Mount it first so a windowed list
+            // measures its final viewport, then move it below the view once the page is drawn.
+            const bar = S.select ? selBar(p) : bottomBar(p);
+            main.append(bar);
+            if (p.type === 'book') renderBook(p, keepList ? retained.node : null);
+            else {
+                // A fresh Home draw replaces the previous list; its queued counts belong to detached rows.
+                if (!keepList) cancelCounts();
+                renderHome(keepList ? retained.node : null);
+            }
+            const node = [...main.children].find(n => n.classList?.contains('view')) ?? null;
+            if (node) { node.dataset.pane = 'list'; node.dataset.page = id; }
+            listPane = { id, page: p, node, focus: null };
+            main.append(bar);
+            if (node && p.scroll) node.scrollTop = p.scroll;
+            if (restoreFocus && restoreFocus.isConnected) restoreFocus.focus({ preventScroll: true });
+        }
         if (S.search) renderSearch();
-        const view = main.querySelector('.view');
-        if (view && p.scroll) view.scrollTop = p.scroll;
     }
     const pageId = p => `${tab().id}:${p.type}:${p.book ?? ''}:${p.uid ?? ''}`;
 
@@ -387,39 +593,88 @@ export function createApp(deps) {
         return e ? (e.comment || 'New entry') : 'Entry';
     }
 
-    function renderTabs() {
-        strip.innerHTML = '';
-        tabbar.querySelector('.tright')?.remove();
-        if (S.mode === 'hero') { renderHeroTabs(); return; }
-        if (S.desk) { deskN.renderTabs(strip, tabbar); revealActiveTab(); return; }
-        for (const t of S.tabs) {
-            const p = page(t);
-            const active = t.id === S.active;
-            const b = el('button', `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`);
+    // The tab row is keyed: Home, a book tab by its book, and an entry tab by the entry it opened. A tab keeps its
+    // key while it walks its history, so going into an entry and Back keeps the same node.
+    function tabBaseKey(t) {
+        if (t.home) return 'home';
+        const root = t.history[0] ?? page(t);
+        if (root.type === 'book') return `book:${root.book}`;
+        if (root.type === 'entry') return `entry:${root.book}:${root.uid}`;
+        return `tab:${t.id}`;
+    }
+    /** Keys in tab order: a second tab with the same book or entry gets a suffix, so each node is still unique. */
+    function keyedTabs() {
+        const seen = new Map();
+        return S.tabs.map(t => {
+            const base = tabBaseKey(t);
+            const n = (seen.get(base) ?? 0) + 1;
+            seen.set(base, n);
+            return { key: n === 1 ? base : `${base}#${n}`, tab: t };
+        });
+    }
+    function tabByKey(key) {
+        for (const item of keyedTabs()) if (item.key === key) return item.tab;
+        return null;
+    }
+    function paintPhoneTab(b, t, item, active) {
+        const p = page(t);
+        b.className = `tab${active ? ' active' : ''}${t.home ? ' fixed' : ''}`;
+        if (t.home) return;
+        const e = p.type === 'entry' ? library.peek(p.book)?.entries[p.uid] : null;
+        let dot = b.querySelector(':scope > .sd');
+        if (e) {
+            if (!dot) { dot = el('i', 'sd'); b.prepend(dot); }
+            dot.style.background = strategyColor(e);
+        } else dot?.remove();
+        let name = b.querySelector(':scope > .name');
+        if (!name) { name = el('span', 'name'); b.insertBefore(name, b.querySelector(':scope > .x')); }
+        name.textContent = pageTitle(p);
+        const x = b.querySelector(':scope > .x');
+        if (active && !x) {
+            const close = el('span', 'x');
+            close.innerHTML = ic('x');
+            close.setAttribute('role', 'button');
+            close.setAttribute('aria-label', 'Close tab');
+            close.addEventListener('click', ev => {
+                ev.stopPropagation();
+                const now = tabByKey(item.key);
+                if (now) closeTab(now.id);
+            });
+            b.append(close);
+        } else if (!active) x?.remove();
+    }
+    function renderPhoneTabs() {
+        keyed(strip, keyedTabs().map(item => ({
+            key: item.key,
+            update: b => paintPhoneTab(b, item.tab, item, item.tab.id === S.active),
+        })), item => {
+            const b = el('button', 'tab');
             b.type = 'button';
-            if (t.home) {
+            if (tabByKey(item.key)?.home) {
                 b.innerHTML = ic('home');
                 b.setAttribute('aria-label', 'Home');
-                b.addEventListener('click', () => { leave(); S.active = t.id; t.history = [{ type: 'home' }]; S.select = null; S.search = null; render(); });
+                b.addEventListener('click', () => {
+                    const now = tabByKey(item.key);
+                    if (!now) return;
+                    leave(); S.active = now.id; now.history = [{ type: 'home' }]; S.select = null; S.search = null; render();
+                });
             } else {
-                if (p.type === 'entry') {
-                    const e = library.peek(p.book)?.entries[p.uid];
-                    if (e) { const d = el('i', 'sd'); d.style.background = strategyColor(e); b.append(d); }
-                }
-                b.append(el('span', 'name', pageTitle(p)));
-                b.addEventListener('click', () => { if (S.active !== t.id) { S.active = t.id; S.select = null; S.search = null; render(); } });
-                if (active) {
-                    const x = el('span', 'x');
-                    x.innerHTML = ic('x');
-                    x.setAttribute('role', 'button');
-                    x.setAttribute('aria-label', 'Close tab');
-                    x.addEventListener('click', e => { e.stopPropagation(); closeTab(t.id); });
-                    b.append(x);
-                }
+                b.addEventListener('click', () => {
+                    const now = tabByKey(item.key);
+                    if (!now || S.active === now.id) return;
+                    S.active = now.id; S.select = null; S.search = null; render();
+                });
             }
-            strip.append(b);
-        }
+            return b;
+        });
         revealActiveTab();
+    }
+
+    function renderTabs() {
+        if (S.mode === 'hero') { renderHeroTabs(); return; }
+        if (S.desk) { deskN.renderTabs(strip, tabbar); revealActiveTab(); return; }
+        tabbar.querySelector(':scope > .tright')?.remove();
+        renderPhoneTabs();
     }
 
     /** Scrolls the active tab into view, only when it changed: on every draw it forced a layout each time. */
@@ -506,18 +761,24 @@ export function createApp(deps) {
 
     // ---------------------------------------------------------------- open and close (D6)
     function show() {
-        if (!host.hidden) return;
+        if (destroyed || !host.hidden) return;
         host.hidden = false;
+        syncPaused();
+        tone = null;
         pushBackState();
         render();
+        if (!pageMotion.hidden()) heroCanvas()?.resume?.();
         deps.onVisible?.(true);
     }
     function hide() {
-        if (host.hidden) return;
+        if (destroyed || host.hidden) return;
         leave();
+        cancelCounts();
         layer.close();
         layer.flushToast();
         host.hidden = true;
+        syncPaused();
+        if (heroCanvas()?.pause?.()) pendingRender = true;
         library.flush().catch(() => {}); // a failed save is reported by the library
         loadFailed.clear();
         if (history.state?.wihero) { ignorePop = true; history.back(); }
@@ -543,11 +804,14 @@ export function createApp(deps) {
     // Android's Back arrives as popstate: one history entry is pushed while the editor is open.
     let ignorePop = false;
     function pushBackState() { if (!history.state?.wihero) history.pushState({ wihero: true }, ''); }
-    window.addEventListener('popstate', () => {
+    const onPopState = () => {
+        if (destroyed) return;
         if (ignorePop) { ignorePop = false; return; }
         if (host.hidden) return;
         if (back() && !host.hidden) pushBackState();
-    });
+    };
+    window.addEventListener('popstate', onPopState);
+    life.add(() => window.removeEventListener('popstate', onPopState));
 
     // ---------------------------------------------------------------- Normal mode's views (normal.js)
     // Built on first use: some of what they use is defined further down this closure. The wrappers keep the names
@@ -559,6 +823,7 @@ export function createApp(deps) {
         linksSheet, loadingNote, main, modelOf, need, newEntry, newEntryFolder, offHint, openIn, onCanvas: onHeroCanvas, page, problemsOf, warningsOf, hasLogic,
         render: () => render(), renderTabs, saveSettings, settings, shadow, showOnCanvas, sortBy: () => sortBy(),
         switchMode, tab, up, visibleNames, wiSettingsSheet,
+        searchCache, searchLoad, searchCancel, searchGeneration,
     }));
     function applyParam(...a) { return normal().applyParam(...a); }
     function bottomBar(...a) { return normal().bottomBar(...a); }
@@ -652,14 +917,23 @@ export function createApp(deps) {
         const set = new Set(hiddenIn(book));
         for (const u of uids) set.add(u);
         S.hiddenEntries.set(book, set);
+        library.invalidateSummary?.(book); // Home's retained count must not include the entries waiting on Undo
+        searchCache.invalidate(book); // nor may search's corpus include them
         const one = uids.length === 1 ? titleOf(data.entries[uids[0]]) : null;
         render();
         layer.toast(one ? `Deleted ${one}` : `Deleted ${uids.length} entries`, {
-            action: ['Undo', () => { const s = hiddenIn(book); for (const u of uids) s.delete(u); render(); }],
+            action: ['Undo', () => {
+                const s = hiddenIn(book);
+                for (const u of uids) s.delete(u);
+                library.invalidateSummary?.(book);
+                searchCache.invalidate(book);
+                render();
+            }],
             onEnd: () => {
                 const s = hiddenIn(book);
                 const gone = uids.filter(u => s.has(u));
                 for (const u of gone) s.delete(u);
+                searchCache.invalidate(book);
                 const record = bookSettings(settings, book);
                 const folders = record.folders;
                 const mem = canvasMemory(record);
@@ -706,7 +980,7 @@ export function createApp(deps) {
     let heroShellView = null;
     const heroShell = () => (heroShellView ??= createHeroShell({
         newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
-        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, layer, library,
+        heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas: onHeroCanvas,
         startExplain, stopExplain, explainDrawn, strip, switchMode, tabbar, visibleNames, desk: () => deskN, deadCount: (book, data) => menus().deadCount(book, data), deadSheet, undoHistory, historyStep,
@@ -723,7 +997,7 @@ export function createApp(deps) {
     const heroCanvas = () => heroShellView?.canvas() ?? null;
 
     // ---------------------------------------------------------------- the Guide and explain mode (explain.js)
-    const { openGuide, startExplain, stopExplain, renderGuideTab, afterRender: explainDrawn } = createExplain({
+    const { openGuide, startExplain, stopExplain, renderGuideTab, afterRender: explainDrawn, dispose: explainDispose } = createExplain({
         S, H, root, layer, library, render: () => render(),
         showMe: key => { showOnCanvas(SAMPLE, key); inspect(SAMPLE, key); },
     });
@@ -880,6 +1154,7 @@ export function createApp(deps) {
         dropPiece: (...a) => dropPiece(...a),
     }));
     function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
+    function dropInspector(...a) { return heroInsp().dropInspector(...a); }
     function inspect(...a) { return heroInsp().inspect(...a); }
     function inspectorFor(...a) { return heroInsp().inspectorFor(...a); }
     function showOnCanvas(...a) { return heroInsp().showOnCanvas(...a); }
@@ -989,7 +1264,7 @@ export function createApp(deps) {
     let clashMemo = null;
     /** The book's keyword clashes for the entry panel, counted again only when a book or the setting changed. */
     function clashCount(book, data) {
-        const sig = `${book}|${library.version}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
+        const sig = `${book}|${library.bookVersion(book)}|${[...hiddenIn(book)].join(',')}|${settings.markClashes !== false}`;
         if (clashMemo?.data !== data || clashMemo.sig !== sig) clashMemo = { data, sig, n: menus().clashCount(book, data) };
         return clashMemo.n;
     }
@@ -1013,7 +1288,7 @@ export function createApp(deps) {
     let heroDeskView = null;
     const heroDesk = () => (heroDeskView ??= createHeroDesk({
         H, S, barAct, barApi, chatGreetings, createEntry, dataSheet, deskSettings, dropPiece, entriesShown, entryFolder, hide,
-        inspect, inspectorFor, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
+        inspect, inspectorFor, dropInspector, layer, leave, library, main, modelOf, nodeOf, openHeroTab, openStrip, packSheet,
         placePicker, render: () => render(), saveSettings, settings, shadow, showOnCanvas, onCanvas: onHeroCanvas, sortBy: () => sortBy(),
         startExplain, stopExplain, typing: () => typing(), canvas: () => heroCanvas(), deleteEntries,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids),
@@ -1043,6 +1318,7 @@ export function createApp(deps) {
         typing: () => typing(),
         renderEntryInto: (into, p, extra) => renderEntry(p, null, into, extra),
         heroBook: () => heroBook(),
+        searchCache, searchLoad, searchCancel, searchGeneration,
         // Search in Hero mode: an entry is found on its canvas (or opened in a tab), a book or folder switches the canvas.
         heroOpen: (h, background) => {
             if (h.kind === 'entry') {
@@ -1056,10 +1332,49 @@ export function createApp(deps) {
         },
     });
 
+    /**
+     * Gives the editor back everything it owns (A4): every retained shell/list window, the canvas (frames, timers,
+     * observers, document-level away listeners, node indexes), the layer, page/window listeners and the host itself.
+     * It is terminal: later `show()`/`render()` calls do nothing, so a stale node cannot come back. `wihero.app` stays
+     * readable after it; only a fresh page makes a new editor.
+     */
+    function destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        if (!host.hidden) deps.onVisible?.(false);
+        if (renderFrame) cancelAnimationFrame(renderFrame);
+        renderFrame = 0;
+        renderQueued = false;
+        pendingRender = false;
+        cancelCounts();
+        loader.cancel();
+        stopSearchDropWatch();
+        searchCache.clear();
+        life.dispose();
+        try { layer.close(); } catch { /* a closing layer has nothing left to do */ }
+        layer.dispose?.();
+        heroShellView?.dispose?.();
+        explainDispose?.();
+        heroBarView?.dispose?.();
+        heroPanelView?.dispose?.();
+        heroInspView?.dispose?.();
+        heroDeskView?.dispose?.();
+        deskN.dispose?.();
+        normalView?.dispose?.();
+        if (history.state?.wihero) { ignorePop = true; try { history.back(); } catch { /* no history to step */ } }
+        listPane = null;
+        themeWatch = null;
+        appRO = null;
+        host.remove();
+    }
+
     return {
-        show, hide, toggle, isOpen, refresh, host, back, openBook,
+        show, hide, toggle, isOpen, refresh, host, back, openBook, destroy,
+        /** For the library (M2): Home's count from a summary, and the books it may not evict. */
+        summarizeBook, pinnedBooks,
         /** For the in-ST checks. */
         get state() { return S; },
+        get searchCacheSize() { return searchCache.size(); },
     };
 }
 

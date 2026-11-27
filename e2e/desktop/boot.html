@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WI Hero boot (L1)</title>
+<!-- The L1 boot page: a minimal SillyTavern page that imports index.js (the extension's real entry) with the World
+     Info drawer closed. e2e/boot.mjs drives it and checks, from the server's request log and the page's resource
+     entries, that the editor chunk is absent at boot and arrives once when the drawer opens. The harness page
+     (harness.html) is the eager editor fixture; this one is the lazy-launch fixture. -->
+<link rel="stylesheet" href="../../style.css">
+<style>
+  :root {
+    --topBarBlockSize: 35px; --bottomFormBlockSize: 47px; --sheldWidth: 50vw; --mainFontSize: 15px;
+    --SmartThemeBodyColor: #dcdcd2; --SmartThemeBlurTintColor: #17171b; --SmartThemeQuoteColor: #e18a24;
+    --SmartThemeShadowColor: rgba(0, 0, 0, .5); --SmartThemeBorderColor: rgba(0, 0, 0, .5);
+  }
+  html, body { margin: 0; height: 100%; background: #0e0e10; color: #ccc; font-family: system-ui, sans-serif; }
+  #top-bar { position: fixed; top: 0; left: 0; right: 0; height: var(--topBarBlockSize); background: #222226; display: flex; justify-content: center; gap: 70px; align-items: center; z-index: 3005; }
+  #top-bar i { width: 18px; height: 18px; border-radius: 4px; background: #555; display: block; }
+  #top-bar i.wi { background: #e18a24; }
+  #sheld { position: fixed; top: var(--topBarBlockSize); bottom: 0; left: 0; right: 0; margin: 0 auto; width: var(--sheldWidth); min-width: 450px; max-width: 100vw; display: flex; flex-direction: column; }
+  #chat { flex: 1; padding: 20px; color: #888; font-size: 14px; }
+  #send_form { height: var(--bottomFormBlockSize); background: #1d1d21; border-top: 1px solid #333; box-sizing: border-box; padding: 10px 14px; color: #777; font-size: 14px; }
+  /* ST's right drawer: closed until openDrawer, and hidden by WI Hero's .wihero-under while the editor stands in. */
+  #WorldInfo { position: fixed; top: var(--topBarBlockSize); right: 0; bottom: 0; width: 50vw; min-width: 450px; display: none; background: #24242a; z-index: 3003; padding: 12px; }
+  #WorldInfo.openDrawer { display: block; }
+  @media screen and (max-width: 1000px) { #sheld { min-width: 0; } #WorldInfo { width: 100vw; min-width: 0; } }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "/world-info.js": "./boot-st-world-info.js",
+    "/utils.js": "./boot-st-utils.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="top-bar"><i></i><i></i><i></i><span id="WI-SP-button"><i class="wi drawer-toggle" id="wi-toggle" title="World Info"></i></span><i></i></div>
+<div id="sheld"><div id="chat">Seraphina: Welcome to the glade.</div><div id="send_form">Type a message</div></div>
+<div id="WorldInfo" class="drawer-content"><h2>World Info</h2><div id="world_editor_select"></div><p>ST's own editor.</p></div>
+<div id="extensions_settings2"></div>
+<script type="module" src="./boot.js"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import { deadBranches } from '../src/engine/dead.js';
-import { keywordClashes } from '../src/ui/clashes.js';
+import { cachedClashes, keywordClashes } from '../src/ui/clashes.js';
 import { writeNote } from '../src/ui/pieces.js';
 import { e, Sim } from './sim.js';
 import { diceRoll } from '../src/engine/turn.js';
@@ -37,6 +37,53 @@ test('clashes: Permanent entries, Moments and entries pending delete are left ou
     } };
     assert.equal(keywordClashes(data).groups.length, 1);
     assert.equal(keywordClashes(data, new Set([4])).groups.length, 0);
+});
+
+test('clashes: punctuation and word boundaries', () => {
+    const data = { entries: {
+        1: { uid: 1, comment: 'A', key: ['mill-wheel'] },
+        2: { uid: 2, comment: 'B', key: ['mill'] },
+        3: { uid: 3, comment: 'C', key: ['miller'] },
+        4: { uid: 4, comment: 'D', key: ["o'neill"] },
+        5: { uid: 5, comment: 'E', key: ['neill'] },
+        6: { uid: 6, comment: 'F', key: ['***'] },
+        7: { uid: 7, comment: 'G', key: ['x *** y'] },
+    } };
+    const c = keywordClashes(data);
+    const sorted = groups => Object.fromEntries(groups.map(g => [g.word, [...g.uids].sort((a, b) => a - b)]));
+    assert.deepEqual(sorted(c.groups), {
+        '***': [6, 7],
+        mill: [1, 2],
+        neill: [4, 5],
+    });
+});
+
+test('clashes: the revision cache follows edits and skips', () => {
+    const data = { entries: {
+        1: { uid: 1, comment: 'Mill', key: ['mill'] },
+        2: { uid: 2, comment: 'Old Mill', key: ['old mill'] },
+    } };
+    const first = keywordClashes(data, new Set(), 1);
+    assert.equal(keywordClashes(data, new Set(), 1), first, 'same revision reuses the result');
+    data.entries[3] = { uid: 3, comment: 'Miller', key: ['mill'] };
+    const second = keywordClashes(data, new Set(), 2);
+    const sorted = groups => Object.fromEntries(groups.map(g => [g.word, [...g.uids].sort((a, b) => a - b)]));
+    assert.notEqual(second, first, 'a new revision recomputes');
+    assert.deepEqual(sorted(second.groups), { mill: [1, 2, 3] });
+    assert.deepEqual(sorted(keywordClashes(data, new Set([3]), 2).groups), { mill: [1, 2] }, 'a changed skip recomputes');
+});
+
+test('clashes: the cache can be read without scanning, for the entry page warm path (G1)', () => {
+    const data = { entries: {
+        1: { uid: 1, comment: 'Mill', key: ['mill'] },
+        2: { uid: 2, comment: 'Old Mill', key: ['old mill'] },
+    } };
+    assert.equal(cachedClashes(data, new Set(), 1), null, 'a cold book has no cached result');
+    const first = keywordClashes(data, new Set(), 1);
+    assert.equal(cachedClashes(data, new Set(), 1), first, 'the warm result is readable at the same revision');
+    assert.equal(cachedClashes(data, new Set([2]), 1), null, 'a different skip set is cold');
+    assert.equal(cachedClashes(data, new Set(), 2), null, 'a new revision is cold');
+    assert.equal(cachedClashes(data, new Set()), null, 'no revision means no cache');
 });
 
 // ---------------------------------------------------------------- dead branches

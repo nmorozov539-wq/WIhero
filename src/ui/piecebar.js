@@ -57,15 +57,15 @@ function whyNotOn(k, end) {
 
 /**
  * Mounts the bar (or the open piece's strip) under the canvas. Called on every Hero render; what is being set
- * up lives in `x.B` ({ armed, edit }), so it survives the redraws a book change causes.
- * @param {object} x { B, main, root, canvas, layer, data(), act(fn) → bool, snapshot(), restore(snap), render(),
+ * up lives in `x.B` ({ armed, edit }), so it survives the redraws a book change causes. The non-edit bar is kept
+ * on `x.B.pbar` and updated in place; the strip is rebuilt.
+ * @param {object} x { B, book, main, root, canvas, layer, data(), act(fn) → bool, snapshot(), restore(snap), render(),
  *   nodeOf(key), keyOf(end), nameOf(end), nameOfId(id), candidates(), packs(), closersOf(uid), openMask(uid, name),
  *   showMask(uid, name), inspect(key, piece), folded(), setFolded(v), toast(text) }
  */
 export function mountPieceBar(x) {
-    const { B, canvas } = x;
-    const bottom = el('div', `pbar${x.folded() && !B.edit ? ' folded' : ''}`);
-    x.main.append(bottom);
+    const { B } = x;
+    const canvas = x.canvas;
     const ed = () => x.editor();
     const data = () => x.data();
     const say = (...parts) => {
@@ -77,116 +77,13 @@ export function mountPieceBar(x) {
     const refText = ref => refLabel(ref, x.nameOfId).text;
 
     // ---------------------------------------------------------------- the bar
-    if (!B.edit) {
-        const fold = btn('pfold', ic('down', 's'), () => { x.setFolded(!x.folded()); B.armed = null; x.render(); }, x.folded() ? 'Show the piece bar' : 'Fold the piece bar');
-        explainNode(fold, 'shell.piecesFold', { title: x.folded() ? 'Show the piece bar' : 'Fold the piece bar' });
-        bottom.append(fold);
-        if (x.folded()) { canvas.overlay(null); return; }
-        const bar = el('div', 'pchips');
-        bar.setAttribute('role', 'toolbar');
-        bar.setAttribute('aria-label', 'Pieces');
-        bottom.append(bar);
-        for (const p of BAR) {
-            if (p.k === 'lock') bar.append(el('span', 'pdiv'));
-            const b = el('button', `pchip${B.armed === p.k ? ' armed' : ''}`);
-            b.type = 'button';
-            b.style.setProperty('--c', colorOf(p.k));
-            b.append(chipIcon(p.k), el('span', '', p.label));
-            if (x.desk) { b.append(el('kbd', '', p.key)); b.title = `${p.label} (${p.key})`; }
-            b.dataset.piece = p.k;
-            b.setAttribute('aria-pressed', String(B.armed === p.k));
-            chipGestures(b, p.k);
-            bar.append(b);
-        }
-        // Desktop: a hint. Both layouts: while a chip is armed, a banner that says what to tap, with Cancel.
-        if (x.desk) bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
-        // A bar wider than its room fades at the cut edge, with an arrow that scrolls it (review 2026-11-11).
-        const more = btn('pmore', ic('right', 's'), () => bar.scrollBy({ left: bar.clientWidth * 0.7, behavior: 'smooth' }), 'More pieces');
-        explainNode(more, 'shell.morePieces', { title: 'More pieces' });
-        bottom.append(more);
-        const edges = () => {
-            const right = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
-            bottom.classList.toggle('more-r', right);
-            bottom.classList.toggle('more-l', bar.scrollLeft > 4);
-        };
-        bar.addEventListener('scroll', edges, { passive: true });
-        requestAnimationFrame(edges);
-        if (typeof ResizeObserver === 'function') new ResizeObserver(edges).observe(bar);
-        if (B.armed) bottom.prepend(armBanner(B.armed));
-        armOverlay();
-        return;
-    }
+    if (!B.edit) { mountBar(x); return; }
 
-    function armBanner(k) {
-        const ban = el('div', 'armban');
-        ban.style.setProperty('--c', colorOf(k));
-        ban.append(el('span', '', armText(k, x.desk ? 'Click' : 'Tap')), btn('pbtn sm', 'Cancel', () => { B.armed = null; x.render(); }));
-        ban.setAttribute('role', 'status');
-        return ban;
-    }
-
-    function armOverlay() {
-        canvas.overlay(B.armed ? { dim: key => !!whyNotOn(B.armed, x.nodeOf(key)) } : null);
-        for (const c of bottom.querySelectorAll('.pchip')) { const on = c.dataset.piece === B.armed; c.classList.toggle('armed', on); c.setAttribute('aria-pressed', String(on)); }
-    }
-
-    /** Tap to arm (tap again to disarm), or drag onto the canvas. A sideways swipe scrolls the bar instead. */
-    function chipGestures(chip, k) {
-        let start = null;
-        let ghost = null;
-        let cancel = null;
-        const overCancel = ev => {
-            const r = cancel?.getBoundingClientRect();
-            return !!r && Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)) <= r.width / 2 + 16;
-        };
-        const clean = () => { ghost?.remove(); cancel?.remove(); ghost = null; cancel = null; start = null; canvas.markTarget(null); };
-        chip.addEventListener('pointerdown', ev => {
-            if (ev.button) return;
-            start = { x: ev.clientX, y: ev.clientY };
-            chip.setPointerCapture?.(ev.pointerId);
-        });
-        chip.addEventListener('pointermove', ev => {
-            if (!start) return;
-            if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 8) return;
-            if (!ghost) {
-                ghost = el('div', 'dragchip');
-                ghost.style.setProperty('--c', colorOf(k));
-                ghost.append(chipIcon(k), el('span', '', CHIP[k].label));
-                cancel = el('div', 'dropcancel');
-                cancel.innerHTML = ic('x');
-                x.root.append(cancel, ghost);
-                B.armed = k;
-                armOverlay();
-            }
-            const r = x.root.getBoundingClientRect();
-            ghost.style.transform = `translate(${ev.clientX - r.left}px, ${ev.clientY - r.top}px)`;
-            const off = overCancel(ev);
-            cancel.classList.toggle('over', off);
-            ghost.classList.toggle('off', off);
-            const h = off ? null : canvas.hitAt(ev.clientX, ev.clientY);
-            canvas.markTarget(h?.card && !whyNotOn(k, x.nodeOf(h.card)) ? h : null);
-        });
-        chip.addEventListener('pointerup', ev => {
-            if (!start) return;
-            if (!ghost) {
-                start = null;
-                B.armed = B.armed === k ? null : k;
-                // Phones keep the bar (and how far it is scrolled) and only swap the banner.
-                if (x.desk) x.render(); else { armOverlay(); bottom.querySelector('.armban')?.remove(); if (B.armed) bottom.prepend(armBanner(B.armed)); }
-                return;
-            }
-            const off = overCancel(ev);
-            const h = off ? null : canvas.hitAt(ev.clientX, ev.clientY);
-            clean();
-            B.armed = null;
-            armOverlay();
-            // A Moment can stand on its own: off a card, it is made where it was dropped.
-            if (k === 'moment' && !off && !h?.card) { const at = canvas.pointAt(ev.clientX, ev.clientY); if (at) x.place(k, null, at); }
-            else if (h) x.place(k, h);
-        });
-        // The browser took the gesture (a sideways scroll of the bar): take away everything the drag drew.
-        chip.addEventListener('pointercancel', () => { const was = !!ghost; clean(); if (was) { B.armed = null; armOverlay(); } });
-    }
+    // Edit mode keeps a temporary strip of its own, rebuilt on each draw; it is the piece's form, not the bar.
+    disposePieceBar(B);
+    for (const n of x.main.querySelectorAll(':scope > .pbar')) n.remove();
+    const bottom = el('div', 'pbar');
+    x.main.append(bottom);
 
     // ---------------------------------------------------------------- the strip
     const e = B.edit;
@@ -813,6 +710,214 @@ export function mountPieceBar(x) {
 
     // Focus comes back to the phrase box after a phrase is added (the strip was drawn again).
     if (B.focus) { const f = mid.querySelector(`[data-focus="${B.focus}"]`); B.focus = null; f?.focus(); }
+}
+
+/**
+ * Mounts the non-edit bar, keeping the one already built for this canvas: its fold button, chips, hint, more button
+ * and the scroll/ResizeObserver wiring survive the draw, and only their state changes. A bar left over from another
+ * book, layout or root is dropped; one whose node was detached (a tab switch cleared main) is put back.
+ */
+function mountBar(x) {
+    const B = x.B;
+    let shell = B.pbar;
+    if (shell && (shell.book !== x.book || shell.root !== x.root || shell.desk !== !!x.desk)) {
+        disposeBarShell(shell);
+        shell = null;
+    }
+    if (!shell) shell = buildBar(x);
+    shell.api = x;
+    B.pbar = shell;
+    // A strip or bar left by the other mode is not ours.
+    for (const n of x.main.querySelectorAll(':scope > .pbar')) if (n !== shell.node) n.remove();
+    x.main.append(shell.node);
+    updateBar(shell);
+}
+
+/** Lets go of a retained bar's observer and pending edge frame; the node itself goes with its parent. */
+function disposeBarShell(shell) {
+    if (!shell) return;
+    if (shell.raf) cancelAnimationFrame(shell.raf);
+    shell.raf = 0;
+    shell.ro?.disconnect();
+    shell.ro = null;
+    shell.node?.remove();
+}
+
+/** Drops the retained non-edit bar (the strip replaces it, or the editor is tearing down). */
+export function disposePieceBar(B) {
+    const shell = B?.pbar;
+    if (B) B.pbar = null;
+    disposeBarShell(shell);
+}
+
+/** Builds the bar once: the BAR list is static, so its chips and their listeners never need remaking. */
+function buildBar(x) {
+    const bottom = el('div', 'pbar');
+    const shell = { book: x.book, desk: !!x.desk, root: x.root, node: bottom, api: x, armed: null, chips: new Map(), ro: null, raf: 0 };
+    const fold = btn('pfold', ic('down', 's'), () => {
+        const a = shell.api;
+        a.setFolded(!a.folded());
+        a.B.armed = null;
+        a.render();
+    });
+    explainNode(fold, 'shell.piecesFold', { title: 'Fold the piece bar' });
+    const bar = el('div', 'pchips');
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Pieces');
+    for (const p of BAR) {
+        if (p.k === 'lock') bar.append(el('span', 'pdiv'));
+        const b = el('button', 'pchip');
+        b.type = 'button';
+        b.style.setProperty('--c', colorOf(p.k));
+        b.append(chipIcon(p.k), el('span', '', p.label));
+        if (x.desk) { b.append(el('kbd', '', p.key)); b.title = `${p.label} (${p.key})`; }
+        b.dataset.piece = p.k;
+        b.setAttribute('aria-pressed', 'false');
+        chipGestures(b, p.k, shell);
+        shell.chips.set(p.k, b);
+        bar.append(b);
+    }
+    // Desktop: a hint. Both layouts: while a chip is armed, a banner that says what to tap, with Cancel.
+    if (x.desk) bar.append(el('span', 'phint dhint', 'Or drag from a card\'s port to another card'));
+    // A bar wider than its room fades at the cut edge, with an arrow that scrolls it (review 2026-11-11).
+    const more = btn('pmore', ic('right', 's'), () => bar.scrollBy({ left: bar.clientWidth * 0.7, behavior: 'smooth' }), 'More pieces');
+    explainNode(more, 'shell.morePieces', { title: 'More pieces' });
+    bar.addEventListener('scroll', () => edges(shell), { passive: true });
+    if (typeof ResizeObserver === 'function') {
+        shell.ro = new ResizeObserver(() => edges(shell));
+        shell.ro.observe(bar);
+    }
+    Object.assign(shell, { fold, bar, more });
+    bottom.append(fold, bar, more);
+    return shell;
+}
+
+/** Updates the retained bar in place: fold state, chips, banner, the more/edge classes and the arm overlay. */
+function updateBar(shell) {
+    const x = shell.api;
+    const B = x.B;
+    const folded = x.folded();
+    shell.node.classList.toggle('folded', folded);
+    const label = folded ? 'Show the piece bar' : 'Fold the piece bar';
+    shell.fold.setAttribute('aria-label', label);
+    explainNode(shell.fold, 'shell.piecesFold', { title: label });
+    if (folded) {
+        // A folded bar shows only the fold arrow; the chips and the more button wait, still the same nodes.
+        shell.bar.remove();
+        shell.more.remove();
+        clearBanner(shell);
+        shell.armed = null;
+        x.canvas.overlay(null);
+        return;
+    }
+    if (shell.bar.parentNode !== shell.node) shell.fold.after(shell.bar);
+    if (shell.more.parentNode !== shell.node) shell.bar.after(shell.more);
+    armOverlay(shell);
+    syncBanner(shell);
+    if (shell.raf) cancelAnimationFrame(shell.raf);
+    shell.raf = requestAnimationFrame(() => { shell.raf = 0; edges(shell); });
+}
+
+/** The fade/arrow state at the bar's cut edges. */
+function edges(shell) {
+    const { node, bar } = shell;
+    const right = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4;
+    node.classList.toggle('more-r', right);
+    node.classList.toggle('more-l', bar.scrollLeft > 4);
+}
+
+function clearBanner(shell) {
+    shell.node.querySelector(':scope > .armban')?.remove();
+}
+
+/** While a chip is armed, a banner that says what to tap, with Cancel. Removed as soon as nothing is armed. */
+function syncBanner(shell) {
+    const armed = shell.api.B.armed ?? null;
+    if (shell.armed === armed) return;
+    shell.armed = armed;
+    clearBanner(shell);
+    if (armed) shell.node.prepend(armBanner(shell, armed));
+}
+
+function armBanner(shell, k) {
+    const x = shell.api;
+    const ban = el('div', 'armban');
+    ban.style.setProperty('--c', colorOf(k));
+    ban.append(el('span', '', armText(k, x.desk ? 'Click' : 'Tap')), btn('pbtn sm', 'Cancel', () => { shell.api.B.armed = null; shell.api.render(); }));
+    ban.setAttribute('role', 'status');
+    return ban;
+}
+
+function armOverlay(shell) {
+    const x = shell.api;
+    const armed = x.B.armed ?? null;
+    x.canvas.overlay(armed ? { dim: key => !!whyNotOn(armed, x.nodeOf(key)) } : null);
+    for (const [k, chip] of shell.chips) {
+        const on = armed === k;
+        chip.classList.toggle('armed', on);
+        chip.setAttribute('aria-pressed', String(on));
+    }
+}
+
+/** Tap to arm (tap again to disarm), or drag onto the canvas. A sideways swipe scrolls the bar instead. */
+function chipGestures(chip, k, shell) {
+    const a = () => shell.api;
+    let start = null;
+    let ghost = null;
+    let cancel = null;
+    const overCancel = ev => {
+        const r = cancel?.getBoundingClientRect();
+        return !!r && Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)) <= r.width / 2 + 16;
+    };
+    const clean = () => { ghost?.remove(); cancel?.remove(); ghost = null; cancel = null; start = null; a().canvas.markTarget(null); };
+    chip.addEventListener('pointerdown', ev => {
+        if (ev.button) return;
+        start = { x: ev.clientX, y: ev.clientY };
+        chip.setPointerCapture?.(ev.pointerId);
+    });
+    chip.addEventListener('pointermove', ev => {
+        if (!start) return;
+        if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 8) return;
+        const x = a();
+        if (!ghost) {
+            ghost = el('div', 'dragchip');
+            ghost.style.setProperty('--c', colorOf(k));
+            ghost.append(chipIcon(k), el('span', '', CHIP[k].label));
+            cancel = el('div', 'dropcancel');
+            cancel.innerHTML = ic('x');
+            x.root.append(cancel, ghost);
+            x.B.armed = k;
+            armOverlay(shell);
+        }
+        const r = x.root.getBoundingClientRect();
+        ghost.style.transform = `translate(${ev.clientX - r.left}px, ${ev.clientY - r.top}px)`;
+        const off = overCancel(ev);
+        cancel.classList.toggle('over', off);
+        ghost.classList.toggle('off', off);
+        const h = off ? null : x.canvas.hitAt(ev.clientX, ev.clientY);
+        x.canvas.markTarget(h?.card && !whyNotOn(k, x.nodeOf(h.card)) ? h : null);
+    });
+    chip.addEventListener('pointerup', ev => {
+        if (!start) return;
+        const x = a();
+        if (!ghost) {
+            start = null;
+            x.B.armed = x.B.armed === k ? null : k;
+            // Phones keep the bar (and how far it is scrolled) and only swap the banner.
+            if (x.desk) x.render(); else { armOverlay(shell); syncBanner(shell); }
+            return;
+        }
+        const off = overCancel(ev);
+        const h = off ? null : x.canvas.hitAt(ev.clientX, ev.clientY);
+        clean();
+        x.B.armed = null;
+        armOverlay(shell);
+        // A Moment can stand on its own: off a card, it is made where it was dropped.
+        if (k === 'moment' && !off && !h?.card) { const at = x.canvas.pointAt(ev.clientX, ev.clientY); if (at) x.place(k, null, at); }
+        else if (h) x.place(k, h);
+    });
+    // The browser took the gesture (a sideways scroll of the bar): take away everything the drag drew.
+    chip.addEventListener('pointercancel', () => { const was = !!ghost; clean(); if (was) { a().B.armed = null; armOverlay(shell); } });
 }
 
 /**

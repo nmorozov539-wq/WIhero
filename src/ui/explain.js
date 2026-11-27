@@ -309,8 +309,10 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
     const onCanvas = path => path.some(n => n.classList?.contains('vp')) && !path.some(n => n.classList?.contains('canvas-tools') || n.classList?.contains('zlabel') || n.classList?.contains('histbtns') || n.classList?.contains('checkchip') || n.classList?.contains('explainq') || n.classList?.contains('panelBtn'));
     let press = null; // { x, y, target, timer, long, mouse }
     const LONG = 500;
+    const offs = [];
+    const on = (type, fn, opts) => { root.addEventListener(type, fn, opts); offs.push(() => root.removeEventListener(type, fn, opts)); };
     for (const type of ['pointerdown', 'pointerup', 'mousedown', 'touchstart', 'dblclick', 'contextmenu']) {
-        root.addEventListener(type, e => {
+        on(type, e => {
             if (!active()) return;
             const path = e.composedPath();
             if (exempt(path)) return;
@@ -361,7 +363,7 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
             if (e.cancelable && type !== 'touchstart') e.preventDefault();
         }, { capture: true, passive: false });
     }
-    root.addEventListener('pointermove', e => {
+    on('pointermove', e => {
         if (!press || !active()) return;
         if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
             clearTimeout(press.timer);
@@ -369,7 +371,7 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
             if (press.bypass) bypass = null; // it became a drag: no navigation
         }
     }, true);
-    root.addEventListener('click', e => {
+    on('click', e => {
         if (!active()) return;
         const path = e.composedPath();
         if (exempt(path)) return;
@@ -404,7 +406,7 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
     // Desktop: the tooltip follows the mouse, after a moment's rest. It never arms anything.
     let hoverTimer = null;
     let hovered = null;
-    root.addEventListener('pointerover', e => {
+    on('pointerover', e => {
         if (!active() || e.pointerType !== 'mouse' || press) return;
         const path = e.composedPath();
         if (exempt(path)) return;
@@ -435,18 +437,21 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
     // An opened or closed sheet, or content redrawn inside one, ends the old first activation: the new controls
     // start their own first/second cycle. A redraw of the layer is scheduled into the next frame, never polled.
     let markQueued = false;
+    let markRaf = 0;
     function scheduleMark() {
         if (markQueued) return;
         markQueued = true;
-        requestAnimationFrame(() => { markQueued = false; mark(); });
+        markRaf = requestAnimationFrame(() => { markRaf = 0; markQueued = false; mark(); });
     }
+    let layerWatch = null;
     if (layer?.layer && globalThis.MutationObserver) {
-        new MutationObserver(() => {
+        layerWatch = new MutationObserver(() => {
             if (!active()) return;
             clearArmed();
             hideTip();
             scheduleMark();
-        }).observe(layer.layer, { childList: true, subtree: true });
+        });
+        layerWatch.observe(layer.layer, { childList: true, subtree: true });
     }
 
     /** After every Hero draw: the explain marks, no stale target, and no tooltip left over from before it. */
@@ -459,7 +464,22 @@ export function createExplain({ S, H, root, layer, library, render, showMe }) {
         scheduleMark();
     }
 
-    return { openGuide, startExplain, stopExplain, renderGuideTab, afterRender };
+    /** Terminal teardown: the layer observer, pending mark frame, timers and the root's capture listeners. */
+    function dispose() {
+        clearTimeout(press?.timer);
+        clearTimeout(hoverTimer);
+        press = null;
+        if (markRaf) { cancelAnimationFrame(markRaf); markRaf = 0; }
+        markQueued = false;
+        layerWatch?.disconnect();
+        layerWatch = null;
+        for (const off of offs.splice(0)) off();
+        clearArmed();
+        hideTip();
+        H.explain = false;
+    }
+
+    return { openGuide, startExplain, stopExplain, renderGuideTab, afterRender, dispose };
 }
 
 /** What explain mode looks at to outline (or set aside): pieces of the canvas, rows, and every button and field. */

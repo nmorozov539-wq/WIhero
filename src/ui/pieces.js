@@ -259,7 +259,8 @@ export function renamePack(ed, data, from, to) {
 export function bookEditor(data) {
     const created = [];
     const taken = bookIds(data);
-    const config = uid => configOf(data.entries[uid]) ?? {};
+    // normalize is cached by the raw object: hand out a copy, since update()/renamePack/repickGreeting change it.
+    const config = uid => structuredClone(configOf(data.entries[uid]) ?? {});
     const write = (uid, c) => {
         tidyConfig(c);
         writeConfig(data, uid, Object.keys(c).length ? c : null);
