@@ -4,7 +4,7 @@ What is planned next, in the order it is planned. This file replaces `AFTER_V1.m
 
 The feature freeze for V1 is over. It was broken many times, and it still worked as a pressure cooker. What replaces it is the short set of rules in section 0, and a separate lane for fixes (section 3).
 
-This file holds only features that have been thought through. Optimization has its own plan in [PR #48](https://github.com/nmorozov539-wq/WIhero/pull/48).
+This file holds only features that have been thought through. Optimization has its own plan, [optimization-pass/PLAN.md](optimization-pass/PLAN.md).
 
 **Status marks:** 🔨 in progress · ☐ planned · 💭 concept written, details to settle · ⏸ parked.
 
@@ -41,7 +41,7 @@ The build order is the author's list, with item 4 proposed. Items 1 to 13 are de
 
 ### 2.1 Optimization work
 
-Deep dive into the speed and smoothness of the whole project. The engine pass is written and tested on its own branch (about 3x less generation overhead on large books in the benchmarks) and goes out through the plan's train of small PRs. The rest is laid out in the [optimization plan on PR #48](https://github.com/nmorozov539-wq/WIhero/pull/48) as a train of small PRs, spread over the next versions.
+Deep dive into the speed and smoothness of the whole project. The engine pass is written and tested on its own branch (about 3x less generation overhead on large books in the benchmarks) and goes out through the plan's train of small PRs. The rest is laid out in [optimization-pass/PLAN.md](optimization-pass/PLAN.md) as a train of small PRs, spread over the next versions.
 
 ### 2.2 Patch notes
 
