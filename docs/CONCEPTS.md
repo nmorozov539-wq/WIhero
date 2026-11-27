@@ -295,7 +295,7 @@ written, no chat counts as opened with a greeting, and the editor shows no
 greeting cards, panel rows, picker options or Preview starts. Greeting data
 already in a book is kept untouched, so switching it back on restores it. Why,
 and the stricter version planned instead, are in
-[AFTER_V1.md](AFTER_V1.md#greetings-the-strict-version). The rules below are
+[COOL_FEATURES.md](COOL_FEATURES.md#26-greetings). The rules below are
 what the switch brings back.
 
 A node point for one of a character's greetings. It is not an entry: nothing
@@ -546,10 +546,10 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
 - Greetings, retired for V1 (3.12): a stricter version is parked in
-  [AFTER_V1.md](AFTER_V1.md#greetings-the-strict-version), and group chats
+  [COOL_FEATURES.md](COOL_FEATURES.md#26-greetings), and group chats
   after that.
-- Bigger ideas kept out of V1 (locks that match by meaning, among others) are
-  in [AFTER_V1.md](AFTER_V1.md).
+- Planned and parked features (locks that match by meaning, among others) are
+  in [COOL_FEATURES.md](COOL_FEATURES.md).
 - Out of scope for now: several books on one canvas, cross-book links,
   variables, loops or math in story logic, endings as a separate system (gates
   and close gates already cover them).

@@ -62,4 +62,4 @@ is written" as a row item (a tracker or written mask being written is a
 stronger signal than a key word), Preview over several turns, held-back entries
 folded into the chat bubble, a helper for converting an existing book (shaped
 by notes from converting a real one), find and replace. Bigger ideas are in
-[AFTER_V1.md](AFTER_V1.md).
+[COOL_FEATURES.md](COOL_FEATURES.md).

@@ -415,7 +415,7 @@ export function mountCanvas(vp, d) {
             }
             if (problems.has(e.uid)) { const b = el('span', 'cbang', '!'); b.title = 'This entry has a problem'; c.append(b); }
             if (e.note) {
-                // A sticky note (AFTER_V1): the author's own, pinned over the card; never sent to the model.
+                // A sticky note (docs/COOL_FEATURES.md section 4): the author's own, pinned over the card; never sent to the model.
                 const n = el('div', 'sticky', e.note);
                 n.title = e.note;
                 c.append(n);
@@ -1133,7 +1133,7 @@ export function mountCanvas(vp, d) {
         if (on) { vp.classList.add('gesture'); if (off) gestureTimer = setTimeout(() => gesture(false), off); } else { if (viewRaf) { cancelAnimationFrame(viewRaf); viewRaf = 0; applyView(); } vp.classList.remove('gesture'); }
     };
     /**
-     * Lasso to make a pack (desktop, AFTER_V1): after a box select, a small box under it asks for a pack name.
+     * Lasso to make a pack (desktop, docs/COOL_FEATURES.md section 4): after a box select, a small box under it asks for a pack name.
      * Existing packs are offered as you type, so `town/` lists the packs inside town. Enter packs the cards;
      * Esc or a click elsewhere leaves the selection as it is.
      */

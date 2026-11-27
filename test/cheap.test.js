@@ -1,4 +1,4 @@
-// The cheap AFTER_V1 additions: keyword clash finder, the static dead branch report and dice for switches.
+// The shipped ideas in docs/COOL_FEATURES.md section 4: keyword clash finder, static dead branch report and dice for switches.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';

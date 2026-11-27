@@ -289,7 +289,7 @@ export function bookEditor(data) {
 }
 
 /**
- * Sets an entry's sticky note (AFTER_V1): an author note shown beside its card on the canvas. It lives in the
+ * Sets an entry's sticky note (docs/COOL_FEATURES.md section 4): an author note shown beside its card on the canvas. It lives in the
  * entry's `extensions.wihero.note`, which ST never puts in the prompt. Empty text removes it.
  */
 export function writeNote(data, uid, text) {

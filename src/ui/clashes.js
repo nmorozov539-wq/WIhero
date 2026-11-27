@@ -1,4 +1,4 @@
-// Keyword clash finder (AFTER_V1 brainstorm): key words that fire two or more entries at once. Works on plain
+// Keyword clash finder (docs/COOL_FEATURES.md section 4): key words that fire two or more entries at once. Works on plain
 // World Info too, so Normal mode shows it as well as Hero mode.
 import { compareText, entriesOf, titleOf } from './data.js';
 import { rawConfig } from '../engine/model.js';

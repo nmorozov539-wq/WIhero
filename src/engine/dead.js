@@ -1,4 +1,4 @@
-// Dead branch report, static pass (AFTER_V1): what the book alone says can never happen. Reads the model and the
+// Dead branch report, static pass (docs/COOL_FEATURES.md section 4): what the book alone says can never happen. Reads the model and the
 // ST entries, never a chat. Pure, no SillyTavern imports.
 //
 // An entry can fire when something can set it off (key words, Permanent, Vectorized, ride-along glue on a host
