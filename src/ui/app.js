@@ -25,6 +25,7 @@ import { greetingFpOf, greetingSignature } from '../chat-state.js';
 import { createPreview } from './preview-view.js';
 import { createHeroPanel } from './hero-panel.js';
 import { createMenus } from './menus.js';
+import { notesVersion, openPatchNotes } from './patch-notes.js';
 import { groupIssues, problemsOf, warningsOf } from './model-issues.js';
 import { createHeroShell } from './hero-shell.js';
 import { createHeroDesk } from './hero-desk.js';
@@ -1217,6 +1218,7 @@ export function createApp(deps) {
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›', explain: { key: 'menu.snapshots' } }));
         }
         sh.append(layer.opt('Guide', () => { layer.close(); openGuide(null); }, { icon: 'help', val: '›', explain: { key: 'menu.guide' } }));
+        sh.append(layer.opt('Patch notes', () => { layer.close(); openPatchNotes(layer); }, { icon: 'entry', val: notesVersion, explain: { key: 'menu.notes' } }));
         sh.append(el('div', 'lbl', 'Canvas'));
         sh.append(layer.opt('Tidy layout', () => {
             layer.close();

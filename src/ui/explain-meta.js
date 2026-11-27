@@ -69,6 +69,7 @@ export const EXPLAIN = {
 
     'menu.mode': { navigate: false, text: 'Switches to Normal mode.' },
     'menu.guide': { navigate: 'native', text: 'Opens the Guide: how each piece works in depth.' },
+    'menu.notes': { navigate: 'native', text: 'Opens the patch notes: what changed in each version.' },
     'menu.bookPicker': { navigate: 'native', text: 'Opens the book picker. Picking another book only looks at it.' },
     'menu.folderPicker': { navigate: 'native', text: 'Opens the folders to move this entry to.' },
     'menu.colors': { navigate: 'native', text: 'Opens the colors for story pieces. Nothing changes until one is picked.' },

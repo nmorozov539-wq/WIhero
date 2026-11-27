@@ -258,6 +258,16 @@ input.kbox:focus { border-color: var(--accent); }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 8px; }
 .sheet h2 { margin: 4px 16px 6px; font-size: var(--t-l); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet .help { color: var(--muted); font-size: var(--t-s); margin: 0 16px 10px; line-height: 1.45; }
+.sheet.notes .note { margin: 0 16px 18px; }
+.sheet.notes .note:last-child { margin-bottom: 4px; }
+.sheet.notes .note + .note { border-top: 1px solid var(--line); padding-top: 16px; }
+.sheet.notes .notehead { display: flex; align-items: baseline; gap: 8px; }
+.sheet.notes h3 { margin: 0; font-size: var(--t-l); font-weight: 600; }
+.sheet.notes .notedate { color: var(--muted); font-size: var(--t-s); }
+.sheet.notes .notegroup { margin: 12px 0 3px; color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.sheet.notes .notelist { margin: 0; padding-left: 18px; }
+.sheet.notes .notelist li { font-size: var(--t-m); line-height: 1.5; margin: 3px 0; }
+.sheet.pop.notes { width: 440px; }
 .opt { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 6px 16px; text-align: left; font-size: var(--t-m); }
 .opt:hover { background: var(--raised); }
 .opt .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }

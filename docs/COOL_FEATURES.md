@@ -1,53 +1,59 @@
 # WI Hero: cool features
 
-What is planned next, in the order it is planned. This file replaces `AFTER_V1.md`, which is kept for its reasoning in [archive/AFTER_V1.md](archive/AFTER_V1.md). Last updated 2026-11-24.
+What is planned next, in the order it is planned. This file replaces `AFTER_V1.md`, which is kept for its reasoning in [archive/AFTER_V1.md](archive/AFTER_V1.md). Last updated 2026-11-27.
 
 The feature freeze for V1 is over. It was broken many times, and it still worked as a pressure cooker. What replaces it is the short set of rules in section 0, and a separate lane for fixes (section 3).
 
 This file holds only features that have been thought through. Optimization has its own plan, [optimization-pass/PLAN.md](optimization-pass/PLAN.md).
 
-**Status marks:** 🔨 in progress · ☐ planned · 💭 concept written, details to settle · ⏸ parked.
+**Status marks:** ✅ done (merged; a release may still be pending) · 🔨 in progress · ☐ planned · 💭 concept written, details to settle · ⏸ parked.
 
 ## 0. Rules of the road
 
 - **Order.** Features are built in the order of section 1 unless this file is edited to change it. The PR that changes the order edits the file.
 - **A feature starts when its concept is written here:** the idea, the catch, and one story it must support (an acceptance story, as the tavern is for switches).
 - **Fixes go in their own lane** (section 3) and can land any time.
-- **Optimization runs in parallel.** The plan's structural work rewrites `canvas.js`, `normal.js` and `desk.js`. A feature PR touching those files either lands before the structural PR that rewrites them, or is rebased onto it.
-- **Animations stay optional and come last.** They wait for the plan's animation-readiness checklist (A5).
-- **Engine hazard.** Once the engine hot-paths PR is merged, the model signature in `st-hooks.js` (`modelInput`) is a hand-kept list of the ST entry fields `buildModel` reads. A feature that makes `buildModel` read another ST field must add it there, or the model goes stale. New settings inside `extensions.wihero` are covered automatically.
+- **Optimization has landed.** Its structural work rewrote `canvas.js`, `normal.js` and `desk.js` and shipped in 0.47.2. Features touching those files now build on the optimized code; no second structural rewrite is waiting.
+- **Animations stay optional and come last.** The plan's animation-readiness checklist (A5) is closed repo-side, but its device paint evidence and the plan's Hero tap/zoom paint follow-up are still open, so animations stay last.
+- **Engine hazard.** The engine hot-paths PR shipped in 0.47.2. The model signature in `st-hooks.js` (`modelInput`) is a hand-kept list of the ST entry fields `buildModel` reads. A feature that makes `buildModel` read another ST field must add it there, or the model goes stale. New settings inside `extensions.wihero` are covered automatically.
 
 ## 1. Order of work
 
 | # | Item | Status | Depends on |
 |---|---|---|---|
-| 1 | [Optimization](#21-optimization-work) | 🔨 | none |
-| 2 | [Patch notes](#22-patch-notes) | ☐ | none |
+| 1 | [Optimization](#21-optimization-work) | ✅ | none; shipped in 0.47.2 |
+| 2 | [Patch notes](#22-patch-notes) | ✅ | none; shipped in 0.47.2 |
 | 3 | [Guide and explain mode](#23-guide-and-explain-mode) | ☐ | none |
 | 4 | [Say why an entry is inactive](#24-say-why-an-entry-is-inactive) (proposed) | 💭 | none; unlocks 12 |
-| 5 | [Animations](#25-animations) | ⏸ | plan checklist A5 |
+| 5 | [Animations](#25-animations) | ⏸ | A5 device evidence, Hero tap/zoom (plan §5.1) |
 | 6 | [Greetings](#26-greetings) | 💭 | none |
 | 7 | [Trackers: values drive logic](#27-trackers-values-drive-logic) | 💭 | none |
-| 8 | [Book management](#28-book-management) | ☐ | plan's loader work (M1–M2) helps |
+| 8 | [Book management](#28-book-management) | ☐ | plan's loader work (M1–M2), landed |
 | 9 | [Entry firing budget](#29-entry-firing-budget) | 💭 | 7, the visit idea in 12 |
-| 10 | [Canvas control](#210-canvas-control) | ☐ | plan's Hero structural work |
+| 10 | [Canvas control](#210-canvas-control) | ☐ | plan's Hero structural work, landed |
 | 11 | [Editing](#211-editing) | ☐ | none |
 | 12 | [Switches and the rotating pool](#212-switches-and-the-rotating-pool) | 💭 | 7, 4 |
 | 13 | [Gate menu](#213-gate-menu) | ☐ | none |
 
-The build order is the author's list, with item 4 proposed. Items 1 to 13 are described in sections 2.1 to 2.13.
+The build order is the author's list, with item 4 proposed. Items 1 to 13 are described in sections 2.1 to 2.13. Items 1 and 2 shipped in 0.47.2, so the next feature is item 3.
 
 ## 2. The features
 
 ### 2.1 Optimization work
 
-Deep dive into the speed and smoothness of the whole project. The engine pass is written and tested on its own branch (about 3x less generation overhead on large books in the benchmarks) and goes out through the plan's train of small PRs. The rest is laid out in [optimization-pass/PLAN.md](optimization-pass/PLAN.md) as a train of small PRs, spread over the next versions.
+**Released as 0.47.2 on 2026-11-27** (PR #48, merge commit `07cdcef`, straight to main). [optimization-pass/PLAN.md](optimization-pass/PLAN.md) remains the record.
+
+The pass covered six phases: engine hot paths, the clash-scan and A–Z hangs, the typing path, Hero per-draw work, Normal-mode retention and windowing, and loading/search/launch. The engine work cut generation overhead about 3× on large books (1,000 entries: 35.9 → 7.7 ms; 3,000: 91.3 → 28.8 ms). Opening an entry in a 1,000-entry shared-key book fell from ~17 s at 6× to 82–85 ms worst over three runs; typing to 50–79 ms worst; scrolling to 0 long tasks over three settled runs. The lazy editor, reduced motion and hidden-page pause, teardown, and the repo-side animation checklist (A5) also landed. The user-facing version of this is the 0.47.2 entry in ☰ → Patch notes.
+
+**Not done**, and tracked only in the plan (§5.1), not as a feature: Hero open, tap and wheel zoom still exceed the 50 ms target at 6× because of paint/layout the browser owns, and the device paint/compositor traces and ST-host evidence (live boot and drawer, heap after settling, real chat-state badges, a real background switch) have not been run. Those are evidence and follow-up work, not a second pass.
 
 ### 2.2 Patch notes
 
-A small technical menu for the time of development, so what changed is not forgotten.
+**Built in 0.47.2.** A small menu in ☰ → Patch notes, in both modes, showing one entry per version newest first. Each line is written for users: what changed and where, with no internal names, timings or file paths.
 
-**To settle:** where the text lives (its own file, or generated from the roadmap rows).
+The text lives in one file, [src/changelog.js](../src/changelog.js), written for each update by the agent; the menu imports it directly. `test/changelog.test.js` checks that versions are unique and newest first and that the top entry matches `manifest.json`.
+
+**Decisions:** a separate changelog file, not generated from the roadmap rows; written by the agent at each update; started with the optimization pass (0.47.2); shown in both modes. The 0.47.2 entry also has a short **Known** group, so the notes do not claim more than the pass achieved.
 
 ### 2.3 Guide and explain mode
 
@@ -72,7 +78,7 @@ A small technical menu for the time of development, so what changed is not forgo
 
 ### 2.5 Animations
 
-The animations to make it all feel smooth and nice. They are optional (a setting, and `prefers-reduced-motion` respected), and they are built on top of an optimized core, after the plan's checklist A5.
+The animations to make it all feel smooth and nice. They are optional (a setting, and `prefers-reduced-motion` respected), and they are built on top of an optimized core. A5 is closed repo-side (2026-11-25): 26 motion declarations audited, reduced motion and hidden-page pause in place. Still open before animation starts: the device paint/compositor traces and the Hero tap/zoom paint follow-up in the plan (§5.1).
 
 ### 2.6 Greetings
 
@@ -199,12 +205,14 @@ A separate lane: no ordering, and none waits for a feature.
 | Permanent switch root looks wrong | The roll happens on the first reply; the screen flash needs a repro. | Needs repro |
 | Gate menu looks bad when placing it | Seen on the phone. | Open |
 
-## 4. Shipped from the old list
+## 4. Shipped
 
-Do not rebuild these.
+Do not rebuild these. The feature plan's shipped items are at the top; the old list's ideas follow.
 
 | Idea | Where it went |
 |---|---|
+| Optimization pass | 0.47.2: engine hot paths, clash scan, typing, Hero, Normal lists, loading/search and memory. Device paint evidence stays in [PLAN](optimization-pass/PLAN.md). |
+| Patch notes | 0.47.2: ☰ → Patch notes, from [src/changelog.js](../src/changelog.js). |
 | Dice for switches | Built (CONCEPTS 3.5). A swipe keeps the roll; going back past the message before it rolls again. |
 | Lasso to make a pack | Built: drag a box and press P, or long press and drag on a phone. |
 | Sticky notes on the canvas | Built: one per card, stored as `note` in `extensions.wihero`, never sent to the model. |
@@ -265,5 +273,5 @@ The held-back chip and the "Why didn't it fire?" explainer were set aside here b
 
 ## 7. Keeping this file honest
 
-- When an item ships, move it to section 4 with its version. When it is dropped, move it to section 6 with the reason.
+- When an item ships, add it to section 4 with its version; the order table keeps its ✅ row so the numbering stays put. When it is dropped, move it to section 6 with the reason. When it is merged ahead of a release, mark it ✅ in section 1 and say so in its section 2 entry.
 - This file is the only list of planned features. The roadmap links here.

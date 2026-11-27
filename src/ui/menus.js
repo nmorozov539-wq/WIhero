@@ -2,6 +2,7 @@
 // folders, links, problems, colors and World Info settings. Moved out of app.js; it reaches the app only through
 // the context given to it.
 import { el, issueText, swEl } from './dom.js';
+import { notesVersion, openPatchNotes } from './patch-notes.js';
 import { explainNode } from './explain-meta.js';
 import {
     SORT_NAMES, bookFolderOf, bookSettings, cardKey, copyBookSettings, duplicateEntry, entriesOf, moveEntry,
@@ -110,6 +111,8 @@ export function createMenus(A) {
                 } else S.tabs = S.tabs.filter(t => t.home || t.id === S.active);
                 render();
             }, { icon: 'x', explain: { key: 'blocked.command', title: 'Close other tabs', text: 'Closes every other tab.' } }));
+            sh.append(el('div', 'lbl', 'Help'));
+            sh.append(layer.opt('Patch notes', () => { layer.close(); openPatchNotes(layer); }, { icon: 'entry', val: notesVersion, explain: { key: 'menu.notes' } }));
         }, { menu: true });
     }
 
