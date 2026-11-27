@@ -503,7 +503,7 @@ export function buildModel(entries, options = {}) {
         }
     }
 
-    // Dice (AFTER_V1): only on a switch, and only true.
+    // Dice (docs/COOL_FEATURES.md section 4): only on a switch, and only true.
     for (const node of nodes.values()) {
         const d = node.config.dice;
         if (d === undefined || node.moment) continue;

@@ -4,7 +4,7 @@ Design spec for text the model writes into the book. **Built in 0.37.0**;
 section 9 records how its open questions were settled.
 It follows the rules in [CONCEPTS.md](CONCEPTS.md) and the turn in
 [BUILD_SPEC.md](BUILD_SPEC.md) 6; where this file needs a change to either, it
-says so. Grown out of "Masks the model writes" in [AFTER_V1.md](AFTER_V1.md)
+says so. Grown out of "Masks the model writes" in [archive/AFTER_V1.md](archive/AFTER_V1.md)
 and the discussion of 2026-11-09.
 
 ## 1. What it is

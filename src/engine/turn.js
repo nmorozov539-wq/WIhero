@@ -435,7 +435,7 @@ export function rereadReply(snapshot, working, model, chat, mesId) {
 }
 
 /**
- * Dice for switches (AFTER_V1). When a dice fork fires and its switch hasn't been decided (no roll yet, no path
+ * Dice for switches (docs/COOL_FEATURES.md section 4). When a dice fork fires and its switch hasn't been decided (no roll yet, no path
  * fired or closed), one open path is picked and every other path closes. The roll is saved in `state.rolls`.
  * It is seeded by the message before the reply (its text and time) and the fork, so a swipe or a regenerate of
  * the same reply gets the same roll, and going back past that message and writing it again rolls again.

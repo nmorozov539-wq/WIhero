@@ -1,4 +1,4 @@
-// The cheap AFTER_V1 additions on desktop, in the browser harness (e2e/desktop/harness.html), no SillyTavern
+// The shipped ideas in docs/COOL_FEATURES.md section 4, on desktop in the browser harness (e2e/desktop/harness.html), no SillyTavern
 // needed: Hero's + New book and Duplicate, the keyword clash finder (chips and ☰), the dead branch report (☰),
 // lasso to make a pack, sticky notes, the switch's dice, and a Moment's delete with Undo. Screenshots go to e2e/log/cheap-*.png.
 //   node e2e/cheap.mjs

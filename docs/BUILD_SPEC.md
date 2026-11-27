@@ -789,7 +789,7 @@ didn't contradict it:
 
 ## 15. Greetings (D23, retired for V1)
 
-*Off in V1* (CONCEPTS 3.12, AFTER_V1 "Greetings, the strict version"). This
+*Off in V1* (CONCEPTS 3.12, COOL_FEATURES 2.6 "Greetings"). This
 section is how they work when `GREETINGS` is switched back on.
 
 ### 15.1 What a greeting is
