@@ -193,6 +193,12 @@ on('CHAT_CHANGED', catchUpDialog.chatChanged);
 let snapshots = null;
 const library = createLibrary({
     ctx: uiCtx, WI: st.WI, powerUser: ctx().powerUserSettings, settings, saveSettings: saveSettingsDebounced,
+    currentCharacterWorld: () => {
+        if (document.getElementById('form_create')?.getAttribute('actiontype') !== 'editcharacter') return null;
+        const c = ctx().characters?.[ctx().characterId];
+        const input = document.getElementById('character_world');
+        return c?.avatar && input ? { avatar: c.avatar, world: input.value } : null;
+    },
     onFirstSeen: (name, data, o) => snapshots.seed(name, data, o),
     onChange: () => app?.refresh(),
     onSaveError: (name, e, final, what = 'save') => {
@@ -395,7 +401,9 @@ on('WORLDINFO_UPDATED', library.onWorldInfoUpdated);
 // before refresh draws, not after it. CHARACTER_PAGE_LOADED covers ST reloading the character list in place (an
 // import), which swaps no array and fires no CHARACTER_EDITED.
 for (const type of ['CHARACTER_EDITED', 'CHARACTER_PAGE_LOADED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], () => { filterChoices.invalidate(); library.invalidateLinks(); });
-for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
+for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHARACTER_PAGE_LOADED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
+// Import Card Lore changes this hidden input before ST's delayed character save completes.
+globalThis.jQuery?.('#character_world').on('change', () => { library.invalidateLinks(); app?.refresh(); });
 
 globalThis.wihero = {
     /** The editor, or null until the chunk has loaded (await `ready`). */

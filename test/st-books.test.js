@@ -325,7 +325,7 @@ test('delete waits for an active write before removing the book', async t => {
 
 // ---- links (C8): one index per pass, same order and shape as the per-book scan
 
-function setupLinks() {
+function setupLinks(currentCharacterWorld = () => null) {
     const characters = [
         { name: 'Ada', avatar: 'Ada.png', data: { extensions: { world: 'Book' } } },
         { name: 'Bob', avatar: 'Bob.png', data: { extensions: { world: 'Other' } } },
@@ -345,7 +345,7 @@ function setupLinks() {
         METADATA_KEY: 'world_info', world_info: { charLore },
         charSetAuxWorlds: (file, extraBooks) => { const l = charLore.find(x => x.name === file); if (l) l.extraBooks = extraBooks; },
     };
-    const library = createLibrary({ ctx: () => ctx, WI, settings: { books: {} }, saveSettings() {}, writeBook: async () => {} });
+    const library = createLibrary({ ctx: () => ctx, WI, settings: { books: {} }, saveSettings() {}, writeBook: async () => {}, currentCharacterWorld });
     return { library, characters, charLore, chatMetadata };
 }
 
@@ -391,6 +391,19 @@ test('links: a character added by ST reloading the list in place is seen without
         { name: 'Eve', avatar: 'Eve.png', data: { extensions: { world: 'New' } } },
         ...characters);
     assert.deepEqual(library.links('New'), [{ kind: 'char', name: 'Eve', avatar: 'Eve.png' }]);
+});
+
+test('links: a card import shows the selected world before ST saves the character', () => {
+    let pending = null;
+    const { library, characters } = setupLinks(() => pending);
+    assert.deepEqual(library.links('Imported'), []);
+    pending = { avatar: 'Ada.png', world: 'Imported' };
+    assert.deepEqual(library.links('Imported'), [{ kind: 'char', name: 'Ada', avatar: 'Ada.png' }]);
+    assert.ok(!library.links('Book').some(link => link.avatar === 'Ada.png'));
+    characters[0].data.extensions.world = 'Imported';
+    pending = null;
+    library.invalidateLinks();
+    assert.deepEqual(library.links('Imported'), [{ kind: 'char', name: 'Ada', avatar: 'Ada.png' }]);
 });
 
 test('links: linkChat and unlink invalidate the index', async () => {

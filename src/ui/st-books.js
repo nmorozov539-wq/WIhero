@@ -89,7 +89,7 @@ export function createLibrary({
     ctx, WI, powerUser, settings, saveSettings, writeBook = (name, data) => persistBook(ctx(), WI, name, data), onFirstSeen = async () => {}, onChange = () => {},
     onSaveError = (name, e) => console.error('[WI Hero] Could not save', name, e),
     onMerged = () => {},
-    summarize = defaultSummary, pinned = () => [], maxCopies = MAX_COPIES,
+    summarize = defaultSummary, pinned = () => [], maxCopies = MAX_COPIES, currentCharacterWorld = () => null,
 }) {
     /** name → the working copy WI Hero edits; ST's cache is updated on every save. */
     const copies = new Map();
@@ -717,11 +717,12 @@ export function createLibrary({
 
     const invalidateLinks = () => { linksIndex = null; linksRefs = null; };
 
-    function buildLinks(chars, lore, meta) {
+    function buildLinks(chars, lore, meta, pending) {
         const index = new Map();
         const entry = name => { let out = index.get(name); if (!out) index.set(name, out = []); return out; };
         for (const c of chars) {
-            const book = c?.data?.extensions?.world;
+            // ST opens an imported card's book before its debounced character save updates `characters`.
+            const book = c?.avatar === pending?.avatar && pending ? pending.world : c?.data?.extensions?.world;
             if (book != null) entry(book).push({ kind: 'char', name: c.name, avatar: c.avatar });
         }
         for (const l of lore) {
@@ -744,10 +745,13 @@ export function createLibrary({
         const chars = ctx().characters ?? [];
         const lore = WI.world_info?.charLore ?? [];
         const meta = ctx().chatMetadata;
+        const pending = currentCharacterWorld();
         if (!linksIndex || linksRefs.chars !== chars || linksRefs.lore !== lore || linksRefs.meta !== meta
-            || linksRefs.charsLength !== chars.length || linksRefs.loreLength !== lore.length) {
-            linksIndex = buildLinks(chars, lore, meta);
-            linksRefs = { chars, lore, meta, charsLength: chars.length, loreLength: lore.length };
+            || linksRefs.charsLength !== chars.length || linksRefs.loreLength !== lore.length
+            || linksRefs.pendingAvatar !== pending?.avatar || linksRefs.pendingWorld !== pending?.world) {
+            linksIndex = buildLinks(chars, lore, meta, pending);
+            linksRefs = { chars, lore, meta, charsLength: chars.length, loreLength: lore.length,
+                pendingAvatar: pending?.avatar, pendingWorld: pending?.world };
         }
         return linksIndex.get(name) ?? noLinks;
     }
