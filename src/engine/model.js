@@ -19,14 +19,16 @@ export const stKey = entry => `${entry.world}.${entry.uid}`;
 export const entryKey = (book, id) => `${book}/${id}`;
 
 /**
- * Greetings are retired for v1 (impressions list #33): the engine reads every greeting link as if it weren't written
- * (a row loses it, a row left empty is dropped, gatedBy is skipped) and no chat counts as opened with one. Books
- * keep their greeting data untouched, so turning this back on brings it all back.
+ * Greetings are part of the model. Only the open single-character chat's character takes part (see buildModel's
+ * `activeAvatar`); other characters' refs are read as if they weren't written, and books keep that data untouched.
  */
-export const GREETINGS = false;
+export const GREETINGS = true;
 
-/** The state key of a greeting: `@<char>:<n>`. */
-export const greetingKey = ref => `@${ref.char}:${ref.greeting}`;
+/** The state key of a greeting in a book: `<book>/@<char>:<n>`. */
+export const greetingKey = (book, ref) => `${book}/@${ref.char}:${ref.greeting}`;
+
+/** Whether a state key is a book-scoped greeting key (`<book>/@<avatar>:<n>`). */
+export const isGreetingStateKey = key => typeof key === 'string' && /^.*\/@[^:]+:\d+$/.test(key);
 
 const label = entry => entry.comment || (Array.isArray(entry.key) && entry.key[0]) || `uid ${entry.uid}`;
 
@@ -152,10 +154,14 @@ const BY = ['user', 'char'];
 /**
  * Builds the model of the loaded books.
  * @param {object[]} entries ST entries, each with `world` and `uid`.
- * @param {{ greetingFp?: (char: string, n: number) => string | null | undefined }} [options]
+ * @param {{ greetingFp?: (char: string, n: number) => string | null | undefined, activeAvatar?: string | null }} [options]
  *   `greetingFp` gives the fingerprint of a character's greeting n: undefined when the character is missing,
  *   null when it has no greeting n. Without it, greeting refs are taken as they are.
+ *   `activeAvatar` is the open single-character chat's avatar, or null with none. When the option is present,
+ *   only that avatar's greeting refs compile; every other avatar's ref is read as unwritten (a row loses it, a row
+ *   left empty is dropped, gatedBy and pack via rules are skipped). When absent, every ref compiles.
  * @returns {object} { nodes, byStKey, issues, packs, switches, riders, greetings, slots, trackers }
+ *   `greetings` is by book-scoped state key (`Book/@avatar:n`); each info is { key, book, ref, ok, missing, problem }.
  *   `slots` every written slot by slot key, `trackers` per book: { syntax, teach, slots, reader } (TRACKERS 5, 7).
  *   `nodes` by state key (`book/id`), `byStKey` every entry with story logic by `world.uid`.
  */
@@ -165,6 +171,9 @@ export function buildModel(entries, options = {}) {
     const byStKey = new Map();
     const books = new Map(); // book → Map(id → [node])
     const greetings = new Map();
+    // The option being present is what makes this a runtime model: null means no avatar, so no greeting refs at all.
+    const hasActiveAvatar = Object.hasOwn(options, 'activeAvatar');
+    const activeAvatar = hasActiveAvatar && typeof options.activeAvatar === 'string' ? options.activeAvatar : null;
 
     const report = (node, message, { warning = false, blocking = !warning } = {}) => {
         if (blocking) node.blocked = true;
@@ -253,8 +262,8 @@ export function buildModel(entries, options = {}) {
     }
     const members = (book, name) => packs.get(book)?.get(name) ?? [];
 
-    const greetingInfo = ref => {
-        const key = greetingKey(ref);
+    const greetingInfo = (book, ref) => {
+        const key = greetingKey(book, ref);
         if (!greetings.has(key)) {
             let ok = true;
             let problem = null;
@@ -267,7 +276,7 @@ export function buildModel(entries, options = {}) {
                     problem = `${ref.name || ref.char}'s ${ref.greeting === 0 ? 'Greeting' : `Alt ${ref.greeting}`} changed`;
                 }
             }
-            greetings.set(key, { key, ref: { greeting: ref.greeting, char: ref.char, name: ref.name, fp: ref.fp }, ok, missing, problem });
+            greetings.set(key, { key, book, ref: { greeting: ref.greeting, char: ref.char, name: ref.name, fp: ref.fp }, ok, missing, problem });
         }
         return greetings.get(key);
     };
@@ -301,9 +310,10 @@ export function buildModel(entries, options = {}) {
             return { wait: { n: ref.wait, by: ref.by ?? null } };
         }
         if (isGreetingRef(ref)) {
-            if (!GREETINGS) return { skip: true };
+            // A malformed ref is reported even when its avatar isn't the active one: the book still has a bad link.
             if (!Number.isInteger(ref.greeting) || ref.greeting < 0 || typeof ref.char !== 'string' || !ref.char) return { error: 'a greeting link is malformed' };
-            const info = greetingInfo(ref);
+            if (hasActiveAvatar && (activeAvatar === null || ref.char !== activeAvatar)) return { skip: true };
+            const info = greetingInfo(node.book, ref);
             return { item: { type: 'greeting', key: info.key } };
         }
         return { error: `${JSON.stringify(ref)} is not a valid link` };
@@ -329,7 +339,7 @@ export function buildModel(entries, options = {}) {
                 if (r.wait) row.waits.push(r.wait);
                 if (r.lock) row.locks.push({ ...r.lock, key: `${row.key}|${row.locks.length}` });
             }
-            if (!GREETINGS && !row.items.length && !row.waits.length && !row.locks.length) continue; // only greetings
+            if (!row.items.length && !row.waits.length && !row.locks.length) continue; // no ref left (inactive greetings)
             out.push(row);
         }
         return out;
@@ -365,7 +375,7 @@ export function buildModel(entries, options = {}) {
             else for (const ref of c.gatedBy) {
                 const r = compileRef(node, ref);
                 if (r.error) fail(`gatedBy: ${r.error}`);
-                else node.opens.all.push({ ...r.item, source: r.item.key });
+                else if (r.item) node.opens.all.push({ ...r.item, source: r.item.key });
             }
         }
         if (c.glue !== undefined) {
@@ -464,7 +474,7 @@ export function buildModel(entries, options = {}) {
             const pack = viaPack(ref);
             if (!pack) continue;
             const r = compileRef(node, ref);
-            if (r.error) continue;
+            if (!r.item) continue;
             for (const k of members(node.book, pack)) {
                 const t = nodes.get(k);
                 if (!t.opens.all.some(i => i.key === r.item.key)) t.opens.all.push({ ...r.item, source: r.item.key });
@@ -475,7 +485,7 @@ export function buildModel(entries, options = {}) {
             const pack = viaPack(raw[0]);
             if (!pack) continue;
             const r = compileRef(node, raw[0]);
-            if (r.error) continue;
+            if (!r.item) continue;
             for (const k of members(node.book, pack)) {
                 const t = nodes.get(k);
                 if (t.closes.some(cl => cl.source === r.item.key)) continue;
@@ -594,13 +604,14 @@ export function buildModel(entries, options = {}) {
         }
     }
     for (const info of greetings.values()) {
-        const g = { key: info.key, stKey: null, book: null, id: null, label: info.ref.name || info.ref.char, blocked: false };
+        const g = { key: info.key, stKey: null, book: info.book, id: null, label: info.ref.name || info.ref.char, blocked: false };
         if (info.problem) report(g, `${info.problem}: it doesn't fire until it is re-picked`, { blocking: false });
         else if (info.missing) report(g, `greeting of ${info.ref.name || info.ref.char}, a character that is missing: it never fires`, { warning: true });
     }
 
     const { slots, trackers } = buildTrackers(nodes, report);
-    return { nodes, byStKey, issues, packs, switches, riders, greetings, slots, trackers };
+    // The avatar the greeting refs were compiled for: undefined when the caller did not filter, null for no character.
+    return { nodes, byStKey, issues, packs, switches, riders, greetings, slots, trackers, activeAvatar: hasActiveAvatar ? activeAvatar : undefined };
 }
 
 /**

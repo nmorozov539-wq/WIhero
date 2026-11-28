@@ -11,6 +11,7 @@ This file holds only features that have been thought through. Optimization has i
 ## 0. Rules of the road
 
 - **Order.** Features are built in the order of section 1 unless this file is edited to change it. The PR that changes the order edits the file.
+- **Current order change.** Greetings are built. Guide and explain mode is the next focus, ahead of inactive-entry explanations and animations. The remaining items keep their relative order.
 - **A feature starts when its concept is written here:** the idea, the catch, and one story it must support (an acceptance story, as the tavern is for switches).
 - **Fixes go in their own lane** (section 3) and can land any time.
 - **Optimization has landed.** Its structural work rewrote `canvas.js`, `normal.js` and `desk.js` and shipped in 0.47.2. Features touching those files now build on the optimized code; no second structural rewrite is waiting.
@@ -23,10 +24,10 @@ This file holds only features that have been thought through. Optimization has i
 |---|---|---|---|
 | 1 | [Optimization](#21-optimization-work) | ✅ | none; shipped in 0.47.2 |
 | 2 | [Patch notes](#22-patch-notes) | ✅ | none; shipped in 0.47.2 |
-| 3 | [Guide and explain mode](#23-guide-and-explain-mode) | ☐ | none |
-| 4 | [Say why an entry is inactive](#24-say-why-an-entry-is-inactive) (proposed) | 💭 | none; unlocks 12 |
-| 5 | [Animations](#25-animations) | ⏸ | A5 device evidence, Hero tap/zoom (plan §5.1) |
-| 6 | [Greetings](#26-greetings) | 💭 | none |
+| 3 | [Greetings](#26-greetings) | 🔨 | none; built on the greetings branch, awaiting merge |
+| 4 | [Guide and explain mode](#23-guide-and-explain-mode) | ☐ | none |
+| 5 | [Say why an entry is inactive](#24-say-why-an-entry-is-inactive) (proposed) | 💭 | none; unlocks 12 |
+| 6 | [Animations](#25-animations) | ⏸ | A5 device evidence, Hero tap/zoom (plan §5.1) |
 | 7 | [Trackers: values drive logic](#27-trackers-values-drive-logic) | 💭 | none |
 | 8 | [Book management](#28-book-management) | ☐ | plan's loader work (M1–M2), landed |
 | 9 | [Entry firing budget](#29-entry-firing-budget) | 💭 | 7, the visit idea in 12 |
@@ -35,7 +36,7 @@ This file holds only features that have been thought through. Optimization has i
 | 12 | [Switches and the rotating pool](#212-switches-and-the-rotating-pool) | 💭 | 7, 4 |
 | 13 | [Gate menu](#213-gate-menu) | ☐ | none |
 
-The build order is the author's list, with item 4 proposed. Items 1 to 13 are described in sections 2.1 to 2.13. Items 1 and 2 shipped in 0.47.2, so the next feature is item 3.
+The build order is the author's list, with inactive-entry explanations proposed. Items 1 to 13 are described in sections 2.1 to 2.13. Items 1 and 2 shipped in 0.47.2. Greetings are built on the greetings branch, awaiting merge; Guide and explain mode follows.
 
 ## 2. The features
 
@@ -82,11 +83,13 @@ The animations to make it all feel smooth and nice. They are optional (a setting
 
 ### 2.6 Greetings
 
-Greetings need to come back as a system that ties to World Info. Today they are retired for V1 (CONCEPTS 3.12).
+**Built.** Greetings are active (`GREETINGS` is true in `src/engine/model.js`). The selection behavior and implementation boundaries are in [GREETINGS_DESIGN.md](GREETINGS_DESIGN.md) and [GREETINGS_IMPLEMENTATION.md](GREETINGS_IMPLEMENTATION.md).
 
-**The strict version.** Greeting rules that belong to one book and one character. A book links to a character. Its greeting logic runs only in that character's chats, stands down when the link is removed, can be repointed to another character, and keeps a snapshot of each greeting per character. Greeting nicknames (#13) wait with it.
+**Selection.** With a single-character chat open, Hero shows that chat's character's greetings for every book, even a book linked only to another character. With no chat, Hero starts without greetings and offers the book's linked characters for an explicit editing choice at the top of the canvas; that pick is transient and never fires a greeting. Unlinking removes a character from that offer but preserves its rules. Greeting nicknames ship with the core system; group chats are excluded.
 
-**Why they were retired, so it is not repeated.** Opening a chat loaded that character's greetings into whatever book was open, so logic written for one character's greeting could fire or break in another character's chat. The engine now reads greeting links as if they were not written (`GREETINGS` in `src/engine/model.js`), and the editor hides greeting cards, panel rows, picker options and Preview starts. [BUILD_SPEC.md](BUILD_SPEC.md) section 15 describes how they work when the flag is switched back on. Group chats come after.
+**Runtime isolation.** Only the selected chat avatar's refs compile for a book. Other characters' refs are omitted from gates, close gates, mask rows, `gatedBy` and pack-aimed rules; a mixed AND row keeps its other conditions, and a row left with only those refs disappears. State keys are book-scoped (`<book>/@<avatar>:<n>`), so two books stay independent and old bare keys are inert. A rename migrates the keys. A changed fingerprint stays a failed condition with Re-pick; a missing character or greeting is dormant and listed in the book menu's Unavailable greeting rules sheet, where Repoint rewrites every matching ref through undo. No metadata World Info entry is written, and Moments are unchanged.
+
+**Why they were retired, so it is not repeated.** Opening a chat used to load that character's greetings into whatever book was open, so logic written for one character's greeting could fire or break in another character's chat. The isolation above fixes that: the model compiles only the active avatar's refs, while the stored book data and other characters' rules stay readable. Group chats remain outside this feature.
 
 ### 2.7 Trackers: values drive logic
 
@@ -239,7 +242,7 @@ Ideas without a date. Each line is the idea plus any catch.
 - **Minimap.** **Select linked.** **Align and distribute.** **Copy between books** (links come along only between the copied cards). **Bookmarks** (saved views of a big canvas).
 - **Folders in Hero mode, with motifs,** and **folder symbols with a far zoom** (a card becomes a circle with its folder's symbol). Catch: portrait cards change where pieces sit and how links route.
 - **Pattern recipes.** A shelf of ready-made shapes to drag onto the canvas: chain, fork, key and door, hub with three keys. The tavern would be a good one.
-- **Greeting nicknames (#13)** and **tile views for the book picker (#35) and folders (#38).**
+- **Tile views for the book picker (#35) and folders (#38).** Greeting nicknames (#13) ship with greetings (2.6).
 
 **Analysis and play**
 - **Dead branch report, saved-chats pass** ("never fired in 14 chats").

@@ -1,6 +1,6 @@
 // The entry page's Story logic section (LAYOUT "Entry page"): one plain sentence per rule, in the piece's
 // family color, including the rules other entries put on this one. Pure, read from the model (src/engine/model.js).
-import { GREETINGS, entryKey } from '../engine/model.js';
+import { GREETINGS, entryKey, isGreetingStateKey } from '../engine/model.js';
 import { isObject } from '../engine/util.js';
 
 const READING = /^#([^:]+)(?::(all|\d+))?$/;
@@ -15,10 +15,14 @@ const greetingName = n => n === 0 ? 'Greeting' : `Alt ${n}`;
  * Names and row sentences for one entry's rules: `nameOf(stateKey)`, `idName(id)`, `rowText(raw row)`.
  * @param {object} node a model node
  * @param {object} model buildModel's result for the node's book
+ * @param {{ greetingChar?: string | null }} [opts] `greetingChar` hides stored greeting refs for another avatar
+ *   (`null` hides all). Absent, every stored ref is described, as in Normal mode's entry page.
  */
-export function wording(node, model) {
+export function wording(node, model, { greetingChar } = {}) {
+    const greetingHidden = x => isObject(x) && 'greeting' in x && greetingChar !== undefined
+        && (greetingChar === null || x.char !== greetingChar);
     const nameOf = key => {
-        if (key.startsWith('@')) {
+        if (isGreetingStateKey(key) || key.startsWith('@')) {
             const g = model.greetings?.get(key);
             return g ? `${g.ref.name || g.ref.char}'s ${greetingName(g.ref.greeting)}` : 'a greeting';
         }
@@ -37,9 +41,10 @@ export function wording(node, model) {
     };
     /** One row: what has to have fired, then what has to be said or have passed. */
     const rowText = row => {
-        const fired = row.filter(x => typeof x === 'string').map(refText);
+        const shown = row.filter(x => !greetingHidden(x));
+        const fired = shown.filter(x => typeof x === 'string').map(refText);
         const rest = [];
-        for (const x of row) {
+        for (const x of shown) {
             if (!isObject(x)) continue;
             if ('lock' in x) {
                 const phrases = and((x.lock ?? []).map(p => `"${p}"`), 'or');
@@ -61,25 +66,28 @@ export function wording(node, model) {
  * @param {object} model buildModel's result for the node's book
  * @returns {{ family: string, label: string, text: string }[]}
  */
-export function logicLines(node, model) {
+export function logicLines(node, model, opts = {}) {
     if (!node?.key) return [];
     const c = node.config ?? {};
-    const { nameOf, idName, rowText } = wording(node, model);
-    const rowsText = rows => (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r) && r.length).map(rowText).join('; or when ');
+    const { nameOf, idName, rowText } = wording(node, model, opts);
+    const rowsText = rows => (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r) && r.length)
+        .map(rowText).filter(Boolean).join('; or when ');
     const targets = list => and((Array.isArray(list) ? list : []).map(t => (t.startsWith('#') ? `#${t.slice(1)}` : idName(t))));
 
     const lines = [];
     const add = (family, label, text) => lines.push({ family, label, text });
 
     // The entry's own pieces, in matrix order, each followed by what other entries aim at it.
-    if (Array.isArray(c.gate) && c.gate.length) add('open', 'Waits for', `Opens when ${rowsText(c.gate)}`);
+    const gateText = rowsText(c.gate);
+    if (gateText) add('open', 'Waits for', `Opens when ${gateText}`);
     const heldBy = node.opens.all.filter(i => i.type === 'entry').map(i => nameOf(i.source));
     if (heldBy.length) add('open', 'Waits for', `Waits until ${and(heldBy)} ${heldBy.length === 1 ? 'has' : 'have'} fired`);
     const startsWith = node.opens.all.filter(i => i.type === 'greeting').map(i => nameOf(i.key));
     if (startsWith.length) add('open', 'Started by', `Opens only in a chat that opened with ${and(startsWith, 'or')}`);
     if (Array.isArray(c.gatesFor) && c.gatesFor.length) add('open', 'Opens', `${targets(c.gatesFor)} also wait${c.gatesFor.length === 1 && !c.gatesFor[0].startsWith('#') ? 's' : ''} for this to fire`);
-    if (Array.isArray(c.closeGate) && c.closeGate.length) add('close', 'Closes when', `Closes when ${rowsText(c.closeGate)}`);
-    const closedBy = node.closes.filter(cl => cl.kind === 'closesFor' && cl.source !== node.key && !(Array.isArray(c.closeGate) && cl.source?.startsWith('@')));
+    const closeText = rowsText(c.closeGate);
+    if (closeText) add('close', 'Closes when', `Closes when ${closeText}`);
+    const closedBy = node.closes.filter(cl => cl.kind === 'closesFor' && cl.source !== node.key && !(Array.isArray(c.closeGate) && (isGreetingStateKey(cl.source) || cl.source?.startsWith('@'))));
     if (closedBy.length) add('close', 'Closes when', `Closes when ${and(closedBy.map(cl => nameOf(cl.source)), 'or')} fires`);
     if (Array.isArray(c.closesFor) && c.closesFor.length) add('close', 'Closes', `When it fires, closes ${targets(c.closesFor)}`);
     if (c.glue?.mode === 'ride') add('glue', 'Glue', `Rides along with ${idName(c.glue.host)}: fires when it fires`);
@@ -92,7 +100,10 @@ export function logicLines(node, model) {
     const fork = node.closes.filter(cl => cl.kind === 'switch').map(cl => nameOf(cl.source));
     if (fork.length) add('close', 'Switch path', `Closes when ${and(fork, 'or')} fires: only one path of the fork can follow`);
     if (Array.isArray(c.masks) && c.masks.length) {
-        add('mask', 'Masks', c.masks.filter(isObject).map(m => `${m.name}${Array.isArray(m.gate) && m.gate.length ? ` (when ${rowsText(m.gate)})` : ''}`).join('; '));
+        add('mask', 'Masks', c.masks.filter(isObject).map(m => {
+            const when = rowsText(m.gate);
+            return `${m.name}${when ? ` (when ${when})` : ''}`;
+        }).join('; '));
     }
     if (node.packs.length) add('pack', 'Packs', `In ${node.packs.map(p => `#${p}`).join(', ')}`);
     if (node.once) add('close', 'Once', 'Fires one time, then closes');

@@ -354,7 +354,7 @@ export function mountCanvas(vp, d) {
                 gr.dataset.grip = e.id;
                 gr.setAttribute('aria-label', `Move ${e.title}`);
                 c.append(gr, el('div', 'tag', e.greeting.missing ? 'START · MISSING' : 'START'), el('div', 't', e.title),
-                    el('div', 'k gk', e.greeting.changed ? 'Re-pick: the text changed' : e.text || '(empty)'));
+                    el('div', 'k gk', e.greeting.changed ? 'Re-pick: the text changed' : [e.greeting.nickname ? e.greeting.canonical : '', e.text].filter(Boolean).join(' · ') || '(empty)'));
                 if (e.problem) { const b = el('span', 'cbang', '!'); b.title = 'This greeting changed'; c.append(b); }
                 put(world, c);
                 continue;

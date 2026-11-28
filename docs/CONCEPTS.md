@@ -287,37 +287,43 @@ A row item that counts messages: `{"wait": 3}`.
 - In a close gate it gives timed endings: "close three messages after the
   storm starts".
 
-### 3.12 Greeting (retired for V1)
+### 3.12 Greeting
 
-**Not in V1.** Greetings are switched off (`GREETINGS` in
-`src/engine/model.js`): the engine reads every greeting link as if it weren't
-written, no chat counts as opened with a greeting, and the editor shows no
-greeting cards, panel rows, picker options or Preview starts. Greeting data
-already in a book is kept untouched, so switching it back on restores it. Why,
-and the stricter version planned instead, are in
-[COOL_FEATURES.md](COOL_FEATURES.md#26-greetings). The rules below are
-what the switch brings back.
+A node point for one of a character's greetings. It is not an entry: nothing is
+added to the book or the card, nothing is copied, nothing reaches the model.
 
-A node point for one of a character's greetings. It is not an entry: nothing
-is added to the book or the card, nothing is copied, nothing reaches the
-model.
-
-- It **counts as fired from the chat's first message** when that is the
-  greeting the chat opened with (ST's first message, with the alternate
-  greetings as its swipes). It never fires again.
+- It **counts as fired from the chat's first message** when the chat opened
+  with that greeting: `chat[0]` is the character's message, its swipes are the
+  character's greeting list (main when present, plus alternates, with ST's
+  no-main offset) and `swipe_id` is a valid index. Texts are never compared, so
+  an edited first message or a card edit/reorder keeps its identity. A chat with
+  no swipe list recognises only a sole main greeting, by its exact text. It
+  never fires again.
+- Only the **open single-character chat's character** takes part, and that
+  character wins for every book: global, chat-linked or character-linked. Other
+  characters' refs are read as if not written while that chat is open: in an AND
+  row the other items remain, a row left empty disappears, and close gates, mask
+  rows, `gatedBy` and pack-aimed rules are filtered the same way. Their stored
+  refs stay in the book. A ref for the selected character whose fingerprint no
+  longer matches stays unmet until it is re-picked.
 - Other entries use it like an entry: in gate and close-gate rows and in mask
   rows. It can carry **Gates for** and **Closes for**, so each greeting can
   start its own scenario: open a pack, close what doesn't apply, start a
   Permanent entry, pick a mask.
 - It takes no gate, close gate, glue, mask, Once or Who triggers.
-- Named like ST: Greeting, Alt 1, Alt 2… Swiping the greeting before the first
-  reply switches the scenario, with the usual rewind.
-- Only the open chat's character's greetings show (in the entry panel and on
-  the canvas). With no chat open, or in a group chat, none show; rules aimed
-  at them stay on the entries and are listed in words.
-- Stored in the book only, on the entries its rules touch, with the
-  character, the greeting's number and a fingerprint of its opening words.
-- Single-character chats only, for now.
+- Named like ST: Greeting, Alt 1, Alt 2… A nickname can replace the display
+  label, with the canonical name shown as secondary text. Swiping the greeting
+  before the first reply switches the scenario, with the usual rewind.
+- With no chat, Hero starts with no greetings and offers the book's linked
+  characters as an editing-only pick at the top of the canvas. That pick is
+  transient and never marks a greeting fired. With no links, or in a group
+  chat, no greetings show and no banner appears.
+- Stored in the book only, on the entries its rules touch, with the character's
+  avatar, the greeting's number and a fingerprint of its opening words. Runtime
+  state keys are `<book>/@<avatar>:<n>`; old `@<avatar>:<n>` keys are inert.
+- A rule whose character or numbered greeting is gone is listed in the book
+  menu's **Unavailable greeting rules** sheet and can be **Repointed** to a real
+  greeting. Changed text on an existing greeting is fixed with **Re-pick**.
 
 ### 3.13 Moment
 
@@ -388,8 +394,8 @@ These are reported while editing. An entry with a problem never fires.
 - A ride-along host that is missing, or a pack.
 - A malformed mask (reported, skipped, not blocking the entry).
 - A greeting that changed (edited or reordered since it was linked): it doesn't
-  fire until it is re-picked. (Greetings are retired for V1, 3.12, so this
-  isn't reported now.)
+  fire until it is re-picked. A missing character or greeting number is dormant
+  until it is repointed.
 - A Moment with no phrases (it can never happen), and Closes for aimed at a
   Moment (a Moment can't be closed).
 - Trackers (these never block the entry; only the tracker isn't read): two
@@ -403,8 +409,8 @@ Warnings, which don't block:
 - A hold with nothing that can close it.
 - A gate row that the entry's own close gate always meets first, so the entry
   could never fire.
-- A greeting whose character is missing (it never fires; not reported while
-  greetings are retired).
+- A greeting whose character is missing (it never fires; listed in the book
+  menu's Unavailable greeting rules sheet).
 - Dice on an entry that has no switch (the dice do nothing).
 - A Moment nothing uses yet.
 - A Moment carrying a piece it takes none of (glue, masks, Once, a switch, a
@@ -501,7 +507,7 @@ Nothing in it is saved to the chat or the book.
 A **ref** is an entry id (`"mill"`), a pack reading (`"#town"`, `"#town:all"`,
 `"#town:2"`), a lock (`{"lock": [...]}`), a wait (`{"wait": 3}`) or a greeting
 (`{"greeting": 2, "char": "Seraphina.png", "name": "Seraphina", "fp": "9f3a1c"}`,
-kept but read as if absent while greetings are retired, 3.12). Rows are lists
+read only for the open single-character chat's character, 3.12). Rows are lists
 of refs.
 
 `wihero` fields:
@@ -519,7 +525,7 @@ of refs.
 | `packs`     | `["town/inn"]`                                                 |
 | `once`      | Close after the first firing                                   |
 | `by`        | `"user"` or `"char"`; left out means both                      |
-| `gatedBy`   | Greetings whose Gates for target this entry (3.12; skipped while retired) |
+| `gatedBy`   | Greetings whose Gates for target this entry (3.12; other avatars' refs are read as unwritten) |
 | `moment`    | `true` on a Moment (3.13); left out on every other entry       |
 | `dice`      | `true` on a switch's fork: it picks its path at random (3.5)   |
 | `note`      | The card's sticky note: for the author only, never sent        |
@@ -545,9 +551,8 @@ a top-level `wihero` field to `extensions.wihero` (read from either on load).
 
 - Preview stepping through several pretend turns.
 - Tap a link on the canvas to jump to its other end (parked).
-- Greetings, retired for V1 (3.12): a stricter version is parked in
-  [COOL_FEATURES.md](COOL_FEATURES.md#26-greetings), and group chats
-  after that.
+- Greeting selection for group chats (3.12); group chats are after the
+  single-character feature.
 - Planned and parked features (locks that match by meaning, among others) are
   in [COOL_FEATURES.md](COOL_FEATURES.md).
 - Out of scope for now: several books on one canvas, cross-book links,

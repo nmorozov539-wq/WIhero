@@ -190,9 +190,11 @@ export function moveMaskUp(c, i) {
  * A ref in words, for a chip.
  * @param {*} ref
  * @param {(id: string) => string} nameOfId
+ * @param {((ref: object) => { label: string, canonical: string, review?: boolean }) | undefined} [nicknameOf]
+ *   optional: a greeting's display name (a stored nickname, or the canonical label when its fingerprint changed)
  * @returns {{ text: string, kind: 'entry' | 'pack' | 'lock' | 'wait' | 'greeting' | 'bad' }}
  */
-export function refLabel(ref, nameOfId) {
+export function refLabel(ref, nameOfId, nicknameOf) {
     if (typeof ref === 'string') {
         const r = READING.exec(ref);
         if (!ref.startsWith('#')) return { text: nameOfId(ref) ?? ref, kind: 'entry' };
@@ -201,7 +203,17 @@ export function refLabel(ref, nameOfId) {
     }
     if (isObject(ref) && Array.isArray(ref.lock)) return { text: ref.lock.map(p => `"${p}"`).join(' or ') + (ref.by === 'user' ? ' (you)' : ref.by === 'char' ? ' (character)' : ''), kind: 'lock' };
     if (isObject(ref) && 'wait' in ref) return { text: `${ref.wait} message${ref.wait === 1 ? '' : 's'}${ref.by === 'user' ? ' of yours' : ref.by === 'char' ? ' of the character' : ''}`, kind: 'wait' };
-    if (isGreetingRef(ref)) return { text: `${ref.name || ref.char} · ${greetingName(ref.greeting)}`, kind: 'greeting' };
+    if (isGreetingRef(ref)) {
+        const base = ref.name || ref.char;
+        const nick = nicknameOf?.(ref);
+        if (nick?.label) {
+            // A nickname replaces the label but never hides which alternate is meant.
+            const canonical = nick.canonical ?? greetingName(ref.greeting);
+            const text = nick.label === canonical ? `${base} · ${nick.label}` : `${base} · ${nick.label} · ${canonical}`;
+            return { text, kind: 'greeting' };
+        }
+        return { text: `${base} · ${greetingName(ref.greeting)}`, kind: 'greeting' };
+    }
     return { text: '?', kind: 'bad' };
 }
 

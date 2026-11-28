@@ -58,8 +58,8 @@ them done, and note here what was tried.
 
 ## Later
 
-Preview over several turns, greetings (retired for V1) and then group chats, a
-timeline scrubber across branches. From the 2026-11-11 review, ranked: "When *X*
+Preview over several turns, greetings in group chats, a timeline scrubber
+across branches. From the 2026-11-11 review, ranked: "When *X*
 is written" as a row item (a tracker or written mask being written is a
 stronger signal than a key word), Preview over several turns, held-back entries
 folded into the chat bubble, a helper for converting an existing book (shaped

@@ -179,14 +179,14 @@ export const PAGES = [
         example: 'Alt 2 opens the night market: a chat that starts on that greeting starts that scenario.',
         fine: [
             'It counts as fired from the chat\'s first message when that is the greeting the chat opened with.',
-            'Only the open chat\'s character\'s greetings show; single-character chats only.',
+            'Only the open single-character chat\'s character takes part. With no chat, Hero can show a linked character\'s greetings for editing only.',
             'It can open and close cards; it waits for nothing itself.',
-            'If the greeting\'s text changes, it stops until it is re-picked.',
+            'If the greeting\'s text changes, it stops until it is re-picked; a missing character or greeting is Repointed from the book menu.',
         ],
         mistakes: [],
         show: null,
     },
-].filter(p => GREETINGS || p.id !== 'greeting'); // greetings are retired for v1 (#33)
+].filter(p => GREETINGS || p.id !== 'greeting');
 
 /** Read before the pieces: what every rule in the book counts on. Shown first in the Guide. */
 export const BASICS = [

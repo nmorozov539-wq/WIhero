@@ -1,10 +1,10 @@
 // The rules of BUILD_SPEC 9.3, played through the engine with a stand-in for ST's scan (test/sim.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GREETINGS, buildModel, normalize } from '../src/engine/model.js';
-import { readState } from '../src/engine/state.js';
+import { buildModel, greetingKey, isGreetingStateKey, normalize } from '../src/engine/model.js';
+import { initialState, readState } from '../src/engine/state.js';
 import { reopen, pickMask } from '../src/engine/manual.js';
-import { keywordOnSide, stateForScan } from '../src/engine/turn.js';
+import { baseState, keywordOnSide, opensMet, stateForScan } from '../src/engine/turn.js';
 import { e, Sim } from './sim.js';
 
 const K = id => `Book/${id}`;
@@ -417,51 +417,59 @@ test('keys are per book: two books with a "mill" never mix', () => {
 // ---------------------------------------------------------------- Greetings
 
 const greet = n => ({ greeting: n, char: 'Sera.png', name: 'Sera', fp: `fp${n}` });
+const greetOf = (char, n, extra = {}) => ({ greeting: n, char, name: char.replace(/\.png$/, ''), fp: `${char}:${n}`, ...extra });
 const fpOf = (char, n) => char === 'Sera.png' ? (n < 3 ? `fp${n}` : null) : undefined;
+const G = (book, char, n) => `${book}/@${char}:${n}`;
 
-test('greetings retired (#33): greeting links read as unwritten, and no chat counts as opened with one', { skip: GREETINGS }, () => {
-    const entries = [
-        e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }),
-        e(1, 'town', { id: 'town', gate: [[greet(0), 'forest'], ['mill']], closeGate: [[greet(1)]] }),
-        e(2, 'mill', { id: 'mill', gatedBy: [greet(0)] }),
-    ];
-    const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf } });
-    assert.deepEqual(s.model.issues, []);
-    assert.equal(s.model.nodes.get(K('forest')).opens.rows.length, 0, 'a gate of only greetings is no gate');
-    assert.deepEqual(s.model.nodes.get(K('town')).opens.rows.map(r => r.items.map(i => i.key)), [[K('forest')], [K('mill')]]);
-    assert.equal(s.model.nodes.get(K('town')).closes.length, 0);
-    assert.equal(s.model.nodes.get(K('mill')).opens.all.length, 0);
-    assert.equal(s.model.greetings.size, 0);
-    assert.deepEqual(s.send('town'), []);
-    assert.deepEqual(s.send('forest mill'), [0, 2]);
-    assert.deepEqual(s.send('town'), [1]);
-    assert.equal(s.state.fired['@Sera.png:1'], undefined);
+test('greeting state keys are book scoped', () => {
+    assert.equal(greetingKey('Book', greet(2)), 'Book/@Sera.png:2');
+    assert.equal(isGreetingStateKey('Book/@Sera.png:2'), true);
+    assert.equal(isGreetingStateKey('A Book/@Sera.png:0'), true);
+    assert.equal(isGreetingStateKey('@Sera.png:2'), false, 'old bare keys are not greeting keys');
+    assert.equal(isGreetingStateKey('Book/Sera.png:2'), false);
+    assert.equal(isGreetingStateKey('Book/@Sera.png:x'), false);
 });
 
-test('greetings: the opening greeting counts as fired at index 0, and only that one', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
+test('greetings: the opening greeting counts as fired at index 0, and only that one', () => {
     const entries = [e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }), e(1, 'town', { id: 'town', gate: [[greet(0)]] })];
     const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf } });
     assert.deepEqual(s.send('forest town'), [0]);
-    assert.equal(s.state.firstAt['@Sera.png:1'], 0);
+    assert.equal(s.state.firstAt[G('Book', 'Sera.png', 1)], 0);
+    assert.equal(s.state.firstAt[G('Book', 'Sera.png', 0)], undefined);
+    assert.equal(s.model.greetings.get(G('Book', 'Sera.png', 1)).ok, true);
+    assert.equal(s.model.greetings.get(G('Book', 'Sera.png', 1)).book, 'Book');
 });
 
-test('greetings: swiping the greeting before the first reply switches the scenario', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
+test('greetings: main and Alt n each count when it is the opening greeting', () => {
+    const model = buildModel([e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }), e(1, 'town', { id: 'town', gate: [[greet(0)]] })], { greetingFp: fpOf });
+    const chat = [{ mes: 'x' }];
+    assert.deepEqual(baseState(chat, model, { greeting: '@Sera.png:0' }).state.fired, { [G('Book', 'Sera.png', 0)]: 1 });
+    assert.deepEqual(baseState(chat, model, { greeting: '@Sera.png:1' }).state.fired, { [G('Book', 'Sera.png', 1)]: 1 });
+    assert.deepEqual(baseState(chat, model, { greeting: null }).state.fired, {}, 'no opening greeting, no greeting key');
+});
+
+test('greetings: swiping the greeting before the first reply switches the scenario', () => {
     const entries = [e(0, 'forest', { id: 'forest', gate: [[greet(1)]] }), e(1, 'town', { id: 'town', gate: [[greet(0)]] })];
-    const s = new Sim(entries, { greeting: '@Sera.png:0' });
-    assert.deepEqual(stateForScan(s.chat, s.model, { greeting: '@Sera.png:0' }).fired, { '@Sera.png:0': 1 });
+    const s = new Sim(entries, { greeting: '@Sera.png:0', modelOptions: { greetingFp: fpOf } });
+    assert.deepEqual(stateForScan(s.chat, s.model, { greeting: '@Sera.png:0' }).fired, { [G('Book', 'Sera.png', 0)]: 1 });
     s.options.greeting = '@Sera.png:1'; // the user swiped the greeting
     assert.deepEqual(s.send('forest town'), [0]);
+    assert.equal(s.state.firstAt[G('Book', 'Sera.png', 1)], 0);
+    assert.equal(s.state.firstAt[G('Book', 'Sera.png', 0)], undefined, 'the first swipe no longer counts');
 });
 
-test('greetings: a fingerprint mismatch blocks the greeting until re-picked', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
+test('greetings: a fingerprint mismatch blocks the greeting until re-picked', () => {
     const entries = [e(0, 'forest', { id: 'forest', gate: [[{ ...greet(1), fp: 'old' }]] })];
-    const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf } });
+    const s = new Sim(entries, { greeting: '@Sera.png:1', modelOptions: { greetingFp: fpOf, activeAvatar: 'Sera.png' } });
     assert.deepEqual(s.send('forest'), []);
     assert.match(problems(s.model).join(), /Sera's Alt 1 changed/);
     assert.equal(s.model.nodes.get(K('forest')).blocked, false);
+    const row = s.model.nodes.get(K('forest')).opens.rows[0];
+    assert.equal(row.items.length, 1, 'the failing ref stays a condition');
+    assert.equal(row.items[0].key, G('Book', 'Sera.png', 1));
 });
 
-test('greetings: Gates for and Closes for from a greeting, through a pack, reach a member added later', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
+test('greetings: Gates for and Closes for from a greeting, through a pack, reach a member added later', () => {
     const entries = [
         e(0, 'inn', { id: 'inn', packs: ['town'], gatedBy: [{ ...greet(0), via: '#town' }] }),
         e(1, 'cave', { id: 'cave', packs: ['wild'], closeGate: [[{ ...greet(0), via: '#wild' }]] }),
@@ -475,10 +483,120 @@ test('greetings: Gates for and Closes for from a greeting, through a pack, reach
     assert.deepEqual(t.send('inn smith cave wolf').sort(), [0, 2], 'the main greeting gates the town in and closes the wild');
 });
 
-test('greetings: a missing character is a warning, and its greeting never fires', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
-    const model = buildModel([e(0, 'x', { id: 'x', gate: [[{ greeting: 0, char: 'Gone.png', name: 'Gone' }]] })], { greetingFp: fpOf });
+test('greetings: a missing character is a warning, and its greeting never fires', () => {
+    const model = buildModel([e(0, 'x', { id: 'x', gate: [[{ greeting: 0, char: 'Gone.png', name: 'Gone' }]] })], { greetingFp: fpOf, activeAvatar: 'Gone.png' });
     assert.match(warnings(model).join(), /Gone, a character that is missing/);
 });
+
+test('greetings: two books using the same avatar and alternate with different fingerprints stay independent', () => {
+    const a = { ...greetOf('Sera.png', 1), fp: 'fp1' };
+    const b = { ...greetOf('Sera.png', 1), fp: 'stale' };
+    const model = buildModel([
+        e(0, 'a', { id: 'a', gate: [[a]] }, { world: 'A' }),
+        e(0, 'b', { id: 'b', gate: [[b]] }, { world: 'B' }),
+    ], { greetingFp: fpOf, activeAvatar: 'Sera.png' });
+    const ka = G('A', 'Sera.png', 1), kb = G('B', 'Sera.png', 1);
+    assert.equal(model.greetings.get(ka).ok, true);
+    assert.equal(model.greetings.get(kb).ok, false, 'the other book has its own fingerprint');
+    assert.equal(model.greetings.get(ka).book, 'A');
+    assert.equal(model.greetings.get(kb).book, 'B');
+    const chat = [{ mes: 'x' }];
+    const { state } = baseState(chat, model, { greeting: '@Sera.png:1' });
+    assert.equal(state.fired[ka], 1);
+    assert.equal(state.fired[kb], 1);
+    assert.ok(opensMet(model.nodes.get('A/a'), state, chat, model), 'A is met');
+    assert.ok(!opensMet(model.nodes.get('B/b'), state, chat, model), 'B stays unmet');
+    assert.match(problems(model).join(), /Sera's Alt 1 changed/);
+});
+
+test('greetings: a book rename migrates book-scoped greeting state keys', () => {
+    const state = readState({
+        ...initialState(),
+        fired: { 'Old/@Sera.png:1': 1 },
+        firstAt: { 'Old/@Sera.png:1': 0 },
+        lastAt: { 'Old/@Sera.png:1': 0 },
+    }, { renamed: { Old: 'New' } });
+    assert.deepEqual(state.fired, { 'New/@Sera.png:1': 1 });
+    assert.deepEqual(Object.keys(state.firstAt), ['New/@Sera.png:1']);
+    assert.deepEqual(Object.keys(state.lastAt), ['New/@Sera.png:1']);
+});
+
+test('greetings: old bare @avatar:n state keys stay inert', () => {
+    const model = buildModel([e(0, 'forest', { id: 'forest', gate: [[greet(1)]] })], { greetingFp: fpOf });
+    const chat = [{ mes: 'x' }, { is_user: true, mes: 'forest' }, {
+        mes: 'reply',
+        extra: { wihero: { ...initialState(), fired: { '@Sera.png:1': 1 }, firstAt: { '@Sera.png:1': 0 }, lastAt: { '@Sera.png:1': 0 } } },
+    }];
+    const state = stateForScan(chat, model);
+    assert.equal(state.fired['@Sera.png:1'], 1);
+    assert.ok(!opensMet(model.nodes.get(K('forest')), state, chat, model), 'the scoped condition does not read the old key');
+});
+
+const alice = (n, extra = {}) => greetOf('Alice.png', n, extra);
+const isolationEntries = () => [
+    e(0, 'road', { id: 'road' }),
+    e(1, 'mixedGate', { id: 'mixedGate', gate: [[alice(0), 'road']] }),
+    e(2, 'onlyGate', { id: 'onlyGate', gate: [[alice(1)]] }),
+    e(3, 'mixedClose', { id: 'mixedClose', closeGate: [[alice(0), 'road']] }),
+    e(4, 'onlyClose', { id: 'onlyClose', closeGate: [[alice(0)]] }),
+    e(5, 'masked', { id: 'masked', masks: [{ name: 'm', content: 'M', gate: [[alice(0), 'road']], closeGate: [[alice(1)]] }] }),
+    e(6, 'onlyMask', { id: 'onlyMask', masks: [{ name: 'n', content: 'N', gate: [[alice(0)]], closeGate: [[alice(1)]] }] }),
+    e(7, 'gated', { id: 'gated', gatedBy: [alice(0)] }),
+    e(8, 'innPack', { id: 'innPack', packs: ['town'], gatedBy: [{ ...alice(0), via: '#town' }] }),
+    e(9, 'cavePack', { id: 'cavePack', packs: ['wild'], closeGate: [[{ ...alice(0), via: '#wild' }]] }),
+];
+// An fp that only knows Bob: Alice's refs would report a missing character if they compiled.
+const bobFp = (char, n) => char === 'Bob.png' ? `Bob.png:${n}` : undefined;
+
+test('greetings: Alice\'s rules are inert and invisible in Bob\'s chat', () => {
+    const model = buildModel(isolationEntries(), { greetingFp: bobFp, activeAvatar: 'Bob.png' });
+    assert.equal(model.greetings.size, 0, 'no compiled refs for Alice, and Bob has none');
+    assert.deepEqual(problems(model), [], 'no Alice problems in Bob\'s chat');
+});
+
+test('greetings: in an AND row the other conditions remain; a row of only Alice refs is removed', () => {
+    const model = buildModel(isolationEntries(), { greetingFp: bobFp, activeAvatar: 'Bob.png' });
+    assert.deepEqual(model.nodes.get(K('mixedGate')).opens.rows.map(r => r.items.map(i => i.key)), [[K('road')]]);
+    assert.equal(model.nodes.get(K('onlyGate')).opens.rows.length, 0, 'the only-greeting row disappears');
+    assert.equal(model.nodes.get(K('onlyGate')).opens.all.length, 0);
+});
+
+test('greetings: the same filtering applies to close and mask rows', () => {
+    const model = buildModel(isolationEntries(), { greetingFp: bobFp, activeAvatar: 'Bob.png' });
+    assert.deepEqual(model.nodes.get(K('mixedClose')).closes.map(cl => cl.row.items.map(i => i.key)), [[K('road')]]);
+    assert.equal(model.nodes.get(K('onlyClose')).closes.length, 0, 'a close row of only Alice refs disappears');
+    const masked = model.nodes.get(K('masked')).masks[0];
+    assert.deepEqual(masked.opens.map(r => r.items.map(i => i.key)), [[K('road')]]);
+    assert.equal(masked.closes.length, 0);
+    const onlyMask = model.nodes.get(K('onlyMask')).masks[0];
+    assert.equal(onlyMask.opens.length, 0, 'a mask gate of only Alice refs disappears');
+    assert.equal(onlyMask.closes.length, 0);
+    assert.equal(model.nodes.get(K('gated')).opens.all.length, 0, 'Alice\'s gatedBy is skipped');
+    assert.equal(model.nodes.get(K('innPack')).opens.all.length, 0, 'a pack via rule is skipped');
+    assert.equal(model.nodes.get(K('cavePack')).closes.length, 0);
+});
+
+test('greetings: Alice\'s rules do neither block nor close in Bob\'s chat', () => {
+    const s = new Sim(isolationEntries(), { greeting: '@Bob.png:1', modelOptions: { greetingFp: bobFp, activeAvatar: 'Bob.png' } });
+    assert.deepEqual(s.send('onlyGate gated').sort(), [2, 7], 'their rows are gone, so these entries follow their own rules');
+    assert.deepEqual(s.send('mixedGate'), [], 'the mixed row still waits for the road');
+    s.send('road');
+    assert.ok(fires(s, 'mixedGate', 1));
+});
+
+test('greetings: no active avatar compiles no greeting refs; an absent option compiles all', () => {
+    const entries = isolationEntries();
+    const none = buildModel(entries, { greetingFp: bobFp, activeAvatar: null });
+    assert.equal(none.greetings.size, 0);
+    assert.equal(none.nodes.get(K('onlyGate')).opens.rows.length, 0);
+    assert.deepEqual(none.nodes.get(K('mixedGate')).opens.rows.map(r => r.items.map(i => i.key)), [[K('road')]]);
+    assert.deepEqual(problems(none), []);
+
+    const all = buildModel([e(0, 'forest', { id: 'forest', gate: [[greet(1)]] })], { greetingFp: fpOf });
+    assert.equal(all.greetings.get(G('Book', 'Sera.png', 1)).ok, true);
+    assert.equal(all.nodes.get(K('forest')).opens.rows[0].items.length, 1);
+});
+
 
 // ---------------------------------------------------------------- Manual
 

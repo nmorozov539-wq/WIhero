@@ -1050,7 +1050,7 @@ export function createNormal(A) {
             const c = hooks.state().closed[node.key];
             if (c) {
                 closed = {
-                    by: closedText(c.by, key => loaded.nodes.get(key)?.label ?? (key.startsWith('@') ? 'a greeting' : null)),
+                    by: closedText(c.by, key => loaded.nodes.get(key)?.label ?? (/(^|\/)@[^:]+:\d+$/.test(String(key ?? '')) ? 'a greeting' : null)),
                     reopen: async () => { await hooks.reopenEntry(node.key); layer.toast(`${titleOf(e)} is open again in this chat`); render(); },
                 };
             }

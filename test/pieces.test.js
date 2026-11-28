@@ -1,6 +1,5 @@
 // Editing story logic (src/ui/pieces.js): what the inspector writes lands in the book in BUILD_SPEC 2's shape.
 import { test } from 'node:test';
-import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import {
     addMask, addPiece, addToList, addToRow, applyMovesOn, bookEditor, greetingRules, hasPiece, maskName, missingPieces,
@@ -84,6 +83,18 @@ test('refs read as chips; pack readings are stored as BUILD_SPEC 2.2 says', () =
     assert.deepEqual([reading('town'), reading('town', 'all'), reading('town', 3)], ['#town', '#town:all', '#town:3']);
 });
 
+test('greeting nicknames in chips: label plus the canonical alternate; without one, the old text', () => {
+    const name = id => ({ road: 'Road' })[id];
+    const nick = () => ({ label: 'Market morning', canonical: 'Alt 1', review: false });
+    assert.equal(refLabel(ref, name, nick).text, 'Sera · Market morning · Alt 1');
+    assert.equal(refLabel(ref, name, () => ({ label: 'Market morning', canonical: 'Alt 1', review: true })).text, 'Sera · Market morning · Alt 1', 'the label still shows while review is due');
+    assert.equal(refLabel(ref, name, () => ({ label: 'Alt 1', canonical: 'Alt 1', review: true })).text, 'Sera · Alt 1', 'a changed greeting keeps the canonical label without repeating it');
+    assert.equal(refLabel(ref, name, () => null).text, 'Sera · Alt 1');
+    assert.equal(refLabel(ref, name).text, 'Sera · Alt 1', 'absent nicknameOf keeps today\'s text');
+    assert.equal(refLabel('road', name, nick).text, 'Road', 'other ref kinds are unchanged');
+    assert.equal(refLabel('#town', name, nick).text, 'any of #town');
+});
+
 test('packs used in a book include the parents of nested ones', () => {
     const d = book();
     const ed = bookEditor(d);
@@ -92,7 +103,7 @@ test('packs used in a book include the parents of nested ones', () => {
     assert.deepEqual(packsOf(d), ['town', 'town/inn']);
 });
 
-test('greeting rules are written on the entries they touch, a pack target with via, and read back', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, () => {
+test('greeting rules are written on the entries they touch, a pack target with via, and read back', () => {
     const d = book();
     const ed = bookEditor(d);
     ed.update(3, c => { c.packs = ['town']; });

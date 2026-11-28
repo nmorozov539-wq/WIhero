@@ -270,6 +270,58 @@ export function ensureSettings(s) {
 
 export const bookSettings = (s, book) => (s.books[book] ??= { defaults: {}, folders: {} });
 
+// ---------------------------------------------------------------- greeting nicknames
+
+/** "Greeting" or "Alt n", the label a greeting has without a nickname. */
+const greetingCanonical = n => (n === 0 ? 'Greeting' : `Alt ${n}`);
+
+/**
+ * The nickname stored for one greeting, or null. Reads only: it never creates a settings object.
+ * @returns {{ name: string, fp: string } | null}
+ */
+export function storedGreetingName(s, book, avatar, n) {
+    if (!avatar) return null;
+    const stored = s?.books?.[book]?.greetingNames?.[avatar]?.[n];
+    return stored && typeof stored === 'object' ? stored : null;
+}
+
+/**
+ * How a greeting is named in the UI: the stored nickname while its fingerprint still matches the greeting,
+ * otherwise the canonical label. `review` says a nickname exists but the greeting's text has changed since.
+ * @returns {{ label: string, canonical: string, review: boolean, stored: { name: string, fp: string } | null }}
+ */
+export function greetingLabel(s, book, avatar, n, fp) {
+    const canonical = greetingCanonical(n);
+    const stored = storedGreetingName(s, book, avatar, n);
+    const match = !!stored && stored.fp === fp;
+    const name = match && typeof stored.name === 'string' ? stored.name.trim() : '';
+    return { label: name || canonical, canonical, review: !!stored && !match, stored };
+}
+
+/**
+ * Saves a greeting nickname (trimmed, at most 40 characters) under `settings.books[book].greetingNames`.
+ * Empty or whitespace-only text deletes it. Empty avatar and number maps are pruned; settings are only
+ * created when a name is saved.
+ * @returns {boolean} whether anything changed
+ */
+export function setGreetingName(s, book, avatar, n, name, fp) {
+    const text = String(name ?? '').trim().slice(0, 40);
+    const current = storedGreetingName(s, book, avatar, n);
+    if (!text) {
+        if (!current) return false;
+        const names = s.books[book].greetingNames;
+        delete names[avatar][n];
+        if (!Object.keys(names[avatar]).length) delete names[avatar];
+        if (!Object.keys(names).length) delete s.books[book].greetingNames;
+        return true;
+    }
+    if (!avatar) return false;
+    if (current && current.name === text && current.fp === fp) return false;
+    const names = (bookSettings(s, book).greetingNames ??= {});
+    (names[avatar] ??= {})[n] = { name: text, fp };
+    return true;
+}
+
 export const folderOf = (s, book, e) => s.books?.[book]?.folders?.[cardKey(e)] ?? '';
 
 export function setFolder(s, book, e, folder) {

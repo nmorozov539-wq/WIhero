@@ -289,6 +289,15 @@ entries.
 One canvas per book. Switching books switches the canvas. The ground is the
 theme's own background, solid, with a faint dot grid.
 
+When a book is open without a single-character chat, a nonmodal greeting bar
+sits at the top of the canvas, in its own layout row above the cards. With one
+linked character it offers "Use *name*'s greetings while editing this book?"
+with Use greetings and Dismiss; with several it offers a Choose button that
+opens an avatar-and-name picker. Once one is picked, the bar reads "Greetings:
+*name* · Change · Hide". The pick is for editing only and never marks a
+greeting fired. With no linked characters, or in a group chat, there is no bar.
+The bar does not cover cards or take canvas gestures outside itself.
+
 **Gestures**
 
 | Gesture | Result |
@@ -460,7 +469,8 @@ style: a list first, the book at the bottom.
 | Keyword clashes row | Under the search box when the book has any: "18 keyword clashes ›", opening the Keyword clashes sheet. They are about key words, so they sit with the entries rather than on the canvas (Features 8). Gone with Mark keyword clashes off |
 | Folder header | Name, count, collapse arrow. Folders nest: Places/Town is a Town header inside Places, and each count includes the folders inside it. A search opens every folder |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
-| Moments group | First in the list: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
+| Greetings group | When a character is selected (an open single-character chat, or a no-chat editing pick), first in the list: each greeting as a row with its nickname (or "Greeting"/"Alt n"), opening words, a Rename action, an "!" when its text changed, and the usual dot to jump to its card. Greeting cards show with the selected character, even before a rule is attached. Rename opens a compact input with Save and Clear; names are trimmed to 40 characters and stored in settings only. No greetings show in a group chat or with no character selected |
+| Moments group | After the Greetings group: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
 | Dot, filled | The entry is on the canvas; tap to jump to it |
@@ -480,7 +490,7 @@ A pretend exchange checked against the book. Nothing is saved.
 
 | Part | What it shows or does |
 |------|-----------------------|
-| Header | "Preview", and a chip with where it starts from: the open chat ("Road trip chat · after 12 messages") or "Fresh start". Tap to choose |
+| Header | "Preview", and a chip with where it starts from: the open chat ("Road trip chat · after 12 messages"), "Fresh start", or a greeting of the selected character ("Start at Alt 2"). Tap to choose |
 | Note | "A pretend exchange checked against *book*. Nothing is saved. Tap a highlight to see why." |
 | You slot | The user message. Edit and clear buttons; tap the text to edit |
 | Character slot | The reply, same controls |
@@ -489,6 +499,9 @@ A pretend exchange checked against the book. Nothing is saved.
 | Key | What solid, dotted, lock and struck highlights mean |
 | Report button | "Report: N fire, N blocked, N changes", opens the report page |
 
+- **Greeting starts** use the selected character's greeting as the pretend
+  first message; Fresh start fires no greeting. With no chat and no editing
+  pick, only Fresh start is offered.
 - **Highlights** are underlines and tints in the strategy color: solid for
   entries with pieces, dotted for plain entries, a lock icon and the gate's
   teal (or close red) for lock phrases, struck through when blocked.
@@ -688,7 +701,7 @@ its list for Rename, Duplicate or Delete; + New book stays at the top of the lis
 
 | Column | What it is |
 |--------|------------|
-| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Moments first, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect · Delete (with Undo). Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
+| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Greetings (when a character is selected), Moments, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect · Delete (with Undo). Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
 | Middle: canvas | The canvas, with the piece bar under it |
 | Right: inspector (320px, drag its edge: 260 to 560px) | Docked, always there; the ▯ button bottom right hides it |
 
@@ -773,7 +786,8 @@ from a list.
 ### Preview tab
 
 A tab of its own, full width, two columns: the pretend exchange on the left
-(start point chip, You and Character slots, highlights, key), the report on the
+(start point chip, including the selected character's greeting starts, You and
+Character slots, highlights, key), the report on the
 right (fire / blocked / change counts, then Fires, Blocked, Would change with
 reasons). Clicking a highlight or a row jumps to that card on the canvas.
 

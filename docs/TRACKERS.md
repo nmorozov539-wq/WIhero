@@ -44,8 +44,9 @@ The model never has to remember what the standard was.
 - A slot reads **the newest reply** when it lands (BUILD_SPEC 6.6), and the
   chat's **first message**, the character's greeting. A greeting that carries a
   line seeds that chat's starting value, so each alternate greeting can start
-  with different values. (This reads the message's text; it doesn't need the
-  greeting cards of CONCEPTS 3.12, which are retired for V1.)
+  with different values. (This reads the message's text; it does not depend on
+  the greeting cards of CONCEPTS 3.12 or on which character is selected in
+  Hero.)
 - It reads the user's messages too only if its Who triggers allows it
   (`by`, CONCEPTS 3.8). Default for a written slot: `"char"`.
 - **The last match in the message wins.** Labels match without regard to case

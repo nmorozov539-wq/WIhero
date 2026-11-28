@@ -22,7 +22,7 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroShell(A) {
     const {
-        newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, greetBanner, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas, startExplain,
@@ -42,7 +42,7 @@ export function createHeroShell(A) {
     function canvasData(book, data) {
         const problems = blockingUids(book, modelOf(book, data));
         const live = entriesOf(data).filter(e => !hiddenIn(book).has(e.uid));
-        const m = canvasBook({ entries: Object.fromEntries(live.map(e => [e.uid, e])) }, { folderOf: e => entryFolder(book, e), problems, greetings: chatGreetings(data) });
+        const m = canvasBook({ entries: Object.fromEntries(live.map(e => [e.uid, e])) }, { folderOf: e => entryFolder(book, e), problems, greetings: chatGreetings(data, book) });
         return { m, memory: canvasMemory(bookSettings(settings, book)), problems };
     }
 
@@ -62,7 +62,12 @@ export function createHeroShell(A) {
         if (!chat.length || !model?.nodes?.size) return () => null;
         let state;
         try { state = hooks.state(); } catch { return () => null; }
-        const nameOf = key => model.nodes.get(key)?.label ?? (key.startsWith('@') ? 'a greeting' : null);
+        const nameOf = key => {
+            if (model.nodes.get(key)?.label) return model.nodes.get(key).label;
+            const ref = model.greetings?.get(key)?.ref;
+            if (ref) return `${ref.greeting === 0 ? 'Greeting' : `Alt ${ref.greeting}`} of ${ref.name || ref.char}`;
+            return /(^|\/)@[^:]+:\d+$/.test(String(key ?? '')) || String(key ?? '').startsWith('@') ? 'a greeting' : null;
+        };
         let values = null;
         return key => {
             if (!key.startsWith('id:')) return null;
@@ -312,8 +317,10 @@ export function createHeroShell(A) {
         const memory = canvasMemory(bookSettings(settings, book));
         const c = ctx();
         // Chat state on and off patch the cards' status badges in place (canvas.patchStatus); it is not geometry, so
-        // it is not here. Chat identity is, because a different chat belongs to different cards.
-        const chatKey = [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null];
+        // it is not here. Chat identity is, because a different chat belongs to different cards. The greeting list is
+        // here too: selecting another character (or renaming a greeting) changes the start cards without a book edit.
+        const greets = chatGreetings(library.peek(book), book).map(g => `${g.key}|${g.title}|${g.canonical}|${g.changed}`).join(',');
+        const chatKey = [c.getCurrentChatId?.() ?? c.chatId ?? null, c.characterId ?? null, model?.greetingsAvatar ?? null, greets];
         return canvasInputSig({
             model,
             elements: () => canvasElements(book, library.peek(book), model, e => entryFolder(book, e)),
@@ -502,6 +509,10 @@ export function createHeroShell(A) {
         if (S.desk) deskColumns();
         const vp = heroMount?.vp;
         if (vp) {
+            // The greeting prompt/control sits above the canvas and takes its own layout row, so it never covers cards.
+            main.querySelector(':scope > .greetban')?.remove();
+            const ban = greetBanner(book, data);
+            if (ban) main.insertBefore(ban, vp);
             vp.querySelector(':scope > .checkchip')?.remove();
             vp.querySelector(':scope > .histbtns')?.remove();
             vp.append(...checksChip(book, data), historyButtons(book));

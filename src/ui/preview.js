@@ -4,7 +4,7 @@
 // Pure: no DOM, no SillyTavern.
 import { advance, baseState, chooseMask, holdingKeys, keepAtLoad, keywordOnSide, opensMet, settleScan, stateForScan } from '../engine/turn.js';
 import { itemTime, rowMet, waitTime } from '../engine/rows.js';
-import { FIELD } from '../engine/model.js';
+import { FIELD, isGreetingStateKey } from '../engine/model.js';
 import { parseRegex, phraseMatcher } from '../engine/util.js';
 import { and, closedText, wording } from './logic-text.js';
 
@@ -79,7 +79,7 @@ function secondaryOk(entry, text, globals) {
 /** Words for one model: names, pack readings, rows. */
 function namer(model) {
     const label = key => {
-        if (key?.startsWith('@')) {
+        if (key && (isGreetingStateKey(key) || key.startsWith('@'))) {
             const g = model.greetings?.get(key);
             if (!g) return 'a greeting';
             return `${g.ref.name || g.ref.char}'s ${g.ref.greeting === 0 ? 'Greeting' : `Alt ${g.ref.greeting}`}`;
@@ -141,7 +141,7 @@ function blockedWhy(node, state, chat, model, words, issues) {
     if (closed) {
         if (closed.at >= chat.length) {
             const cl = node.closes.find(c => c.kind === 'closeGate' && rowMet(c.row, { state, chat, baseline: state.baseline[node.key] }).met);
-            return cl ? `its Closes when is met (${wording(node, model).rowText(cl.row.raw)})` : 'its Closes when is met';
+            return cl ? `its Closes when is met (${wording(node, model, { greetingChar: model.activeAvatar }).rowText(cl.row.raw)})` : 'its Closes when is met';
         }
         if (closed.by === 'once') return 'it fires once, and it already fired';
         return `it was closed earlier in the chat, by ${closedText(closed.by, words.label)}`;
@@ -360,7 +360,7 @@ export function runPreview({ entries, model, base = [], greeting = null, renamed
     for (const key of Object.keys(next.holding)) {
         if (working.holding[key]) continue;
         const node = model.nodes.get(key);
-        const ends = node.closes.filter(cl => cl.kind === 'closeGate').map(cl => wording(node, model).rowText(cl.row.raw));
+        const ends = node.closes.filter(cl => cl.kind === 'closeGate').map(cl => wording(node, model, { greetingChar: model.activeAvatar }).rowText(cl.row.raw)).filter(Boolean);
         change('glue', `${words.label(key)} holds: it stays on${ends.length ? ` until ${ends.join(' or ')}` : ''}`, key, 'From the next message');
     }
     const gctx = (state, chat) => ({ state, chat, greetingOk: k => model.greetings?.get(k)?.ok ?? true });

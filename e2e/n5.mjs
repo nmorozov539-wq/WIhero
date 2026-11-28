@@ -138,9 +138,15 @@ await run(async () => {
     await shot('fresh');
     ok('Fresh start: waiting on an entry and a lock not armed; Also active');
 
-    // No greeting starts (greetings are retired for v1, #33), and nothing written to the chat or the book.
+    // Each greeting of the open chat's character is offered as a start, and nothing is written to the chat or the book.
+    const greetingCount = await ev(() => {
+        const c = SillyTavern.getContext();
+        const ch = c.characters[c.characterId];
+        return ch ? [ch.first_mes ?? '', ...(ch.data?.alternate_greetings ?? [])].filter(t => String(t ?? '').trim()).length : 0;
+    });
     await $('.srcchip').click();
-    assert.equal(await opt('Start at Greeting').count(), 0, 'greetings are not offered');
+    const starts = await $('.sheet .opt .lab').evaluateAll(ns => ns.map(n => n.textContent).filter(t => t.startsWith('Start at ')));
+    assert.equal(starts.length, greetingCount, 'every greeting is offered');
     await opt('Fresh start').click();
     await wait(300);
     const before = await ev(() => JSON.stringify(SillyTavern.getContext().chat.map(m => m.extra?.wihero ?? null)));
@@ -148,7 +154,7 @@ await run(async () => {
     assert.equal(await ev(() => JSON.stringify(SillyTavern.getContext().chat.map(m => m.extra?.wihero ?? null))), before, 'nothing is saved');
     await back();
     assert.equal(await $('.tab.active').getAttribute('aria-label'), 'Canvas', 'Back from Preview goes to the Canvas');
-    ok('no greeting start is offered; Preview saves nothing; Back goes to the Canvas');
+    ok('each of the chat character\'s greetings is offered; Preview saves nothing; Back goes to the Canvas');
     await ev(() => { wihero.settings.openInHero = false; SillyTavern.getContext().saveSettingsDebounced(); });
     await wait(1500);
 });

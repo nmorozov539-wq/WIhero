@@ -15,9 +15,22 @@ export function writeSnapshot(message, state) {
 }
 
 /**
+ * The character's greeting-swipe count as ST's getFirstMessage lays it out: the main greeting when it is present,
+ * plus every alternate. ST drops an empty main greeting from the swipes (script.js getFirstMessage).
+ */
+function greetingSwipeCount(character) {
+    const alternates = Array.isArray(character.data?.alternate_greetings) ? character.data.alternate_greetings : [];
+    return (character.first_mes ? 1 : 0) + alternates.length;
+}
+
+/**
  * The greeting a chat opened with, as a greeting key (`@<avatar>:<n>`), or null (BUILD_SPEC 15.1).
- * chat[0] is a greeting when it is the character's message and its swipes are the character's greetings
- * (ST's getFirstMessage puts the alternate greetings in as swipes, script.js 7710).
+ * chat[0] is a greeting when it is the character's message and its swipe structure is the character's greeting
+ * list: the swipe count matches (main, when present, plus alternates, with the empty main dropped as ST does) and
+ * `swipe_id` is a valid index. Swipe texts are never compared: an edited first message keeps its swipe identity,
+ * and so does a chat whose swipe list predates a card edit or reorder.
+ * Without a swipe list, only a sole main greeting can be recognised, by its exact text; there is no swipe identity
+ * to keep, and a similar phrase must not count.
  * @param {object[]} chat
  * @param {{ avatar: string, first_mes?: string, data?: { alternate_greetings?: string[] } } | null} character
  *   The open chat's character, or null for a group chat or no chat.
@@ -25,13 +38,21 @@ export function writeSnapshot(message, state) {
 export function openingGreeting(chat, character) {
     const first = chat?.[0];
     if (!first || first.is_user || first.is_system || !character?.avatar) return null;
-    const alternates = Array.isArray(character.data?.alternate_greetings) ? character.data.alternate_greetings : [];
+    const count = greetingSwipeCount(character);
     const offset = character.first_mes ? 0 : 1; // with no main greeting ST drops it from the swipes
-    const count = alternates.length + 1 - offset;
-    const swipes = Array.isArray(first.swipes) ? first.swipes.length : 1;
-    if (count <= 0 || swipes !== count) return null;
-    const n = (first.swipe_id ?? 0) + offset;
-    return `@${character.avatar}:${n}`;
+    const swipes = Array.isArray(first.swipes) ? first.swipes : null;
+    if (swipes || first.swipe_id !== undefined) {
+        if (!(count > 0)) return null;
+        if (swipes && swipes.length !== count) return null;
+        const swipe = first.swipe_id ?? 0;
+        if (!Number.isInteger(swipe) || swipe < 0 || swipe >= count) return null;
+        return `@${character.avatar}:${swipe + offset}`;
+    }
+    // No swipe identity: only the character's sole main greeting, recognised by its exact text.
+    const main = character.first_mes;
+    const alternates = Array.isArray(character.data?.alternate_greetings) ? character.data.alternate_greetings : [];
+    if (!main || alternates.length) return null;
+    return String(first.mes ?? '').trim() === String(main).trim() ? `@${character.avatar}:0` : null;
 }
 
 /** The greetings of a character, raw from the card: [main, alt 1, alt 2…]. */

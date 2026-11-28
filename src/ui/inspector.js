@@ -85,7 +85,7 @@ function removeAndSay(x, msg, fn) {
 
 /** A chip for a ref: icon for locks, waits and greetings, × to remove. */
 function chip(ref, x, onRemove, target = false) {
-    const label = refLabel(ref, x.nameOfId);
+    const label = refLabel(ref, x.nameOfId, x.nicknameOf);
     const { kind } = label;
     // A pack as a target is the whole pack, not a reading.
     const text = target && kind === 'pack' ? ref : label.text;
@@ -101,8 +101,9 @@ function chip(ref, x, onRemove, target = false) {
 /**
  * The target picker (LAYOUT "Choosing a target"): a search box, entries, packs, then greetings, Lock phrase…
  * and Wait…, as the place allows.
- * @param {object} o { title, entries: [{uid, title, dot}], packs: string[], readings, greetings, lock, done(make) }
- *   `done` gets `make(ed) → ref`, run inside the change so an entry picked can get its id there.
+ * @param {object} o { title, entries: [{uid, title, dot}], packs: string[], readings, greetings, nicknameOf, lock, done(make) }
+ *   `nicknameOf(ref)` is optional and names a greeting row; `done` gets `make(ed) → ref`, run inside the change so
+ *   an entry picked can get its id there.
  */
 export function pickTarget(layer, o) {
     layer.sheet(o.title ?? 'Choose', sh => {
@@ -142,9 +143,16 @@ export function pickTarget(layer, o) {
                     }, { help: 'How this rule reads the pack.' });
                 }, { icon: 'tag', explain: { key: 'nav.open', title: `#${p}`, text: 'Opens how this pack can be read. Nothing is chosen.' } }));
             }
-            const greets = (o.greetings ?? []).filter(g => hit(g.title) || hit(g.text ?? ''));
+            const greets = (o.greetings ?? []).map(g => {
+                const nick = o.nicknameOf?.(g.ref);
+                if (!nick?.label) return { g, title: g.title, sub: g.text };
+                const canonical = nick.canonical ?? g.canonical;
+                // The alternate stays visible beside a nickname, as it does on a chip.
+                const sub = canonical && canonical !== nick.label ? [g.text, canonical].filter(Boolean).join(' · ') : g.text;
+                return { g, title: nick.label, sub, canonical };
+            }).filter(x => hit(x.title) || hit(x.g.text ?? '') || hit(x.canonical ?? ''));
             if (greets.length) list.append(el('div', 'lbl', 'Greetings'));
-            for (const g of greets) list.append(layer.opt(g.title, () => { layer.close(); o.done(() => ({ ...g.ref })); }, { icon: 'chat', sub: g.text, explain: choose(g.title, 'Picks this greeting for the rule.') }));
+            for (const x of greets) list.append(layer.opt(x.title, () => { layer.close(); o.done(() => ({ ...x.g.ref })); }, { icon: 'chat', sub: x.sub, explain: choose(x.title, 'Picks this greeting for the rule.') }));
             if (o.lock) {
                 list.append(el('div', 'lbl', 'Other'));
                 list.append(layer.opt('Lock phrase…', () => layer.askText({
@@ -773,13 +781,15 @@ function renamable(h, value, save) {
 function rowsEditor(box, x, get, set, update, isGate, self = false) {
     const rows = get(x.config) ?? [];
     const pick = (i, title) => pickTarget(x.layer, {
-        title, entries: x.others, packs: x.packs, readings: true, greetings: x.greetings, lock: true,
+        title, entries: x.others, packs: x.packs, readings: true, greetings: x.greetings, nicknameOf: x.nicknameOf, lock: true,
         // Delayed closing (CONCEPTS 3.3): the entry itself, read as "after it first fires".
         self: self && x.entry ? { uid: x.entry.uid, title: x.title } : null,
         done: make => update((cc, id, ed) => { set(cc, addToRow(get(cc) ?? [], i, make(ed))); }),
     });
-    // Greetings are retired for v1 (#33): their chips, and rows of only greetings, stay in the book but aren't shown.
-    const hidden = ref => !GREETINGS && isGreetingRef(ref);
+    // A greeting for another character stays stored but is absent from this view; `greetingChar` undefined keeps
+    // every ref (Normal mode's entry page), null hides them all (no active character).
+    const hidden = ref => isGreetingRef(ref)
+        && (x.greetingChar === undefined ? !GREETINGS : x.greetingChar === null || ref.char !== x.greetingChar);
     let shown = 0;
     let prev = -1;
     rows.forEach((row, i) => {
@@ -818,28 +828,33 @@ function rowsEditor(box, x, get, set, update, isGate, self = false) {
 
 /**
  * The greeting inspector (BUILD_SPEC 15.4): name, opening words, Gates for, Closes for, Used by, Re-pick.
- * @param {object} x { g: {key, ref, title, text, full, changed, fp}, rules, nameOfId, others, packs, layer, edit, inspect, close, ... }
+ * @param {object} x { g: {key, ref, title, canonical?, text, full, changed, fp}, rules, nameOfId, nicknameOf, others, packs, layer, edit, inspect, close, ... }
  */
 export function renderGreetingInspector(box, x) {
     const { layer, g, rules } = x;
     const { shell, body } = frame(box, x, 'greet');
+    // The nickname is the heading; the canonical label stays visible beside it.
+    const nick = x.nicknameOf?.(g.ref);
+    const title = nick?.label ?? g.title;
+    const canonical = nick?.canonical ?? g.canonical ?? greetingName(g.ref.greeting);
     const head = x.head ?? el('div', 'ihead');
     head.replaceChildren();
     const icn = el('i', 'gicon');
     icn.innerHTML = ic('chat');
-    head.append(icn, el('h2', '', g.title), btn('round flat', ic('x'), x.close, 'Close the inspector'));
+    head.append(icn, el('h2', '', title), btn('round flat', ic('x'), x.close, 'Close the inspector'));
     body.append(head);
+    if (title !== canonical) body.append(el('div', 'ihint gcanon', canonical));
     const pre = el('button', 'ipre');
     pre.type = 'button';
     pre.textContent = g.text || '(empty)';
-    pre.addEventListener('click', () => layer.sheet(g.title, sh => { const p = el('div', 'gfull', g.full || '(empty)'); sh.append(p); }, { help: 'Read only. Greetings are edited on the character card.' }));
-    explainNode(pre, 'nav.open', { title: g.title, text: 'Shows this greeting in full, read-only. Nothing is changed.' });
+    pre.addEventListener('click', () => layer.sheet(title, sh => { const p = el('div', 'gfull', g.full || '(empty)'); sh.append(p); }, { help: 'Read only. Greetings are edited on the character card.' }));
+    explainNode(pre, 'nav.open', { title, text: 'Shows this greeting in full, read-only. Nothing is changed.' });
     body.append(pre);
     if (g.changed) {
         const pr = el('div', 'prob iprob');
         pr.innerHTML = ic('alert', 's');
         pr.append(el('span', '', 'This greeting changed since it was linked, so its rules are paused.'));
-        const repick = btn('linkish acc', 'Re-pick', () => { x.edit((ed, data) => repickGreeting(ed, data, g.ref, g.fp)); layer.toast(`${g.title} re-picked`); });
+        const repick = btn('linkish acc', 'Re-pick', () => { x.edit((ed, data) => repickGreeting(ed, data, g.ref, g.fp)); layer.toast(`${title} re-picked`); });
         explainNode(repick, 'inspector.repick', { title: 'Re-pick' });
         pr.append(repick);
         body.append(pr);

@@ -22,7 +22,7 @@ import { FAMILY_COLOR } from './logic-text.js';
  */
 export function createHeroBar(A) {
     const {
-        H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
+        H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, nickname, openGuide, openHeroTab,
         render, root, saveSettings, settings, sortBy, canvas, entryTemplate, historyStep,
     } = A;
 
@@ -31,7 +31,7 @@ export function createHeroBar(A) {
         const data = library.peek(book);
         if (!data || !key) return null;
         if (key.startsWith('pack:')) return { t: 'pack', name: key.slice(5) };
-        if (key.startsWith('greet:')) { const g = chatGreetings(data).find(x => x.key === key); return g ? { t: 'greet', ref: g.ref } : null; }
+        if (key.startsWith('greet:')) { const g = chatGreetings(data, book).find(x => x.key === key); return g ? { t: 'greet', ref: g.ref } : null; }
         const e = entriesOf(data).find(x => cardKey(x) === key);
         return e ? { t: 'entry', uid: e.uid, ...(isMoment(e) ? { moment: true } : {}) } : null;
     }
@@ -86,13 +86,24 @@ export function createHeroBar(A) {
             inspect: (key, piece) => inspect(book, key, piece),
             nodeOf: key => nodeOf(book, key),
             keyOf: end => (end?.t === 'pack' ? `pack:${end.name}` : end?.t === 'greet' ? `greet:${end.ref.char}:${end.ref.greeting}` : data().entries[end?.uid] ? cardKey(data().entries[end.uid]) : null),
-            nameOf: end => (end?.t === 'pack' ? `#${end.name}` : end?.t === 'greet' ? greetingName(end.ref.greeting) : data().entries[end?.uid] ? titleOf(data().entries[end.uid]) : '?'),
+            nameOf: end => {
+                if (end?.t === 'pack') return `#${end.name}`;
+                if (end?.t === 'greet') {
+                    const nick = nickname(book, end.ref.char, end.ref.greeting);
+                    return nick.label === nick.canonical ? nick.label : `${nick.label} · ${nick.canonical}`;
+                }
+                return data().entries[end?.uid] ? titleOf(data().entries[end.uid]) : '?';
+            },
             nameOfId,
+            nicknameOf: ref => (ref && 'greeting' in ref ? nickname(book, ref.char, ref.greeting) : null),
             candidates: () => {
                 const d = data();
                 const out = sortEntries(linkable(book, d), sortBy()).map(e => ({ key: cardKey(e), end: { t: 'entry', uid: e.uid }, title: titleOf(e) }));
                 for (const p of packsOf(d)) out.push({ key: `pack:${p}`, end: { t: 'pack', name: p }, title: `#${p}` });
-                for (const g of chatGreetings(d)) out.push({ key: g.key, end: { t: 'greet', ref: g.ref }, title: `${g.title}: ${g.text.slice(0, 30)}` });
+                for (const g of chatGreetings(d, book)) out.push({
+                    key: g.key, end: { t: 'greet', ref: g.ref },
+                    title: `${g.title}${g.nickname ? ` (${g.canonical})` : ''}: ${g.text.slice(0, 30)}`,
+                });
                 return out;
             },
             packs: () => packsOf(data()),

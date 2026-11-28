@@ -16,8 +16,9 @@ that building needs as few decisions as possible.
 - Status: built. This page matches the code as of **0.47.1** (2026-11-22).
   Decisions D1–D32 are agreed with the owner: D1–D23 in planning, D24–D26 with
   N6, D27–D31 with the UI audit (#19–#22), D32 with delayed closing (#39).
-  Greetings (D23, section 15) are retired for V1 (#41): the rules are kept here
-  for when they come back, and CONCEPTS 3.12 says what is off.
+  Greetings (D23, section 15) are active: greeting refs compile only for the
+  open single-character chat's character, and Hero shows that character's
+  greetings for editing.
 - Trackers (text the model writes) have their own spec,
   [TRACKERS.md](TRACKERS.md), and the link engine has
   [LINK_ENGINE.md](LINK_ENGINE.md).
@@ -73,7 +74,7 @@ to be changed while building.
 | D20 | **Editing story logic mid-play is safe.** The chat's state is mostly history (what fired and when); after an edit, the next message is worked out with the new rules on the same history. Deleted entries' history is ignored. Closed stays closed even when the rule that closed it is removed; Reopen (D18) is the way back. |
 | D21 | **Snapshots are manual.** A "Snapshot" button saves a named copy of the whole book; nothing is copied automatically except one "As imported" copy, kept the first time WI Hero opens or changes a book. Restore puts the book back (with Undo) and leaves the chat's story state alone. Saving stays automatic. Details in section 11. |
 | D22 | **No color customizing.** No pickers and no documented overrides. WI Hero's own colors (pieces, strategies) are fixed; everything else follows the user's ST theme. The only choice is a **color vision mode** in ☰ Display: Standard · Red-green safe · Blue-yellow safe. Each mode is a second set of the same named colors (VISUAL.md 2), chosen so opens, closes, glue, masks and packs stay apart under that kind of color blindness, checked with a simulator. Shapes already back up the colors (closes are dashed with an arrow and bar), and stay as they are. Saved in the extension settings as `colorMode`. |
-| D23 | **Retired for V1** (#41; `GREETINGS` in `src/engine/model.js` is false: greeting links are read as if not written, and the editor hides greetings; books keep their data). As decided: **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when that is the greeting the chat opened with. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; the second line shows the greeting's opening words. **Only the open chat's character's greetings are shown**; with no chat open, no greetings show. Stored in the book only, the card is never touched. Single-character chats only for now. Details in section 15. |
+| D23 | **Greetings are active** (`GREETINGS` in `src/engine/model.js` is true). **Greetings are node points on the canvas.** A greeting card is not an entry and copies nothing: it stands for one greeting of a character and counts as fired from the chat's first message when the chat structurally opened with that greeting. Other entries use it like any entry (gates, close gates, mask rows), and it can carry Gates for and Closes for, so each greeting can start its own scenario. Named like ST: Greeting, Alt 1, Alt 2…; a nickname can replace the label while the canonical name stays secondary. **Only the open single-character chat's character's refs compile**, for every book, global, chat-linked or character-linked. With no chat, Hero starts with no greetings and offers the book's linked characters as an editing-only pick. Unlinking removes the offer but keeps the rules. Runtime state is book-scoped (`<book>/@<avatar>:<n>`); old bare keys are inert. Greeting nicknames live in settings, never in the book. Group chats get no greeting UI or runtime behavior. Details in section 15. |
 | D24 | **A chat that ran without WI Hero is caught up on request.** Replies with no snapshot after the last one that has one (WI Hero switched off, or not yet installed) leave the story behind. When WI Hero is switched on or the chat opens, it asks once: **Catch up** replays the skipped turns through the engine, oldest first, each starting from the one before, with Preview's keyword matching (ST doesn't save what it sent); **Keep as is** carries the old state on; **Start from here** starts the state again; **Not now** leaves the choice on the chat bubble and the panel. Details in section 17.1. |
 | D25 | **WI Hero checks it still fits ST, and stands down when it doesn't.** It reads ST's version from `/version` and compares it with the versions it is tested on; any other version gets one plain line, "Versions drifted: … WI Hero is not recommended on it", and keeps working. A health check at load (every event, context member and ST internal the engine needs) and probes of the scan's arguments at runtime catch a missing thread; then the engine stands down and World Info runs as plain ST, with a line saying what is missing. ST internals are imported as namespaces, so a missing export can't stop the extension from loading. Details in section 17.2. |
 | D26 | **A chat bubble shows what reached the model.** A book in a circle over the chat, with how many World Info entries were sent with the last reply (from WORLD_INFO_ACTIVATED, all books, also with the engine off). Tap it for their names (and mask). Stored per reply and swipe; on by default, with a "Chat bubble" switch in the extension settings. Details in section 17.3. |
@@ -218,7 +219,7 @@ that has one, or the initial state.
   with ST's own `mesId`.
 - **Keys are per book.** Several books can be active in one chat, and ids are
   only unique within a book, so every key in the state is `<book>/<id>`
-  (`Eldoria/mill`), greetings `@<char>:<n>`. Renaming a book records
+  (`Eldoria/mill`), greetings `<book>/@<char>:<n>`. Renaming a book records
   `renamed: { old: new }` in the extension settings, and `readState` maps old
   keys through it, so existing chats keep their state. A rename ends as soon
   as a book under the old name exists again (made, copied or imported in WI
@@ -607,10 +608,12 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
 - Who triggers: kept only for the allowed side; recursion-only match dropped.
 - State: rewind on swipe and delete; continue unions; v1 snapshot reads; row
   edit forgets its latch.
-- Greetings (skipped while they are retired; one test checks they read as
-  unwritten): fires at index 0 for the opening swipe only; swiping the greeting
-  before the first reply switches the scenario; a fingerprint mismatch blocks
-  it; Gates for through a pack reaches a member added later.
+- Greetings: fires at index 0 for the opening swipe only, for every book that
+  compiled a ref (`<book>/@<avatar>:<n>`); swiping the greeting before the first
+  reply switches the scenario; a fingerprint mismatch blocks it; Gates for
+  through a pack reaches a member added later; other avatars' refs are omitted,
+  including from close and mask rows and pack-aimed rules; old bare keys stay
+  inert and a book rename migrates the scoped keys.
 - Manual: Reopen restores holding and resets the close baseline (D5); on/off
   leaves state alone, and an off entry's close gate still closes it (D4).
 - Data: top-level `wihero` and old field names normalize (2.3); a book run
@@ -624,7 +627,7 @@ PR (Node 22). Each rule gets a test, using the sample book where possible:
   instruction and stripping (`test/trackers.test.js`).
 
 The tests live in `test/`, one file per area (`engine`, `moments`, `trackers`,
-`timers`, `chat-state`, `generation`, `st-hooks`, `compat`, `st-drift`,
+`greetings`, `timers`, `chat-state`, `generation`, `st-hooks`, `compat`, `st-drift`,
 `preview`, `pieces`, `links`, `canvas`, `link-engine`, `book`, `st-books`,
 `snapshots`, `history`, `explain`, `html`, `cheap`, `sample`, `ui`); `test/sim.js` plays
 turns and `test/fixtures/card-book.js` holds ST's card conversion. The in-ST
@@ -787,10 +790,12 @@ didn't contradict it:
 
 ---
 
-## 15. Greetings (D23, retired for V1)
+## 15. Greetings (D23)
 
-*Off in V1* (CONCEPTS 3.12, COOL_FEATURES 2.6 "Greetings"). This
-section is how they work when `GREETINGS` is switched back on.
+Greetings are active (CONCEPTS 3.12, COOL_FEATURES 2.6 "Greetings"). This
+section is how they work. The product design is in
+[GREETINGS_DESIGN.md](GREETINGS_DESIGN.md); implementation boundaries are in
+[GREETINGS_IMPLEMENTATION.md](GREETINGS_IMPLEMENTATION.md).
 
 ### 15.1 What a greeting is
 
@@ -800,10 +805,16 @@ section is how they work when `GREETINGS` is switched back on.
 - It is a **ref**, not an entry: nothing is added to the book or the card,
   nothing is copied, nothing is sent to the model. It has no keywords, never
   injects, and never fires again after the start.
-- It counts as **fired at chat index 0** when the chat's first message is that
-  character's greeting with that `swipe_id`. ST only lets the last message be
-  swiped, so the greeting can change only until the first reply, and the story
-  state follows it with the usual rewind.
+- The opening greeting is recognised structurally: `chat[0]` must be the
+  character's message, its swipe list must match the character's greeting list
+  (including ST's no-main-greeting offset) and `swipe_id` must be a valid index.
+  Text is never compared, so an edited first message, or a chat whose swipe list
+  predates a card edit or reorder, keeps its greeting identity. With no swipe
+  identity, only a sole main greeting is recognised, by its exact text.
+- It counts as **fired at chat index 0** when the chat opened with that
+  character and `swipe_id`. ST only lets the last message be swiped, so the
+  greeting can change only until the first reply, and the story state follows it
+  with the usual rewind.
 - A chat whose first message isn't a greeting (deleted, or a chat started
   otherwise) fires no greeting.
 
@@ -819,10 +830,15 @@ section is how they work when `GREETINGS` is switched back on.
   is missing.
 - `fp`: `getStringHash` of the greeting's first 200 characters, trimmed. A
   mismatch means the greeting was edited or the greetings reordered: the ref
-  is reported as a problem ("Seraphina's Alt 2 changed") and doesn't fire until
-  it is re-picked from the inspector, which rewrites `greeting` and `fp`.
-- In the model a greeting ref has the id `@<char>:<n>`, and the state records
-  it in `fired`/`firstAt` like an entry.
+  stays a condition that cannot be met and is reported for **Re-pick** from the
+  inspector, which rewrites `greeting` and `fp`. Hero never searches by
+  fingerprint or reattaches a ref. A missing character or greeting number stays
+  dormant.
+- The book is the scope: the ref stays clean, without a book name. In the model
+  a greeting ref's state key is `<book>/@<char>:<n>`, and only the selected
+  chat avatar's refs compile. Old bare `@<char>:<n>` state keys stay inert.
+  Book renames translate the book-scoped keys in saved snapshots. No
+  metadata-only World Info entry is written.
 
 ### 15.3 Where its rules are stored (book only)
 
@@ -840,29 +856,72 @@ written on the entries:
   writes it onto them when they join.
 - A greeting takes no gate, close gate, glue, mask, once or who-triggers.
 
+For runtime, common to all books: an inactive character's ref is read as if it
+were not written. In an AND row the other items remain; a row left with only
+inactive refs disappears. The same applies to close gates, mask rows, `gatedBy`
+and pack-aimed rules. A ref for the active character whose fingerprint fails
+stays and is reported, not silently dropped.
+
 ### 15.4 On the canvas and in the panel
 
-- **Only the open chat's character.** With a single-character chat open, the
-  entry panel has a **Greetings** group, first in the list, with that character's greetings
-  (Greeting, Alt 1, …, with their opening words). They are placed like entries
-  (hollow dot, tap to place) and stay on the canvas once linked.
-- **No chat open** (or a group chat): no Greetings group and no greeting cards.
-  Rules aimed at other characters' greetings are kept on the entries but not
-  drawn; the inspector still lists them in words ("Gate: Bob · Alt 2, another
-  character").
+- **Selection.** With a single-character chat open, that character wins for
+  every book: global, chat-linked or character-linked. The entry panel has a
+  **Greetings** group, first in the list, with that character's greetings
+  (Greeting, Alt 1, …, with their opening words). Their cards show on the canvas
+  with the selected character, even before a rule is attached; their dot jumps
+  to the card.
+- **No chat open.** Hero starts with no greetings. A book linked to one
+  character shows a nonmodal bar above the canvas: `Use <name>'s greetings
+  while editing this book?` with `Use greetings` and `Dismiss`. Several linked
+  characters show `Choose a character's greetings while editing this book` and
+  a button opening an avatar-and-name picker. A manual pick is editing-only and
+  transient: it never marks a greeting fired or reaches runtime, is cleared when
+  the book view changes, a chat opens, or the character is unlinked, and is
+  never saved. While it is showing, the same bar reads `Greetings: <name> ·
+  Change · Hide`. The bar takes its own layout row, so it covers no cards and
+  does not intercept canvas pan or zoom outside itself.
+- **Unlinking** a character removes it from the no-chat offer and picker. Its
+  rules stay in the book, and opening that character's chat makes them live
+  again.
+- **Other characters' refs** are absent from the canvas, links and
+  greeting-specific inspector controls. Their data remains in the book and the
+  runtime ignores them in this chat.
+- **Group chats** show no greeting cards, panel rows, picker, Preview starts or
+  runtime greeting behavior.
+- **Nicknames.** The Greetings group gives each row a Rename action. It opens a
+  compact input prefilled with the current nickname, with Save and Clear; names
+  are trimmed to at most 40 characters and empty input clears. The nickname is
+  primary text and `Greeting`/`Alt n` stays secondary on the drawer row, canvas
+  card, inspector, link chips, target picker and Preview. A changed greeting
+  text shows the canonical label with a review indicator until the nickname is
+  saved again or cleared. Nicknames live at
+  `settings.books[book].greetingNames[avatar][number]`, move/copy/delete with
+  the book's other settings, and are never written into the book JSON or export.
+  They do not affect logic, hashes, refs or chat state.
 - A greeting card has only out ports (Gates for, Closes for), a distinct
-  start-card shape (VISUAL 7.5, sketch 7), and its name: "Greeting" or
-  "Alt n". Its position is saved like a card's, keyed `greet:<char>:<n>`.
-- Inspector: name, the opening words (tap to read the whole greeting, read
-  only), Gates for, Closes for, "Used by" (entries that read it), and
-  **Re-pick** when its fingerprint no longer matches.
+  start-card shape (VISUAL 7.5, sketch 7), and its display name: the nickname
+  when one matches, otherwise "Greeting" or "Alt n". Its position is saved like
+  a card's, keyed `greet:<char>:<n>`.
+- Inspector: nickname heading with the canonical name as a secondary line, the
+  opening words (tap to read the whole greeting, read only), Gates for, Closes
+  for, "Used by" (entries that read it), and **Re-pick** when its fingerprint no
+  longer matches.
+- **Unavailable greeting rules** in the book menu lists refs whose character or
+  numbered greeting is gone, with their stored character/alternate and affected
+  entries. **Repoint** rewrites every matching ref in the book through the normal
+  edit/undo path. A fingerprint-only change is Re-pick, not Repoint.
+- Moments are unchanged. A greeting is not a Moment and is never migrated into
+  one.
 
 ### 15.5 Preview
 
-- With a single-character chat open, the "starts from" chip offers the open
-  chat's state, **Fresh start**, and each of the character's greetings
-  ("Start at Alt 2"), so each scenario can be tried without starting a chat.
-- With no chat open: Fresh start only.
+- The "starts from" chip offers the open chat's state, **Fresh start**, and each
+  greeting of the selected character ("Start at Alt 2"), so each scenario can be
+  tried without starting a chat. The selected character is the open chat's
+  character, or the transient no-chat editing pick.
+- A greeting start seeds the pretend first message and its `@<char>:<n>`
+  greeting; **Fresh start** fires no greeting. With no chat and no pick, only
+  Fresh start is offered and no greeting refs compile.
 
 ### 15.6 Later
 

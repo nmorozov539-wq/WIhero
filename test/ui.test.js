@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { buildModel } from '../src/engine/model.js';
 import {
     MIXED, PARAM_LIST, addEntry, bookFolderOf, bookSettings, cardKey, commonValue, copyBookSettings, deleteBookSettings, forgetReusedNames,
-    bookTokens, duplicateEntry, ensureSettings, entryAsText, folderOf, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
-    rekeyEntry, removeEntry, renameBookSettings, reorderEntries, search, setBookFolder, setFolder, setParam, setStrategy, strategyOf,
+    bookTokens, duplicateEntry, ensureSettings, entryAsText, folderOf, greetingLabel, groupEntries, sortEntries, idOf, isBlank, moveEntry, paramSummary, paramText,
+    rekeyEntry, removeEntry, renameBookSettings, reorderEntries, search, setBookFolder, setFolder, setGreetingName, setParam, setStrategy, storedGreetingName, strategyOf,
 } from '../src/ui/data.js';
 import { closedText, logicLines, logicSummary } from '../src/ui/logic-text.js';
 import { defaultSnapshotName, snapshotFileName, sortSnapshots, toBase64 } from '../src/ui/snapshots.js';
@@ -125,6 +125,55 @@ test('settings: renaming, duplicating and deleting a book carry its settings', (
     deleteBookSettings(s, 'Newer');
     assert.equal(s.books.Newer, undefined);
     assert.deepEqual(s.bookFolders, { Drafts: ['Copy'] });
+});
+
+test('greeting nicknames: read, label, save, clear, prune', () => {
+    const s = ensureSettings({});
+    assert.equal(storedGreetingName(s, 'Book', 'Sera.png', 0), null);
+    assert.deepEqual(s.books, {}, 'reading a nickname creates no settings');
+    assert.deepEqual(greetingLabel(s, 'Book', 'Sera.png', 0, 'fp0'), { label: 'Greeting', canonical: 'Greeting', review: false, stored: null });
+    assert.deepEqual(greetingLabel(s, 'Book', 'Sera.png', 2, 'fp2'), { label: 'Alt 2', canonical: 'Alt 2', review: false, stored: null });
+
+    assert.equal(setGreetingName(s, 'Book', 'Sera.png', 2, '  Market morning  ', 'fp2'), true);
+    assert.deepEqual(storedGreetingName(s, 'Book', 'Sera.png', 2), { name: 'Market morning', fp: 'fp2' });
+    assert.deepEqual(s.books.Book.greetingNames, { 'Sera.png': { 2: { name: 'Market morning', fp: 'fp2' } } });
+    assert.equal(setGreetingName(s, 'Book', 'Sera.png', 2, 'Market morning', 'fp2'), false, 'the same name and fingerprint change nothing');
+    assert.deepEqual(greetingLabel(s, 'Book', 'Sera.png', 2, 'fp2'), {
+        label: 'Market morning', canonical: 'Alt 2', review: false, stored: { name: 'Market morning', fp: 'fp2' },
+    });
+    assert.deepEqual(greetingLabel(s, 'Book', 'Sera.png', 2, 'changed'), {
+        label: 'Alt 2', canonical: 'Alt 2', review: true, stored: { name: 'Market morning', fp: 'fp2' },
+    }, 'a changed greeting shows the canonical label and asks for review');
+    assert.equal(setGreetingName(s, 'Book', 'Sera.png', 2, 'Market morning', 'newfp'), true, 'keeping the nickname for the changed greeting updates its fingerprint');
+    assert.deepEqual(greetingLabel(s, 'Book', 'Sera.png', 2, 'newfp'), {
+        label: 'Market morning', canonical: 'Alt 2', review: false, stored: { name: 'Market morning', fp: 'newfp' },
+    });
+
+    assert.equal(setGreetingName(s, 'Book', 'Sera.png', 2, 'x'.repeat(60), 'fp2'), true);
+    assert.equal(storedGreetingName(s, 'Book', 'Sera.png', 2).name.length, 40, 'names are limited to 40 characters');
+    setGreetingName(s, 'Book', 'Other.png', 0, 'The letter', 'fp0');
+    assert.equal(setGreetingName(s, 'Book', 'Sera.png', 2, '   ', 'fp2'), true);
+    assert.deepEqual(Object.keys(s.books.Book.greetingNames), ['Other.png'], 'clearing one keeps another avatar\'s names');
+    assert.equal(setGreetingName(s, 'Book', 'Other.png', 0, '', 'fp0'), true);
+    assert.equal(s.books.Book.greetingNames, undefined, 'empty avatar and number maps are pruned');
+    assert.equal(setGreetingName(s, 'Book', 'Sera.png', 0, '', 'fp0'), false, 'nothing to clear');
+});
+
+test('greeting nicknames move, copy and delete with their book', () => {
+    const s = ensureSettings({});
+    setGreetingName(s, 'Old', 'Sera.png', 0, 'The letter', 'fp');
+    renameBookSettings(s, 'Old', 'New');
+    assert.equal(s.books.Old, undefined);
+    assert.deepEqual(storedGreetingName(s, 'New', 'Sera.png', 0), { name: 'The letter', fp: 'fp' });
+
+    copyBookSettings(s, 'New', 'Copy');
+    assert.deepEqual(storedGreetingName(s, 'Copy', 'Sera.png', 0), { name: 'The letter', fp: 'fp' });
+    setGreetingName(s, 'Copy', 'Sera.png', 0, 'Changed', 'fp');
+    assert.equal(storedGreetingName(s, 'New', 'Sera.png', 0).name, 'The letter', 'a copy keeps its nicknames apart');
+
+    deleteBookSettings(s, 'New');
+    assert.equal(storedGreetingName(s, 'New', 'Sera.png', 0), null);
+    assert.ok(storedGreetingName(s, 'Copy', 'Sera.png', 0));
 });
 
 test('a new book under an old name ends that rename (review finding 2)', () => {

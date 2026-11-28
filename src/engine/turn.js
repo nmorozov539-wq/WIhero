@@ -8,6 +8,12 @@ import { sample, slotValue } from './written.js';
 
 const greetingOk = model => key => model.greetings?.get(key)?.ok ?? true;
 
+/** The avatar and number of a chat's opening greeting key (`@avatar:n`), or null. */
+const openingGreetingRef = greeting => {
+    const m = typeof greeting === 'string' ? /^@([^:]+):(\d+)$/.exec(greeting) : null;
+    return m ? { avatar: m[1], n: Number(m[2]) } : null;
+};
+
 /** Maps an old-build id (unique across books) to its state key. */
 const keyOfId = model => {
     const map = new Map();
@@ -17,8 +23,9 @@ const keyOfId = model => {
 
 /**
  * The snapshot in effect after chat[0..end-1]: the last message that carries one, or the initial state.
- * The chat's opening greeting (if any) always counts as fired at index 0.
- * @param {object} [options] { greeting: greeting key the chat opened with, or null; renamed: book renames }
+ * The chat's opening greeting (if any) always counts as fired at index 0, for every loaded book that compiled a
+ * ref for that avatar and number (the book-scoped keys). A book with no compiled ref gets no greeting key.
+ * @param {object} [options] { greeting: `@avatar:n` the chat opened with, or null; renamed: book renames }
  * @returns {{ state: object, index: number }} index of the message it came from, -1 for the initial state.
  */
 export function baseState(chat, model, { greeting = null, renamed = {} } = {}, end = chat?.length ?? 0) {
@@ -32,10 +39,16 @@ export function baseState(chat, model, { greeting = null, renamed = {} } = {}, e
         if (state) { index = i; break; }
     }
     state ??= initialState();
-    if (GREETINGS && greeting && !(state.fired[greeting] > 0)) {
-        state.fired[greeting] = 1;
-        state.firstAt[greeting] = 0;
-        state.lastAt[greeting] = 0;
+    const opened = GREETINGS ? openingGreetingRef(greeting) : null;
+    if (opened) {
+        for (const info of model.greetings?.values() ?? []) {
+            if (info.ref.char !== opened.avatar || info.ref.greeting !== opened.n) continue;
+            if (!(state.fired[info.key] > 0)) {
+                state.fired[info.key] = 1;
+                state.firstAt[info.key] = 0;
+                state.lastAt[info.key] = 0;
+            }
+        }
     }
     return { state, index };
 }

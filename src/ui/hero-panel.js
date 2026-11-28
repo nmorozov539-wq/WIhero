@@ -21,7 +21,7 @@ export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
         createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
-        folderSheet, bulkEdit, clashCount, clashesSheet,
+        folderSheet, bulkEdit, clashCount, clashesSheet, nickname, setNickname,
     } = A;
     let shell = null;
     let panelState = () => {};
@@ -195,6 +195,33 @@ export function createHeroPanel(A) {
             dot.addEventListener('pointerup', ev => finish(ev, true));
             dot.addEventListener('pointercancel', ev => finish(ev, false));
         };
+        /** Renames one greeting for display: a compact input, Save, and Clear. Never edits the card's text. */
+        const renameGreeting = g => {
+            const info = nickname(book, g.ref.char, g.ref.greeting, g.fp);
+            layer.sheet(`Name ${g.canonical}`, sh => {
+                if (info.review) sh.append(el('p', 'help', 'This greeting\'s text changed since the nickname was saved. Save keeps it for the new text; Clear removes it.'));
+                const input = el('input', 'nickin');
+                input.type = 'text';
+                input.maxLength = 40;
+                input.placeholder = g.canonical;
+                input.value = info.stored?.name ?? '';
+                input.setAttribute('aria-label', `Nickname for ${g.canonical}`);
+                const save = () => {
+                    setNickname(book, g.ref.char, g.ref.greeting, g.fp, input.value);
+                    layer.close();
+                    render();
+                };
+                const clear = () => {
+                    setNickname(book, g.ref.char, g.ref.greeting, g.fp, '');
+                    layer.close();
+                    render();
+                };
+                input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+                const row = el('div', 'greetrow');
+                row.append(btn('pri', 'Save', save), btn('', 'Clear', clear));
+                sh.append(input, row);
+            }, { help: `Shown in WI Hero only. ${g.canonical} stays the greeting's identity.` });
+        };
         const fill = () => {
             filled = true;
             const top = list.scrollTop;
@@ -219,7 +246,7 @@ export function createHeroPanel(A) {
             }
             // The open chat's character's greetings (BUILD_SPEC 15.4), placed with the dot like entries. First, as the story
             // starts from them.
-            const greets = chatGreetings(st.data).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
+            const greets = chatGreetings(st.data, book).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.canonical.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
             if (greets.length) {
                 const open = !H.closedFolders.has('\u0000greetings');
                 const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
@@ -232,9 +259,17 @@ export function createHeroPanel(A) {
                         const r = el('div', 'prow greet');
                         r.dataset.key = g.key;
                         const nm = el('span', 'nm');
-                        nm.append(el('b', '', g.title), el('small', '', g.text));
+                        const secondary = g.nickname ? [g.canonical, g.text].filter(Boolean).join(' · ') : g.text;
+                        nm.append(el('b', '', g.title), el('small', '', secondary));
                         r.append(nm);
-                        if (g.changed) r.append(el('span', 'pbang', '!'));
+                        if (g.review || g.changed) {
+                            const bang = el('span', 'pbang', '!');
+                            bang.title = g.review ? 'This nickname was saved for older text' : 'This greeting changed since it was linked';
+                            r.append(bang);
+                        }
+                        const rename = btn('rowact', ic('edit'), ev => { ev.stopPropagation(); renameGreeting(g); }, `Rename ${g.canonical}`);
+                        rename.title = `Rename ${g.canonical}`;
+                        r.append(rename);
                         const placed = on.has(g.key);
                         const gd = btn(`dotc${placed ? ' in' : ''}`, html`<i></i>`, ev => {
                             ev.stopPropagation();

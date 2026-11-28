@@ -11,7 +11,7 @@ import { trackerContext } from './tracker-ui.js';
 import { el } from './dom.js';
 import { getStringHash, isObject } from '../engine/util.js';
 import { greetingFingerprint, greetingsOf } from '../chat-state.js';
-import { GREETINGS, isMoment } from '../engine/model.js';
+import { isMoment } from '../engine/model.js';
 import { renderGreetingInspector, renderInspector } from './inspector.js';
 import { strategyColor } from './entry-page.js';
 
@@ -22,8 +22,8 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroInspector(A) {
     const {
-        H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
-        layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, render,
+        H, S, chatStatus, chatGreetings, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
+        layer, leave, library, linkable, main, modelOf, nickname, openGuide, openHeroTab, panelState, problemsOf, warningsOf, render,
         saveSettings, settings, canvas, isRenderQueued, dropPiece,
     } = A;
 
@@ -59,33 +59,6 @@ export function createHeroInspector(A) {
         return () => layer.sheet('It stays while it has links', sh => {
             for (const w of why) sh.append(el('p', 'help', w));
         }, { help: 'A card with story links is always on the canvas, so the links can be seen. Once it has none, it can be taken off.' });
-    }
-
-    /** The open chat's character's greetings (BUILD_SPEC 15.4): none with no chat or in a group chat. */
-    function chatGreetings(data) {
-        const c = ctx();
-        if (!GREETINGS) return []; // retired for v1 (#33): no greeting cards, panel rows or picker options
-        if (!library.chatOpen() || c.groupId || c.characterId === undefined) return [];
-        const ch = c.characters?.[c.characterId];
-        if (!ch?.avatar) return [];
-        // Fingerprints the book has for this character's greetings, to spot a changed one.
-        const stored = new Map();
-        const walk = x => {
-            if (Array.isArray(x)) { x.forEach(walk); return; }
-            if (!isObject(x)) return;
-            if ('greeting' in x && x.char === ch.avatar) { const k = x.greeting; if (!stored.has(k)) stored.set(k, new Set()); stored.get(k).add(x.fp); return; }
-            Object.values(x).forEach(walk);
-        };
-        for (const e of entriesOf(data)) walk(configOf(e));
-        const opening = t => String(t ?? '').replace(/[*_]/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
-        return greetingsOf(ch).map((text, n) => {
-            const fp = greetingFingerprint(text, getStringHash);
-            return {
-                key: `greet:${ch.avatar}:${n}`, ref: { greeting: n, char: ch.avatar, name: ch.name, fp }, fp,
-                title: greetingName(n), text: opening(text), full: text,
-                changed: [...(stored.get(n) ?? [])].some(f => f !== fp),
-            };
-        }).filter(g => g.full.trim());
     }
 
     /** Runs `fn(editor, data)` on a book; entries that got an id have their folder and canvas place rekeyed. */
@@ -143,7 +116,15 @@ export function createHeroInspector(A) {
         canvas()?.reveal?.(key, S.desk ? 1 : 0.5);
     }
 
-    const stateKeyToCard = k => (k.startsWith('@') ? `greet:${k.slice(1)}` : `id:${k.slice(k.indexOf('/') + 1)}`);
+    const greetingKey = k => {
+        const m = /(?:^|\/)@([^:]+):(\d+)$/.exec(String(k ?? ''));
+        return m ? `greet:${m[1]}:${m[2]}` : null;
+    };
+    const stateKeyToCard = k => greetingKey(k) ?? (k.startsWith('@') ? `greet:${k.slice(1)}` : `id:${k.slice(k.indexOf('/') + 1)}`);
+    const greetingLabelText = (model, key) => {
+        const ref = model.greetings?.get(key)?.ref;
+        return ref ? `${greetingName(ref.greeting)} of ${ref.name || ref.char}` : 'a greeting';
+    };
 
     /** What closed an entry in the open chat, with Reopen (D18). */
     function closedInfo(node, e) {
@@ -152,7 +133,7 @@ export function createHeroInspector(A) {
         const c = hooks.state().closed[node.key];
         if (!c) return null;
         return {
-            by: closedText(c.by, key => loaded.nodes.get(key)?.label ?? (key.startsWith('@') ? 'a greeting' : null)),
+            by: closedText(c.by, key => loaded.nodes.get(key)?.label ?? (greetingKey(key) || key.startsWith('@') ? greetingLabelText(loaded, key) : null)),
             reopen: async () => { await hooks.reopenEntry(node.key); layer.toast(`${titleOf(e)} is open again in this chat`); render(); },
         };
     }
@@ -168,8 +149,18 @@ export function createHeroInspector(A) {
         const shown = linkable(book, data);
         const others = except => shown.filter(x => x.uid !== except).map(x => ({ uid: x.uid, title: titleOf(x), dot: strategyColor(x) }));
         const nameOfId = id => { const x = entriesOf(data).find(y => idOf(y) === id); return x ? titleOf(x) : id; };
+        const nicknameOf = ref => {
+            if (!isObject(ref) || !('greeting' in ref)) return null;
+            const ch = (ctx().characters ?? []).find(x => x.avatar === ref.char);
+            const list = ch ? greetingsOf(ch) : [];
+            const fp = ch && Number.isInteger(ref.greeting) && ref.greeting >= 0 && ref.greeting < list.length
+                ? greetingFingerprint(list[ref.greeting], getStringHash)
+                : ref.fp;
+            return nickname(book, ref.char, ref.greeting, fp);
+        };
+        const model = modelOf(book, data);
         const common = {
-            layer, full: I.full, scroll: I.scroll, nameOfId, packs: packsOf(data),
+            layer, full: I.full, scroll: I.scroll, nameOfId, nicknameOf, greetingChar: model.activeAvatar, packs: packsOf(data),
             guide: key => openGuide(key ? PIECE_ANCHOR[key] ?? key : null),
             setFull: v => { I.full = v; render(); },
             onScroll: v => { I.scroll = v; },
@@ -183,7 +174,7 @@ export function createHeroInspector(A) {
         };
         I.focusText = false;
         if (I.key.startsWith('greet:')) {
-            const g = chatGreetings(data).find(x => x.key === I.key);
+            const g = chatGreetings(data, book).find(x => x.key === I.key);
             if (!g) { H.insp = null; dropInspector(); return; }
             const r = greetingRules(data, g.ref);
             const byUid = uid => entriesOf(data).find(x => x.uid === uid);
@@ -201,10 +192,11 @@ export function createHeroInspector(A) {
         }
         const e = shown.find(x => cardKey(x) === I.key);
         if (!e) { H.insp = null; dropInspector(); return; }
-        const model = modelOf(book, data);
         const node = model.byStKey.get(`${book}.${e.uid}`);
-        const lines = node ? logicLines(node, model) : [];
-        const nameOf = k => model.nodes.get(k)?.label ?? (k.startsWith('@') ? model.greetings?.get(k)?.ref ? `${greetingName(model.greetings.get(k).ref.greeting)} of ${model.greetings.get(k).ref.name || model.greetings.get(k).ref.char}` : 'a greeting' : k);
+        // Hero shows only the selected character's greeting rules; another character's refs stay stored but are absent.
+        const greetingChar = model.activeAvatar;
+        const lines = node ? logicLines(node, model, { greetingChar }) : [];
+        const nameOf = k => model.nodes.get(k)?.label ?? (greetingKey(k) || k.startsWith('@') ? greetingLabelText(model, k) : k);
         const sources = [];
         if (node?.key) {
             for (const i of node.opens.all) if (i.source && i.source !== node.key) sources.push({ name: nameOf(i.source), key: stateKeyToCard(i.source), what: i.type === 'greeting' ? 'Starts this' : 'Opens this', family: 'open' });
@@ -241,7 +233,7 @@ export function createHeroInspector(A) {
                 H.insp = null;
                 deleteEntries(book, [e.uid]);
             },
-            others: others(e.uid), greetings: chatGreetings(data),
+            others: others(e.uid), greetings: chatGreetings(data, book),
             problems: problemsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             warnings: warningsOf(model, e.uid, book).map(i => i.message.replace(/^./, ch => ch.toUpperCase())),
             closed: closedInfo(node, e),

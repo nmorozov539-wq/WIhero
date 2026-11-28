@@ -32,6 +32,7 @@ import { createHeroDesk } from './hero-desk.js';
 import { createNormal } from './normal.js';
 import { createHeroBar } from './hero-bar.js';
 import { createHeroInspector } from './hero-inspector.js';
+import { createGreetings } from './greetings.js';
 import { SAMPLE, createExplain } from './explain.js';
 import { explainNode, blockRegion } from './explain-meta.js';
 import { deskNormal } from './desk.js';
@@ -231,7 +232,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null },
+        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null, greet: null, greetDismissed: null, greetView: null },
         // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
         desk: false,
     };
@@ -287,22 +288,32 @@ export function createApp(deps) {
     const models = new WeakMap();
     // Built like the runtime's model (st-hooks), so a changed greeting shows here as it will play.
     const greetingFp = greetingFpOf(() => ctx().characters, getStringHash);
-    const openCharacter = () => { const c = ctx(); return c.groupId ? null : c.characters?.[c.characterId] ?? null; };
-    const buildBookModel = entries => buildModel(entries, { greetingFp });
+    // Normal mode's model sees only the character of the open single-character chat; no chat means no greeting scope.
+    const openCharacter = () => {
+        const c = ctx();
+        if (c.groupId || !library.chatOpen?.()) return null;
+        return c.characters?.[c.characterId] ?? null;
+    };
+    const buildBookModel = (entries, opts = {}) => buildModel(entries, { greetingFp, ...opts });
     const modelOf = (book, data) => {
         const own = library.peek(book) === data;
         const kept = own ? models.get(data) : null;
-        const greets = greetingSignature(openCharacter(), getStringHash);
-        if (kept && kept.book === book && kept.version === library.bookVersion(book) && kept.greets === greets) return kept.model;
+        // Hero edits one selected character (the chat's character, else a no-chat pick); every other mode uses only the
+        // runtime chat character. Greeting refs for anyone else stay in the book but are not compiled here.
+        const active = S.mode === 'hero' ? greetingSelection(book)?.character ?? null : openCharacter();
+        const activeAvatar = active?.avatar ?? null;
+        const greets = greetingSignature(active, getStringHash);
+        if (kept && kept.book === book && kept.version === library.bookVersion(book) && kept.greets === greets && kept.avatar === activeAvatar) return kept.model;
         const at = perf.begin('model');
-        const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })));
+        const model = buildBookModel(entriesOf(data).map(e => ({ ...e, world: book })), { activeAvatar });
         perf.end(at);
         perf.count('modelBuilds');
         model.issuesByStKey = groupIssues(model.issues);
+        model.greetingsAvatar = activeAvatar;
         if (own) {
             // The canvas's entry side changes with the model, not with an inspector tap; build it here once.
             model.canvasElementSig = canvasElementSig(canvasElements(book, data, model, e => folderOf(settings, book, e)));
-            models.set(data, { book, version: library.bookVersion(book), greets, model });
+            models.set(data, { book, version: library.bookVersion(book), greets, avatar: activeAvatar, model });
         }
         return model;
     };
@@ -773,6 +784,8 @@ export function createApp(deps) {
     }
     function hide() {
         if (destroyed || host.hidden) return;
+        // Closing the editor ends the Hero book view, so a manual greeting pick is not waiting when it opens again.
+        resetGreetView();
         leave();
         cancelCounts();
         layer.close();
@@ -791,6 +804,7 @@ export function createApp(deps) {
     function openBook(name) {
         if (!library.names().includes(name)) { show(); return; }
         if (S.mode === 'hero') {
+            resetGreetView();
             H.book = name;
             H.active = 'canvas';
             H.panel = false;
@@ -976,11 +990,22 @@ export function createApp(deps) {
 
     // ---------------------------------------------------------------- Hero mode (N3): its shell (hero-shell.js)
     const H = S.hero;
+    // Greeting selection is per Hero book view, or the open single-character chat; it never reaches the runtime.
+    let greetingsView = null;
+    const greetings = () => (greetingsView ??= createGreetings({
+        ctx, H, S, library, settings, saveSettings, layer, render: () => render(),
+        bookSettings, entriesOf, configOf,
+    }));
+    function greetingSelection(book) { return greetings().selection(book); }
+    function chatGreetings(data, book) { return greetings().chatGreetings(data, book); }
+    function greetBanner(book, data) { return greetings().banner(book, data); }
+    /** A book view is opened afresh: a manual greeting pick and its Dismiss belong to the previous view only. */
+    function resetGreetView() { H.greet = null; H.greetDismissed = null; H.greetView = null; }
     // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
     // callable from anywhere above, as the functions were.
     let heroShellView = null;
     const heroShell = () => (heroShellView ??= createHeroShell({
-        newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, greetBanner, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas: onHeroCanvas,
@@ -1013,6 +1038,7 @@ export function createApp(deps) {
     let heroBarView = null;
     const heroBar = () => (heroBarView ??= createHeroBar({
         H, S, chatGreetings, entryFolder, inspect, layer, library, linkable, main, modelOf, openGuide, openHeroTab,
+        nickname: (book, avatar, n, fp) => greetings().nickname(book, avatar, n, fp),
         render: () => render(), root, saveSettings, settings, sortBy: () => sortBy(), tidyNow,
         canvas: () => heroCanvas(), historyStep,
         entryTemplate: deps.entryTemplate,
@@ -1033,7 +1059,7 @@ export function createApp(deps) {
     let previewView = null;
     const preview = () => (previewView ??= createPreview({
         ctx, S, H, main, layer, library, settings, scan: deps.scan, render: () => render(), heroBook, need, loadingNote, linkable,
-        buildBookModel, openHeroTab, showOnCanvas, inspect, onCanvas: onHeroCanvas,
+        buildBookModel, openHeroTab, showOnCanvas, inspect, onCanvas: onHeroCanvas, chatGreetings, greetingSelection,
     }));
     const renderPreviewTab = () => preview().renderPreviewTab();
     let heroPanelView = null;
@@ -1042,12 +1068,14 @@ export function createApp(deps) {
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
         entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas: onHeroCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
+        nickname: (book, avatar, n, fp) => greetings().nickname(book, avatar, n, fp),
+        setNickname: (book, avatar, n, fp, name) => greetings().setNickname(book, avatar, n, fp, name),
     }));
     const heroPanel = (book, data) => panelView().heroPanel(book, data);
     const panelState = () => panelView().panelState();
 
     /** Hero's books menu: pick a book, or make or import one. Managing a book is its own menu (heroBookMenu). */
-    const heroOpen = name => { H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
+    const heroOpen = name => { resetGreetView(); H.book = name; H.active = 'canvas'; H.panel = false; H.insp = null; H.pick = []; render(); };
     /** New book and Import from Hero mode: the book opens on the canvas. */
     const heroNewBook = () => layer.askText({
         title: 'New book', placeholder: 'Book name', ok: 'Create', check: n => library.nameProblem(n),
@@ -1081,6 +1109,8 @@ export function createApp(deps) {
             if (data) {
                 const issues = modelOf(book, data).issues;
                 if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs', explain: { key: 'menu.problems' } }));
+                const unavailable = greetings().unavailable(book, data, { peek: true });
+                if (unavailable.length) sh.append(layer.opt('Unavailable greeting rules', () => greetings().unavailable(book, data), { icon: 'chat', val: `${unavailable.length} ›`, explain: { key: 'menu.problems', title: 'Unavailable greeting rules', text: 'Shows stored greeting rules whose character or greeting is gone.' } }));
                 menus().checkRows(sh, book, data);
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { icon: 'snap', val: '›', explain: { key: 'menu.snapshots' } }));
@@ -1149,12 +1179,12 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let heroInspView = null;
     const heroInsp = () => (heroInspView ??= createHeroInspector({
-        H, S, chatStatus, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
+        H, S, chatStatus, chatGreetings, ctx, dataSheet, deleteEntries, deskSettings, heroData, heroInspector, hooks, inspShown,
         layer, leave, library, linkable, main, modelOf, openGuide, openHeroTab, panelState, problemsOf, warningsOf, hasLogic,
         render: () => render(), saveSettings, settings, canvas: () => heroCanvas(), isRenderQueued: () => renderQueued,
         dropPiece: (...a) => dropPiece(...a),
+        nickname: (book, avatar, n, fp) => greetings().nickname(book, avatar, n, fp),
     }));
-    function chatGreetings(...a) { return heroInsp().chatGreetings(...a); }
     function dropInspector(...a) { return heroInsp().dropInspector(...a); }
     function inspect(...a) { return heroInsp().inspect(...a); }
     function inspectorFor(...a) { return heroInsp().inspectorFor(...a); }
@@ -1178,6 +1208,7 @@ export function createApp(deps) {
             const p = page();
             if (focusKey && p.book) { showOnCanvas(p.book, focusKey); return; }
             leave();
+            resetGreetView();
             if (p.book) H.book = p.book;
             S.mode = 'hero';
             S.select = null;
@@ -1213,6 +1244,8 @@ export function createApp(deps) {
             if (data) {
                 const issues = modelOf(book, data).issues;
                 if (issues.length) sh.append(layer.opt(issueText(issues, { menu: true }), () => problemsSheet(book), { val: '›', cls: 'probs', explain: { key: 'menu.problems' } }));
+                const unavailable = greetings().unavailable(book, data, { peek: true });
+                if (unavailable.length) sh.append(layer.opt('Unavailable greeting rules', () => greetings().unavailable(book, data), { icon: 'chat', val: `${unavailable.length} ›`, explain: { key: 'menu.problems', title: 'Unavailable greeting rules', text: 'Shows stored greeting rules whose character or greeting is gone.' } }));
                 menus().checkRows(sh, book, data);
             }
             sh.append(layer.opt('Snapshots', () => snapshotsSheet(book), { val: '›', explain: { key: 'menu.snapshots' } }));
@@ -1329,7 +1362,7 @@ export function createApp(deps) {
                 inspect(h.book, cardKey(h.entry));
                 return;
             }
-            if (h.book) { H.book = h.book; H.active = 'canvas'; H.insp = null; H.pick = []; }
+            if (h.book) { resetGreetView(); H.book = h.book; H.active = 'canvas'; H.insp = null; H.pick = []; }
             render();
         },
     });

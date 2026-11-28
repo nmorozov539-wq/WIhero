@@ -3,7 +3,6 @@
 // scan (WORLDINFO_ENTRIES_LOADED, scan loops with WORLDINFO_SCAN_DONE, forced activations), WORLD_INFO_ACTIVATED,
 // the reply, MESSAGE_RECEIVED.
 import { test } from 'node:test';
-import { GREETINGS } from '../src/engine/model.js';
 import assert from 'node:assert/strict';
 import { createHooks } from '../src/st-hooks.js';
 import { getStringHash } from '../src/engine/util.js';
@@ -25,6 +24,8 @@ class FakeST {
             characters: [this.character],
             characterId: 0,
             groupId: null,
+            chatId: 'chat',
+            getCurrentChatId: () => 'chat',
             chatMetadata: {},
             substituteParams: text => text.replaceAll('{{char}}', 'Sera'),
             saveChat: async () => {},
@@ -32,6 +33,7 @@ class FakeST {
             eventTypes: { WORLDINFO_FORCE_ACTIVATE: 'force' },
             eventSource: { emit: async (type, list) => { if (type === 'force') for (const x of list) this.forced.set(`${x.world}.${x.uid}`, x); } },
         };
+        this.context = context;
         this.settings = { enabled: true };
         this.health = createHealth();
         this.hooks = createHooks({
@@ -151,16 +153,73 @@ test('greetings: the chat\'s opening greeting opens its scenario', async () => {
     assert.deepEqual(st.hooks.model.issues, []);
 });
 
-test('greetings: a greeting edited to the same length is seen as changed', { skip: !GREETINGS && 'greetings are retired for v1 (#33)' }, async () => {
+test('greetings: no chat compiles no greeting refs, even with a character selected', async () => {
+    const character = { avatar: 'Sera.png', first_mes: 'Main.', data: { alternate_greetings: ['Alt.'] } };
+    const fp = String(getStringHash('Alt.'));
+    const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Sera.png', name: 'Sera', fp }]] })], { character });
+    st.context.chatId = null;
+    st.context.getCurrentChatId = () => null;
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.greetings.size, 0, 'the editor pick has no runtime scope');
+    assert.equal(st.hooks.model.nodes.get('Book/forest').opens.rows.length, 0, 'the greeting-only gate is gone');
+    st.context.chatId = 'chat';
+    await st.hooks.loadModel();
+    assert.equal(st.hooks.model.greetings.size, 1, 'opening a chat brings its scope back');
+});
+
+test('greetings: a greeting edited to the same length is seen as changed', async () => {
     const character = { avatar: 'Sera.png', first_mes: 'Main.', data: { alternate_greetings: ['AAAA'] } };
     const fp = String(getStringHash('AAAA'));
     const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Sera.png', name: 'Sera', fp }]] })], { character });
     st.chat[0] = { is_user: false, mes: 'AAAA', swipe_id: 1, swipes: ['Main.', 'AAAA'] };
     await st.send('hello');
-    assert.equal(st.hooks.model.greetings.get('@Sera.png:1').ok, true);
+    assert.equal(st.hooks.model.greetings.get('Book/@Sera.png:1').ok, true);
     character.data.alternate_greetings[0] = 'BBBB';
     await st.send('hello');
-    assert.equal(st.hooks.model.greetings.get('@Sera.png:1').ok, false, 'the model was rebuilt');
+    assert.equal(st.hooks.model.greetings.get('Book/@Sera.png:1').ok, false, 'the model was rebuilt');
+});
+
+test('greetings: only the open chat character\'s rules are compiled, and a chat switch rebuilds', async () => {
+    const alice = { avatar: 'Alice.png', first_mes: 'Alice main.', data: { alternate_greetings: ['Alice alt.'] } };
+    const bob = { avatar: 'Bob.png', first_mes: 'Bob main.', data: { alternate_greetings: [] } };
+    const fp = String(getStringHash('Alice alt.'));
+    const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Alice.png', name: 'Alice', fp }]] })], { character: bob });
+    st.context.characters = [alice, bob];
+    st.context.characterId = 1;
+    st.chat[0] = { is_user: false, mes: 'Bob main.' };
+    assert.deepEqual(await st.send('forest'), [0], 'Bob\'s chat: Alice\'s only-greeting row is unwritten, so no gate');
+    assert.equal(st.hooks.model.greetings.size, 0);
+    assert.deepEqual(st.hooks.model.issues, [], 'no Alice problem in Bob\'s chat');
+
+    st.context.characterId = 0;
+    st.chat[0] = { is_user: false, mes: 'Alice main.', swipes: ['Alice main.', 'Alice alt.'] };
+    assert.deepEqual(await st.send('forest'), [], 'Alice\'s chat: Alt 1 was not opened');
+    assert.ok(st.hooks.model.greetings.has('Book/@Alice.png:1'), 'the model was rebuilt for Alice');
+    assert.equal(st.hooks.model.greetings.has('Book/@Bob.png:1'), false);
+});
+
+test('greetings: a group chat compiles no greeting rules', async () => {
+    const alice = { avatar: 'Alice.png', first_mes: 'Main.', data: { alternate_greetings: ['Alt.'] } };
+    const fp = String(getStringHash('Alt.'));
+    const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Alice.png', name: 'Alice', fp }]] })], { character: alice });
+    st.chat[0] = { is_user: false, mes: 'Main.', swipes: ['Main.', 'Alt.'] };
+    assert.deepEqual(await st.send('forest'), [], 'single chat: Alt 1 was not opened');
+    st.context.groupId = 'group-1';
+    assert.deepEqual(await st.send('forest'), [0], 'group chat: the row is unwritten, so no gate');
+    assert.equal(st.hooks.model.greetings.size, 0);
+});
+
+test('greetings: no chat compiles no greeting refs, and opening a chat rebuilds', async () => {
+    const alice = { avatar: 'Alice.png', first_mes: 'Main.', data: { alternate_greetings: ['Alt.'] } };
+    const fp = String(getStringHash('Alt.'));
+    const st = new FakeST([e(0, 'forest', { id: 'forest', gate: [[{ greeting: 1, char: 'Alice.png', name: 'Alice', fp }]] })], { character: alice });
+    st.chat[0] = { is_user: false, mes: 'Main.', swipes: ['Main.', 'Alt.'] };
+    st.context.characterId = null;
+    await st.send('forest');
+    assert.equal(st.hooks.model.greetings.size, 0, 'no active avatar');
+    st.context.characterId = 0;
+    await st.send('forest');
+    assert.equal(st.hooks.model.greetings.size, 1, 'the chat switch is in the signature');
 });
 
 // ---- N6 (BUILD_SPEC 17)
@@ -205,7 +264,7 @@ test('Keep as is carries the old state on; Start from here starts it again', asy
     await st.send('quiet');
     st.settings.enabled = true;
     await st.hooks.fixGap('fresh');
-    assert.deepEqual(Object.keys(st.state.fired), GREETINGS ? ['@Char.png:0'] : [], 'only the opening greeting, if greetings are on');
+    assert.deepEqual(Object.keys(st.state.fired), [], 'no loaded book has a greeting ref for this chat\'s character');
 });
 
 test('what reached the model is stored on each reply, also with the engine off; a continue adds to it', async () => {

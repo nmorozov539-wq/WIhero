@@ -74,7 +74,7 @@ export function mountPieceBar(x) {
         return n;
     };
     const name = end => x.nameOf(end);
-    const refText = ref => refLabel(ref, x.nameOfId).text;
+    const refText = ref => refLabel(ref, x.nameOfId, x.nicknameOf).text;
 
     // ---------------------------------------------------------------- the bar
     if (!B.edit) { mountBar(x); return; }
@@ -998,7 +998,7 @@ function condOnCard(k, end, base, x) {
     const c = E.config(end.uid);
     const cond = () => (k === 'lock' ? { lock: [] } : { wait: 2 });
     const make = place => { const edit = { ...base, place, cond: cond(), at: null }; if (k === 'wait') writeNow(edit, x); return edit; };
-    const text = row => row.filter(y => !L.isCond(y)).map(y => refLabel(y, x.nameOfId).text).join(' and ');
+    const text = row => row.filter(y => !L.isCond(y)).map(y => refLabel(y, x.nameOfId, x.nicknameOf).text).join(' and ');
     const targets = [];
     const add = (field, mask) => L.rowsOf(c, field, mask).forEach((row, i) => {
         const what = mask === null ? (field === 'gate' ? 'Waits for' : 'Closes when') : `Mask "${c.masks[mask]?.name}" ${field === 'gate' ? 'on' : 'off'}`;

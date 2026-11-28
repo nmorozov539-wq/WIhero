@@ -178,7 +178,7 @@ export function createHeroDesk(A) {
         if (!end) return;
         if (end.t === 'pack') { packSheet(book, data, end.name); return; }
         const e = end.t === 'entry' ? data.entries[end.uid] : null;
-        const title = e ? titleOf(e) : chatGreetings(data).find(g => g.key === key)?.title ?? 'Greeting';
+        const title = e ? titleOf(e) : chatGreetings(data, book).find(g => g.key === key)?.title ?? 'Greeting';
         const view = canvas()?.view;
         const linked = view?.g.edges.some(x => x.from === key || x.to === key) || (view?.m.byId(key)?.packs.length ?? 0) > 0;
         layer.sheet(title, sh => {

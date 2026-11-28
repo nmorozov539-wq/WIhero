@@ -1,25 +1,26 @@
 // Hero mode's Preview tab (N5, LAYOUT "Preview tab", BUILD_SPEC 15.5): where it can start from, and running the
 // engine on a pretend exchange. Moved out of app.js; it reaches the app only through the context given to it.
-import { GREETINGS } from '../engine/model.js';
 import { el } from './dom.js';
 import { explainNode } from './explain-meta.js';
 import { cardKey, titleOf } from './data.js';
-import { greetingsOf, openingGreeting } from '../chat-state.js';
-import { greetingName } from './pieces.js';
+import { openingGreeting } from '../chat-state.js';
 import { runPreview } from './preview.js';
 import { renderPreviewPage } from './preview-page.js';
 import { strategyColor } from './entry-page.js';
 
 /**
  * @param {object} A The app's context: { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need,
- *   loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect }.
+ *   loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect, chatGreetings, greetingSelection }.
  */
 export function createPreview(A) {
-    const { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need, loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect, onCanvas } = A;
+    const { ctx, S, H, main, layer, library, settings, scan, render, heroBook, need, loadingNote, linkable, buildBookModel, openHeroTab, showOnCanvas, inspect, onCanvas, chatGreetings, greetingSelection } = A;
 
     /** Where Preview can start from (BUILD_SPEC 15.5): the open chat, Fresh start, and each greeting of its character. */
     function previewSeeds() {
         const c = ctx();
+        const book = heroBook();
+        const data = book ? library.peek(book) : null;
+        const sel = book ? greetingSelection(book) : null;
         const chat = library.chatOpen() ? c.chat ?? [] : [];
         const ch = !c.groupId && c.characterId !== undefined ? c.characters?.[c.characterId] : null;
         const seeds = [];
@@ -30,18 +31,20 @@ export function createPreview(A) {
             const name = c.groupId ? 'Group chat' : `${ch?.name ?? 'Open'} chat`;
             seeds.push({
                 id: 'chat', label: `${name} · after ${base.length} message${base.length === 1 ? '' : 's'}`, sub: 'The open chat\'s latest exchange and how far its story has got',
-                base, greeting: openingGreeting(chat, ch), user: u < 0 ? '' : chat[u].mes ?? '', reply: reply?.mes ?? '',
+                base, greeting: c.groupId ? null : openingGreeting(chat, ch), user: u < 0 ? '' : chat[u].mes ?? '', reply: reply?.mes ?? '',
+                avatar: c.groupId ? null : ch?.avatar ?? null,
             });
         }
-        seeds.push({ id: 'fresh', label: 'Fresh start', sub: 'From the beginning, nothing fired yet', base: [], greeting: null, user: '', reply: '' });
-        if (GREETINGS && ch?.avatar && library.chatOpen()) {
-            greetingsOf(ch).forEach((text, n) => {
-                if (!String(text ?? '').trim()) return;
-                const mes = c.substituteParams ? c.substituteParams(text) : text;
-                seeds.push({
-                    id: `greet:${n}`, label: `Start at ${greetingName(n)}`, sub: String(mes).replace(/\s+/g, ' ').trim().slice(0, 80),
-                    base: [{ is_user: false, name: ch.name, mes }], greeting: `@${ch.avatar}:${n}`, user: '', reply: '',
-                });
+        // A manual no-chat edit pick is not runtime state; Fresh start compiles no greetings without a real chat.
+        const freshAvatar = sel?.avatar ?? (library.chatOpen() && !c.groupId ? ch?.avatar ?? null : null);
+        seeds.push({ id: 'fresh', label: 'Fresh start', sub: 'From the beginning, nothing fired yet', base: [], greeting: null, user: '', reply: '', avatar: freshAvatar });
+        for (const g of (data ? chatGreetings(data, book) : [])) {
+            const mes = c.substituteParams ? c.substituteParams(g.full) : g.full;
+            seeds.push({
+                id: `greet:${g.ref.char}:${g.ref.greeting}`, label: `Start at ${g.title}`,
+                sub: [g.nickname ? g.canonical : '', String(mes).replace(/\s+/g, ' ').trim().slice(0, 80)].filter(Boolean).join(' · '),
+                base: [{ is_user: false, name: g.ref.name, mes }], greeting: `@${g.ref.char}:${g.ref.greeting}`, user: '', reply: '',
+                avatar: g.ref.char,
             });
         }
         return seeds;
@@ -63,7 +66,7 @@ export function createPreview(A) {
         // Engine inputs include Moments; ordinary-list visibility must not remove story logic.
         const shown = linkable(book, data);
         const entries = shown.map(e => ({ ...e, world: book }));
-        const model = buildBookModel(entries);
+        const model = buildBookModel(entries, { activeAvatar: seed.avatar ?? null });
         const g = scan?.globals?.() ?? {};
         const run = runPreview({
             entries, model, base: seed.base, greeting: seed.greeting, renamed: settings.renamed ?? {},

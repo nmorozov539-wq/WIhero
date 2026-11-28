@@ -162,7 +162,7 @@ let library = {
     exportBook: async () => {},
     isGlobal: name => globals.has(name),
     setGlobal: (name, on) => { if (on) globals.add(name); else globals.delete(name); app?.refresh(); },
-    links: name => (name === 'WIHero-N1' ? [{ name: 'Seraphina', kind: 'char' }, { name: 'Road trip', kind: 'chat' }] : []),
+    links: name => (name === 'WIHero-N1' ? [{ name: 'Seraphina', kind: 'char', avatar: 'Seraphina.png' }, { name: 'Road trip', kind: 'chat' }] : []),
     unlink: async () => {},
     linkChat: async () => {},
     chatOpen: () => false,
@@ -178,9 +178,19 @@ const countTokens = async text => {
     return Math.ceil(String(text ?? '').length / 4);
 };
 const perfChatLog = perf ? perfChat({ turns: perf.chats, long: true }) : null;
+// A greeting-capable character for the no-chat Hero checks. The harness has no chats; its worlds stay in memory.
+const HARNESS_CHARACTERS = perf ? [] : [{
+    name: 'Seraphina', avatar: 'Seraphina.png',
+    first_mes: 'The keeper looks up from the ledger. “You made it before the rain.”',
+    data: { alternate_greetings: ['The bell over the door rings twice.', 'A letter waits on the table, already opened.'] },
+}, {
+    name: 'Bob', avatar: 'Bob.png',
+    first_mes: 'Bob waves from the yard.',
+    data: { alternate_greetings: ['Bob is already at the gate.'] },
+}];
 const ctx = () => (perf
     ? { chat: perfChatLog, characters: [], getTokenCountAsync: countTokens }
-    : { chat: [], characters: [], getTokenCountAsync: null });
+    : { chat: [], characters: HARNESS_CHARACTERS, getTokenCountAsync: null });
 
 await loadBooks();
 // Under `perf`, the seeded books get their real model and a state object the page test can change, so Hero's chat

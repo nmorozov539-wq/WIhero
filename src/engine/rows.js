@@ -18,7 +18,8 @@ export const lockFound = (lock, text) => !!text && lock.phrases.some(p => matche
 export function itemTime(item, ctx) {
     const { state, baseline } = ctx;
     const entryTime = (key, self = false) => {
-        if (item.type === 'greeting' || key.startsWith('@')) {
+        // A greeting's own state key is book scoped (`Book/@char:n`); an entry is never a greeting.
+        if (item.type === 'greeting') {
             if (ctx.greetingOk && !ctx.greetingOk(key)) return null;
         }
         if ((state.fired[key] ?? 0) > 0) {

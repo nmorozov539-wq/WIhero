@@ -255,10 +255,14 @@ deeper twin there, the same hues at least 3:1 against the canvas (checked by
   tag reads "HAPPENED" (solid accent border) or "NOT YET".
 - **Trackers**: a card whose text the model writes shows its value in the
   open chat in bronze.
-- **Greeting cards** (retired for V1, CONCEPTS 3.12, so not drawn now) are start cards: rounded on the left like a speech bubble,
-  a chat icon, "START" above the name ("Greeting", "Alt 2"), the greeting's
-  opening words in the content font, in italics. No color of their own; out
-  ports only. A missing character's greeting is drawn dashed and faded.
+- **Greeting cards** are start cards: rounded on the left like a speech bubble,
+  a chat icon, "START" above the name (the nickname when one matches, otherwise
+  "Greeting" or "Alt 2"), the greeting's opening words in the content font, in
+  italics. The canonical name stays visible as secondary text where it could be
+  hidden by a nickname. No color of their own; out ports only. A changed
+  greeting or a nickname saved for older text carries the same "!" review mark
+  as other cards. A stored rule whose character or numbered greeting is gone is
+  listed in the book menu's Unavailable greeting rules sheet, not drawn.
 
 ### 7.6 Layout and view
 

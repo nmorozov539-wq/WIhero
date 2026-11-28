@@ -78,8 +78,12 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
     const character = () => {
         const c = ctx();
         if (c.groupId) return null;
+        // No chat is no runtime scope: the editor's manual greeting pick must never reach the engine.
+        if (!c.chatId && !c.getCurrentChatId?.()) return null;
         return c.characters?.[c.characterId] ?? null;
     };
+    /** The one character whose greetings count in this chat; null for no chat, a group chat, or no avatar. */
+    const activeAvatar = () => character()?.avatar ?? null;
     const stateOptions = chat => ({ greeting: openingGreeting(chat, character()), renamed: settings.renamed ?? {} });
     const greetingFp = greetingFpOf(() => ctx().characters, st.getStringHash);
 
@@ -96,11 +100,15 @@ export function createHooks({ ctx, st, settings, onChange = () => {}, health = n
         // Compare the inputs buildModel reads: every field of it that an entry with story logic has, ordinary ST fields
         // included (`disable`, key words, probability…). Entries without story logic never reach the model, and ST's
         // `hash` and `decorators` (present when the entries come from getSortedEntries, not from the load event)
-        // aren't read, so the same books give the same signature from either path.
-        const sig = JSON.stringify(entries.filter(e => rawConfig(e) != null).map(modelInput)) + `\n${greetingSignature(character(), st.getStringHash)}`;
+        // aren't read, so the same books give the same signature from either path. The active avatar and every
+        // greeting fingerprint are part of it: a chat switch or a same-length greeting edit rebuilds the model.
+        const who = character();
+        const avatar = activeAvatar();
+        const sig = JSON.stringify(entries.filter(e => rawConfig(e) != null).map(modelInput))
+            + `\n${avatar === null ? '\u0000no-avatar' : avatar}\n${greetingSignature(who, st.getStringHash)}`;
         if (sig === signature) return;
         signature = sig;
-        model = buildModel(entries, { greetingFp });
+        model = buildModel(entries, { greetingFp, activeAvatar: avatar });
     }
 
     const sticky = type => {
