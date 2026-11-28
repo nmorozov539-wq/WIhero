@@ -15,9 +15,8 @@ const bob = {
     data: { alternate_greetings: ['Bob alt one.', 'Bob alt two.'] },
 };
 
-function harness({ chatOpen = false, characterId = 0, groupId = null, links = [] } = {}) {
+function harness({ chatOpen = false, characterId = 0, groupId = null, links = [], characters = [alice, bob] } = {}) {
     const H = {};
-    const characters = [alice, bob];
     const ctx = () => ({ characters, characterId, groupId });
     const library = { chatOpen: () => chatOpen, links: () => links };
     const settings = { books: {} };
@@ -30,15 +29,11 @@ function harness({ chatOpen = false, characterId = 0, groupId = null, links = []
     };
 }
 
-test('no chat: no greetings until the linked character is picked for editing', () => {
+test('no chat: one available linked character is selected automatically', () => {
     const { H, greetings } = harness({ links: [{ kind: 'char', name: 'Alice', avatar: 'Alice.png' }] });
-    assert.equal(greetings.selection('Book'), null);
-    assert.deepEqual(greetings.chatGreetings({ entries: {} }, 'Book'), []);
+    assert.equal(greetings.selection('Book')?.source, 'linked');
     assert.deepEqual(greetings.linkedCharacters('Book').map(x => x.avatar), ['Alice.png']);
-
-    H.greet = { book: 'Book', avatar: 'Alice.png' };
     const sel = greetings.selection('Book');
-    assert.equal(sel?.source, 'pick');
     assert.equal(sel?.character, alice);
     const cards = greetings.chatGreetings({ entries: {} }, 'Book');
     assert.deepEqual(cards.map(g => g.ref.greeting), [0, 1]);
@@ -46,7 +41,10 @@ test('no chat: no greetings until the linked character is picked for editing', (
 });
 
 test('a manual pick is scoped to one book view and cleared when the book changes', () => {
-    const { H, greetings } = harness({ links: [{ kind: 'char', name: 'Alice', avatar: 'Alice.png' }] });
+    const { H, greetings } = harness({ links: [
+        { kind: 'char', name: 'Alice', avatar: 'Alice.png' },
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+    ] });
     greetings.selection('Book'); // entering the view
     H.greet = { book: 'Book', avatar: 'Alice.png' };
     assert.equal(greetings.selection('Book')?.avatar, 'Alice.png');
@@ -55,7 +53,10 @@ test('a manual pick is scoped to one book view and cleared when the book changes
 });
 
 test('a draw for another book does not end the current view\'s pick', () => {
-    const { H, greetings } = harness({ links: [{ kind: 'char', name: 'Alice', avatar: 'Alice.png' }] });
+    const { H, greetings } = harness({ links: [
+        { kind: 'char', name: 'Alice', avatar: 'Alice.png' },
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+    ] });
     H.book = 'Book';
     greetings.selection('Book');
     H.greet = { book: 'Book', avatar: 'Alice.png' };
@@ -92,6 +93,17 @@ test('a group chat has no greeting selection at all', () => {
     assert.deepEqual(greetings.chatGreetings({ entries: {} }, 'Book'), []);
 });
 
+test('group context suppresses the source row even before a chat is reported open', () => {
+    const { greetings } = harness({
+        groupId: 'group',
+        links: [
+            { kind: 'char', name: 'Alice', avatar: 'Alice.png' },
+            { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+        ],
+    });
+    assert.deepEqual(greetings.sourceState('Book'), { visible: false, selection: null, choices: [], canPick: false });
+});
+
 test('unlinking drops the no-chat pick but the rules stay in the book', () => {
     const links = [{ kind: 'char', name: 'Alice', avatar: 'Alice.png' }];
     const { H, greetings } = harness({ links });
@@ -113,6 +125,36 @@ test('primary and auxiliary links are choices, deduplicated by avatar', () => {
         ],
     });
     assert.deepEqual(greetings.linkedCharacters('Book').map(x => x.avatar), ['Alice.png', 'Bob.png']);
+});
+
+test('missing linked characters are not selectable greeting sources', () => {
+    const { greetings } = harness({ links: [
+        { kind: 'char', name: 'Gone', avatar: 'Gone.png' },
+        { kind: 'aux', name: 'Also gone', file: 'Also gone' },
+    ] });
+    assert.deepEqual(greetings.linkedCharacters('Book'), []);
+    assert.equal(greetings.selection('Book'), null);
+});
+
+test('multiple linked characters wait for a book-scoped manual choice', () => {
+    const { H, greetings } = harness({ links: [
+        { kind: 'char', name: 'Alice', avatar: 'Alice.png' },
+        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+    ] });
+    assert.equal(greetings.selection('Book'), null);
+    H.greet = { book: 'Book', avatar: 'Bob.png' };
+    assert.equal(greetings.selection('Book')?.name, 'Bob');
+    assert.deepEqual(greetings.chatGreetings({ entries: {} }, 'Book').map(g => g.ref.greeting), [0, 1, 2]);
+});
+
+test('a selected character remains the source when it has no usable greetings', () => {
+    const quiet = { avatar: 'Quiet.png', name: 'Quiet', first_mes: '   ', data: { alternate_greetings: ['', '  '] } };
+    const { greetings } = harness({
+        characters: [quiet],
+        links: [{ kind: 'char', name: 'Quiet', avatar: 'Quiet.png' }],
+    });
+    assert.equal(greetings.selection('Book')?.name, 'Quiet');
+    assert.deepEqual(greetings.chatGreetings({ entries: {} }, 'Book'), []);
 });
 
 test('exporting and reimporting the book JSON keeps every greeting ref', () => {

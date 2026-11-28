@@ -232,7 +232,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), openFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null, greet: null, greetDismissed: null, greetView: null },
+        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), openFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null, greet: null, greetView: null },
         // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
         desk: false,
     };
@@ -998,11 +998,9 @@ export function createApp(deps) {
     }));
     function greetingSelection(book) { return greetings().selection(book); }
     function chatGreetings(data, book) { return greetings().chatGreetings(data, book); }
-    function greetBanner(book, data) { return greetings().banner(book, data); }
-    /** A book view is opened afresh: a manual greeting pick and its Dismiss belong to the previous view only. */
+    /** A book view is opened afresh: a manual greeting pick belongs to the previous view only. */
     function resetGreetView() {
         H.greet = null;
-        H.greetDismissed = null;
         H.greetView = null;
         H.openFolders?.delete('\u0000greetings'); // the drawer starts closed for the new view
     }
@@ -1010,7 +1008,7 @@ export function createApp(deps) {
     // callable from anywhere above, as the functions were.
     let heroShellView = null;
     const heroShell = () => (heroShellView ??= createHeroShell({
-        newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, greetBanner, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        newBookHere: () => heroNewBook(), importHere: () => heroImport(), H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render: () => render(), renderEntry,
         renderGuideTab, renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas: onHeroCanvas,
@@ -1073,6 +1071,8 @@ export function createApp(deps) {
         listShown: () => listShown(), deskSettings, deskColumns, createEntry, entriesShown, momentsOf, sortBy: () => sortBy(),
         entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas: onHeroCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries, folderSheet,
         bulkEdit: (book, uids) => normal().bulkEdit(book, uids), clashCount, clashesSheet,
+        greetingSourceState: book => greetings().sourceState(book),
+        openGreetingPicker: (book, data, anchor) => greetings().openPicker(book, data, anchor),
         nickname: (book, avatar, n, fp) => greetings().nickname(book, avatar, n, fp),
         setNickname: (book, avatar, n, fp, name) => greetings().setNickname(book, avatar, n, fp, name),
     }));

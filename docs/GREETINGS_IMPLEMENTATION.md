@@ -94,31 +94,33 @@ path.
 Selection is separate from runtime:
 
 1. Single-character chat open: that chat's character is used automatically for
-   every book, including global and differently linked books. The no-chat
-   prompt is not shown. Switching chats switches the displayed character and
+   every book, including global and differently linked books. Its name is shown
+   without a picker. Switching chats switches the displayed character and
    removes the previous character's greeting cards and links from view.
-2. No chat open: every book view starts with no greeting cards. A slim
-   nonmodal notice, under the canvas's established top controls, reads
-   `N linked chars found. Pick one to load its greetings.` `Pick` is a button
-   opening an avatar-and-name dropdown at itself; a cross on the right
-   dismisses the notice for that view. The list combines primary and auxiliary
-   character links, deduplicated by avatar; chat links are not character
-   choices. The notice highlights only its text background, stays on one line,
-   and does not move the legend or cards.
+2. No chat open: every book view starts with no greeting cards. The compact
+   Greetings header below search is the only source selector. One available
+   linked character is used automatically and starts collapsed. Several
+   available linked characters with no choice show `Choose character`; the
+   character-name control opens an avatar-and-name dropdown. The list combines
+   primary and auxiliary character links, deduplicated by avatar; chat links
+   and missing/deleted characters are not choices.
 3. A manual no-chat pick fills the Greetings drawer for editing only; it does
    not place greeting cards. A card appears only when its drawer dot places it
-   or a stored rule links it. A small `Greetings: <name> · Change · Hide`
-   control sits in the same notice. `Change` opens the same dropdown; `Hide`
-   clears the selection. The choice is transient, scoped to the current Hero
-   book view. Reopening a book, changing books, opening a chat, or unlinking
-   the selected character clears it. It is never saved to settings.
-4. No linked characters and no chat: no notice and no greeting cards. Group
-   chat: no greeting cards or notice.
+   or a stored rule links it. A manual choice expands the drawer immediately;
+   collapsing it hides the rows without removing placed cards. The choice is
+   transient, scoped to the current Hero book view. Reopening a book, changing
+   books, opening a chat, or unlinking the selected character clears it. It is
+   never saved to settings.
+4. No linked characters and no chat: no Greetings row and no greeting cards.
+   Group chat: no greeting UI or cards.
 
 The selection uses `library.links(book)` for book-to-character choices. Avatar
 fallback images and duplicate display names stay distinguishable via avatar
-identity. The notice does not intercept canvas pan/zoom outside itself. It
-follows the existing desktop, phone, theme and reduced-motion patterns.
+identity. The header uses independent fold and source controls, truncates long
+names, and follows the existing desktop, phone, theme and reduced-motion
+patterns. Search never hides it; an expanded source with no matching rows says
+`No matching greetings`, and a source with no usable greetings says
+`<name> has no greetings`.
 
 The Hero entry panel's Greetings group is the greeting drawer. Each row has
 an adjacent Rename action that opens a compact text input with the current
@@ -143,9 +145,9 @@ the normal book edit/undo path; changing only a fingerprint is Re-pick.
 
 Focused tests cover at least:
 
-- No chat: zero fired greetings; Hero notice for 0, 1, and multiple linked
-  characters; manual choice fills the drawer without placing cards or changing
-  runtime state.
+- No chat: zero fired greetings; no row for zero sources, automatic collapsed
+  source for one, and `Choose character` for multiple; manual choice expands
+  the drawer without placing cards or changing runtime state.
 - Global and linked books in Bob's chat: Bob's greeting rules apply even if
   the book is linked only to Alice; Alice's stored rules are invisible and
   inactive. For a mixed AND row, the remaining conditions still work; a row

@@ -314,10 +314,13 @@ added to the book or the card, nothing is copied, nothing reaches the model.
 - Named like ST: Greeting, Alt 1, Alt 2… A nickname can replace the display
   label, with the canonical name shown as secondary text. Swiping the greeting
   before the first reply switches the scenario, with the usual rewind.
-- With no chat, Hero starts with no greeting cards and offers the book's linked
-  characters in a slim notice under the canvas's top controls. That pick fills
-  the drawer, is transient, places no cards and never marks a greeting fired.
-  With no links, or in a group chat, no greetings show and no notice appears.
+- With no chat, Hero starts with no greeting cards. Its Greetings drawer uses a
+  sole available linked character automatically, or shows `Choose character`
+  when several are available. A manual choice is transient, expands the drawer,
+  places no cards and never marks a greeting fired. With no available links, or
+  in a group chat, no greeting UI appears. Collapsing the drawer preserves any
+  explicitly placed cards. Search keeps the source visible and distinguishes
+  `No matching greetings` from `<name> has no greetings`.
 - Stored in the book only, on the entries its rules touch, with the character's
   avatar, the greeting's number and a fingerprint of its opening words. Runtime
   state keys are `<book>/@<avatar>:<n>`; old `@<avatar>:<n>` keys are inert.
