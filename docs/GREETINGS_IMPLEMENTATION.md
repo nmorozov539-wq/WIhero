@@ -97,27 +97,28 @@ Selection is separate from runtime:
    every book, including global and differently linked books. The no-chat
    prompt is not shown. Switching chats switches the displayed character and
    removes the previous character's greeting cards and links from view.
-2. No chat open: every book view starts with no greetings. If the book has one
-   character link, a nonmodal banner at the top of the Hero canvas reads
-   `Use <name>'s greetings while editing this book?` with `Use greetings` and
-   `Dismiss`. If several characters are linked, it reads `Choose a character's
-   greetings while editing this book` with a button opening an anchored menu
-   of avatar-and-name rows. The list combines primary and auxiliary character
-   links, deduplicated by avatar; chat links are not character choices.
-3. A manual no-chat pick displays greetings for editing only. A small
-   `Greetings: <name> · Change · Hide` control sits in the same top canvas
-   area. `Change` opens the same avatar-and-name picker; `Hide` clears the
-   selection. The choice is transient, scoped to the current Hero book view.
-   Reopening a book, changing books, opening a chat, or unlinking the selected
-   character clears it. It is never saved to settings.
-4. No linked characters and no chat: no banner and no greeting cards. Group
-   chat: no greeting cards or banner.
+2. No chat open: every book view starts with no greeting cards. A slim
+   nonmodal notice, under the canvas's established top controls, reads
+   `N linked chars found. Pick one to load its greetings.` `Pick` is a button
+   opening an avatar-and-name dropdown at itself; a cross on the right
+   dismisses the notice for that view. The list combines primary and auxiliary
+   character links, deduplicated by avatar; chat links are not character
+   choices. The notice highlights only its text background, stays on one line,
+   and does not move the legend or cards.
+3. A manual no-chat pick fills the Greetings drawer for editing only; it does
+   not place greeting cards. A card appears only when its drawer dot places it
+   or a stored rule links it. A small `Greetings: <name> · Change · Hide`
+   control sits in the same notice. `Change` opens the same dropdown; `Hide`
+   clears the selection. The choice is transient, scoped to the current Hero
+   book view. Reopening a book, changing books, opening a chat, or unlinking
+   the selected character clears it. It is never saved to settings.
+4. No linked characters and no chat: no notice and no greeting cards. Group
+   chat: no greeting cards or notice.
 
 The selection uses `library.links(book)` for book-to-character choices. Avatar
 fallback images and duplicate display names stay distinguishable via avatar
-identity. The banner covers no cards and does not intercept canvas pan/zoom
-outside itself. It follows the existing desktop, phone, theme and
-reduced-motion patterns.
+identity. The notice does not intercept canvas pan/zoom outside itself. It
+follows the existing desktop, phone, theme and reduced-motion patterns.
 
 The Hero entry panel's Greetings group is the greeting drawer. Each row has
 an adjacent Rename action that opens a compact text input with the current
@@ -142,8 +143,9 @@ the normal book edit/undo path; changing only a fingerprint is Re-pick.
 
 Focused tests cover at least:
 
-- No chat: zero fired greetings; Hero prompt for 0, 1, and multiple linked
-  characters; manual choice shows cards without changing runtime state.
+- No chat: zero fired greetings; Hero notice for 0, 1, and multiple linked
+  characters; manual choice fills the drawer without placing cards or changing
+  runtime state.
 - Global and linked books in Bob's chat: Bob's greeting rules apply even if
   the book is linked only to Alice; Alice's stored rules are invisible and
   inactive. For a mixed AND row, the remaining conditions still work; a row

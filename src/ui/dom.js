@@ -210,10 +210,12 @@ export function createLayer(layer, toastBox) {
      * A sheet from the bottom (or, with `menu`, the ☰ menu under the top row).
      * @param {string|null} title
      * @param {(sheet: HTMLElement) => void} build
-     * @param {{ menu?: boolean, help?: string, cls?: string, onClose?: () => void }} [opts]
+     * @param {{ menu?: boolean, help?: string, cls?: string, at?: Element, side?: 'right', onClose?: () => void }} [opts]
+     *   `at` opens an anchored popover at that control on every layout (a phone dropdown as well as a desktop menu).
+     *   `side: 'right'` opens beside it when there is room, otherwise below as usual.
      */
     function sheet(title, build, opts = {}) {
-        const anchor = pop.desk ? anchorRect(opts.at) : null;
+        const anchor = pop.desk || opts.at ? anchorRect(opts.at) : null;
         scrim(opts.menu || !!anchor);
         const sh = el('div', `sheet${opts.menu ? ' menu' : ''}${anchor ? ' pop' : ''}${opts.cls ? ` ${opts.cls}` : ''}`);
         sh.setAttribute('role', anchor ? 'menu' : 'dialog');
@@ -222,7 +224,7 @@ export function createLayer(layer, toastBox) {
         if (opts.help) sh.append(el('p', 'help', opts.help));
         build(sh);
         layer.append(sh);
-        if (anchor) place(sh, anchor);
+        if (anchor) place(sh, { ...anchor, side: opts.side });
         if (opts.onClose) closers.push(opts.onClose);
         // Explain mode never puts the cursor or a keyboard into a sheet's first field.
         if (!api.explainActive?.()) sh.querySelector('button, input')?.focus({ preventScroll: true });
@@ -231,7 +233,7 @@ export function createLayer(layer, toastBox) {
 
     /** Where a desktop menu opens: under the control just pressed, at a right-click's point, or near the top. */
     function anchorRect(at) {
-        if (at?.getBoundingClientRect) { const r = at.getBoundingClientRect(); return { x: r.left, y: r.bottom + 4, above: r.top - 4 }; }
+        if (at?.getBoundingClientRect) { const r = at.getBoundingClientRect(); return { x: r.left, y: r.bottom + 4, above: r.top - 4, right: r.right, top: r.top }; }
         if (at && Number.isFinite(at.x)) return { x: at.x, y: at.y, above: at.y };
         const a = pop.at;
         if (!a || performance.now() - a.t > 1500) return { center: true };
@@ -243,12 +245,23 @@ export function createLayer(layer, toastBox) {
         const r = c.getBoundingClientRect();
         // A row inside another menu: the new menu opens beside it.
         if (c.closest?.('.sheet.pop')) return { x: r.left + 24, y: r.bottom + 2, above: r.top - 2 };
-        return { x: r.left, y: r.bottom + 4, above: r.top - 4, right: r.right };
+        return { x: r.left, y: r.bottom + 4, above: r.top - 4, right: r.right, top: r.top };
     }
     function place(sh, a) {
         const box = layer.getBoundingClientRect();
         const w = sh.offsetWidth;
         const h = sh.offsetHeight;
+        // A menu asked to open to the right of its control (the greeting Pick) does so when there is room; otherwise
+        // it falls back to the usual below-the-control placement.
+        if (a.side === 'right' && a.right !== undefined) {
+            const left = a.right - box.left + 4;
+            if (left + w <= box.width - 8) {
+                sh.style.left = `${left}px`;
+                sh.style.top = `${Math.max(8, (a.top ?? a.above) - box.top)}px`;
+                sh.style.maxHeight = `${Math.max(160, box.height - Math.max(8, (a.top ?? a.above) - box.top) - 8)}px`;
+                return;
+            }
+        }
         if (a.center) {
             Object.assign(sh.style, { left: `${Math.max(8, (box.width - w) / 2)}px`, top: `${Math.min(80, box.height / 6)}px` });
             sh.style.maxHeight = `${box.height - 96}px`;

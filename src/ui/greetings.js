@@ -2,6 +2,7 @@
 // decides which character's greetings are shown for the book on the canvas, names them, and repairs refs whose
 // character or numbered greeting has gone. Runtime greeting state is never read or written here.
 import { btn, el } from './dom.js';
+import { ic } from './icons.js';
 import { greetingLabel, setGreetingName, titleOf, configOf, entriesOf } from './data.js';
 import { bookEditor, greetingName } from './pieces.js';
 import { greetingFingerprint, greetingsOf } from '../chat-state.js';
@@ -198,10 +199,10 @@ export function createGreetings(A) {
                 row.addEventListener('pointerdown', e => e.stopPropagation());
                 sh.append(row);
             }
-        }, { at: anchorEl, help: 'Their greetings show on this book while you edit. Nothing is marked as fired.' });
+        }, { at: anchorEl, side: 'right', cls: 'greetpick', help: 'Their greetings show on this book while you edit. Nothing is marked as fired.' });
     }
 
-    /** The top-of-canvas greeting control: a prompt for linked characters, or the current manual pick. Null otherwise. */
+    /** The slim top-of-canvas greeting notice: linked characters to pick from, or the current manual pick. */
     function banner(book, data) {
         if (!book || ctx().groupId || library.chatOpen?.()) return null;
         ensureView(book);
@@ -211,9 +212,11 @@ export function createGreetings(A) {
         const pick = selection(book);
         const bar = el('div', 'greetban');
         bar.setAttribute('role', 'status');
+        // A press on the notice is not a canvas pan or zoom.
+        bar.addEventListener('pointerdown', e => e.stopPropagation());
         if (pick?.source === 'pick') {
             bar.append(el('span', 'gbtext', `Greetings: ${pick.name}`));
-            bar.append(el('span', 'gsep', '·'), btn('linkish', 'Change', ev => { openPicker(book, data, ev.currentTarget); }, 'Change the character'));
+            bar.append(btn('linkish', 'Change', ev => { openPicker(book, data, ev.currentTarget); }, 'Change the character'));
             bar.append(el('span', 'gsep', '·'), btn('linkish', 'Hide', () => {
                 H.greet = null;
                 H.greetDismissed = book;
@@ -222,20 +225,11 @@ export function createGreetings(A) {
             return bar;
         }
         if (H.greetDismissed === book) return null;
-        if (links.length === 1) {
-            const link = links[0];
-            bar.append(el('span', 'gbtext', `Use ${link.name}'s greetings while editing this book?`));
-            bar.append(btn('linkish acc', 'Use greetings', () => {
-                const target = link.avatar ?? link.character?.avatar ?? null;
-                if (!target) { layer.toast('That character is not available'); return; }
-                H.greet = { book, avatar: target };
-                H.greetDismissed = null;
-                render();
-            }), btn('linkish', 'Dismiss', () => { H.greetDismissed = book; render(); }));
-        } else {
-            bar.append(el('span', 'gbtext', 'Choose a character\'s greetings while editing this book'));
-            bar.append(btn('linkish acc', 'Choose', ev => openPicker(book, data, ev.currentTarget), 'Choose a character'));
-        }
+        const many = links.length !== 1;
+        bar.append(el('span', 'gbtext', `${links.length} linked char${many ? 's' : ''} found.`));
+        bar.append(btn('linkish acc gpick', 'Pick', ev => { openPicker(book, data, ev.currentTarget); }, 'Pick a character'));
+        bar.append(el('span', 'gbtext', ' one to load its greetings.'));
+        bar.append(btn('gbx', ic('x'), () => { H.greetDismissed = book; render(); }, 'Dismiss'));
         return bar;
     }
 

@@ -289,14 +289,17 @@ entries.
 One canvas per book. Switching books switches the canvas. The ground is the
 theme's own background, solid, with a faint dot grid.
 
-When a book is open without a single-character chat, a nonmodal greeting bar
-sits at the top of the canvas, in its own layout row above the cards. With one
-linked character it offers "Use *name*'s greetings while editing this book?"
-with Use greetings and Dismiss; with several it offers a Choose button that
-opens an avatar-and-name picker. Once one is picked, the bar reads "Greetings:
-*name* · Change · Hide". The pick is for editing only and never marks a
-greeting fired. With no linked characters, or in a group chat, there is no bar.
-The bar does not cover cards or take canvas gestures outside itself.
+When a book is open without a single-character chat, a slim nonmodal notice
+sits under the canvas's top controls, over the canvas rather than in a layout
+row: it never moves the legend or the cards. It reads "*N* linked chars found.
+**Pick** one to load its greetings." *Pick* is a highlighted button opening an
+avatar-and-name dropdown at itself, and a cross on the right dismisses the
+notice for that view. The notice highlights only the background behind its text
+and stays on one line, in a small font. Once one is picked, it reads
+"Greetings: *name* · Change · Hide". The pick is for editing only, fills the
+Greetings drawer and never places cards or marks a greeting fired. With no
+linked characters, or in a group chat, there is no notice. It takes canvas
+gestures only on its own box.
 
 **Gestures**
 
@@ -469,7 +472,7 @@ style: a list first, the book at the bottom.
 | Keyword clashes row | Under the search box when the book has any: "18 keyword clashes ›", opening the Keyword clashes sheet. They are about key words, so they sit with the entries rather than on the canvas (Features 8). Gone with Mark keyword clashes off |
 | Folder header | Name, count, collapse arrow. Folders nest: Places/Town is a Town header inside Places, and each count includes the folders inside it. A search opens every folder |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
-| Greetings group | When a character is selected (an open single-character chat, or a no-chat editing pick), first in the list: each greeting as a row with its nickname (or "Greeting"/"Alt n"), opening words, a Rename action, an "!" when its text changed, and the usual dot to jump to its card. Greeting cards show with the selected character, even before a rule is attached. Rename opens a compact input with Save and Clear; names are trimmed to 40 characters and stored in settings only. No greetings show in a group chat or with no character selected |
+| Greetings group | When a character is selected (an open single-character chat, or a no-chat editing pick), first in the list and closed until opened: each greeting as a row with its nickname (or "Greeting"/"Alt n"), opening words, a Rename action, an "!" when its text changed, and the usual dot to place or jump to its card. A greeting card appears only when its dot is used or a stored rule links it. Rename opens a compact input with Save and Clear; names are trimmed to 40 characters and stored in settings only. No greetings show in a group chat or with no character selected |
 | Moments group | After the Greetings group: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |

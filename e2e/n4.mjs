@@ -267,8 +267,10 @@ await run(async () => {
         return ch ? [ch.first_mes ?? '', ...(ch.data?.alternate_greetings ?? [])].filter(t => String(t ?? '').trim()).length : 0;
     });
     assert.ok(greetingCount > 0, 'the chat character has greetings');
+    assert.equal(await $('.prow.greet:not(.moment)').count(), 0, 'the Greetings drawer starts closed');
+    await $('.phdr:has-text("Greetings")').click();
     assert.equal(await $('.prow.greet:not(.moment)').count(), greetingCount, 'every greeting has a panel row');
-    assert.equal(await $('.card.greet:not(.moment)').count(), greetingCount, 'every greeting has a card');
+    assert.equal(await $('.card.greet:not(.moment)').count(), 0, 'greetings do not spawn on the canvas');
     await $('.canvas-tools button[aria-label="Fit to screen"]').click();
     await wait(300);
     await shot('fit');

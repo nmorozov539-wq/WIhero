@@ -509,10 +509,12 @@ export function createHeroShell(A) {
         if (S.desk) deskColumns();
         const vp = heroMount?.vp;
         if (vp) {
-            // The greeting prompt/control sits above the canvas and takes its own layout row, so it never covers cards.
+            // The greeting notice is a slim overlay under the canvas's top controls, not a layout row: it never moves
+            // the legend or the cards and only its own box takes pointer events.
             main.querySelector(':scope > .greetban')?.remove();
+            vp.querySelector(':scope > .greetban')?.remove();
             const ban = greetBanner(book, data);
-            if (ban) main.insertBefore(ban, vp);
+            if (ban) vp.append(ban);
             vp.querySelector(':scope > .checkchip')?.remove();
             vp.querySelector(':scope > .histbtns')?.remove();
             vp.append(...checksChip(book, data), historyButtons(book));

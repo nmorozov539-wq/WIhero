@@ -232,7 +232,7 @@ export function createApp(deps) {
         hiddenEntries: new Map(), // book → Set(uid) waiting on an Undo toast
         mode: 'normal',
         // Hero mode (N3): one book's canvas, and entry tabs.
-        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null, greet: null, greetDismissed: null, greetView: null },
+        hero: { book: null, tabs: [], active: 'canvas', explain: false, guide: null, panel: false, q: '', legend: false, chatState: false, closedFolders: new Set(), openFolders: new Set(), insp: null, pv: null, bar: { armed: null, edit: null }, dlist: null, dinsp: null, pick: [], psel: null, pscroll: 0, pbook: null, greet: null, greetDismissed: null, greetView: null },
         // Desktop (LAYOUT "Desktop"): where ST uses its desktop layout, wider than 1000px. Checked again on resize.
         desk: false,
     };
@@ -1000,7 +1000,12 @@ export function createApp(deps) {
     function chatGreetings(data, book) { return greetings().chatGreetings(data, book); }
     function greetBanner(book, data) { return greetings().banner(book, data); }
     /** A book view is opened afresh: a manual greeting pick and its Dismiss belong to the previous view only. */
-    function resetGreetView() { H.greet = null; H.greetDismissed = null; H.greetView = null; }
+    function resetGreetView() {
+        H.greet = null;
+        H.greetDismissed = null;
+        H.greetView = null;
+        H.openFolders?.delete('\u0000greetings'); // the drawer starts closed for the new view
+    }
     // Built on first use: some of what it uses is defined further down this closure. The wrappers keep the names
     // callable from anywhere above, as the functions were.
     let heroShellView = null;

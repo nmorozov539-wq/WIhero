@@ -152,13 +152,11 @@ export function buildGraph(m) {
     return { edges: edges.filter(x => x.to), rows, switches, packs };
 }
 
-/** The cards on the canvas: everything linked, pack members, placed entries, and the selected character's greetings. */
+/** The cards on the canvas: everything linked, pack members, and entries placed by hand. */
 export function canvasSet(m, g, placed) {
     const s = new Set(placed);
     for (const x of g.edges) for (const k of [x.from, x.to]) if (!k.startsWith('pack:')) s.add(k);
     for (const p of g.packs) m.packMembers(p).forEach(e => s.add(e.id));
-    // Greeting cards are the editing view of the selected character: they show even before a rule is attached.
-    for (const e of m.E) if (e.greeting) s.add(e.id);
     return new Set([...s].filter(id => m.byId(id)));
 }
 

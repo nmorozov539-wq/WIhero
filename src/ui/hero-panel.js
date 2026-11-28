@@ -248,8 +248,9 @@ export function createHeroPanel(A) {
             // starts from them.
             const greets = chatGreetings(st.data, book).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.canonical.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
             if (greets.length) {
-                const open = !H.closedFolders.has('\u0000greetings');
-                const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.closedFolders.add('\u0000greetings') : H.closedFolders.delete('\u0000greetings'); fill(); });
+                // Greetings start folded: the drawer is a list to open, not a group that pushes the entries down.
+                const open = H.openFolders.has('\u0000greetings');
+                const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.openFolders.delete('\u0000greetings') : H.openFolders.add('\u0000greetings'); fill(); });
                 explainNode(hd, 'panel.folder', { title: 'Greetings' });
                 hd.querySelector('small').textContent = greets.length;
                 list.append(hd);
