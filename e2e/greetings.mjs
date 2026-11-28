@@ -1,6 +1,6 @@
-// Greetings in Hero mode, in the browser harness (no SillyTavern and no chat): a linked character is offered for
-// editing, choosing her shows greeting cards without firing one, the panel renames them, Clear restores the
-// canonical label, and Hide takes the cards away. Nicknames stay in WI Hero's settings.
+// Greetings in Hero mode, in the browser harness (no SillyTavern and no chat): source discovery and switching live
+// in the drawer, a sole linked character is automatic, manual choices open the folder, and search keeps the source
+// control visible. Greeting cards are still placed explicitly and nicknames stay in WI Hero's settings.
 //   CHROMIUM=/path/to/chrome node e2e/greetings.mjs
 import { createRequire } from 'node:module';
 import http from 'node:http';
@@ -24,6 +24,8 @@ let step = 0;
 const ok = msg => console.log(`ok ${++step} - ${msg}`);
 const errors = [];
 const BOOK = 'WIHero-N1';
+const LONG_BOB = 'Bob with an extraordinarily long character name';
+const LONG_SERAPHINA = 'Seraphina of the Very Long Character Name';
 
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
 page.on('pageerror', e => errors.push(e.message));
@@ -50,35 +52,18 @@ const cards = () => page.evaluate(() => {
         tag: c.querySelector('.tag')?.textContent ?? '',
     }));
 });
-const bannerText = () => page.evaluate(() => document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban')?.textContent ?? '');
 const settingsNames = () => page.evaluate(book => structuredClone(wihero.settings.books[book]?.greetingNames ?? {}), BOOK);
 
-// No chat, one linked character: a slim notice, no cards until one is placed.
+// No chat, one linked character: it is used automatically in the one collapsed drawer row.
 await hero();
 await $('.vp').waitFor({ timeout: 30000 });
-await $('.greetban').waitFor({ timeout: 30000 });
-assert.match(await bannerText(), /1 linked char found\./);
-assert.match(await bannerText(), /Pick/);
+await $('.greethead').waitFor({ timeout: 30000 });
+assert.equal(await $('.greetban').count(), 0, 'there is no persistent canvas greeting notice');
+assert.match(await $('.greethead').textContent(), /Greetings/);
+assert.match(await $('.greethead').textContent(), /Seraphina/);
+assert.equal(await $('.greethead button.greetsource').count(), 0, 'a sole linked source needs no picker');
 assert.equal((await cards()).length, 0, 'found greetings do not spawn on the canvas');
-ok('no chat with one linked character shows the notice, without showing cards');
-
-// Pick opens a dropdown at the control, and choosing her starts the editing view but still no cards.
-await $('.greetban .gpick').click();
-await $('.sheet.pop .gopt').first().waitFor({ timeout: 30000 });
-assert.equal(await $('.sheet.pop .gopt').count(), 1);
-const geo = await page.evaluate(() => {
-    const root = document.getElementById('wihero-editor').shadowRoot;
-    const p = root.querySelector('.greetban .gpick').getBoundingClientRect();
-    const m = root.querySelector('.sheet.pop').getBoundingClientRect();
-    const layer = root.querySelector('.layer')?.getBoundingClientRect();
-    return { pickRight: p.right, popLeft: m.left, popW: m.width, layerW: layer?.width, layerLeft: layer?.left };
-});
-assert.ok(geo.popLeft >= geo.pickRight - 1, 'the dropdown opens to the right of Pick');
-await $('.sheet.pop .gopt:has-text("Seraphina")').click();
-await page.waitForFunction(() => document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban')?.textContent.includes('Greetings: Seraphina'), null, { timeout: 30000 });
-assert.equal((await cards()).length, 0, 'picking starts the drawer view only');
-assert.equal(await page.evaluate(() => !!wihero.app.state.hero.greet), true);
-ok('Pick opens a dropdown and selects Seraphina without spawning greeting cards');
+ok('one valid linked character is automatic and starts collapsed without a canvas notice');
 
 // The panel's Greetings drawer starts closed; opening it lists the rows. Rename is settings-only.
 await page.evaluate(() => { wihero.app.state.hero.panel = true; wihero.app.refresh(); });
@@ -122,56 +107,62 @@ assert.equal((await cards()).find(c => c.id.endsWith(':1')).title, 'Alt 1');
 assert.deepEqual(await settingsNames(), {});
 ok('Clear removes the nickname and restores Alt 1');
 
-// Hide takes the editing view away; nothing is marked fired.
-await $('.greetban button:has-text("Hide")').click();
-await page.waitForFunction(() => !document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban'), null, { timeout: 30000 });
-assert.equal((await cards()).length, 0, 'Hide removes the greeting cards');
-assert.equal(await page.evaluate(() => !!wihero.app.state.hero.greet), false);
-ok('Hide clears the manual choice, cards and notice');
+// Collapsing is the only hide action; placed cards remain an explicit canvas choice.
+await $('.phdr:has-text("Greetings")').click();
+assert.equal(await $('.prow.greet').count(), 0, 'collapsing hides the greeting rows');
+assert.equal((await cards()).length, 1, 'collapsing does not silently remove a placed card');
+ok('collapsing replaces the old Hide action without changing placed cards');
 
-// Several linked characters: the banner offers the picker, and choosing another character switches the cards.
-await page.evaluate(book => {
+// Several linked characters: the drawer itself asks for a source, and a manual choice expands it immediately.
+await page.evaluate(({ book, longBob }) => {
     wihero.library.links = () => [
         { kind: 'char', name: 'Seraphina', avatar: 'Seraphina.png' },
-        { kind: 'char', name: 'Bob', avatar: 'Bob.png' },
+        { kind: 'char', name: longBob, avatar: 'Bob.png' },
     ];
     const h = wihero.app.state.hero;
     h.greet = null;
-    h.greetDismissed = null;
     h.greetView = null;
+    h.openFolders.delete('\u0000greetings');
     h.panel = true;
     wihero.app.refresh();
-}, BOOK);
-await $('.greetban').waitFor({ timeout: 30000 });
-assert.match(await bannerText(), /2 linked chars found\./);
-await $('.greetban .gpick').click();
+}, { book: BOOK, longBob: LONG_BOB });
+await $('.greethead').waitFor({ timeout: 30000 });
+assert.match(await $('.greethead').textContent(), /Choose character/);
+assert.equal(await $('.prow.greet').count(), 0);
+await $('.greetsource').click();
 await $('.sheet.pop .gopt').first().waitFor({ timeout: 30000 });
 assert.equal(await $('.sheet.pop .gopt').count(), 2, 'both linked characters are offered with avatars and names');
 await $('.sheet.pop .gopt:has-text("Bob")').click();
-await page.waitForFunction(() => document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban')?.textContent.includes('Greetings: Bob'), null, { timeout: 30000 });
-assert.equal((await cards()).length, 0, 'switching characters does not spawn cards either');
-await page.evaluate(() => { wihero.app.state.hero.panel = true; wihero.app.refresh(); });
-if (!(await $('.prow.greet').count())) await $('.phdr:has-text("Greetings")').click();
+await page.waitForFunction(() => document.getElementById('wihero-editor').shadowRoot.querySelector('.greethead')?.textContent.includes('Bob'), null, { timeout: 30000 });
+assert.equal(await $('.greetsource').getAttribute('title'), LONG_BOB);
+assert.equal(await $('.greetsource span').evaluate(n => n.scrollWidth > n.clientWidth), true, 'a long switchable name is ellipsized');
 await $('.prow.greet').first().waitFor({ timeout: 30000 });
 assert.equal(await $('.prow.greet').count(), 2, 'Bob has two greeting rows');
-await $('.greetban button:has-text("Hide")').click();
-await page.waitForFunction(() => !document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban'), null, { timeout: 30000 });
-ok('several linked characters offer a dropdown; choosing Bob switches the drawer without cards');
+assert.equal(await page.evaluate(() => wihero.app.state.hero.openFolders.has('\u0000greetings')), true, 'manual choice expands the folder');
+assert.equal((await cards()).length, 0, 'switching sources does not carry Seraphina cards into Bob');
+
+await $('.panel .phead input').fill('not-a-greeting');
+assert.equal(await $('.greethead').count(), 1, 'search never hides the source selector');
+assert.equal(await $('.greetempty').textContent(), 'No matching greetings');
+await $('.panel .phead input').fill('');
+ok('multiple links use the drawer picker, expand after choice, and survive an empty search');
+await page.screenshot({ path: '/tmp/st-wihero-greetings-desktop.png', fullPage: true });
 
 // No links and no chat: no banner and no cards.
+await $('.panel .phead input').blur();
 await page.evaluate(book => {
     wihero.library.links = () => [];
     const h = wihero.app.state.hero;
     h.greet = null;
-    h.greetDismissed = null;
     h.greetView = null;
     h.panel = true;
     wihero.app.refresh();
 }, BOOK);
-await page.waitForTimeout(200);
+await page.waitForFunction(() => !document.getElementById('wihero-editor').shadowRoot.querySelector('.greethead'), null, { timeout: 30000 });
 assert.equal(await $('.greetban').count(), 0);
+assert.equal(await $('.greethead').count(), 0);
 assert.equal((await cards()).length, 0);
-ok('no linked characters and no chat show no banner and no greeting cards');
+ok('no linked characters and no chat show no Greetings row or greeting cards');
 
 // A stored rule whose character is gone is listed in the book menu and can be repointed to a real greeting.
 await page.evaluate(book => {
@@ -201,51 +192,38 @@ assert.equal(repointed?.greeting, 1);
 assert.equal(repointed?.name, 'Seraphina');
 ok('an orphaned greeting rule is listed and Repoint rewrites it to a real greeting');
 
-// Phone: the slim notice sits under the top controls and the drawer still starts closed.
+// Phone: the same compact drawer row fits, starts closed, and has no canvas overlay.
 const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
 phone.on('pageerror', e => errors.push(`phone: ${e.message}`));
 phone.on('console', m => { if (m.type() === 'error' && !m.location().url.endsWith('/favicon.ico')) errors.push(`phone: ${m.text().slice(0, 300)}`); });
 await phone.goto(`${BASE}?reset`);
 await phone.locator('#wihero-editor .tab').first().waitFor({ timeout: 120000 });
-await phone.evaluate(book => {
+await phone.evaluate(({ book, longName }) => {
+    wihero.library.links = () => [{ name: longName, kind: 'char', avatar: 'Seraphina.png' }];
     const S = wihero.app.state;
     S.mode = 'hero';
     S.hero.book = book;
     S.hero.active = 'canvas';
     S.hero.panel = false;
     wihero.app.refresh();
-}, BOOK);
-const pban = phone.locator('#wihero-editor .greetban');
-await pban.waitFor({ timeout: 30000 });
-assert.match(await pban.textContent(), /1 linked char found\./);
-await phone.locator('#wihero-editor .greetban .gpick').click();
-await phone.locator('#wihero-editor .sheet.pop .gopt').first().waitFor({ timeout: 30000 });
-const pgeo = await phone.evaluate(() => {
-    const root = document.getElementById('wihero-editor').shadowRoot;
-    const p = root.querySelector('.greetban .gpick').getBoundingClientRect();
-    const m = root.querySelector('.sheet.pop').getBoundingClientRect();
-    return { pickRight: p.right, popLeft: m.left };
-});
-assert.ok(pgeo.popLeft >= pgeo.pickRight - 1, 'on a phone the dropdown still opens to the right of Pick');
-await phone.locator('#wihero-editor .sheet.pop .gopt:has-text("Seraphina")').click();
-await phone.waitForFunction(() => document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban')?.textContent.includes('Greetings: Seraphina'), null, { timeout: 30000 });
-const rows = await phone.evaluate(() => {
-    const root = document.getElementById('wihero-editor').shadowRoot;
-    const b = root.querySelector('.greetban').getBoundingClientRect();
-    const vp = root.querySelector('.vp').getBoundingClientRect();
-    const controls = [...root.querySelectorAll('.panelBtn, .explainq')].map(n => n.getBoundingClientRect().bottom);
-    return { barTop: b.top, barLeft: b.left, barRight: b.right, width: innerWidth, vpTop: vp.top, vpBottom: vp.bottom, controlBottom: Math.max(...controls) };
-});
-assert.ok(rows.barTop >= rows.controlBottom, 'the notice is below the canvas top controls');
-assert.ok(rows.barTop > rows.vpTop && rows.barLeft >= 0 && rows.barRight <= rows.width, 'the notice is a fitting overlay inside the canvas');
+}, { book: BOOK, longName: LONG_SERAPHINA });
+assert.equal(await phone.locator('#wihero-editor .greetban').count(), 0);
 assert.equal(await phone.locator('#wihero-editor .vp .card.greet').count(), 0);
 await phone.locator('#wihero-editor .panelBtn').click();
-await phone.locator('#wihero-editor .phdr:has-text("Greetings")').waitFor({ timeout: 30000 });
+const phoneHead = phone.locator('#wihero-editor .greethead');
+await phoneHead.waitFor({ timeout: 30000 });
+await phone.waitForTimeout(350); // let the narrow drawer finish its slide-in transition before measuring it
+assert.match(await phoneHead.textContent(), /Seraphina/);
+assert.equal(await phone.locator('#wihero-editor .greetsource.static').getAttribute('title'), LONG_SERAPHINA);
+assert.equal(await phone.locator('#wihero-editor .greetsource.static span').evaluate(n => n.scrollWidth > n.clientWidth), true, 'a long static name is ellipsized');
+const phoneBox = await phoneHead.boundingBox();
+assert.ok(phoneBox.x >= 0 && phoneBox.x + phoneBox.width <= 390, 'the source row fits the narrow drawer');
 assert.equal(await phone.locator('#wihero-editor .prow.greet').count(), 0, 'the phone drawer starts closed too');
 await phone.locator('#wihero-editor .phdr:has-text("Greetings")').click();
 await phone.locator('#wihero-editor .prow.greet').first().waitFor({ timeout: 30000 });
 assert.equal(await phone.locator('#wihero-editor .prow.greet').count(), 3);
-ok('phone: the notice fits below the top controls and the drawer starts closed');
+ok('phone: the compact source row fits and the drawer starts closed');
+await phone.screenshot({ path: '/tmp/st-wihero-greetings-narrow.png', fullPage: true });
 
 assert.deepEqual(errors, [], `no page errors: ${errors.join('; ')}`);
 ok('no errors in either page');

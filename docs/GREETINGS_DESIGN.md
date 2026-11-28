@@ -14,22 +14,25 @@ the book open on the canvas. A greeting card is not a World Info entry.
   greetings. This wins over the book's links: a book linked only to Alice still
   shows Bob's greetings when Bob's chat is open. This is the same for global
   books and character-linked books.
-- With no chat open, Hero starts with no greeting cards. A book with linked
-  characters shows a slim nonmodal notice under the canvas's top controls:
-  `N linked chars found. Pick one to load its greetings.` The word `Pick` is a
-  button that opens an avatar-and-name dropdown at itself, and a cross at the
-  right dismisses the notice for that view. The notice highlights only the
-  background behind its text, stays on one line, and does not move the legend
-  or the cards. With no linked characters, there is no notice.
+- With no chat open, Hero starts with no greeting cards. The Greetings drawer
+  is the only source selector. One available linked character is used
+  automatically and starts collapsed. With several available linked
+  characters and none chosen, its header reads `Greetings · Choose character`
+  and opens an avatar-and-name dropdown. With no available linked character,
+  there is no Greetings row.
 - A manual pick with no chat is for editing only. It fills the Hero entry
   panel's Greetings drawer but does not add greeting cards to the canvas: a
   card appears only when its row dot places it, or when a stored rule links it.
   The pick does not mark a greeting as fired or create chat state. The choice
   belongs to the current Hero view; it does not silently select a character
-  the next time the book opens. While it is showing, a small `Greetings:
-  <name> · Change · Hide` control stays in the same notice; `Change` opens the
-  dropdown and `Hide` clears the choice.
-- Unlinking a character removes it from this no-chat notice and picker. The
+  the next time the book opens. Choosing manually expands the drawer at once;
+  its character-name control opens the same dropdown. Collapsing the drawer is
+  the only hide action and does not remove explicitly placed cards.
+- The source header remains visible while searching. An expanded source with
+  greetings but no matches says `No matching greetings`; one with no usable
+  greetings says `<name> has no greetings` and still permits switching when
+  several linked characters are available.
+- Unlinking or deleting a character removes it from this no-chat picker. The
   rules already written for its greetings stay in the book. Opening that
   character's chat shows its greetings and rules again, even if the book is no
   longer linked to it.
@@ -138,10 +141,11 @@ dependent state.
 ## Acceptance stories
 
 1. Open a global book without a chat: no greetings appear. If it is linked to
-   Alice, the canvas offers Alice for editing. Picking her fills the Greetings
-   drawer, but no greeting card is placed and none is marked fired.
-2. Link that book to Alice and Bob: the no-chat prompt offers both with names
-   and avatars. Open Bob's chat: Bob appears automatically, and Alice's greeting
+   Alice alone, the collapsed Greetings drawer uses Alice automatically, but no
+   greeting card is placed and none is marked fired.
+2. Link that book to Alice and Bob: the drawer offers both with names and
+   avatars. Choose Alice and it expands immediately. Open Bob's chat: Bob
+   appears automatically, and Alice's greeting
    rules are neither drawn nor applied.
 3. Open Bob's chat and a book linked only to Alice: Hero still shows Bob's
    greetings. A rule for Alice on an entry does not gate or close it in Bob's

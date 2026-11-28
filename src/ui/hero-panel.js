@@ -21,7 +21,7 @@ export function createHeroPanel(A) {
     const {
         S, H, main, root, layer, library, settings, saveSettings, render, canvas, listShown, deskSettings, deskColumns,
         createEntry, entriesShown, momentsOf, sortBy, entryFolder, chatGreetings, linkText, showOnCanvas, onCanvas, inspect, openHeroTab, bookPicker, heroBookMenu, deleteEntries,
-        folderSheet, bulkEdit, clashCount, clashesSheet, nickname, setNickname,
+        folderSheet, bulkEdit, clashCount, clashesSheet, nickname, setNickname, greetingSourceState, openGreetingPicker,
     } = A;
     let shell = null;
     let panelState = () => {};
@@ -246,16 +246,42 @@ export function createHeroPanel(A) {
             }
             // The open chat's character's greetings (BUILD_SPEC 15.4), placed with the dot like entries. First, as the story
             // starts from them.
-            const greets = chatGreetings(st.data, book).filter(g => !needle || g.title.toLowerCase().includes(needle) || g.canonical.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
-            if (greets.length) {
-                // Greetings start folded: the drawer is a list to open, not a group that pushes the entries down.
-                const open = H.openFolders.has('\u0000greetings');
-                const hd = btn(`phdr${open ? ' open' : ''}`, html`${ic('right')}<span>Greetings</span><small></small>`, () => { open ? H.openFolders.delete('\u0000greetings') : H.openFolders.add('\u0000greetings'); fill(); });
-                explainNode(hd, 'panel.folder', { title: 'Greetings' });
-                hd.querySelector('small').textContent = greets.length;
-                list.append(hd);
+            const sourceState = greetingSourceState(book);
+            const source = sourceState.selection;
+            const canPick = sourceState.canPick;
+            const allGreets = source ? chatGreetings(st.data, book) : [];
+            const greets = allGreets.filter(g => !needle || g.title.toLowerCase().includes(needle) || g.canonical.toLowerCase().includes(needle) || g.text.toLowerCase().includes(needle));
+            if (sourceState.visible) {
+                // Source discovery and the greeting folder share one compact row, but remain independent controls.
+                const open = !!source && H.openFolders.has('\u0000greetings');
+                const head = el('div', `greethead${open ? ' open' : ''}`);
+                const toggle = ev => {
+                    if (!source) { openGreetingPicker(book, st.data, ev.currentTarget); return; }
+                    open ? H.openFolders.delete('\u0000greetings') : H.openFolders.add('\u0000greetings');
+                    fill();
+                };
+                const fold = btn('phdr greetfold', html`${ic('right')}<span>Greetings</span><small></small>`, toggle,
+                    source ? `${open ? 'Collapse' : 'Expand'} greetings` : 'Choose a character for greetings');
+                fold.setAttribute('aria-expanded', String(open));
+                fold.querySelector('small').textContent = source ? allGreets.length : '';
+                explainNode(fold, 'panel.folder', { title: 'Greetings' });
+                head.append(fold);
+                if (canPick || !source) {
+                    const pick = btn('greetsource', html`<span></span>${ic('down', 's')}`, ev => openGreetingPicker(book, st.data, ev.currentTarget), source ? 'Change greeting character' : 'Choose a character');
+                    pick.querySelector('span').textContent = source?.name ?? 'Choose character';
+                    pick.title = source?.name ?? 'Choose character';
+                    head.append(pick);
+                } else {
+                    const name = el('span', 'greetsource static');
+                    name.append(el('span', '', source.name));
+                    name.title = source.name;
+                    head.append(name);
+                }
+                list.append(head);
                 if (open) {
                     const box = el('div', 'pgrp');
+                    if (!allGreets.length) box.append(el('div', 'greetempty', `${source.name} has no greetings`));
+                    else if (!greets.length) box.append(el('div', 'greetempty', 'No matching greetings'));
                     for (const g of greets) {
                         const r = el('div', 'prow greet');
                         r.dataset.key = g.key;

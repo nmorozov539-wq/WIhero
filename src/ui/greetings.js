@@ -2,7 +2,6 @@
 // decides which character's greetings are shown for the book on the canvas, names them, and repairs refs whose
 // character or numbered greeting has gone. Runtime greeting state is never read or written here.
 import { btn, el } from './dom.js';
-import { ic } from './icons.js';
 import { greetingLabel, setGreetingName, titleOf, configOf, entriesOf } from './data.js';
 import { bookEditor, greetingName } from './pieces.js';
 import { greetingFingerprint, greetingsOf } from '../chat-state.js';
@@ -85,7 +84,7 @@ export function createGreetings(A) {
         if (H.greetView === book) return;
         H.greetView = book;
         H.greet = null;
-        H.greetDismissed = null;
+        H.openFolders?.delete('\u0000greetings');
     }
 
     /** Character links that can be offered for editing: primary and auxiliary links, never a chat link. */
@@ -101,7 +100,8 @@ export function createGreetings(A) {
             const key = avatar ? `a:${avatar}` : `f:${link.file ?? link.name ?? ''}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            out.push({ avatar, name: link.name ?? ch?.name ?? link.file ?? avatar ?? 'Character', character: ch });
+            // Deleted and otherwise unavailable links are repair concerns, not selectable greeting sources.
+            if (avatar && ch) out.push({ avatar, name: link.name ?? ch.name ?? link.file ?? avatar, character: ch });
         }
         return out;
     }
@@ -111,23 +111,39 @@ export function createGreetings(A) {
         if (book) ensureView(book);
         const c = ctx();
         // A group chat has no greeting selection or greeting UI.
-        if (c.groupId) { H.greet = null; H.greetDismissed = null; return null; }
+        if (c.groupId) { H.greet = null; return null; }
         const chatOpen = !!library.chatOpen?.();
         if (chatOpen) {
             // A manual editing pick never reaches a chat, and opening one clears it.
             H.greet = null;
-            H.greetDismissed = null;
             const ch = c.characterId !== undefined ? c.characters?.[c.characterId] : null;
             if (!ch?.avatar) return null;
             const links = book ? library.links(book) ?? [] : [];
             const link = links.find(l => (l.kind === 'char' || l.kind === 'aux') && (l.avatar === ch.avatar || fileOf(l.file ?? '') === fileOf(ch.avatar)));
             return { avatar: ch.avatar, name: ch.name, character: ch, source: 'chat', linked: !!link || links.some(l => l.kind === 'chat') };
         }
+        // Background draws for other books must not resolve or replace this view's editing source.
+        if (H.book && book !== H.book) return null;
+        const links = linkedCharacters(book);
+        if (links.length === 1) {
+            const link = links[0];
+            H.greet = null;
+            return { avatar: link.avatar, name: link.name, character: link.character, source: 'linked', linked: true };
+        }
         const pick = H.greet;
         if (!pick || pick.book !== book || !pick.avatar) return null;
-        const link = linkedCharacters(book).find(l => l.avatar === pick.avatar || l.character?.avatar === pick.avatar);
+        const link = links.find(l => l.avatar === pick.avatar || l.character?.avatar === pick.avatar);
         if (!link) { H.greet = null; return null; }
         return { avatar: link.avatar ?? link.character?.avatar ?? pick.avatar, name: link.name, character: link.character, source: 'pick', linked: true };
+    }
+
+    /** Everything the drawer needs to decide whether and how to show its source row. */
+    function sourceState(book) {
+        if (!book || ctx().groupId) return { visible: false, selection: null, choices: [], canPick: false };
+        const selected = selection(book);
+        if (library.chatOpen?.()) return { visible: !!selected, selection: selected, choices: [], canPick: false };
+        const choices = linkedCharacters(book);
+        return { visible: !!selected || choices.length > 1, selection: selected, choices, canPick: choices.length > 1 };
     }
 
     /** The greetings of the selected/editing character that the book stores, with names and changed-text marks. */
@@ -183,7 +199,7 @@ export function createGreetings(A) {
 
     /** Choose a character's greetings for this no-chat book view. */
     function openPicker(book, data, anchorEl) {
-        const links = linkedCharacters(book).filter(l => l.avatar && l.character);
+        const links = linkedCharacters(book);
         layer.sheet('Choose a character', sh => {
             if (!links.length) { sh.append(el('p', 'help', 'This book is not linked to a character. Link one in the book menu first.')); return; }
             for (const link of links) {
@@ -192,7 +208,7 @@ export function createGreetings(A) {
                     if (!target) { layer.toast('That character is not available'); return; }
                     layer.close();
                     H.greet = { book, avatar: target };
-                    H.greetDismissed = null;
+                    H.openFolders?.add('\u0000greetings');
                     render();
                 });
                 row.append(avatarEl(ctx, link.avatar, link.name), el('span', 'grow', link.name));
@@ -200,37 +216,6 @@ export function createGreetings(A) {
                 sh.append(row);
             }
         }, { at: anchorEl, side: 'right', cls: 'greetpick', help: 'Their greetings show on this book while you edit. Nothing is marked as fired.' });
-    }
-
-    /** The slim top-of-canvas greeting notice: linked characters to pick from, or the current manual pick. */
-    function banner(book, data) {
-        if (!book || ctx().groupId || library.chatOpen?.()) return null;
-        ensureView(book);
-        // Only a link whose character ST can find has greetings to offer.
-        const links = linkedCharacters(book).filter(l => l.avatar && l.character);
-        if (!links.length) return null;
-        const pick = selection(book);
-        const bar = el('div', 'greetban');
-        bar.setAttribute('role', 'status');
-        // A press on the notice is not a canvas pan or zoom.
-        bar.addEventListener('pointerdown', e => e.stopPropagation());
-        if (pick?.source === 'pick') {
-            bar.append(el('span', 'gbtext', `Greetings: ${pick.name}`));
-            bar.append(btn('linkish', 'Change', ev => { openPicker(book, data, ev.currentTarget); }, 'Change the character'));
-            bar.append(el('span', 'gsep', '·'), btn('linkish', 'Hide', () => {
-                H.greet = null;
-                H.greetDismissed = book;
-                render();
-            }, 'Hide these greetings'));
-            return bar;
-        }
-        if (H.greetDismissed === book) return null;
-        const many = links.length !== 1;
-        bar.append(el('span', 'gbtext', `${links.length} linked char${many ? 's' : ''} found.`));
-        bar.append(btn('linkish acc gpick', 'Pick', ev => { openPicker(book, data, ev.currentTarget); }, 'Pick a character'));
-        bar.append(el('span', 'gbtext', ' one to load its greetings.'));
-        bar.append(btn('gbx', ic('x'), () => { H.greetDismissed = book; render(); }, 'Dismiss'));
-        return bar;
     }
 
     /** Every stored greeting ref whose character or numbered greeting no longer exists, grouped by char + number. */
@@ -324,10 +309,10 @@ export function createGreetings(A) {
         return groups;
     }
 
-    /** Drops a manual pick for a book view, without dismissing the linked-character prompt. */
+    /** Drops a manual pick for a book view. */
     function clearSelection(book) {
         if (!book || H.greet?.book === book) H.greet = null;
     }
 
-    return { selection, linkedCharacters, chatGreetings, nickname, setNickname, banner, openPicker, unavailable, clearSelection };
+    return { selection, sourceState, linkedCharacters, chatGreetings, nickname, setNickname, openPicker, unavailable, clearSelection };
 }

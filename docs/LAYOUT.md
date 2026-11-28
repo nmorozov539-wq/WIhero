@@ -289,17 +289,10 @@ entries.
 One canvas per book. Switching books switches the canvas. The ground is the
 theme's own background, solid, with a faint dot grid.
 
-When a book is open without a single-character chat, a slim nonmodal notice
-sits under the canvas's top controls, over the canvas rather than in a layout
-row: it never moves the legend or the cards. It reads "*N* linked chars found.
-**Pick** one to load its greetings." *Pick* is a highlighted button opening an
-avatar-and-name dropdown at itself, and a cross on the right dismisses the
-notice for that view. The notice highlights only the background behind its text
-and stays on one line, in a small font. Once one is picked, it reads
-"Greetings: *name* · Change · Hide". The pick is for editing only, fills the
-Greetings drawer and never places cards or marks a greeting fired. With no
-linked characters, or in a group chat, there is no notice. It takes canvas
-gestures only on its own box.
+Greeting discovery and character choice live only in the entry panel's
+Greetings row below search. Nothing greeting-specific overlays the canvas.
+The choice is for editing only and never places cards or marks a greeting
+fired; the drawer's dot still places a card explicitly.
 
 **Gestures**
 
@@ -472,7 +465,7 @@ style: a list first, the book at the bottom.
 | Keyword clashes row | Under the search box when the book has any: "18 keyword clashes ›", opening the Keyword clashes sheet. They are about key words, so they sit with the entries rather than on the canvas (Features 8). Gone with Mark keyword clashes off |
 | Folder header | Name, count, collapse arrow. Folders nest: Places/Town is a Town header inside Places, and each count includes the folders inside it. A search opens every folder |
 | Entry row | Strategy stripe, name, dot. Off entries are dimmed. A red "!" for a problem |
-| Greetings group | When a character is selected (an open single-character chat, or a no-chat editing pick), first in the list and closed until opened: each greeting as a row with its nickname (or "Greeting"/"Alt n"), opening words, a Rename action, an "!" when its text changed, and the usual dot to place or jump to its card. A greeting card appears only when its dot is used or a stored rule links it. Rename opens a compact input with Save and Clear; names are trimmed to 40 characters and stored in settings only. No greetings show in a group chat or with no character selected |
+| Greetings group | First in the list below search when a source exists or several linked characters can be chosen. Its compact header has separate controls: the folder chevron folds the rows, while the character name and dropdown chevron switch source. One available linked character is automatic and initially collapsed; several with none chosen show `Greetings · Choose character`, and a manual choice expands immediately. An open single-character chat supplies its character with no picker. No available source, or a group chat, omits the group. Expanded, it lists each greeting with nickname (or "Greeting"/"Alt n"), opening words, Rename, change warning and the usual placement dot. A selected character with none says `Alice has no greetings`; search keeps the header visible and says `No matching greetings` when appropriate. Collapsing hides rows but preserves placed cards. Rename uses Save and Clear; names are trimmed to 40 characters and stored in settings only |
 | Moments group | After the Greetings group: every Moment in the book (its name and phrases), placed with the dot like entries. The only list Moments are in |
 | Tap a row | Opens the entry in a tab |
 | Long press a row | Its menu: Open entry · Place on canvas (or Show on canvas) · Inspect |
@@ -704,7 +697,7 @@ its list for Rename, Duplicate or Delete; + New book stays at the top of the lis
 
 | Column | What it is |
 |--------|------------|
-| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Greetings (when a character is selected), Moments, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect · Delete (with Undo). Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
+| Left: entry list (250px, drag its edge: 200 to 420px) | The phone's entry panel, docked. Filter box, +, Greetings (when a source exists or several can be chosen), Moments, then folders, then "No folder". Each row: strategy stripe, name, a red ! for a problem, and the dot: filled = on the canvas (click jumps to it), hollow = not placed (click places it in the middle of the view, or drag the row onto the canvas). Click a row to inspect it, double-click to open the entry tab, right-click: Open entry · Place/Show on canvas · Inspect · Delete (with Undo). Footer: the book's links and "9 of 12 placed". Hidden and shown by the button at the canvas's top left |
 | Middle: canvas | The canvas, with the piece bar under it |
 | Right: inspector (320px, drag its edge: 260 to 560px) | Docked, always there; the ▯ button bottom right hides it |
 

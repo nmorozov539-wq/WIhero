@@ -22,7 +22,7 @@ import { strategyColor } from './entry-page.js';
  */
 export function createHeroShell(A) {
     const {
-        newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, greetBanner, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
+        newBookHere, importHere, H, S, barApi, barTap, barShaping, barShapeSet, bookPicker, chatGreetings, ctx, deskCanvas, deskColumns, deskSettings, entryFolder,
         heroBackDesk, heroInspector, heroPanel, hiddenIn, hide, hooks, inspect, inspectorFor, dropInspector, layer, library,
         loadingNote, lassoFor, listShown, main, modelOf, need, packSheet, renamePackAsk, panelState, placePicker, render, renderEntry, renderGuideTab,
         renderPreviewTab, renderTabs, revealActiveTab, root, saveSettings, settings, showOnCanvas, onCanvas, startExplain,
@@ -509,12 +509,6 @@ export function createHeroShell(A) {
         if (S.desk) deskColumns();
         const vp = heroMount?.vp;
         if (vp) {
-            // The greeting notice is a slim overlay under the canvas's top controls, not a layout row: it never moves
-            // the legend or the cards and only its own box takes pointer events.
-            main.querySelector(':scope > .greetban')?.remove();
-            vp.querySelector(':scope > .greetban')?.remove();
-            const ban = greetBanner(book, data);
-            if (ban) vp.append(ban);
             vp.querySelector(':scope > .checkchip')?.remove();
             vp.querySelector(':scope > .histbtns')?.remove();
             vp.append(...checksChip(book, data), historyButtons(book));
