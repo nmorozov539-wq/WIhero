@@ -24,7 +24,7 @@ This file holds only features that have been thought through. Optimization has i
 |---|---|---|---|
 | 1 | [Optimization](#21-optimization-work) | ✅ | none; shipped in 0.47.2 |
 | 2 | [Patch notes](#22-patch-notes) | ✅ | none; shipped in 0.47.2 |
-| 3 | [Greetings](#26-greetings) | 🔨 | none; built on the greetings branch, awaiting merge |
+| 3 | [Greetings](#26-greetings) | ✅ | none; shipped in 0.49.0 |
 | 4 | [Guide and explain mode](#23-guide-and-explain-mode) | ☐ | none |
 | 5 | [Say why an entry is inactive](#24-say-why-an-entry-is-inactive) (proposed) | 💭 | none; unlocks 12 |
 | 6 | [Animations](#25-animations) | ⏸ | A5 device evidence, Hero tap/zoom (plan §5.1) |
@@ -36,7 +36,7 @@ This file holds only features that have been thought through. Optimization has i
 | 12 | [Switches and the rotating pool](#212-switches-and-the-rotating-pool) | 💭 | 7, 4 |
 | 13 | [Gate menu](#213-gate-menu) | ☐ | none |
 
-The build order is the author's list, with inactive-entry explanations proposed. Items 1 to 13 are described in sections 2.1 to 2.13. Items 1 and 2 shipped in 0.47.2. Greetings are built on the greetings branch, awaiting merge; Guide and explain mode follows.
+The build order is the author's list, with inactive-entry explanations proposed. Items 1 to 13 are described in sections 2.1 to 2.13. Items 1 and 2 shipped in 0.47.2. Greetings shipped in 0.49.0; Guide and explain mode follows.
 
 ## 2. The features
 

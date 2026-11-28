@@ -5,6 +5,21 @@
 // manifest.json (test/changelog.test.js checks both). Group the lines by the place they affect.
 export const CHANGELOG = [
     {
+        version: '0.49.0',
+        date: '2026-11-28',
+        groups: [
+            {
+                title: 'Greetings in Hero',
+                items: [
+                    'Greetings can start their own scenarios again, with rules kept separate for each character.',
+                    'Choose a character in the Greetings drawer below search. A book linked to one available character selects them automatically; an open chat uses its own character.',
+                    'The character picker no longer covers the canvas. Choosing a character opens the folder, and collapsing it keeps your placed cards.',
+                    'Give greetings your own display names, preview their scenarios, and repair rules whose character or greeting is missing.',
+                ],
+            },
+        ],
+    },
+    {
         version: '0.47.2',
         date: '2026-11-27',
         groups: [

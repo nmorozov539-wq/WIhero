@@ -41,6 +41,8 @@ After it:
 | 0.47.1 | (main) | The Explain-mode proofreading pass: tooltips say what a control does and one uniform line carries the Explain caveat; the copy table (zoom, undo/redo, grip, glue hold, Moment, tracker, Tidy, legend, search, entry row and dot, book actions); the phone banner fits 320 px; a press anywhere but the armed control clears it; closed sheets leave no marks; the tracker value line explains; the entry panel dot is the canonical place/find affordance; Tidy gets its first tests (idempotence, overlaps, packs, undo, cycles) |
 | 0.47.2 | (main, 2026-11-27) | The optimization pass (PR #48, [PLAN.md](optimization-pass/PLAN.md)): engine hot paths, an indexed clash scan, one A–Z collator, the typing path, Hero per-draw work, Normal-mode retention and windowing, loader/memory/search, the lazy editor, reduced motion and hidden-page pause, teardown, and the repo-side animation checklist A5. Large books open and scroll without the freeze; device paint/compositor and ST-host evidence remain in the plan. Patch notes now live in ☰ → Patch notes ([src/changelog.js](../src/changelog.js)) |
 
+| 0.49.0 | #49 | Greetings restored with character-specific rules, display nicknames, preview starts and missing-rule repair. Hero selects greeting characters in the drawer below search, automatically uses a sole available linked character, and keeps the canvas free of the selection notice. |
+
 The V1 feature freeze is over; the order of new work is in
 [COOL_FEATURES.md](COOL_FEATURES.md).
 
