@@ -709,7 +709,8 @@ export function createLibrary({
     const fileOf = avatar => String(avatar ?? '').replace(/\.[^/.]+$/, '');
 
     // One links index per Home pass: book → links. Array identity catches characters, charLore and chatMetadata being
-    // swapped; in-place edits (unlink/linkChat, a rename, CHARACTER_EDITED/CHAT_CHANGED) clear it explicitly.
+    // swapped; their lengths catch ST refilling the same arrays in place (getCharacters on an import); in-place edits
+    // (unlink/linkChat, a rename, CHARACTER_EDITED/CHARACTER_PAGE_LOADED/CHAT_CHANGED) clear it explicitly.
     let linksIndex = null;
     let linksRefs = null;
     const noLinks = [];
@@ -743,9 +744,10 @@ export function createLibrary({
         const chars = ctx().characters ?? [];
         const lore = WI.world_info?.charLore ?? [];
         const meta = ctx().chatMetadata;
-        if (!linksIndex || linksRefs.chars !== chars || linksRefs.lore !== lore || linksRefs.meta !== meta) {
+        if (!linksIndex || linksRefs.chars !== chars || linksRefs.lore !== lore || linksRefs.meta !== meta
+            || linksRefs.charsLength !== chars.length || linksRefs.loreLength !== lore.length) {
             linksIndex = buildLinks(chars, lore, meta);
-            linksRefs = { chars, lore, meta };
+            linksRefs = { chars, lore, meta, charsLength: chars.length, loreLength: lore.length };
         }
         return linksIndex.get(name) ?? noLinks;
     }

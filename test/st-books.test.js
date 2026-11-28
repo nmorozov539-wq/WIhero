@@ -383,6 +383,16 @@ test('links: an in-place character edit is seen once the index is invalidated', 
     ]);
 });
 
+test('links: a character added by ST reloading the list in place is seen without an explicit invalidation', () => {
+    const { library, characters } = setupLinks();
+    assert.deepEqual(library.links('New'), []);
+    // ST's getCharacters refills the same array after an import: identity stays, the length grows.
+    characters.splice(0, characters.length,
+        { name: 'Eve', avatar: 'Eve.png', data: { extensions: { world: 'New' } } },
+        ...characters);
+    assert.deepEqual(library.links('New'), [{ kind: 'char', name: 'Eve', avatar: 'Eve.png' }]);
+});
+
 test('links: linkChat and unlink invalidate the index', async () => {
     const { library, charLore, chatMetadata } = setupLinks();
     library.links('Other');

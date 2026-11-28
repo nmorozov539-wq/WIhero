@@ -392,8 +392,9 @@ globalThis.jQuery?.('#world_editor_select').on('change', function () {
 
 on('WORLDINFO_UPDATED', library.onWorldInfoUpdated);
 // The character filter's choices are cached (data.js), and so is the book → links index (st-books.js): clear both
-// before refresh draws, not after it.
-for (const type of ['CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], () => { filterChoices.invalidate(); library.invalidateLinks(); });
+// before refresh draws, not after it. CHARACTER_PAGE_LOADED covers ST reloading the character list in place (an
+// import), which swaps no array and fires no CHARACTER_EDITED.
+for (const type of ['CHARACTER_EDITED', 'CHARACTER_PAGE_LOADED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], () => { filterChoices.invalidate(); library.invalidateLinks(); });
 for (const type of ['WORLDINFO_SETTINGS_UPDATED', 'CHARACTER_EDITED', 'CHAT_CHANGED']) if (eventTypes[type]) eventSource.on(eventTypes[type], refresh);
 
 globalThis.wihero = {
