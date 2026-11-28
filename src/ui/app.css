@@ -590,7 +590,7 @@ pre.data { margin: 0 16px 8px; padding: 12px; border-radius: 10px; background: v
 .gav { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; flex: none; background: var(--raised); border: 1px solid var(--line); color: var(--muted); font-weight: 700; font-size: var(--t-s); }
 .gav img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .opt.gopt { gap: 10px; }
-.sheet.pop.greetpick { width: 230px; }
+.sheet.pop.greetpick { width: 200px; }
 /* A slim notice under the canvas's top controls. It is an overlay, not a layout row: the legend and cards stay put. */
 .greetban { position: absolute; left: 10px; top: 62px; z-index: 7; display: flex; align-items: center; gap: 4px; box-sizing: border-box; max-width: calc(100% - 20px); padding: 3px 4px 3px 8px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--fg); font-size: var(--t-xs); line-height: 1.25; white-space: nowrap; pointer-events: auto; }
 .greetban .gbtext { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

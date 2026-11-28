@@ -220,6 +220,13 @@ await pban.waitFor({ timeout: 30000 });
 assert.match(await pban.textContent(), /1 linked char found\./);
 await phone.locator('#wihero-editor .greetban .gpick').click();
 await phone.locator('#wihero-editor .sheet.pop .gopt').first().waitFor({ timeout: 30000 });
+const pgeo = await phone.evaluate(() => {
+    const root = document.getElementById('wihero-editor').shadowRoot;
+    const p = root.querySelector('.greetban .gpick').getBoundingClientRect();
+    const m = root.querySelector('.sheet.pop').getBoundingClientRect();
+    return { pickRight: p.right, popLeft: m.left };
+});
+assert.ok(pgeo.popLeft >= pgeo.pickRight - 1, 'on a phone the dropdown still opens to the right of Pick');
 await phone.locator('#wihero-editor .sheet.pop .gopt:has-text("Seraphina")').click();
 await phone.waitForFunction(() => document.getElementById('wihero-editor').shadowRoot.querySelector('.greetban')?.textContent.includes('Greetings: Seraphina'), null, { timeout: 30000 });
 const rows = await phone.evaluate(() => {
